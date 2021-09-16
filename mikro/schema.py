@@ -92,6 +92,13 @@ class Representation(GraphQLModel, Array):
         create = CREATE_REPRESENTATION
         update = UPDATE_REPRESENTATION
 
+class Render(GraphQLModel):
+    representation: Optional[Representation]
+
+    class Meta:
+        identifier = "render"
+        ward = "mikro"
+
 
 
 Representation.update_forward_refs()

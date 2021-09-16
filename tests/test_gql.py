@@ -9,7 +9,7 @@ async def test_normal_query():
 
     query = await gql("""
                     query {
-            representations(variety: VOXEL, limit: 200, tags: ["scale-2"]){
+            representations{
                 name
                 thumbnail
                 store
