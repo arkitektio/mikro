@@ -3,7 +3,7 @@ from mikro.graphql.mutations.representation import CREATE_REPRESENTATION, UPDATE
 from mikro.graphql.queries.sample import GET_SAMPLE
 from mikro.graphql.mutations.sample import CREATE_SAMPLE
 from mikro.array import Array
-from mikro.manager import AsyncRepresentationManager
+from mikro.manager import AsyncRepresentationManager, SyncRepresentationManager
 from typing import Any, List, Optional
 from mikro.convenience import GraphQLModel
 import xarray as xr
@@ -84,6 +84,7 @@ class Representation(GraphQLModel, Array):
     thumbnail: Optional[str]
 
     asyncs = AsyncRepresentationManager()
+    objects = SyncRepresentationManager()
 
     class Meta:
         identifier = "representation"

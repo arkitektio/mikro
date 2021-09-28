@@ -1,7 +1,7 @@
 
 from herre.wards.query import TypedQuery
 from herre.access.object import GraphQLObject
-from herre.config.model import BaseConfig
+from herre.config.herre import BaseConfig
 from herre.auth import HerreClient, get_current_herre
 from herre.wards.graphql import ParsedQuery, GraphQLWard
 import aiohttp
@@ -9,10 +9,13 @@ import xarray as xr
 
 
 class MikroConfig(BaseConfig):
-    _group = "mikro"
     host: str
     port: int
     secure: bool
+
+    class Config:
+        yaml_group = "mikro"
+        env_prefix = "mikro_"
 
 
 class AccessParams(GraphQLObject):
