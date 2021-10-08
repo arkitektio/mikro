@@ -1,0 +1,31 @@
+Using version ^2.10.0 for zarr
+
+Updating dependencies
+Resolving dependencies...
+
+  SolverProblemError
+
+  The current project's Python requirement (>=3.6,<4.0) is not compatible with some of the required packages Python requirement:
+    - zarr requires Python >=3.7, <4, so it will not be satisfied for Python >=3.6,<3.7
+  
+  Because zarr (2.10.0) requires Python >=3.7, <4
+   and no versions of zarr match >2.10.0,<3.0.0, zarr is forbidden.
+  So, because mikro depends on zarr (^2.10.0), version solving failed.
+
+  at ~/.poetry/lib/poetry/puzzle/solver.py:241 in _solve
+      237│             packages = result.packages
+      238│         except OverrideNeeded as e:
+      239│             return self.solve_in_compatibility_mode(e.overrides, use_latest=use_latest)
+      240│         except SolveFailure as e:
+    → 241│             raise SolverProblemError(e)
+      242│ 
+      243│         results = dict(
+      244│             depth_first_search(
+      245│                 PackageNode(self._package, packages), aggregate_package_nodes
+
+  • Check your dependencies Python requirement: The Python requirement can be specified via the `python` or `markers` properties
+    
+    For zarr, a possible solution would be to set the `python` property to ">=3.7,<4.0"
+
+    https://python-poetry.org/docs/dependency-specification/#python-restricted-dependencies,
+    https://python-poetry.org/docs/dependency-specification/#using-environment-markers

@@ -1,18 +1,19 @@
 [tool.poetry]
 name = "mikro"
-version = "0.1.13"
+version = "0.1.24"
 description = "images for arnheim"
 authors = ["jhnnsrs <jhnnsrs@gmail.com>"]
 license = "CC BY-NC 3.0"
 packages = [{include = "mikro"}]
 
 [tool.poetry.dependencies]
-python = "^3.8"
-herre = "^0.1.2"
+python = "^3.7"
+herre="^0.1.22"
 docstring-parser = "^0.10"
 inflection = "^0.5.1"
+zarr = "2.8.3"
 xarray = "^0.19.0"
-s3fs = "^2021.8.1"
+s3fs = "^2021.9.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.5"

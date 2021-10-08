@@ -1,21 +1,25 @@
-
+from konfik import Config
+from herre.herre import Herre
 from herre.wards.query import TypedQuery
 from herre.access.object import GraphQLObject
-from herre.config.herre import BaseConfig
-from herre.auth import HerreClient, get_current_herre
+from herre import get_current_herre
 from herre.wards.graphql import ParsedQuery, GraphQLWard
 import aiohttp
 import xarray as xr
 
 
-class MikroConfig(BaseConfig):
+class MikroConfig(Config):
     host: str
     port: int
     secure: bool
 
     class Config:
-        yaml_group = "mikro"
+        group = "mikro"
         env_prefix = "mikro_"
+
+    @property
+    def endpoint(self):
+        return f"http://{self.host}:{self.port}/graphql"
 
 
 class AccessParams(GraphQLObject):
@@ -29,18 +33,14 @@ class Transcript(GraphQLObject):
 
 
 class MikroWard(GraphQLWard):
+    configClass = MikroConfig
 
     class Meta:
         key = "mikro"
 
-    def __init__(self, herre: HerreClient) -> None:
-        self.config = MikroConfig.from_file(herre.config_path)
-        self.transcript: Transcript = None
-        super().__init__(herre, f"http://{self.config.host}:{self.config.port}/graphql")
-
 
     async def negotiate(self):
-        transcript_query = await self.run(ParsedQuery("""mutation Negotiate {
+        transcript_query = await self.arun(ParsedQuery("""mutation Negotiate {
             negotiate 
         }"""))
         return Transcript(**transcript_query["negotiate"])
