@@ -1,4 +1,5 @@
-from konfik import Config
+
+from fakts import Fakts, get_current_fakts, Config
 from herre.herre import Herre
 from herre.wards.query import TypedQuery
 from herre.access.object import GraphQLObject
