@@ -1,11 +1,12 @@
 
+from mikro.graphql.mutations.experiment import CREATE_EXPERIMENT
 from mikro.graphql.mutations.representation import CREATE_REPRESENTATION, UPDATE_REPRESENTATION
 from mikro.graphql.queries.sample import GET_SAMPLE
 from mikro.graphql.mutations.sample import CREATE_SAMPLE
 from mikro.array import Array
 from mikro.manager import AsyncRepresentationManager, SyncRepresentationManager
 from typing import Any, List, Optional
-from mikro.convenience import GraphQLModel
+from herre.convenience import GraphQLModel
 import xarray as xr
 from typing import ForwardRef
 from enum import Enum
@@ -59,6 +60,7 @@ class Experiment(GraphQLModel):
         identifier = "experiment"
         ward = "mikro"
         get = GET_EXPERIMENT
+        create = CREATE_EXPERIMENT
         
 
 
