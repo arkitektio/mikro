@@ -1,4 +1,3 @@
-
 from fakts import Fakts, get_current_fakts, Config
 from herre.herre import Herre
 from herre.wards.query import TypedQuery
@@ -27,6 +26,7 @@ class AccessParams(GraphQLObject):
     access_key: str
     secret_key: str
 
+
 class Transcript(GraphQLObject):
     protocol: str
     path: str
@@ -39,20 +39,20 @@ class MikroWard(GraphQLWard):
     class Meta:
         key = "mikro"
 
-
     async def negotiate(self):
-        transcript_query = await self.arun(ParsedQuery("""mutation Negotiate {
+        transcript_query = await self.arun(
+            ParsedQuery(
+                """mutation Negotiate {
             negotiate 
-        }"""))
+        }"""
+            )
+        )
         return Transcript(**transcript_query["negotiate"])
 
 
-
-class playground():
-
+class playground:
     def __init__(self, width=900, height=700) -> None:
         herre = get_current_herre()
-        self.config = MikroConfig.from_file(herre.config_path)
         self.width = width
         self.height = height
 
@@ -60,9 +60,5 @@ class playground():
         return f"<iframe src='http://{self.config.host}:{self.config.port}/graphql' width={self.width} height={self.height}></iframe>"
 
 
-
 class gql(TypedQuery):
     ward_key = "mikro"
-    
-
-

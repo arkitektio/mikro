@@ -1,6 +1,8 @@
-
 from mikro.graphql.mutations.experiment import CREATE_EXPERIMENT
-from mikro.graphql.mutations.representation import CREATE_REPRESENTATION, UPDATE_REPRESENTATION
+from mikro.graphql.mutations.representation import (
+    CREATE_REPRESENTATION,
+    UPDATE_REPRESENTATION,
+)
 from mikro.graphql.queries.sample import GET_SAMPLE
 from mikro.graphql.mutations.sample import CREATE_SAMPLE
 from mikro.array import Array
@@ -13,6 +15,7 @@ from enum import Enum
 from mikro.ward import MikroWard
 from mikro.graphql.queries.experiment import GET_EXPERIMENT
 from mikro.graphql.queries.representation import GET_REPRESENTATION
+from mikro.widgets import MY_TOP_REPRESENTATIONS
 
 Representation = ForwardRef("Representation")
 Sample = ForwardRef("Sample")
@@ -34,19 +37,19 @@ class RepresentationMetric(GraphQLModel):
         ward = "mikro"
 
 
-
 class Sample(GraphQLModel):
     name: Optional[str]
     meta: Optional[dict]
     representations: Optional[List[Representation]]
     experiments: Optional[List[Experiment]]
     name: Optional[str]
-    
+
     class Meta:
         identifier = "sample"
         ward = "mikro"
         create = CREATE_SAMPLE
         get = GET_SAMPLE
+
 
 class Experiment(GraphQLModel):
     meta: Optional[dict]
@@ -61,17 +64,17 @@ class Experiment(GraphQLModel):
         ward = "mikro"
         get = GET_EXPERIMENT
         create = CREATE_EXPERIMENT
-        
 
 
 class Representation(GraphQLModel, Array):
     """Representation
-    
+
     A Representation is a Five Dimensional Array that lets you access data
 
     Args:
         GraphQLStructure ([type]): [description]
     """
+
     meta: Optional[dict]
     name: Optional[str]
     package: Optional[str]
@@ -94,6 +97,8 @@ class Representation(GraphQLModel, Array):
         get = GET_REPRESENTATION
         create = CREATE_REPRESENTATION
         update = UPDATE_REPRESENTATION
+        default_widget = MY_TOP_REPRESENTATIONS
+
 
 class Render(GraphQLModel):
     representation: Optional[Representation]
@@ -101,7 +106,6 @@ class Render(GraphQLModel):
     class Meta:
         identifier = "render"
         ward = "mikro"
-
 
 
 Representation.update_forward_refs()
