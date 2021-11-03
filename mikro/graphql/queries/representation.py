@@ -1,7 +1,8 @@
 from herre.wards.graphql import ParsedQuery
 
 
-FILTER_REPRESENTATION = ParsedQuery("""
+FILTER_REPRESENTATION = ParsedQuery(
+    """
 query Representation($name: String) {
   representations(name: $name) {
     id
@@ -19,9 +20,11 @@ query Representation($name: String) {
     meta
   }
 }
-""")
+"""
+)
 
-GET_REPRESENTATION = ParsedQuery("""
+GET_REPRESENTATION = ParsedQuery(
+    """
 query Representation($id: ID!){
   representation(id: $id){
     id
@@ -40,4 +43,5 @@ query Representation($id: ID!){
   
   }
 }
-""")
+"""
+)

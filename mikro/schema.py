@@ -1,3 +1,4 @@
+from herre.access.object import GraphQLObject
 from mikro.graphql.mutations.experiment import CREATE_EXPERIMENT
 from mikro.graphql.mutations.representation import (
     CREATE_REPRESENTATION,
@@ -66,6 +67,37 @@ class Experiment(GraphQLModel):
         create = CREATE_EXPERIMENT
 
 
+class Plane(GraphQLObject):
+    zIndex: Optional[int] = 0
+    yIndex: Optional[int] = 0
+    xIndex: Optional[int] = 0
+    cIndex: Optional[int] = 0
+    tIndex: Optional[int] = 0
+    exposureTime: Optional[float] = 0
+    deltaT: Optional[float] = 0
+
+
+class PhysicalSize(GraphQLObject):
+    x: Optional[float] = 1
+    y: Optional[float] = 1
+    z: Optional[float] = 1
+    t: Optional[float] = 1
+
+
+class Channel(GraphQLObject):
+    name: Optional[str] = "Test"
+    emmissionWavelength: Optional[float] = 0
+    excitationWavelength: Optional[float] = 0
+    acquisitionMode: Optional[str] = "Standard"
+    color: Optional[str] = "rgb(244,255,232)"
+
+
+class OmeroRepresentation(GraphQLObject):
+    physicalSize: Optional[PhysicalSize]
+    channels: Optional[List[Channel]]
+    planes: Optional[List[Plane]]
+
+
 class Representation(GraphQLModel, Array):
     """Representation
 
@@ -75,6 +107,7 @@ class Representation(GraphQLModel, Array):
         GraphQLStructure ([type]): [description]
     """
 
+    omero: Optional[OmeroRepresentation]
     meta: Optional[dict]
     name: Optional[str]
     package: Optional[str]
@@ -105,6 +138,17 @@ class Render(GraphQLModel):
 
     class Meta:
         identifier = "render"
+        ward = "mikro"
+
+
+class Table(GraphQLModel):
+    id: Optional[int]
+    name: Optional[str]
+    columns: Optional[List[str]]
+    query: Optional[List[List[Any]]]
+
+    class Meta:
+        identifier = "table"
         ward = "mikro"
 
 
