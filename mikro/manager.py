@@ -1,4 +1,3 @@
-
 from concurrent.futures.thread import ThreadPoolExecutor
 from herre.access.model.graphql import GraphQLSyncModelManager
 from herre.access.model import GraphQLAsyncModelManager
@@ -8,17 +7,16 @@ import xarray as xr
 
 
 class AsyncRepresentationManager(GraphQLAsyncModelManager):
-
     async def from_xarray(self, array: xr.DataArray, compute=True, **kwargs):
         instance = await self.create(**kwargs)
         executor = default_executor.get()
         if executor:
             co_future = executor.submit(instance.save_array, array, compute=True)
-            await asyncio.wrap_future(co_future) 
-        else:   
+            await asyncio.wrap_future(co_future)
+        else:
             with ThreadPoolExecutor(max_workers=4) as executor:
                 co_future = executor.submit(instance.save_array, array, compute=True)
-                await asyncio.wrap_future(co_future)    
+                await asyncio.wrap_future(co_future)
         instance = await self.update(id=instance.id, **kwargs)
         return instance
 
@@ -26,9 +24,7 @@ class AsyncRepresentationManager(GraphQLAsyncModelManager):
         return await self.from_query(self.modelClass.Meta.update, **kwargs)
 
 
-
 class SyncRepresentationManager(GraphQLSyncModelManager):
-
     def from_xarray(self, array: xr.DataArray, compute=True, **kwargs):
         instance = self.create(**kwargs)
         instance.save_array(array, compute=compute)

@@ -1,5 +1,6 @@
 from herre.access.object import GraphQLObject
 from mikro.graphql.mutations.experiment import CREATE_EXPERIMENT
+from mikro.graphql.mutations.metric import CREATE_METRIC
 from mikro.graphql.mutations.representation import (
     CREATE_REPRESENTATION,
     UPDATE_REPRESENTATION,
@@ -36,6 +37,7 @@ class RepresentationMetric(GraphQLModel):
     class Meta:
         identifier = "representationmetric"
         ward = "mikro"
+        create = CREATE_METRIC
 
 
 class Sample(GraphQLModel):
