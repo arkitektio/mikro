@@ -1,25 +1,38 @@
+from arkitekt.packers.structure import BoundType
 from herre.access.object import GraphQLObject
 from mikro.graphql.mutations.experiment import CREATE_EXPERIMENT
 from mikro.graphql.mutations.metric import CREATE_METRIC
+from mikro.graphql.mutations.omerofile import CREATE_OMERO_FILE
 from mikro.graphql.mutations.representation import (
     CREATE_REPRESENTATION,
     UPDATE_REPRESENTATION,
 )
+from mikro.graphql.mutations.table import CREATE_TABLE, UPDATE_TABLE
+from mikro.graphql.mutations.thumbnail import CREATE_THUMBNAIL
+from mikro.graphql.queries.omerofile import GET_OMEROFILE
 from mikro.graphql.queries.sample import GET_SAMPLE
 from mikro.graphql.mutations.sample import CREATE_SAMPLE
 from mikro.array import Array
-from mikro.manager import AsyncRepresentationManager, SyncRepresentationManager
+from mikro.graphql.queries.table import GET_TABLE
+from mikro.manager import (
+    AsyncRepresentationManager,
+    AsyncTableManager,
+    SyncRepresentationManager,
+    SyncTableManager,
+)
 from typing import Any, List, Optional
 from herre.convenience import GraphQLModel
 import xarray as xr
 from typing import ForwardRef
 from enum import Enum
+from mikro.parquet import Parquet
 from mikro.ward import MikroWard
 from mikro.graphql.queries.experiment import GET_EXPERIMENT
 from mikro.graphql.queries.representation import GET_REPRESENTATION
-from mikro.widgets import MY_TOP_REPRESENTATIONS
+from mikro.widgets import MY_TOP_REPRESENTATIONS, MY_TOP_SAMPLES
 
 Representation = ForwardRef("Representation")
+Table = ForwardRef("Table")
 Sample = ForwardRef("Sample")
 Experiment = ForwardRef("Experiment")
 
@@ -52,6 +65,7 @@ class Sample(GraphQLModel):
         ward = "mikro"
         create = CREATE_SAMPLE
         get = GET_SAMPLE
+        widget = MY_TOP_SAMPLES
 
 
 class Experiment(GraphQLModel):
@@ -100,6 +114,24 @@ class OmeroRepresentation(GraphQLObject):
     planes: Optional[List[Plane]]
 
 
+class OmeroFileType(str, Enum):
+    MSR = "MSR"
+    TIFF = "TIFF"
+    UNKNOWN = "UNKNOWN"
+
+
+class OmeroFile(GraphQLModel):
+    file: Optional[str]
+    name: Optional[str]
+    type: Optional[OmeroFileType]
+
+    class Meta:
+        identifier = "omerofile"
+        ward = "mikro"
+        create = CREATE_OMERO_FILE
+        get = GET_OMEROFILE
+
+
 class Representation(GraphQLModel, Array):
     """Representation
 
@@ -120,6 +152,7 @@ class Representation(GraphQLModel, Array):
     variety: Optional[RepresentationVariety]
     sample: Optional[Sample]
     tags: Optional[List[str]]
+    tables: Optional[List[Table]]
     metrics: Optional[List[RepresentationMetric]]
     thumbnail: Optional[str]
 
@@ -132,7 +165,7 @@ class Representation(GraphQLModel, Array):
         get = GET_REPRESENTATION
         create = CREATE_REPRESENTATION
         update = UPDATE_REPRESENTATION
-        default_widget = MY_TOP_REPRESENTATIONS
+        widget = MY_TOP_REPRESENTATIONS
 
 
 class Render(GraphQLModel):
@@ -143,17 +176,36 @@ class Render(GraphQLModel):
         ward = "mikro"
 
 
-class Table(GraphQLModel):
+class Thumbnail(GraphQLModel):
+    representation: Optional[Representation]
+    image: Optional[str]
+
+    class Meta:
+        identifier = "thumbnail"
+        ward = "mikro"
+        create = CREATE_THUMBNAIL
+
+
+class Table(GraphQLModel, Parquet):
     id: Optional[int]
     name: Optional[str]
+    store: Optional[str]
     columns: Optional[List[str]]
     query: Optional[List[List[Any]]]
+
+    asyncs = AsyncTableManager()
+    objects = SyncTableManager()
 
     class Meta:
         identifier = "table"
         ward = "mikro"
+        bound = BoundType.APP
+        create = CREATE_TABLE
+        update = UPDATE_TABLE
+        get = GET_TABLE
 
 
 Representation.update_forward_refs()
+Table.update_forward_refs()
 Sample.update_forward_refs()
 Experiment.update_forward_refs()

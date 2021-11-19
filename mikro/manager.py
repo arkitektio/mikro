@@ -4,6 +4,7 @@ from herre.access.model import GraphQLAsyncModelManager
 from herre.excecutors import default_executor
 import asyncio
 import xarray as xr
+import pandas as pd
 
 
 class AsyncRepresentationManager(GraphQLAsyncModelManager):
@@ -32,4 +33,20 @@ class SyncRepresentationManager(GraphQLSyncModelManager):
         return instance
 
     def update(self, **kwargs) -> "Representation":
+        return self.from_query(self.modelClass.Meta.update, **kwargs)
+
+
+class AsyncTableManager(GraphQLAsyncModelManager):
+    async def update(self, **kwargs) -> "Representation":
+        return await self.from_query(self.modelClass.Meta.update, **kwargs)
+
+
+class SyncTableManager(GraphQLSyncModelManager):
+    def from_df(self, df: pd.DataFrame, **kwargs) -> "Table":
+        instance = self.create(**kwargs)
+        instance.save_df(df)
+        instance = self.update(id=instance.id, **kwargs)
+        return instance
+
+    def update(self, **kwargs) -> "Table":
         return self.from_query(self.modelClass.Meta.update, **kwargs)
