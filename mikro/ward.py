@@ -1,3 +1,4 @@
+from pydantic.main import BaseModel
 from fakts import Fakts, get_current_fakts, Config
 from herre.herre import Herre
 from herre.wards.query import TypedQuery
@@ -8,10 +9,17 @@ import aiohttp
 import xarray as xr
 
 
+class S3Config(BaseModel):
+    host: str
+    port: int
+    secure: bool
+
+
 class MikroConfig(Config):
     host: str
     port: int
     secure: bool
+    s3: S3Config
 
     class Config:
         group = "mikro"
@@ -35,6 +43,7 @@ class Transcript(GraphQLObject):
 
 class MikroWard(GraphQLWard):
     configClass = MikroConfig
+    config: MikroConfig
 
     class Meta:
         key = "mikro"

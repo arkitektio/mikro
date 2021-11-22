@@ -43,12 +43,12 @@ class RepresentationVariety(str, Enum):
     UNKNOWN = "UNKNOWN"
 
 
-class RepresentationMetric(GraphQLModel):
+class Metric(GraphQLModel):
     key: Optional[str]
     value: Optional[Any]
 
     class Meta:
-        identifier = "representationmetric"
+        identifier = "metric"
         ward = "mikro"
         create = CREATE_METRIC
 
@@ -153,7 +153,7 @@ class Representation(GraphQLModel, Array):
     sample: Optional[Sample]
     tags: Optional[List[str]]
     tables: Optional[List[Table]]
-    metrics: Optional[List[RepresentationMetric]]
+    metrics: Optional[List[Metric]]
     thumbnail: Optional[str]
 
     asyncs = AsyncRepresentationManager()

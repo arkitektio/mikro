@@ -12,7 +12,8 @@ class Parquet:
     def _getFileSystem(self):
         ward: MikroWard = get_ward_registry().get_ward_instance("mikro")
         transcript = ward.transcript
-        endpoint_url = "http://" + transcript.path
+        protocol = "https" if ward.config.s3.secure else "http"
+        endpoint_url = f"{protocol}://{ward.config.s3.host}:{ward.config.s3.port}"
 
         os.environ["AWS_ACCESS_KEY_ID"] = transcript.params.access_key
         os.environ["AWS_SECRET_ACCESS_KEY"] = transcript.params.secret_key
