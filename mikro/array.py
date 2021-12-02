@@ -27,10 +27,17 @@ class Array:
         ), "Please query 'store' in your request on 'Representation'. Data is not accessible otherwise"
         return xr.open_zarr(store=self._getZarrStore(), consolidated=True)["data"]
 
-    def save_array(self, array: xr.DataArray, compute=True):
+    def save_array(self, array: xr.DataArray, compute=True, chunks=None):
         apiversion = "0.1"
         fileversion = "0.1"
 
+        chunks = chunks or {
+            "t": 1,
+            "x": array.sizes["x"],
+            "y": array.sizes["y"],
+            "z": 1,
+        }
+        array = array.chunk(chunks)
         if apiversion == "0.1":
             dataset = array.to_dataset(name="data")
             dataset.attrs["apiversion"] = apiversion
