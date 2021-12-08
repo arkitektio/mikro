@@ -155,6 +155,8 @@ class Representation(GraphQLModel, Array):
     tables: Optional[List[Table]]
     metrics: Optional[List[Metric]]
     thumbnail: Optional[str]
+    origin: Optional[Representation]
+    derived: Optional[List[Representation]]
 
     asyncs = AsyncRepresentationManager()
     objects = SyncRepresentationManager()

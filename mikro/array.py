@@ -6,6 +6,10 @@ import s3fs
 import xarray as xr
 
 
+class RepresentationException(Exception):
+    pass
+
+
 class Array:
     def _getZarrStore(self):
         ward: MikroWard = get_ward_registry().get_ward_instance("mikro")
@@ -31,13 +35,33 @@ class Array:
         apiversion = "0.1"
         fileversion = "0.1"
 
+        if "x" not in array.dims:
+            raise RepresentationException(
+                "Representations must always have a 'x' Dimension"
+            )
+
+        if "y" not in array.dims:
+            raise RepresentationException(
+                "Representations must always have a 'y' Dimension"
+            )
+
+        if "t" not in array.dims:
+            array = array.expand_dims("t")
+        if "c" not in array.dims:
+            array = array.expand_dims("c")
+        if "z" not in array.dims:
+            array = array.expand_dims("z")
+
         chunks = chunks or {
             "t": 1,
             "x": array.sizes["x"],
             "y": array.sizes["y"],
             "z": 1,
         }
-        array = array.chunk(chunks)
+
+        array = array.chunk(
+            {key: chunksize for key, chunksize in chunks.items() if key in array.dims}
+        )
         if apiversion == "0.1":
             dataset = array.to_dataset(name="data")
             dataset.attrs["apiversion"] = apiversion
