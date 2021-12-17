@@ -1,4 +1,6 @@
+import os
 from pydantic.main import BaseModel
+from s3fs.core import S3FileSystem
 from fakts import Fakts, get_current_fakts, Config
 from herre.herre import Herre
 from herre.wards.query import TypedQuery
@@ -48,6 +50,10 @@ class MikroWard(GraphQLWard):
     class Meta:
         key = "mikro"
 
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, *kwargs)
+        self._s3fs = None
+
     async def negotiate(self):
         transcript_query = await self.arun(
             ParsedQuery(
@@ -57,6 +63,19 @@ class MikroWard(GraphQLWard):
             )
         )
         return Transcript(**transcript_query["negotiate"])
+
+    @property
+    def s3fs(self):
+        if not self._s3fs:
+            transcript = self.transcript
+            protocol = "https" if self.config.s3.secure else "http"
+            endpoint_url = f"{protocol}://{self.config.s3.host}:{self.config.s3.port}"
+
+            os.environ["AWS_ACCESS_KEY_ID"] = transcript.params.access_key
+            os.environ["AWS_SECRET_ACCESS_KEY"] = transcript.params.secret_key
+
+            self._s3fs = S3FileSystem(client_kwargs={"endpoint_url": endpoint_url})
+        return self._s3fs
 
 
 class playground:

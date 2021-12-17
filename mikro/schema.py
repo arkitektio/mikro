@@ -1,3 +1,4 @@
+from pydantic.fields import PrivateAttr
 from arkitekt.packers.structure import BoundType
 from herre.access.object import GraphQLObject
 from mikro.graphql.mutations.experiment import CREATE_EXPERIMENT
@@ -112,6 +113,7 @@ class OmeroRepresentation(GraphQLObject):
     physicalSize: Optional[PhysicalSize]
     channels: Optional[List[Channel]]
     planes: Optional[List[Plane]]
+    scale: Optional[List[float]]
 
 
 class OmeroFileType(str, Enum):
@@ -155,7 +157,7 @@ class Representation(GraphQLModel, Array):
     tables: Optional[List[Table]]
     metrics: Optional[List[Metric]]
     thumbnail: Optional[str]
-    origin: Optional[Representation]
+    origins: Optional[List[Representation]]
     derived: Optional[List[Representation]]
 
     asyncs = AsyncRepresentationManager()

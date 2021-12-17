@@ -40,7 +40,6 @@ query Representation($id: ID!){
     sample {
       id
     }
-  
   }
 }
 """

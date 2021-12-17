@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "mikro"
-version = "0.1.65"
+version = "0.1.72"
 description = "images for arnheim"
 authors = ["jhnnsrs <jhnnsrs@gmail.com>"]
 license = "CC BY-NC 3.0"
@@ -8,7 +8,7 @@ packages = [{include = "mikro"}]
 
 [tool.poetry.dependencies]
 python = "^3.8"
-herre="^0.1.58"
+herre="^0.1.59"
 docstring-parser = "^0.10"
 inflection = "^0.5.1"
 zarr = "2.8.3"
@@ -21,8 +21,16 @@ dask = "2021.11.2"
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.5"
 pytest-aiohttp = "^0.3.0"
-tox = "^3.24.3"
+pytest-cov = "^3.0.0"
+black = "^21.12b0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[[tool.pydoc-markdown.loaders]]
+type = "python"
+search_path = [ "mikro" ]
+
+[tool.pydoc-markdown.renderer]
+type = "docusaurus"

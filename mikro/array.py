@@ -1,4 +1,8 @@
+from functools import cached_property
+from pydantic.fields import PrivateAttr
+from pydantic.main import BaseModel
 from fakts import config
+from herre.convenience import GraphQLModel
 from mikro.ward import MikroWard
 from herre.wards.registry import get_ward_registry
 import os
@@ -13,16 +17,8 @@ class RepresentationException(Exception):
 class Array:
     def _getZarrStore(self):
         ward: MikroWard = get_ward_registry().get_ward_instance("mikro")
-        transcript = ward.transcript
-        protocol = "https" if ward.config.s3.secure else "http"
-        endpoint_url = f"{protocol}://{ward.config.s3.host}:{ward.config.s3.port}"
-
-        os.environ["AWS_ACCESS_KEY_ID"] = transcript.params.access_key
-        os.environ["AWS_SECRET_ACCESS_KEY"] = transcript.params.secret_key
-
         s3_path = f"zarr/{self.store}"
-        store = s3fs.S3FileSystem(client_kwargs={"endpoint_url": endpoint_url})
-        return store.get_mapper(s3_path)
+        return ward.s3fs.get_mapper(s3_path)
 
     @property
     def data(self) -> xr.DataArray:

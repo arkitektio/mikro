@@ -8,7 +8,13 @@ REP_FRAGMENT = """
   store
   unique
   meta
-  origin {
+  omero {
+    scale
+    channels {
+      name
+    }
+  }
+  origins {
     id
     name
   }
@@ -17,8 +23,8 @@ REP_FRAGMENT = """
 
 CREATE_REPRESENTATION = ParsedQuery(
     """
-mutation Representation($sample: ID, $name: String, $tags: [String], $variety: RepresentationVarietyInput, $creator: String, $meta: GenericScalar, $omero: OmeroRepresentationInput, $origin: ID){
-  createRepresentation(sample: $sample, name: $name, tags: $tags, variety: $variety, creator: $creator, meta: $meta, omero: $omero, origin: $origin){
+mutation Representation($sample: ID, $name: String, $tags: [String], $variety: RepresentationVarietyInput, $creator: String, $meta: GenericScalar, $omero: OmeroRepresentationInput, $origins: [ID]){
+  createRepresentation(sample: $sample, name: $name, tags: $tags, variety: $variety, creator: $creator, meta: $meta, omero: $omero, origins: $origins){
     """
     + REP_FRAGMENT
     + """
