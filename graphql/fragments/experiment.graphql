@@ -1,0 +1,8 @@
+fragment Experiment on Experiment {
+  id
+  name
+  creator {
+    email
+  }
+  meta
+}

@@ -1,0 +1,36 @@
+mutation from_xarray(
+  $xarray: XArray!
+  $name: String
+  $origins: [ID]
+  $tags: [String]
+  $sample: ID
+) {
+  fromXArray(
+    xarray: $xarray
+    name: $name
+    origins: $origins
+    tags: $tags
+    sample: $sample
+  ) {
+    id
+    store
+    sample {
+      experiments {
+        name
+      }
+    }
+    origins {
+      id
+      name
+    }
+    tags
+    omero {
+      planes {
+        exposureTime
+        zIndex
+        yIndex
+        tIndex
+      }
+    }
+  }
+}

@@ -1,5 +1,4 @@
 from pydantic.fields import PrivateAttr
-from arkitekt.packers.structure import BoundType
 from herre.access.object import GraphQLObject
 from mikro.graphql.mutations.experiment import CREATE_EXPERIMENT
 from mikro.graphql.mutations.metric import CREATE_METRIC

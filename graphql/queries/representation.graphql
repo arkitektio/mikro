@@ -1,0 +1,11 @@
+query expand_representation($id: ID!) {
+  representation(id: $id) {
+    ...Representation
+  }
+}
+
+query get_random_rep {
+  randomRepresentation {
+    ...Representation
+  }
+}

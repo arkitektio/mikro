@@ -1,0 +1,5 @@
+query Table($id: ID!) {
+  table(id: $id) {
+    ...Table
+  }
+}

@@ -1,0 +1,17 @@
+fragment Representation on Representation {
+  origins {
+    sample {
+      id
+    }
+  }
+  type
+  id
+  derived {
+    sample {
+      tables {
+        id
+      }
+    }
+  }
+  store
+}

@@ -1,0 +1,8 @@
+mutation upload_bioimage($file: Upload!) {
+  uploadOmeroFile(file: $file) {
+    id
+    file
+    type
+    name
+  }
+}

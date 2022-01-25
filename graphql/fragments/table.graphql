@@ -1,0 +1,18 @@
+fragment Table on Table {
+  id
+  name
+  tags
+  store
+  creator {
+    email
+  }
+  sample {
+    id
+  }
+  representation {
+    id
+  }
+  experiment {
+    id
+  }
+}

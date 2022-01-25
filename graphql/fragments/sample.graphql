@@ -1,0 +1,11 @@
+fragment Sample on Sample {
+  name
+  id
+  representations {
+    id
+  }
+  meta
+  experiments {
+    id
+  }
+}

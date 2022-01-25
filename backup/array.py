@@ -1,7 +1,13 @@
+from functools import cached_property
+from pydantic.fields import PrivateAttr
+from pydantic.main import BaseModel
+from fakts import config
+from herre.convenience import GraphQLModel
+from mikro.ward import MikroWard
 from herre.wards.registry import get_ward_registry
+import os
+import s3fs
 import xarray as xr
-
-from mikro.scalars import Store
 
 
 class RepresentationException(Exception):
@@ -9,10 +15,8 @@ class RepresentationException(Exception):
 
 
 class Array:
-    store: Store
-
     def _getZarrStore(self):
-        ward = get_ward_registry().get_ward_instance("mikro")
+        ward: MikroWard = get_ward_registry().get_ward_instance("mikro")
         s3_path = f"{self.store}"
         return ward.s3fs.get_mapper(s3_path)
 
@@ -21,7 +25,7 @@ class Array:
         assert (
             self.store is not None
         ), "Please query 'store' in your request on 'Representation'. Data is not accessible otherwise"
-        return self.store.store
+        return xr.open_zarr(store=self._getZarrStore(), consolidated=True)["data"]
 
     def save_array(self, array: xr.DataArray, compute=True, chunks=None):
         apiversion = "0.1"

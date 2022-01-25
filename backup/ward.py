@@ -9,7 +9,7 @@ from herre import get_current_herre
 from herre.wards.graphql import ParsedQuery, GraphQLWard
 import aiohttp
 import xarray as xr
-from mikro.api.schema import anegotiate
+
 from mikro.funcs import shrink_xarray
 
 
@@ -59,8 +59,12 @@ class MikroWard(GraphQLWard):
         self._s3fs = None
 
     async def negotiate(self):
-        transcript_query = await anegotiate()
-        return Transcript(**transcript_query)
+        transcript_query = await self.arun(
+            """mutation Negotiate {
+            negotiate 
+        }"""
+        )
+        return Transcript(**transcript_query["negotiate"])
 
     @property
     def s3fs(self):

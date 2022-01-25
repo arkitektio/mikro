@@ -1,0 +1,5 @@
+query get_experiment($id: ID!) {
+  experiment(id: $id) {
+    ...Experiment
+  }
+}
