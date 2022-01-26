@@ -1,17 +1,10 @@
 fragment Representation on Representation {
-  origins {
-    sample {
-      id
-    }
+  sample {
+    name
   }
   type
   id
-  derived {
-    sample {
-      tables {
-        id
-      }
-    }
-  }
   store
+  variety
+  name
 }

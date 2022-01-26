@@ -1,0 +1,5 @@
+mutation create_thumbnail($rep: ID!, $file: ImageFile!) {
+  uploadThumbnail(rep: $rep, file: $file) {
+    ...Thumbnail
+  }
+}

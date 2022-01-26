@@ -4,8 +4,15 @@ query get_sample($id: ID!) {
   }
 }
 
-query filter_sample($creator: ID) {
-  samples(creator: $creator) {
+query search_sample($search: String) {
+  samples(name: $search, limit: 20) {
+    value: id
+    label: name
+  }
+}
+
+query expand_sample($id: ID!) {
+  sample(id: $id) {
     ...Sample
   }
 }

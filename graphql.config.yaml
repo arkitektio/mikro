@@ -16,9 +16,21 @@ projects:
         scalar_definitions:
           XArray: mikro.scalars.XArray
           File: mikro.scalars.File
+          ImageFile: mikro.scalars.File
           Upload: mikro.scalars.Upload
           DataFrame: mikro.scalars.DataFrame
           Store: mikro.scalars.Store
         additional_bases:
           Representation:
             - mikro.array.Array
+            - mikro.structure.Representation
+          Sample:
+            - mikro.structure.Sample
+          Table:
+            - mikro.structure.Table
+          OmeroFile:
+            - mikro.structure.OmeroFile
+          Thumbnail:
+            - mikro.structure.Thumbnail
+          Experiment:
+            - mikro.structure.Experiment

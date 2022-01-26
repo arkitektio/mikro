@@ -1,0 +1,5 @@
+fragment OmeroFile on OmeroFile {
+  id
+  name
+  file
+}

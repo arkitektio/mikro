@@ -1,0 +1,11 @@
+query Thumbnail($id: ID!) {
+  thumbnail(id: $id) {
+    ...Thumbnail
+  }
+}
+
+query expand_thumbnail($id: ID!) {
+  thumbnail(id: $id) {
+    ...Thumbnail
+  }
+}

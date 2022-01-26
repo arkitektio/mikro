@@ -1,5 +1,12 @@
+from mikro.structure import Experiment
 from mikro.array import Array
+from mikro.structure import Representation
+from mikro.structure import OmeroFile
+from mikro.structure import Sample
+from mikro.structure import Thumbnail
+from mikro.structure import Table
 from mikro.scalars import XArray
+from mikro.scalars import File
 from mikro.scalars import File
 from mikro.scalars import Upload
 from mikro.scalars import DataFrame
@@ -90,62 +97,37 @@ class PhysicalSizeInput(GraphQLInputObject):
     c: Optional[int]
 
 
-class RepresentationFragmentOriginsSample(GraphQLObject):
+OmeroRepresentationInput.update_forward_refs()
+
+
+class RepresentationFragmentSample(Sample, GraphQLObject):
     """Samples are storage containers for representations. A Sample is to be understood analogous to a Biological Sample. It existed in Time (the time of acquisiton and experimental procedure),
     was measured in space (x,y,z) and in different modalities (c). Sample therefore provide a datacontainer where each Representation of
     the data shares the same dimensions. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample
     """
 
     typename: Optional[Literal["Sample"]] = Field(alias="__typename")
-    id: str
+    name: str
 
 
-class RepresentationFragmentOrigins(Array, GraphQLObject):
-    """A Representation is a multi-dimensional Array that can do what ever it wants
-
-
-    @elements/rep:latest"""
-
+class RepresentationFragment(Array, Representation, GraphQLObject):
     typename: Optional[Literal["Representation"]] = Field(alias="__typename")
-    sample: Optional[RepresentationFragmentOriginsSample]
+    sample: Optional[RepresentationFragmentSample]
     "The Sample this representation belongs to"
-
-
-class RepresentationFragmentDerivedSampleTables(GraphQLObject):
-    typename: Optional[Literal["Table"]] = Field(alias="__typename")
-    id: str
-
-
-class RepresentationFragmentDerivedSample(GraphQLObject):
-    """Samples are storage containers for representations. A Sample is to be understood analogous to a Biological Sample. It existed in Time (the time of acquisiton and experimental procedure),
-    was measured in space (x,y,z) and in different modalities (c). Sample therefore provide a datacontainer where each Representation of
-    the data shares the same dimensions. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample
-    """
-
-    typename: Optional[Literal["Sample"]] = Field(alias="__typename")
-    tables: List[RepresentationFragmentDerivedSampleTables]
-
-
-class RepresentationFragmentDerived(Array, GraphQLObject):
-    """A Representation is a multi-dimensional Array that can do what ever it wants
-
-
-    @elements/rep:latest"""
-
-    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
-    sample: Optional[RepresentationFragmentDerivedSample]
-    "The Sample this representation belongs to"
-
-
-class RepresentationFragment(Array, GraphQLObject):
-    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
-    origins: List[RepresentationFragmentOrigins]
     type: Optional[str]
     "The Representation can have varying types, consult your API"
     id: str
-    derived: Optional[List[Optional[RepresentationFragmentDerived]]]
-    "Derived Images from this Image"
     store: Optional[Store]
+    variety: RepresentationVariety
+    "The Representation can have varying types, consult your API"
+    name: Optional[str]
+    "Cleartext name"
+
+
+class ThumbnailFragment(Thumbnail, GraphQLObject):
+    typename: Optional[Literal["Thumbnail"]] = Field(alias="__typename")
+    id: str
+    image: Optional[str]
 
 
 class TableFragmentCreator(GraphQLObject):
@@ -155,7 +137,7 @@ class TableFragmentCreator(GraphQLObject):
     email: str
 
 
-class TableFragmentSample(GraphQLObject):
+class TableFragmentSample(Sample, GraphQLObject):
     """Samples are storage containers for representations. A Sample is to be understood analogous to a Biological Sample. It existed in Time (the time of acquisiton and experimental procedure),
     was measured in space (x,y,z) and in different modalities (c). Sample therefore provide a datacontainer where each Representation of
     the data shares the same dimensions. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample
@@ -165,7 +147,7 @@ class TableFragmentSample(GraphQLObject):
     id: str
 
 
-class TableFragmentRepresentation(Array, GraphQLObject):
+class TableFragmentRepresentation(Array, Representation, GraphQLObject):
     """A Representation is a multi-dimensional Array that can do what ever it wants
 
 
@@ -175,14 +157,14 @@ class TableFragmentRepresentation(Array, GraphQLObject):
     id: str
 
 
-class TableFragmentExperiment(GraphQLObject):
+class TableFragmentExperiment(Experiment, GraphQLObject):
     """A Representation is a multi-dimensional Array that can do what ever it wants @elements/experiment"""
 
     typename: Optional[Literal["Experiment"]] = Field(alias="__typename")
     id: str
 
 
-class TableFragment(GraphQLObject):
+class TableFragment(Table, GraphQLObject):
     typename: Optional[Literal["Table"]] = Field(alias="__typename")
     id: str
     name: str
@@ -196,7 +178,7 @@ class TableFragment(GraphQLObject):
     experiment: Optional[TableFragmentExperiment]
 
 
-class SampleFragmentRepresentations(Array, GraphQLObject):
+class SampleFragmentRepresentations(Array, Representation, GraphQLObject):
     """A Representation is a multi-dimensional Array that can do what ever it wants
 
 
@@ -206,20 +188,27 @@ class SampleFragmentRepresentations(Array, GraphQLObject):
     id: str
 
 
-class SampleFragmentExperiments(GraphQLObject):
+class SampleFragmentExperiments(Experiment, GraphQLObject):
     """A Representation is a multi-dimensional Array that can do what ever it wants @elements/experiment"""
 
     typename: Optional[Literal["Experiment"]] = Field(alias="__typename")
     id: str
 
 
-class SampleFragment(GraphQLObject):
+class SampleFragment(Sample, GraphQLObject):
     typename: Optional[Literal["Sample"]] = Field(alias="__typename")
     name: str
     id: str
     representations: Optional[List[Optional[SampleFragmentRepresentations]]]
     meta: Optional[Dict]
     experiments: List[SampleFragmentExperiments]
+
+
+class OmeroFileFragment(OmeroFile, GraphQLObject):
+    typename: Optional[Literal["OmeroFile"]] = Field(alias="__typename")
+    id: str
+    name: str
+    file: Optional[File]
 
 
 class ExperimentFragmentCreator(GraphQLObject):
@@ -229,7 +218,7 @@ class ExperimentFragmentCreator(GraphQLObject):
     email: str
 
 
-class ExperimentFragment(GraphQLObject):
+class ExperimentFragment(Experiment, GraphQLObject):
     typename: Optional[Literal["Experiment"]] = Field(alias="__typename")
     id: str
     name: str
@@ -237,12 +226,62 @@ class ExperimentFragment(GraphQLObject):
     meta: Optional[Dict]
 
 
+class Get_omero_fileQuery(GraphQLQuery):
+    omerofile: Optional[OmeroFileFragment]
+
+    class Meta:
+        domain = "mikro"
+        document = "fragment OmeroFile on OmeroFile {\n  id\n  name\n  file\n}\n\nquery get_omero_file($id: ID!) {\n  omerofile(id: $id) {\n    ...OmeroFile\n  }\n}"
+
+
+class Expand_omerofileQuery(GraphQLQuery):
+    omerofile: Optional[OmeroFileFragment]
+
+    class Meta:
+        domain = "mikro"
+        document = "fragment OmeroFile on OmeroFile {\n  id\n  name\n  file\n}\n\nquery expand_omerofile($id: ID!) {\n  omerofile(id: $id) {\n    ...OmeroFile\n  }\n}"
+
+
+class Search_omerofileQueryOmerofiles(OmeroFile, GraphQLObject):
+    typename: Optional[Literal["OmeroFile"]] = Field(alias="__typename")
+    id: str
+    label: str
+
+
+class Search_omerofileQuery(GraphQLQuery):
+    omerofiles: Optional[List[Optional[Search_omerofileQueryOmerofiles]]]
+
+    class Meta:
+        domain = "mikro"
+        document = "query search_omerofile($search: String!) {\n  omerofiles(name: $search) {\n    id: id\n    label: name\n  }\n}"
+
+
 class Expand_representationQuery(GraphQLQuery):
     representation: Optional[RepresentationFragment]
 
     class Meta:
         domain = "mikro"
-        document = "fragment Representation on Representation {\n  origins {\n    sample {\n      id\n    }\n  }\n  type\n  id\n  derived {\n    sample {\n      tables {\n        id\n      }\n    }\n  }\n  store\n}\n\nquery expand_representation($id: ID!) {\n  representation(id: $id) {\n    ...Representation\n  }\n}"
+        document = "fragment Representation on Representation {\n  sample {\n    name\n  }\n  type\n  id\n  store\n  variety\n  name\n}\n\nquery expand_representation($id: ID!) {\n  representation(id: $id) {\n    ...Representation\n  }\n}"
+
+
+class Search_representationQueryRepresentations(Array, Representation, GraphQLObject):
+    """A Representation is a multi-dimensional Array that can do what ever it wants
+
+
+    @elements/rep:latest"""
+
+    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
+    value: str
+    label: Optional[str]
+    "Cleartext name"
+
+
+class Search_representationQuery(GraphQLQuery):
+    representations: Optional[List[Optional[Search_representationQueryRepresentations]]]
+
+    class Meta:
+        domain = "mikro"
+        document = "query search_representation($search: String) {\n  representations(name: $search, limit: 20) {\n    value: id\n    label: name\n  }\n}"
 
 
 class Get_random_repQuery(GraphQLQuery):
@@ -250,7 +289,23 @@ class Get_random_repQuery(GraphQLQuery):
 
     class Meta:
         domain = "mikro"
-        document = "fragment Representation on Representation {\n  origins {\n    sample {\n      id\n    }\n  }\n  type\n  id\n  derived {\n    sample {\n      tables {\n        id\n      }\n    }\n  }\n  store\n}\n\nquery get_random_rep {\n  randomRepresentation {\n    ...Representation\n  }\n}"
+        document = "fragment Representation on Representation {\n  sample {\n    name\n  }\n  type\n  id\n  store\n  variety\n  name\n}\n\nquery get_random_rep {\n  randomRepresentation {\n    ...Representation\n  }\n}"
+
+
+class ThumbnailQuery(GraphQLQuery):
+    thumbnail: Optional[ThumbnailFragment]
+
+    class Meta:
+        domain = "mikro"
+        document = "fragment Thumbnail on Thumbnail {\n  id\n  image\n}\n\nquery Thumbnail($id: ID!) {\n  thumbnail(id: $id) {\n    ...Thumbnail\n  }\n}"
+
+
+class Expand_thumbnailQuery(GraphQLQuery):
+    thumbnail: Optional[ThumbnailFragment]
+
+    class Meta:
+        domain = "mikro"
+        document = "fragment Thumbnail on Thumbnail {\n  id\n  image\n}\n\nquery expand_thumbnail($id: ID!) {\n  thumbnail(id: $id) {\n    ...Thumbnail\n  }\n}"
 
 
 class TableQuery(GraphQLQuery):
@@ -261,6 +316,30 @@ class TableQuery(GraphQLQuery):
         document = "fragment Table on Table {\n  id\n  name\n  tags\n  store\n  creator {\n    email\n  }\n  sample {\n    id\n  }\n  representation {\n    id\n  }\n  experiment {\n    id\n  }\n}\n\nquery Table($id: ID!) {\n  table(id: $id) {\n    ...Table\n  }\n}"
 
 
+class Expand_tableQuery(GraphQLQuery):
+    table: Optional[TableFragment]
+
+    class Meta:
+        domain = "mikro"
+        document = "fragment Table on Table {\n  id\n  name\n  tags\n  store\n  creator {\n    email\n  }\n  sample {\n    id\n  }\n  representation {\n    id\n  }\n  experiment {\n    id\n  }\n}\n\nquery expand_table($id: ID!) {\n  table(id: $id) {\n    ...Table\n  }\n}"
+
+
+class Search_tablesQueryTables(Table, GraphQLObject):
+    typename: Optional[Literal["Table"]] = Field(alias="__typename")
+    id: str
+    label: str
+
+
+class Search_tablesQuery(GraphQLQuery):
+    tables: Optional[List[Optional[Search_tablesQueryTables]]]
+
+    class Meta:
+        domain = "mikro"
+        document = (
+            "query search_tables {\n  tables {\n    id: id\n    label: name\n  }\n}"
+        )
+
+
 class Get_sampleQuery(GraphQLQuery):
     sample: Optional[SampleFragment]
 
@@ -269,12 +348,31 @@ class Get_sampleQuery(GraphQLQuery):
         document = "fragment Sample on Sample {\n  name\n  id\n  representations {\n    id\n  }\n  meta\n  experiments {\n    id\n  }\n}\n\nquery get_sample($id: ID!) {\n  sample(id: $id) {\n    ...Sample\n  }\n}"
 
 
-class Filter_sampleQuery(GraphQLQuery):
-    samples: Optional[List[Optional[SampleFragment]]]
+class Search_sampleQuerySamples(Sample, GraphQLObject):
+    """Samples are storage containers for representations. A Sample is to be understood analogous to a Biological Sample. It existed in Time (the time of acquisiton and experimental procedure),
+    was measured in space (x,y,z) and in different modalities (c). Sample therefore provide a datacontainer where each Representation of
+    the data shares the same dimensions. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample
+    """
+
+    typename: Optional[Literal["Sample"]] = Field(alias="__typename")
+    value: str
+    label: str
+
+
+class Search_sampleQuery(GraphQLQuery):
+    samples: Optional[List[Optional[Search_sampleQuerySamples]]]
 
     class Meta:
         domain = "mikro"
-        document = "fragment Sample on Sample {\n  name\n  id\n  representations {\n    id\n  }\n  meta\n  experiments {\n    id\n  }\n}\n\nquery filter_sample($creator: ID) {\n  samples(creator: $creator) {\n    ...Sample\n  }\n}"
+        document = "query search_sample($search: String) {\n  samples(name: $search, limit: 20) {\n    value: id\n    label: name\n  }\n}"
+
+
+class Expand_sampleQuery(GraphQLQuery):
+    sample: Optional[SampleFragment]
+
+    class Meta:
+        domain = "mikro"
+        document = "fragment Sample on Sample {\n  name\n  id\n  representations {\n    id\n  }\n  meta\n  experiments {\n    id\n  }\n}\n\nquery expand_sample($id: ID!) {\n  sample(id: $id) {\n    ...Sample\n  }\n}"
 
 
 class Get_experimentQuery(GraphQLQuery):
@@ -285,6 +383,30 @@ class Get_experimentQuery(GraphQLQuery):
         document = "fragment Experiment on Experiment {\n  id\n  name\n  creator {\n    email\n  }\n  meta\n}\n\nquery get_experiment($id: ID!) {\n  experiment(id: $id) {\n    ...Experiment\n  }\n}"
 
 
+class Expand_experimentQuery(GraphQLQuery):
+    experiment: Optional[ExperimentFragment]
+
+    class Meta:
+        domain = "mikro"
+        document = "fragment Experiment on Experiment {\n  id\n  name\n  creator {\n    email\n  }\n  meta\n}\n\nquery expand_experiment($id: ID!) {\n  experiment(id: $id) {\n    ...Experiment\n  }\n}"
+
+
+class Search_experimentQueryExperiments(Experiment, GraphQLObject):
+    """A Representation is a multi-dimensional Array that can do what ever it wants @elements/experiment"""
+
+    typename: Optional[Literal["Experiment"]] = Field(alias="__typename")
+    id: str
+    label: str
+
+
+class Search_experimentQuery(GraphQLQuery):
+    experiments: Optional[List[Optional[Search_experimentQueryExperiments]]]
+
+    class Meta:
+        domain = "mikro"
+        document = "query search_experiment($search: String) {\n  experiments(name: $search, limit: 20) {\n    id: id\n    label: name\n  }\n}"
+
+
 class NegotiateMutation(GraphQLMutation):
     negotiate: Optional[Dict]
 
@@ -293,7 +415,7 @@ class NegotiateMutation(GraphQLMutation):
         document = "mutation negotiate {\n  negotiate\n}"
 
 
-class Upload_bioimageMutationUploadomerofile(GraphQLObject):
+class Upload_bioimageMutationUploadomerofile(OmeroFile, GraphQLObject):
     typename: Optional[Literal["OmeroFile"]] = Field(alias="__typename")
     id: str
     file: Optional[File]
@@ -309,14 +431,14 @@ class Upload_bioimageMutation(GraphQLMutation):
         document = "mutation upload_bioimage($file: Upload!) {\n  uploadOmeroFile(file: $file) {\n    id\n    file\n    type\n    name\n  }\n}"
 
 
-class From_xarrayMutationFromxarraySampleExperiments(GraphQLObject):
+class From_xarrayMutationFromxarraySampleExperiments(Experiment, GraphQLObject):
     """A Representation is a multi-dimensional Array that can do what ever it wants @elements/experiment"""
 
     typename: Optional[Literal["Experiment"]] = Field(alias="__typename")
     name: str
 
 
-class From_xarrayMutationFromxarraySample(GraphQLObject):
+class From_xarrayMutationFromxarraySample(Sample, GraphQLObject):
     """Samples are storage containers for representations. A Sample is to be understood analogous to a Biological Sample. It existed in Time (the time of acquisiton and experimental procedure),
     was measured in space (x,y,z) and in different modalities (c). Sample therefore provide a datacontainer where each Representation of
     the data shares the same dimensions. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample
@@ -326,7 +448,7 @@ class From_xarrayMutationFromxarraySample(GraphQLObject):
     experiments: List[From_xarrayMutationFromxarraySampleExperiments]
 
 
-class From_xarrayMutationFromxarrayOrigins(Array, GraphQLObject):
+class From_xarrayMutationFromxarrayOrigins(Array, Representation, GraphQLObject):
     """A Representation is a multi-dimensional Array that can do what ever it wants
 
 
@@ -351,7 +473,7 @@ class From_xarrayMutationFromxarrayOmero(GraphQLObject):
     planes: Optional[List[Optional[From_xarrayMutationFromxarrayOmeroPlanes]]]
 
 
-class From_xarrayMutationFromxarray(Array, GraphQLObject):
+class From_xarrayMutationFromxarray(Array, Representation, GraphQLObject):
     """A Representation is a multi-dimensional Array that can do what ever it wants
 
 
@@ -374,10 +496,18 @@ class From_xarrayMutation(GraphQLMutation):
 
     class Meta:
         domain = "mikro"
-        document = "mutation from_xarray($xarray: XArray!, $name: String, $origins: [ID], $tags: [String], $sample: ID) {\n  fromXArray(\n    xarray: $xarray\n    name: $name\n    origins: $origins\n    tags: $tags\n    sample: $sample\n  ) {\n    id\n    store\n    sample {\n      experiments {\n        name\n      }\n    }\n    origins {\n      id\n      name\n    }\n    tags\n    omero {\n      planes {\n        exposureTime\n        zIndex\n        yIndex\n        tIndex\n      }\n    }\n  }\n}"
+        document = "mutation from_xarray($xarray: XArray!, $name: String, $origins: [ID], $tags: [String], $sample: ID, $omero: OmeroRepresentationInput) {\n  fromXArray(\n    xarray: $xarray\n    name: $name\n    origins: $origins\n    tags: $tags\n    sample: $sample\n    omero: $omero\n  ) {\n    id\n    store\n    sample {\n      experiments {\n        name\n      }\n    }\n    origins {\n      id\n      name\n    }\n    tags\n    omero {\n      planes {\n        exposureTime\n        zIndex\n        yIndex\n        tIndex\n      }\n    }\n  }\n}"
 
 
-class Create_metricMutationCreatemetricRep(Array, GraphQLObject):
+class Create_thumbnailMutation(GraphQLMutation):
+    uploadThumbnail: Optional[ThumbnailFragment]
+
+    class Meta:
+        domain = "mikro"
+        document = "fragment Thumbnail on Thumbnail {\n  id\n  image\n}\n\nmutation create_thumbnail($rep: ID!, $file: ImageFile!) {\n  uploadThumbnail(rep: $rep, file: $file) {\n    ...Thumbnail\n  }\n}"
+
+
+class Create_metricMutationCreatemetricRep(Array, Representation, GraphQLObject):
     """A Representation is a multi-dimensional Array that can do what ever it wants
 
 
@@ -429,7 +559,7 @@ class Create_sampleMutationCreatesampleCreator(GraphQLObject):
     email: str
 
 
-class Create_sampleMutationCreatesample(GraphQLObject):
+class Create_sampleMutationCreatesample(Sample, GraphQLObject):
     """Samples are storage containers for representations. A Sample is to be understood analogous to a Biological Sample. It existed in Time (the time of acquisiton and experimental procedure),
     was measured in space (x,y,z) and in different modalities (c). Sample therefore provide a datacontainer where each Representation of
     the data shares the same dimensions. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample
@@ -455,6 +585,84 @@ class Create_experimentMutation(GraphQLMutation):
     class Meta:
         domain = "mikro"
         document = "fragment Experiment on Experiment {\n  id\n  name\n  creator {\n    email\n  }\n  meta\n}\n\nmutation create_experiment($name: String!, $creator: String, $meta: GenericScalar, $description: String) {\n  createExperiment(\n    name: $name\n    creator: $creator\n    description: $description\n    meta: $meta\n  ) {\n    ...Experiment\n  }\n}"
+
+
+async def aget_omero_file(id: str) -> OmeroFileFragment:
+    """get_omero_file
+
+    Get a single representation by ID
+
+    Arguments:
+        id (ID): ID
+
+    Returns:
+        OmeroFileFragment: The returned Mutation"""
+    return (await Get_omero_fileQuery.aexecute({"id": id})).omerofile
+
+
+def get_omero_file(id: str) -> OmeroFileFragment:
+    """get_omero_file
+
+    Get a single representation by ID
+
+    Arguments:
+        id (ID): ID
+
+    Returns:
+        OmeroFileFragment: The returned Mutation"""
+    return Get_omero_fileQuery.execute({"id": id}).omerofile
+
+
+async def aexpand_omerofile(id: str) -> OmeroFileFragment:
+    """expand_omerofile
+
+    Get a single representation by ID
+
+    Arguments:
+        id (ID): ID
+
+    Returns:
+        OmeroFileFragment: The returned Mutation"""
+    return (await Expand_omerofileQuery.aexecute({"id": id})).omerofile
+
+
+def expand_omerofile(id: str) -> OmeroFileFragment:
+    """expand_omerofile
+
+    Get a single representation by ID
+
+    Arguments:
+        id (ID): ID
+
+    Returns:
+        OmeroFileFragment: The returned Mutation"""
+    return Expand_omerofileQuery.execute({"id": id}).omerofile
+
+
+async def asearch_omerofile(search: str) -> List[Search_omerofileQueryOmerofiles]:
+    """search_omerofile
+
+    My samples return all of the users samples attached to the current user
+
+    Arguments:
+        search (String): String
+
+    Returns:
+        Search_omerofileQueryOmerofiles: The returned Mutation"""
+    return (await Search_omerofileQuery.aexecute({"search": search})).omerofiles
+
+
+def search_omerofile(search: str) -> List[Search_omerofileQueryOmerofiles]:
+    """search_omerofile
+
+    My samples return all of the users samples attached to the current user
+
+    Arguments:
+        search (String): String
+
+    Returns:
+        Search_omerofileQueryOmerofiles: The returned Mutation"""
+    return Search_omerofileQuery.execute({"search": search}).omerofiles
 
 
 async def aexpand_representation(id: str) -> RepresentationFragment:
@@ -483,6 +691,38 @@ def expand_representation(id: str) -> RepresentationFragment:
     return Expand_representationQuery.execute({"id": id}).representation
 
 
+async def asearch_representation(
+    search: str = None,
+) -> List[Search_representationQueryRepresentations]:
+    """search_representation
+
+    All represetations
+
+    Arguments:
+        search (String, Optional): String
+
+    Returns:
+        Search_representationQueryRepresentations: The returned Mutation"""
+    return (
+        await Search_representationQuery.aexecute({"search": search})
+    ).representations
+
+
+def search_representation(
+    search: str = None,
+) -> List[Search_representationQueryRepresentations]:
+    """search_representation
+
+    All represetations
+
+    Arguments:
+        search (String, Optional): String
+
+    Returns:
+        Search_representationQueryRepresentations: The returned Mutation"""
+    return Search_representationQuery.execute({"search": search}).representations
+
+
 async def aget_random_rep() -> RepresentationFragment:
     """get_random_rep
 
@@ -505,6 +745,58 @@ def get_random_rep() -> RepresentationFragment:
     Returns:
         RepresentationFragment: The returned Mutation"""
     return Get_random_repQuery.execute({}).randomRepresentation
+
+
+async def aThumbnail(id: str) -> ThumbnailFragment:
+    """Thumbnail
+
+    Get a single representation by ID
+
+    Arguments:
+        id (ID): ID
+
+    Returns:
+        ThumbnailFragment: The returned Mutation"""
+    return (await ThumbnailQuery.aexecute({"id": id})).thumbnail
+
+
+def Thumbnail(id: str) -> ThumbnailFragment:
+    """Thumbnail
+
+    Get a single representation by ID
+
+    Arguments:
+        id (ID): ID
+
+    Returns:
+        ThumbnailFragment: The returned Mutation"""
+    return ThumbnailQuery.execute({"id": id}).thumbnail
+
+
+async def aexpand_thumbnail(id: str) -> ThumbnailFragment:
+    """expand_thumbnail
+
+    Get a single representation by ID
+
+    Arguments:
+        id (ID): ID
+
+    Returns:
+        ThumbnailFragment: The returned Mutation"""
+    return (await Expand_thumbnailQuery.aexecute({"id": id})).thumbnail
+
+
+def expand_thumbnail(id: str) -> ThumbnailFragment:
+    """expand_thumbnail
+
+    Get a single representation by ID
+
+    Arguments:
+        id (ID): ID
+
+    Returns:
+        ThumbnailFragment: The returned Mutation"""
+    return Expand_thumbnailQuery.execute({"id": id}).thumbnail
 
 
 async def aTable(id: str) -> TableFragment:
@@ -533,6 +825,56 @@ def Table(id: str) -> TableFragment:
     return TableQuery.execute({"id": id}).table
 
 
+async def aexpand_table(id: str) -> TableFragment:
+    """expand_table
+
+    Get a single representation by ID
+
+    Arguments:
+        id (ID): ID
+
+    Returns:
+        TableFragment: The returned Mutation"""
+    return (await Expand_tableQuery.aexecute({"id": id})).table
+
+
+def expand_table(id: str) -> TableFragment:
+    """expand_table
+
+    Get a single representation by ID
+
+    Arguments:
+        id (ID): ID
+
+    Returns:
+        TableFragment: The returned Mutation"""
+    return Expand_tableQuery.execute({"id": id}).table
+
+
+async def asearch_tables() -> List[Search_tablesQueryTables]:
+    """search_tables
+
+    My samples return all of the users samples attached to the current user
+
+    Arguments:
+
+    Returns:
+        Search_tablesQueryTables: The returned Mutation"""
+    return (await Search_tablesQuery.aexecute({})).tables
+
+
+def search_tables() -> List[Search_tablesQueryTables]:
+    """search_tables
+
+    My samples return all of the users samples attached to the current user
+
+    Arguments:
+
+    Returns:
+        Search_tablesQueryTables: The returned Mutation"""
+    return Search_tablesQuery.execute({}).tables
+
+
 async def aget_sample(id: str) -> SampleFragment:
     """get_sample
 
@@ -559,30 +901,56 @@ def get_sample(id: str) -> SampleFragment:
     return Get_sampleQuery.execute({"id": id}).sample
 
 
-async def afilter_sample(creator: str = None) -> List[SampleFragment]:
-    """filter_sample
+async def asearch_sample(search: str = None) -> List[Search_sampleQuerySamples]:
+    """search_sample
 
     All Samples
 
     Arguments:
-        creator (ID, Optional): ID
+        search (String, Optional): String
 
     Returns:
-        SampleFragment: The returned Mutation"""
-    return (await Filter_sampleQuery.aexecute({"creator": creator})).samples
+        Search_sampleQuerySamples: The returned Mutation"""
+    return (await Search_sampleQuery.aexecute({"search": search})).samples
 
 
-def filter_sample(creator: str = None) -> List[SampleFragment]:
-    """filter_sample
+def search_sample(search: str = None) -> List[Search_sampleQuerySamples]:
+    """search_sample
 
     All Samples
 
     Arguments:
-        creator (ID, Optional): ID
+        search (String, Optional): String
+
+    Returns:
+        Search_sampleQuerySamples: The returned Mutation"""
+    return Search_sampleQuery.execute({"search": search}).samples
+
+
+async def aexpand_sample(id: str) -> SampleFragment:
+    """expand_sample
+
+    Get a single representation by ID
+
+    Arguments:
+        id (ID): ID
 
     Returns:
         SampleFragment: The returned Mutation"""
-    return Filter_sampleQuery.execute({"creator": creator}).samples
+    return (await Expand_sampleQuery.aexecute({"id": id})).sample
+
+
+def expand_sample(id: str) -> SampleFragment:
+    """expand_sample
+
+    Get a single representation by ID
+
+    Arguments:
+        id (ID): ID
+
+    Returns:
+        SampleFragment: The returned Mutation"""
+    return Expand_sampleQuery.execute({"id": id}).sample
 
 
 async def aget_experiment(id: str) -> ExperimentFragment:
@@ -609,6 +977,60 @@ def get_experiment(id: str) -> ExperimentFragment:
     Returns:
         ExperimentFragment: The returned Mutation"""
     return Get_experimentQuery.execute({"id": id}).experiment
+
+
+async def aexpand_experiment(id: str) -> ExperimentFragment:
+    """expand_experiment
+
+    Get a single representation by ID
+
+    Arguments:
+        id (ID): ID
+
+    Returns:
+        ExperimentFragment: The returned Mutation"""
+    return (await Expand_experimentQuery.aexecute({"id": id})).experiment
+
+
+def expand_experiment(id: str) -> ExperimentFragment:
+    """expand_experiment
+
+    Get a single representation by ID
+
+    Arguments:
+        id (ID): ID
+
+    Returns:
+        ExperimentFragment: The returned Mutation"""
+    return Expand_experimentQuery.execute({"id": id}).experiment
+
+
+async def asearch_experiment(
+    search: str = None,
+) -> List[Search_experimentQueryExperiments]:
+    """search_experiment
+
+    All Samples
+
+    Arguments:
+        search (String, Optional): String
+
+    Returns:
+        Search_experimentQueryExperiments: The returned Mutation"""
+    return (await Search_experimentQuery.aexecute({"search": search})).experiments
+
+
+def search_experiment(search: str = None) -> List[Search_experimentQueryExperiments]:
+    """search_experiment
+
+    All Samples
+
+    Arguments:
+        search (String, Optional): String
+
+    Returns:
+        Search_experimentQueryExperiments: The returned Mutation"""
+    return Search_experimentQuery.execute({"search": search}).experiments
 
 
 async def anegotiate() -> Dict:
@@ -667,6 +1089,7 @@ async def afrom_xarray(
     origins: List[str] = None,
     tags: List[str] = None,
     sample: str = None,
+    omero: OmeroRepresentationInput = None,
 ) -> From_xarrayMutationFromxarray:
     """from_xarray
 
@@ -678,6 +1101,7 @@ async def afrom_xarray(
         origins (List[ID], Optional): ID
         tags (List[String], Optional): String
         sample (ID, Optional): ID
+        omero (OmeroRepresentationInput, Optional): OmeroRepresentationInput
 
     Returns:
         From_xarrayMutationFromxarray: The returned Mutation"""
@@ -689,6 +1113,7 @@ async def afrom_xarray(
                 "origins": origins,
                 "tags": tags,
                 "sample": sample,
+                "omero": omero,
             }
         )
     ).fromXArray
@@ -700,6 +1125,7 @@ def from_xarray(
     origins: List[str] = None,
     tags: List[str] = None,
     sample: str = None,
+    omero: OmeroRepresentationInput = None,
 ) -> From_xarrayMutationFromxarray:
     """from_xarray
 
@@ -711,6 +1137,7 @@ def from_xarray(
         origins (List[ID], Optional): ID
         tags (List[String], Optional): String
         sample (ID, Optional): ID
+        omero (OmeroRepresentationInput, Optional): OmeroRepresentationInput
 
     Returns:
         From_xarrayMutationFromxarray: The returned Mutation"""
@@ -721,8 +1148,39 @@ def from_xarray(
             "origins": origins,
             "tags": tags,
             "sample": sample,
+            "omero": omero,
         }
     ).fromXArray
+
+
+async def acreate_thumbnail(rep: str, file: File) -> ThumbnailFragment:
+    """create_thumbnail
+
+
+
+    Arguments:
+        rep (ID): ID
+        file (ImageFile): ImageFile
+
+    Returns:
+        ThumbnailFragment: The returned Mutation"""
+    return (
+        await Create_thumbnailMutation.aexecute({"rep": rep, "file": file})
+    ).uploadThumbnail
+
+
+def create_thumbnail(rep: str, file: File) -> ThumbnailFragment:
+    """create_thumbnail
+
+
+
+    Arguments:
+        rep (ID): ID
+        file (ImageFile): ImageFile
+
+    Returns:
+        ThumbnailFragment: The returned Mutation"""
+    return Create_thumbnailMutation.execute({"rep": rep, "file": file}).uploadThumbnail
 
 
 async def acreate_metric(

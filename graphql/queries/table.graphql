@@ -3,3 +3,16 @@ query Table($id: ID!) {
     ...Table
   }
 }
+
+query expand_table($id: ID!) {
+  table(id: $id) {
+    ...Table
+  }
+}
+query search_tables {
+  tables {
+    id: id
+    label: name
+  }
+}
+

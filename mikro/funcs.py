@@ -1,18 +1,20 @@
 from concurrent.futures import ThreadPoolExecutor
 import uuid
+from herre.wards.graphql import GraphQLWard
 from herre.wards.registry import get_ward_registry
 import asyncio
 import pandas as pd
 import xarray as xr
+import pyarrow.parquet as pq
+from pyarrow import Table as ArrowTable
 
 
 class RepresentationException(Exception):
     pass
 
 
-def save_array(array: xr.DataArray):
+def save_array(array: xr.DataArray, ward):
     random_ui = uuid.uuid4()
-    ward = get_ward_registry().get_ward_instance("mikro")
     s3_path = f"zarr/{random_ui}"
 
     store = ward.s3fs.get_mapper(s3_path)
@@ -58,15 +60,24 @@ def save_array(array: xr.DataArray):
     return s3_path
 
 
-async def shrink_xarray(array):
-    print("Called")
+def save_df(df: pd.DataFrame, ward):
+    random_ui = uuid.uuid4()
+    table: ArrowTable = ArrowTable.from_pandas(df)
+    s3_path = f"parquet/{random_ui}"
+    pq.write_table(table, s3_path, filesystem=ward.s3fs)
+
+    return s3_path
+
+
+async def shrink_xarray(array: xr.DataArray, ward: GraphQLWard = None):
+    print("Shrinking XArray")
     with ThreadPoolExecutor(max_workers=4) as executor:
-        co_future = executor.submit(save_array, array)
+        co_future = executor.submit(save_array, array, ward)
         return await asyncio.wrap_future(co_future)
 
 
-async def shrink_df(df: pd.DataFrame):
-    print("Called")
+async def shrink_df(df: pd.DataFrame, ward: GraphQLWard = None):
+    print("Shrinking DF")
     with ThreadPoolExecutor(max_workers=4) as executor:
-        co_future = executor.submit(save_array, df)
+        co_future = executor.submit(save_df, df, ward)
         return await asyncio.wrap_future(co_future)

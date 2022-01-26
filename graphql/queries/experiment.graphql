@@ -3,3 +3,16 @@ query get_experiment($id: ID!) {
     ...Experiment
   }
 }
+
+query expand_experiment($id: ID!) {
+  experiment(id: $id) {
+    ...Experiment
+  }
+}
+
+query search_experiment($search: String) {
+  experiments(name: $search, limit: 20) {
+    id: id
+    label: name
+  }
+}

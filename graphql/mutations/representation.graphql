@@ -4,6 +4,7 @@ mutation from_xarray(
   $origins: [ID]
   $tags: [String]
   $sample: ID
+  $omero: OmeroRepresentationInput
 ) {
   fromXArray(
     xarray: $xarray
@@ -11,6 +12,7 @@ mutation from_xarray(
     origins: $origins
     tags: $tags
     sample: $sample
+    omero: $omero
   ) {
     id
     store

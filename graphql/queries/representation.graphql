@@ -4,6 +4,13 @@ query expand_representation($id: ID!) {
   }
 }
 
+query search_representation($search: String) {
+  representations(name: $search, limit: 20) {
+    value: id
+    label: name
+  }
+}
+
 query get_random_rep {
   randomRepresentation {
     ...Representation

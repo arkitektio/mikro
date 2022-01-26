@@ -10,7 +10,8 @@ from herre.wards.graphql import ParsedQuery, GraphQLWard
 import aiohttp
 import xarray as xr
 from mikro.api.schema import anegotiate
-from mikro.funcs import shrink_xarray
+from mikro.funcs import shrink_df, shrink_xarray
+import pandas as pd
 
 
 class S3Config(BaseModel):
@@ -49,7 +50,7 @@ class MikroWard(GraphQLWard):
     configClass = MikroConfig
     config: MikroConfig
 
-    shrinker_funcs = {xr.DataArray: shrink_xarray}
+    shrinker_funcs = {xr.DataArray: shrink_xarray, pd.DataFrame: shrink_df}
 
     class Meta:
         key = "mikro"
