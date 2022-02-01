@@ -2,7 +2,9 @@ import shutil
 from tomlkit import value
 import requests
 import xarray as xr
-from herre.wards.registry import get_ward_registry
+import pyarrow.parquet as pq
+
+from mikro.filesystem import get_current_filesystem
 
 
 class XArray:
@@ -46,13 +48,12 @@ class Store:
         self.value = value
         self._openstore = None
 
-    @property
-    def store(self):
+    def open(self, filesystem=None):
+        filesystem = filesystem or get_current_filesystem()
+
         if not self._openstore:
-            ward = get_ward_registry().get_ward_instance("mikro")
-            s3_path = f"zarr/{self.value}"
             self._openstore = xr.open_zarr(
-                store=ward.s3fs.get_mapper(s3_path), consolidated=True
+                store=filesystem.get_mapper(self.value), consolidated=True
             )["data"]
         return self._openstore
 
@@ -86,6 +87,54 @@ class Store:
 
     def __repr__(self):
         return f"Store({self.value})"
+
+
+class Parquet:
+    def __init__(self, value) -> None:
+        self.value = value
+        self._openstore = None
+
+    @property
+    def df(self):
+        if not self._openstore:
+            s3_path = f"zarr/{self.value}"
+            return (
+                pq.ParquetDataset(s3_path, filesystem=self._getFileSystem())
+                .read_pandas()
+                .to_pandas()
+            )
+        return self._openstore
+
+    @classmethod
+    def __get_validators__(cls):
+        # one or more validators may be yielded which will be called in the
+        # order to validate the input, each validator will receive as an input
+        # the value returned from the previous validator
+        yield cls.validate
+
+    @classmethod
+    def __modify_schema__(cls, field_schema):
+        # __modify_schema__ should mutate the dict it receives in place,
+        # the returned value will be ignored
+        field_schema.update(
+            # simplified regex here for brevity, see the wikipedia link above
+            pattern="^[A-Z]{1,2}[0-9][A-Z0-9]? ?[0-9][A-Z]{2}$",
+            # some example postcodes
+            examples=["SP11 9DG", "w1j7bu"],
+        )
+
+    @classmethod
+    def validate(cls, v):
+        if not isinstance(v, str):
+            raise TypeError("string required")
+        # you could also return a string here which would mean model.post_code
+        # would be a string, pydantic won't care but you could end up with some
+        # confusion since the value's type won't match the type annotation
+        # exactly
+        return cls(v)
+
+    def __repr__(self):
+        return f"Parquet({self.value})"
 
 
 class File:

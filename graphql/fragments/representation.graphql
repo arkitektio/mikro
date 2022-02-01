@@ -1,10 +1,10 @@
 fragment Representation on Representation {
-  sample {
+    sample {
+      name
+    }
+    type
+    id
+    store
+    variety
     name
-  }
-  type
-  id
-  store
-  variety
-  name
 }

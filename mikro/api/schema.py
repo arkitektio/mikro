@@ -1,10 +1,10 @@
-from mikro.structure import Experiment
+from mikro.structure import Thumbnail
 from mikro.array import Array
 from mikro.structure import Representation
-from mikro.structure import OmeroFile
+from mikro.structure import Experiment
 from mikro.structure import Sample
-from mikro.structure import Thumbnail
 from mikro.structure import Table
+from mikro.structure import OmeroFile
 from mikro.scalars import XArray
 from mikro.scalars import File
 from mikro.scalars import File
@@ -497,6 +497,37 @@ class From_xarrayMutation(GraphQLMutation):
     class Meta:
         domain = "mikro"
         document = "mutation from_xarray($xarray: XArray!, $name: String, $origins: [ID], $tags: [String], $sample: ID, $omero: OmeroRepresentationInput) {\n  fromXArray(\n    xarray: $xarray\n    name: $name\n    origins: $origins\n    tags: $tags\n    sample: $sample\n    omero: $omero\n  ) {\n    id\n    store\n    sample {\n      experiments {\n        name\n      }\n    }\n    origins {\n      id\n      name\n    }\n    tags\n    omero {\n      planes {\n        exposureTime\n        zIndex\n        yIndex\n        tIndex\n      }\n    }\n  }\n}"
+
+
+class Double_uploadMutationX(Array, Representation, GraphQLObject):
+    """A Representation is a multi-dimensional Array that can do what ever it wants
+
+
+    @elements/rep:latest"""
+
+    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
+    id: str
+    store: Optional[Store]
+
+
+class Double_uploadMutationY(Array, Representation, GraphQLObject):
+    """A Representation is a multi-dimensional Array that can do what ever it wants
+
+
+    @elements/rep:latest"""
+
+    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
+    id: str
+    store: Optional[Store]
+
+
+class Double_uploadMutation(GraphQLMutation):
+    x: Optional[Double_uploadMutationX]
+    y: Optional[Double_uploadMutationY]
+
+    class Meta:
+        domain = "mikro"
+        document = "mutation double_upload($xarray: XArray!, $name: String, $origins: [ID], $tags: [String], $sample: ID, $omero: OmeroRepresentationInput) {\n  x: fromXArray(\n    xarray: $xarray\n    name: $name\n    origins: $origins\n    tags: $tags\n    sample: $sample\n    omero: $omero\n  ) {\n    id\n    store\n  }\n  y: fromXArray(\n    xarray: $xarray\n    name: $name\n    origins: $origins\n    tags: $tags\n    sample: $sample\n    omero: $omero\n  ) {\n    id\n    store\n  }\n}"
 
 
 class Create_thumbnailMutation(GraphQLMutation):
@@ -1151,6 +1182,78 @@ def from_xarray(
             "omero": omero,
         }
     ).fromXArray
+
+
+async def adouble_upload(
+    xarray: XArray,
+    name: str = None,
+    origins: List[str] = None,
+    tags: List[str] = None,
+    sample: str = None,
+    omero: OmeroRepresentationInput = None,
+) -> List[Double_uploadMutation]:
+    """double_upload
+
+
+     x: Creates a Representation
+     y: Creates a Representation
+
+    Arguments:
+        xarray (XArray): XArray
+        name (String, Optional): String
+        origins (List[ID], Optional): ID
+        tags (List[String], Optional): String
+        sample (ID, Optional): ID
+        omero (OmeroRepresentationInput, Optional): OmeroRepresentationInput
+
+    Returns:
+        Double_uploadMutation: The returned Mutation"""
+    return await Double_uploadMutation.aexecute(
+        {
+            "xarray": xarray,
+            "name": name,
+            "origins": origins,
+            "tags": tags,
+            "sample": sample,
+            "omero": omero,
+        }
+    )
+
+
+def double_upload(
+    xarray: XArray,
+    name: str = None,
+    origins: List[str] = None,
+    tags: List[str] = None,
+    sample: str = None,
+    omero: OmeroRepresentationInput = None,
+) -> List[Double_uploadMutation]:
+    """double_upload
+
+
+     x: Creates a Representation
+     y: Creates a Representation
+
+    Arguments:
+        xarray (XArray): XArray
+        name (String, Optional): String
+        origins (List[ID], Optional): ID
+        tags (List[String], Optional): String
+        sample (ID, Optional): ID
+        omero (OmeroRepresentationInput, Optional): OmeroRepresentationInput
+
+    Returns:
+        Double_uploadMutation: The returned Mutation"""
+    return Double_uploadMutation.execute(
+        {
+            "xarray": xarray,
+            "name": name,
+            "origins": origins,
+            "tags": tags,
+            "sample": sample,
+            "omero": omero,
+        }
+    )
 
 
 async def acreate_thumbnail(rep: str, file: File) -> ThumbnailFragment:

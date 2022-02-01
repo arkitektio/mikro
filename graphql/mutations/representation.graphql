@@ -36,3 +36,35 @@ mutation from_xarray(
     }
   }
 }
+
+mutation double_upload(
+  $xarray: XArray!
+  $name: String
+  $origins: [ID]
+  $tags: [String]
+  $sample: ID
+  $omero: OmeroRepresentationInput
+) {
+  x: fromXArray(
+    xarray: $xarray
+    name: $name
+    origins: $origins
+    tags: $tags
+    sample: $sample
+    omero: $omero
+  ) {
+    id
+    store
+  }
+  y: fromXArray(
+    xarray: $xarray
+    name: $name
+    origins: $origins
+    tags: $tags
+    sample: $sample
+    omero: $omero
+  ) {
+    id
+    store
+  }
+}
