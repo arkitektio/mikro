@@ -10,6 +10,12 @@ projects:
           - type: turms.plugins.inputs.InputsPlugin
           - type: turms.plugins.fragments.FragmentsPlugin
           - type: turms.plugins.operation.OperationsPlugin
+            query_bases:
+              - mikro.operation.GraphQLQuery
+            mutation_bases:
+              - mikro.operation.GraphQLMutation
+            subscription_bases:
+              - mikro.operation.GraphQLSubscription
           - type: turms.plugins.funcs.OperationsFuncPlugin
         processors:
           - type: turms.processor.black.BlackProcessor
@@ -22,7 +28,7 @@ projects:
           Store: mikro.scalars.Store
         additional_bases:
           Representation:
-            - mikro.array.Array
+            - mikro.mixins.Array
             - mikro.structure.Representation
           Sample:
             - mikro.structure.Sample

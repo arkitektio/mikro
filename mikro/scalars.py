@@ -3,8 +3,8 @@ from tomlkit import value
 import requests
 import xarray as xr
 import pyarrow.parquet as pq
-
-from mikro.filesystem import get_current_filesystem
+from mikro.datalayer import get_current_datalayer
+from mikro.mikro import get_current_mikro
 
 
 class XArray:
@@ -48,12 +48,12 @@ class Store:
         self.value = value
         self._openstore = None
 
-    def open(self, filesystem=None):
-        filesystem = filesystem or get_current_filesystem()
+    def open(self, dl=None):
+        dl = dl or get_current_datalayer()
 
         if not self._openstore:
             self._openstore = xr.open_zarr(
-                store=filesystem.get_mapper(self.value), consolidated=True
+                store=dl.fs.get_mapper(self.value), consolidated=True
             )["data"]
         return self._openstore
 
@@ -112,16 +112,6 @@ class Parquet:
         # the value returned from the previous validator
         yield cls.validate
 
-    @classmethod
-    def __modify_schema__(cls, field_schema):
-        # __modify_schema__ should mutate the dict it receives in place,
-        # the returned value will be ignored
-        field_schema.update(
-            # simplified regex here for brevity, see the wikipedia link above
-            pattern="^[A-Z]{1,2}[0-9][A-Z0-9]? ?[0-9][A-Z]{2}$",
-            # some example postcodes
-            examples=["SP11 9DG", "w1j7bu"],
-        )
 
     @classmethod
     def validate(cls, v):
@@ -142,10 +132,8 @@ class File:
         self.value = value
 
     def download(self):
-        ward = get_ward_registry().get_ward_instance("mikro")
-        protocol = "https" if ward.config.s3.secure else "http"
-        endpoint_url = f"{protocol}://{ward.config.s3.host}:{ward.config.s3.port}"
-        url = f"{endpoint_url}{self.value}"
+        dl = get_current_datalayer()
+        url = f"{dl.endpoint_url}{self.value}"
         local_filename = "test.tif"
         with requests.get(url, stream=True) as r:
             with open(local_filename, "wb") as f:
@@ -160,16 +148,6 @@ class File:
         # the value returned from the previous validator
         yield cls.validate
 
-    @classmethod
-    def __modify_schema__(cls, field_schema):
-        # __modify_schema__ should mutate the dict it receives in place,
-        # the returned value will be ignored
-        field_schema.update(
-            # simplified regex here for brevity, see the wikipedia link above
-            pattern="^[A-Z]{1,2}[0-9][A-Z0-9]? ?[0-9][A-Z]{2}$",
-            # some example postcodes
-            examples=["SP11 9DG", "w1j7bu"],
-        )
 
     @classmethod
     def validate(cls, v):
@@ -190,10 +168,8 @@ class Upload:
         self.value = value
 
     def download(self):
-        ward = get_ward_registry().get_ward_instance("mikro")
-        protocol = "https" if ward.config.s3.secure else "http"
-        endpoint_url = f"{protocol}://{ward.config.s3.host}:{ward.config.s3.port}"
-        url = f"{endpoint_url}{self.value}"
+        dl = get_current_datalayer()
+        url = f"{dl.endpoint_url}{self.value}"
         local_filename = "test.tif"
         with requests.get(url, stream=True) as r:
             with open(local_filename, "wb") as f:
@@ -237,17 +213,6 @@ class DataFrame:
     def __init__(self, value) -> None:
         self.value = value
 
-    def download(self):
-        ward = get_ward_registry().get_ward_instance("mikro")
-        protocol = "https" if ward.config.s3.secure else "http"
-        endpoint_url = f"{protocol}://{ward.config.s3.host}:{ward.config.s3.port}"
-        url = f"{endpoint_url}{self.value}"
-        local_filename = "test.tif"
-        with requests.get(url, stream=True) as r:
-            with open(local_filename, "wb") as f:
-                shutil.copyfileobj(r.raw, f)
-
-        return local_filename
 
     @classmethod
     def __get_validators__(cls):

@@ -1,10 +1,10 @@
-from mikro.structure import Thumbnail
-from mikro.array import Array
 from mikro.structure import Representation
-from mikro.structure import Experiment
 from mikro.structure import Sample
-from mikro.structure import Table
+from mikro.mixins import Array
 from mikro.structure import OmeroFile
+from mikro.structure import Table
+from mikro.structure import Experiment
+from mikro.structure import Thumbnail
 from mikro.scalars import XArray
 from mikro.scalars import File
 from mikro.scalars import File
@@ -18,9 +18,9 @@ from typing import Optional, List, Dict, Union, Literal
 from enum import Enum
 from turms.types.object import GraphQLInputObject
 from turms.types.object import GraphQLObject
-from turms.types.herre import GraphQLQuery
-from turms.types.herre import GraphQLMutation
-from turms.types.herre import GraphQLSubscription
+from mikro.operation import GraphQLQuery
+from mikro.operation import GraphQLMutation
+from mikro.operation import GraphQLSubscription
 
 
 class OmeroFileType(str, Enum):
@@ -1191,7 +1191,7 @@ async def adouble_upload(
     tags: List[str] = None,
     sample: str = None,
     omero: OmeroRepresentationInput = None,
-) -> List[Double_uploadMutation]:
+) -> Double_uploadMutation:
     """double_upload
 
 
@@ -1227,7 +1227,7 @@ def double_upload(
     tags: List[str] = None,
     sample: str = None,
     omero: OmeroRepresentationInput = None,
-) -> List[Double_uploadMutation]:
+) -> Double_uploadMutation:
     """double_upload
 
 

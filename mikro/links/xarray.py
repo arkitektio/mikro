@@ -1,11 +1,9 @@
 from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
 from graphql import NamedTypeNode
-from mikro.filesystem import MikroFileSystem, get_current_filesystem
+from mikro.datalayer import DataLayer
+from rath.links.parsing import ParsingLink
 from rath.operation import Operation
-from rath.parsers.base import Parser
-import s3fs
-import os
 from graphql.language import NonNullTypeNode
 import xarray as xr
 import asyncio
@@ -22,18 +20,19 @@ def filter_xarray_nodes(operation: Operation):
     ]
 
 
-class XArrayConversionException(Parser):
+class XArrayConversionException(Exception):
     pass
 
 
-class S3UploadXArrayParser(Parser):
+class DataLayerXArrayUploadLink(ParsingLink):
     FILEVERSION = "0.1"
 
-    def __init__(
-        self, filesystem: MikroFileSystem = None, bucket: str = "zarr"
-    ) -> None:
-        self.bucket = bucket
-        self._s3fs = filesystem or get_current_filesystem()
+    def __init__(self, datalayer: DataLayer, bucket: str = "zarr") -> None:
+        self.datalayer = datalayer
+
+    async def aconnect(self):
+        if not self.datalayer.connected:
+            await self.datalayer.aconnect()
 
     def store_xarray(self, xarray: xr.DataArray) -> None:
         random_uuid = uuid4()
