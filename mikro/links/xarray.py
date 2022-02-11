@@ -10,14 +10,20 @@ import asyncio
 
 
 def filter_xarray_nodes(operation: Operation):
-    return [
-        v
-        for v in operation.node.variable_definitions
-        if (
-            (isinstance(v.type, NonNullTypeNode) and v.type.type.name.value == "XArray")
-            or (isinstance(v.type, NamedTypeNode) and v.type.name.value == "XArray")
-        )
-    ]
+    try:
+        return [
+            v
+            for v in operation.node.variable_definitions
+            if (
+                (
+                    isinstance(v.type, NonNullTypeNode)
+                    and v.type.type.name.value == "XArray"
+                )
+                or (isinstance(v.type, NamedTypeNode) and v.type.name.value == "XArray")
+            )
+        ]
+    except AttributeError:
+        return []
 
 
 class XArrayConversionException(Exception):
@@ -38,7 +44,7 @@ class DataLayerXArrayUploadLink(ParsingLink):
         random_uuid = uuid4()
         s3_path = f"zarr/{random_uuid}"
 
-        store = self._s3fs.get_mapper(s3_path)
+        store = self.datalayer.fs.get_mapper(s3_path)
 
         if "x" not in xarray.dims:
             raise XArrayConversionException(

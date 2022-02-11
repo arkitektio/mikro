@@ -1,3 +1,4 @@
+from graphql import OperationType
 from pydantic import BaseModel
 from fakts.fakts import Fakts, get_current_fakts
 from herre.herre import Herre, get_current_herre
@@ -11,6 +12,8 @@ from rath.links.aiohttp import AIOHttpLink
 from rath.links.auth import AuthTokenLink
 from rath.links.compose import compose
 from rath.links.context import SwitchAsyncLink
+from rath.links.split import SplitLink
+from rath.links.websockets import WebSocketLink
 
 
 class S3Config(BaseModel):
@@ -57,7 +60,13 @@ class FaktsMikro(Mikro):
             DataLayerXArrayUploadLink(datalayer=datalayer),
             SwitchAsyncLink(),
             HerreAuthTokenLink(herre=herre),
-            FaktsAioHttpLink(fakts=fakts, fakts_key="mikro"),
+            SplitLink(
+                FaktsAioHttpLink(fakts=fakts, fakts_key="mikro"),
+                WebSocketLink(
+                    url="ws://localhost:8080/graphql", token_loader=herre.aget_token
+                ),
+                lambda o: o.node.operation != OperationType.SUBSCRIPTION,
+            ),
         )
 
         super().__init__(link, autoconnect)

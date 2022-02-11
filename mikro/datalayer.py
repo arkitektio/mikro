@@ -1,9 +1,8 @@
-
 import contextvars
 import logging
 import os
 from koil.loop import koil
-from mikro.errors import NoDataLayerFound 
+from mikro.errors import NoDataLayerFound
 import s3fs
 
 
@@ -17,9 +16,11 @@ def set_current_datalayer(filesystem, set_global=True):
     if set_global:
         GLOBAL_DATALAYER = filesystem
 
+
 def set_global_datalayer(filesystem):
     global GLOBAL_DATALAYER
     GLOBAL_DATALAYER = filesystem
+
 
 def get_current_datalayer(allow_global=True):
     global GLOBAL_DATALAYER
@@ -34,32 +35,32 @@ def get_current_datalayer(allow_global=True):
             if os.getenv("MIKRO_ALLOW_DATALAYER_GLOBAL", "True") == "True":
                 try:
                     from mikro.fakts.datalayer import FaktsDataLayer
+
                     GLOBAL_DATALAYER = FaktsDataLayer()
                     return GLOBAL_DATALAYER
                 except ImportError as e:
                     raise NoDataLayerFound("Error creating Fakts Mikro") from e
             else:
-                raise NoDataLayerFound("No current mikro found and and no global mikro found")
+                raise NoDataLayerFound(
+                    "No current mikro found and and no global mikro found"
+                )
+
+        return GLOBAL_DATALAYER
 
     return datalayer
 
 
 class DataLayer:
-    
     def __init__(self, access_key="", secret_key="", endpoint_url="") -> None:
         self.access_key = access_key
         self.secret_key = secret_key
         self.endpoint_url = endpoint_url
         self.connected = False
+        self._s3fs = None
         super().__init__()
 
     async def aconnect(self):
-        if self.access_key:
-            os.environ["AWS_ACCESS_KEY_ID"] = self.access_key
-        if self.secret_key:
-            os.environ["AWS_SECRET_ACCESS_KEY"] = self.secret_key
 
-        self._s3fs = s3fs.S3FileSystem(secret=self.secret_key, access=self.access_key, client_kwargs={"endpoint_url": self.endpoint_url})
         self.connected = True
 
     def connect(self):
@@ -67,4 +68,19 @@ class DataLayer:
 
     @property
     def fs(self):
-        assert self.s3fs is not None, "Filesystem is not connected yet, please make sure to connect first"
+        if not self._s3fs:
+            if self.access_key:
+                os.environ["AWS_ACCESS_KEY_ID"] = self.access_key
+            if self.secret_key:
+                os.environ["AWS_SECRET_ACCESS_KEY"] = self.secret_key
+
+            self._s3fs = s3fs.S3FileSystem(
+                secret=self.secret_key,
+                key=self.access_key,
+                client_kwargs={"endpoint_url": self.endpoint_url},
+            )
+
+        assert (
+            self._s3fs is not None
+        ), "Filesystem is not connected yet, please make sure to connect first"
+        return self._s3fs

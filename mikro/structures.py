@@ -1,4 +1,4 @@
-from arkitekt.serialization.registry import get_current_structure_registry
+from arkitekt.structures.registry import get_current_structure_registry
 from arkitekt.widgets import *
 from mikro.api.schema import *
 

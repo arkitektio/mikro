@@ -2,6 +2,7 @@ from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
 import uuid
 from graphql import NamedTypeNode
+from koil.loop import koil
 from mikro.datalayer import DataLayer
 from rath.links.parsing import ParsingLink
 from rath.operation import Operation
@@ -14,17 +15,23 @@ import pyarrow.parquet as pq
 
 
 def filter_dataframe_nodes(operation: Operation):
-    return [
-        v
-        for v in operation.node.variable_definitions
-        if (
-            (
-                isinstance(v.type, NonNullTypeNode)
-                and v.type.type.name.value == "DataFrame"
+    try:
+        return [
+            v
+            for v in operation.node.variable_definitions
+            if (
+                (
+                    isinstance(v.type, NonNullTypeNode)
+                    and v.type.type.name.value == "DataFrame"
+                )
+                or (
+                    isinstance(v.type, NamedTypeNode)
+                    and v.type.name.value == "DataFrame"
+                )
             )
-            or (isinstance(v.type, NamedTypeNode) and v.type.name.value == "DataFrame")
-        )
-    ]
+        ]
+    except AttributeError:
+        return []
 
 
 class ParquetConversionException(Exception):
@@ -36,6 +43,9 @@ class DataLayerParquetUploadLink(ParsingLink):
 
     def __init__(self, datalayer: DataLayer, bucket: str = "parquet") -> None:
         self.datalayer = datalayer
+        self.bucket = bucket
+        self.connected = False
+        self._lock = False
 
     async def aconnect(self):
         if not self.datalayer.connected:
@@ -46,16 +56,18 @@ class DataLayerParquetUploadLink(ParsingLink):
         random_ui = uuid.uuid4()
         table: Table = Table.from_pandas(df)
         s3_path = f"{self.bucket}/{random_ui}"
-        pq.write_table(table, s3_path, filesystem=self._s3fs)
+        pq.write_table(table, s3_path, filesystem=self.datalayer.fs)
         return s3_path
 
     def parse(self, operation: Operation) -> Operation:
+        if not self.connected:
+            koil(self.aconnect())
 
         for node in filter_dataframe_nodes(operation):
             array = operation.variables[node.variable.name.value]
 
-            if isinstance(array, xr.DataArray):
-                operation.variables[node.variable.name.value] = self.store_xarray(array)
+            if isinstance(array, pd.DataFrame):
+                operation.variables[node.variable.name.value] = self.store_df(array)
 
             else:
                 raise NotImplementedError("Can only store XArray at this moment")
@@ -63,6 +75,13 @@ class DataLayerParquetUploadLink(ParsingLink):
         return operation
 
     async def aparse(self, operation: Operation) -> Operation:
+
+        if not self._lock:
+            self._lock = asyncio.Lock()
+
+        async with self._lock:
+            if not self.connected:
+                await self.aconnect()
 
         shrinky = filter_dataframe_nodes(operation)
         if shrinky:
