@@ -1,11 +1,11 @@
-from mikro.funcs import aexecute, execute, asubscribe, subscribe
-from typing import Literal, List, Iterator, AsyncIterator, Optional, Dict
-from pydantic import BaseModel, Field
-from mikro.traits import OmeroFile, Experiment, Sample, Thumbnail, Representation, Table
-from mikro.scalars import DataFrame, Upload, Store, XArray, File
-from mikro.mikro import Mikro
-from turms.types.object import GraphQLInputObject, GraphQLObject
+from mikro.funcs import aexecute, subscribe, asubscribe, execute
+from mikro.traits import Thumbnail, Sample, OmeroFile, Representation, Experiment, Table
+from mikro.scalars import Upload, Store, XArray, DataFrame, File
+from rath.turms.object import GraphQLObject
 from enum import Enum
+from typing import Dict, Iterator, AsyncIterator, Optional, List, Literal
+from pydantic import Field, BaseModel
+from mikro.mikro import Mikro
 
 
 class OmeroFileType(str, Enum):
@@ -83,14 +83,14 @@ class RoiTypeInput(str, Enum):
     "Unknown"
 
 
-class OmeroRepresentationInput(GraphQLInputObject):
+class OmeroRepresentationInput(BaseModel):
     planes: Optional[List[Optional["PlaneInput"]]]
     channels: Optional[List[Optional["ChannelInput"]]]
     physicalSize: Optional["PhysicalSizeInput"]
     scale: Optional[List[Optional[float]]]
 
 
-class PlaneInput(GraphQLInputObject):
+class PlaneInput(BaseModel):
     zIndex: Optional[int]
     yIndex: Optional[int]
     xIndex: Optional[int]
@@ -100,7 +100,7 @@ class PlaneInput(GraphQLInputObject):
     deltaT: Optional[float]
 
 
-class ChannelInput(GraphQLInputObject):
+class ChannelInput(BaseModel):
     name: Optional[str]
     emmissionWavelength: Optional[float]
     excitationWavelength: Optional[float]
@@ -108,7 +108,7 @@ class ChannelInput(GraphQLInputObject):
     color: Optional[str]
 
 
-class PhysicalSizeInput(GraphQLInputObject):
+class PhysicalSizeInput(BaseModel):
     x: Optional[int]
     y: Optional[int]
     z: Optional[int]
@@ -116,7 +116,7 @@ class PhysicalSizeInput(GraphQLInputObject):
     c: Optional[int]
 
 
-class InputVector(GraphQLInputObject):
+class InputVector(BaseModel):
     x: Optional[float]
     "X-coordinate"
     y: Optional[float]
@@ -334,7 +334,7 @@ class ExperimentFragment(Experiment, GraphQLObject):
         frozen = True
 
 
-class Get_omero_fileQuery(BaseModel):
+class Get_omero_fileQuery(GraphQLObject):
     omerofile: Optional[OmeroFileFragment]
 
     class Meta:
@@ -345,7 +345,7 @@ class Get_omero_fileQuery(BaseModel):
         frozen = True
 
 
-class Expand_omerofileQuery(BaseModel):
+class Expand_omerofileQuery(GraphQLObject):
     omerofile: Optional[OmeroFileFragment]
 
     class Meta:
@@ -365,7 +365,7 @@ class Search_omerofileQueryOmerofiles(OmeroFile, GraphQLObject):
         frozen = True
 
 
-class Search_omerofileQuery(BaseModel):
+class Search_omerofileQuery(GraphQLObject):
     omerofiles: Optional[List[Optional[Search_omerofileQueryOmerofiles]]]
 
     class Meta:
@@ -376,7 +376,7 @@ class Search_omerofileQuery(BaseModel):
         frozen = True
 
 
-class Expand_representationQuery(BaseModel):
+class Expand_representationQuery(GraphQLObject):
     representation: Optional[RepresentationFragment]
 
     class Meta:
@@ -387,7 +387,7 @@ class Expand_representationQuery(BaseModel):
         frozen = True
 
 
-class Get_representationQuery(BaseModel):
+class Get_representationQuery(GraphQLObject):
     representation: Optional[RepresentationFragment]
 
     class Meta:
@@ -413,7 +413,7 @@ class Search_representationQueryRepresentations(Representation, GraphQLObject):
         frozen = True
 
 
-class Search_representationQuery(BaseModel):
+class Search_representationQuery(GraphQLObject):
     representations: Optional[List[Optional[Search_representationQueryRepresentations]]]
 
     class Meta:
@@ -424,7 +424,7 @@ class Search_representationQuery(BaseModel):
         frozen = True
 
 
-class Get_random_repQuery(BaseModel):
+class Get_random_repQuery(GraphQLObject):
     randomRepresentation: Optional[RepresentationFragment]
 
     class Meta:
@@ -435,7 +435,7 @@ class Get_random_repQuery(BaseModel):
         frozen = True
 
 
-class ThumbnailQuery(BaseModel):
+class ThumbnailQuery(GraphQLObject):
     thumbnail: Optional[ThumbnailFragment]
 
     class Meta:
@@ -446,7 +446,7 @@ class ThumbnailQuery(BaseModel):
         frozen = True
 
 
-class Expand_thumbnailQuery(BaseModel):
+class Expand_thumbnailQuery(GraphQLObject):
     thumbnail: Optional[ThumbnailFragment]
 
     class Meta:
@@ -457,7 +457,7 @@ class Expand_thumbnailQuery(BaseModel):
         frozen = True
 
 
-class Get_roisQuery(BaseModel):
+class Get_roisQuery(GraphQLObject):
     rois: Optional[List[Optional[ROIFragment]]]
 
     class Meta:
@@ -468,7 +468,7 @@ class Get_roisQuery(BaseModel):
         frozen = True
 
 
-class TableQuery(BaseModel):
+class TableQuery(GraphQLObject):
     table: Optional[TableFragment]
 
     class Meta:
@@ -479,7 +479,7 @@ class TableQuery(BaseModel):
         frozen = True
 
 
-class Expand_tableQuery(BaseModel):
+class Expand_tableQuery(GraphQLObject):
     table: Optional[TableFragment]
 
     class Meta:
@@ -499,7 +499,7 @@ class Search_tablesQueryTables(Table, GraphQLObject):
         frozen = True
 
 
-class Search_tablesQuery(BaseModel):
+class Search_tablesQuery(GraphQLObject):
     tables: Optional[List[Optional[Search_tablesQueryTables]]]
 
     class Meta:
@@ -512,7 +512,7 @@ class Search_tablesQuery(BaseModel):
         frozen = True
 
 
-class Get_sampleQuery(BaseModel):
+class Get_sampleQuery(GraphQLObject):
     sample: Optional[SampleFragment]
 
     class Meta:
@@ -537,7 +537,7 @@ class Search_sampleQuerySamples(Sample, GraphQLObject):
         frozen = True
 
 
-class Search_sampleQuery(BaseModel):
+class Search_sampleQuery(GraphQLObject):
     samples: Optional[List[Optional[Search_sampleQuerySamples]]]
 
     class Meta:
@@ -548,7 +548,7 @@ class Search_sampleQuery(BaseModel):
         frozen = True
 
 
-class Expand_sampleQuery(BaseModel):
+class Expand_sampleQuery(GraphQLObject):
     sample: Optional[SampleFragment]
 
     class Meta:
@@ -559,7 +559,7 @@ class Expand_sampleQuery(BaseModel):
         frozen = True
 
 
-class Get_experimentQuery(BaseModel):
+class Get_experimentQuery(GraphQLObject):
     experiment: Optional[ExperimentFragment]
 
     class Meta:
@@ -570,7 +570,7 @@ class Get_experimentQuery(BaseModel):
         frozen = True
 
 
-class Expand_experimentQuery(BaseModel):
+class Expand_experimentQuery(GraphQLObject):
     experiment: Optional[ExperimentFragment]
 
     class Meta:
@@ -592,7 +592,7 @@ class Search_experimentQueryExperiments(Experiment, GraphQLObject):
         frozen = True
 
 
-class Search_experimentQuery(BaseModel):
+class Search_experimentQuery(GraphQLObject):
     experiments: Optional[List[Optional[Search_experimentQueryExperiments]]]
 
     class Meta:
@@ -613,7 +613,7 @@ class Watch_roisSubscriptionRois(GraphQLObject):
         frozen = True
 
 
-class Watch_roisSubscription(BaseModel):
+class Watch_roisSubscription(GraphQLObject):
     rois: Optional[Watch_roisSubscriptionRois]
 
     class Meta:
@@ -682,7 +682,7 @@ class Watch_samplesSubscriptionMysamples(GraphQLObject):
         frozen = True
 
 
-class Watch_samplesSubscription(BaseModel):
+class Watch_samplesSubscription(GraphQLObject):
     mySamples: Optional[Watch_samplesSubscriptionMysamples]
 
     class Meta:
@@ -693,7 +693,7 @@ class Watch_samplesSubscription(BaseModel):
         frozen = True
 
 
-class NegotiateMutation(BaseModel):
+class NegotiateMutation(GraphQLObject):
     negotiate: Optional[Dict]
 
     class Meta:
@@ -715,7 +715,7 @@ class Upload_bioimageMutationUploadomerofile(OmeroFile, GraphQLObject):
         frozen = True
 
 
-class Upload_bioimageMutation(BaseModel):
+class Upload_bioimageMutation(GraphQLObject):
     uploadOmeroFile: Optional[Upload_bioimageMutationUploadomerofile]
 
     class Meta:
@@ -726,7 +726,7 @@ class Upload_bioimageMutation(BaseModel):
         frozen = True
 
 
-class From_xarrayMutation(BaseModel):
+class From_xarrayMutation(GraphQLObject):
     fromXArray: Optional[RepresentationFragment]
 
     class Meta:
@@ -765,7 +765,7 @@ class Double_uploadMutationY(Representation, GraphQLObject):
         frozen = True
 
 
-class Double_uploadMutation(BaseModel):
+class Double_uploadMutation(GraphQLObject):
     x: Optional[Double_uploadMutationX]
     y: Optional[Double_uploadMutationY]
 
@@ -777,7 +777,7 @@ class Double_uploadMutation(BaseModel):
         frozen = True
 
 
-class Create_thumbnailMutation(BaseModel):
+class Create_thumbnailMutation(GraphQLObject):
     uploadThumbnail: Optional[ThumbnailFragment]
 
     class Meta:
@@ -826,7 +826,7 @@ class Create_metricMutationCreatemetric(GraphQLObject):
         frozen = True
 
 
-class Create_metricMutation(BaseModel):
+class Create_metricMutation(GraphQLObject):
     createMetric: Optional[Create_metricMutationCreatemetric]
 
     class Meta:
@@ -837,7 +837,7 @@ class Create_metricMutation(BaseModel):
         frozen = True
 
 
-class Create_roiMutation(BaseModel):
+class Create_roiMutation(GraphQLObject):
     createROI: Optional[ROIFragment]
 
     class Meta:
@@ -848,7 +848,7 @@ class Create_roiMutation(BaseModel):
         frozen = True
 
 
-class From_dfMutation(BaseModel):
+class From_dfMutation(GraphQLObject):
     fromDf: Optional[TableFragment]
 
     class Meta:
@@ -884,7 +884,7 @@ class Create_sampleMutationCreatesample(Sample, GraphQLObject):
         frozen = True
 
 
-class Create_sampleMutation(BaseModel):
+class Create_sampleMutation(GraphQLObject):
     createSample: Optional[Create_sampleMutationCreatesample]
 
     class Meta:
@@ -895,7 +895,7 @@ class Create_sampleMutation(BaseModel):
         frozen = True
 
 
-class Create_experimentMutation(BaseModel):
+class Create_experimentMutation(GraphQLObject):
     createExperiment: Optional[ExperimentFragment]
 
     class Meta:
@@ -1120,7 +1120,7 @@ def get_random_rep(mikro: Mikro = None) -> RepresentationFragment:
     return execute(Get_random_repQuery, {}, mikro=mikro).randomRepresentation
 
 
-async def aThumbnail(id: str, mikro: Mikro = None) -> ThumbnailFragment:
+async def athumbnail(id: str, mikro: Mikro = None) -> ThumbnailFragment:
     """Thumbnail
 
     Get a single representation by ID
@@ -1134,7 +1134,7 @@ async def aThumbnail(id: str, mikro: Mikro = None) -> ThumbnailFragment:
     return (await aexecute(ThumbnailQuery, {"id": id}, mikro=mikro)).thumbnail
 
 
-def Thumbnail(id: str, mikro: Mikro = None) -> ThumbnailFragment:
+def thumbnail(id: str, mikro: Mikro = None) -> ThumbnailFragment:
     """Thumbnail
 
     Get a single representation by ID
@@ -1216,7 +1216,7 @@ def get_rois(
     ).rois
 
 
-async def aTable(id: str, mikro: Mikro = None) -> TableFragment:
+async def atable(id: str, mikro: Mikro = None) -> TableFragment:
     """Table
 
     Get a single representation by ID
@@ -1230,7 +1230,7 @@ async def aTable(id: str, mikro: Mikro = None) -> TableFragment:
     return (await aexecute(TableQuery, {"id": id}, mikro=mikro)).table
 
 
-def Table(id: str, mikro: Mikro = None) -> TableFragment:
+def table(id: str, mikro: Mikro = None) -> TableFragment:
     """Table
 
     Get a single representation by ID

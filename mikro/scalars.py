@@ -51,10 +51,11 @@ class Store:
     def open(self, dl=None):
         dl = dl or get_current_datalayer()
 
-        if not self._openstore:
+        if self._openstore is None:
             self._openstore = xr.open_zarr(
                 store=dl.fs.get_mapper(self.value), consolidated=True
             )["data"]
+
         return self._openstore
 
     @classmethod
@@ -112,7 +113,6 @@ class Parquet:
         # the value returned from the previous validator
         yield cls.validate
 
-
     @classmethod
     def validate(cls, v):
         if not isinstance(v, str):
@@ -147,7 +147,6 @@ class File:
         # order to validate the input, each validator will receive as an input
         # the value returned from the previous validator
         yield cls.validate
-
 
     @classmethod
     def validate(cls, v):
@@ -212,7 +211,6 @@ class Upload:
 class DataFrame:
     def __init__(self, value) -> None:
         self.value = value
-
 
     @classmethod
     def __get_validators__(cls):
