@@ -3,8 +3,7 @@ from tomlkit import value
 import requests
 import xarray as xr
 import pyarrow.parquet as pq
-from mikro.datalayer import get_current_datalayer
-from mikro.mikro import get_current_mikro
+from mikro.datalayer import current_datalayer
 
 
 class XArray:
@@ -49,8 +48,11 @@ class Store:
         self._openstore = None
 
     def open(self, dl=None):
-        dl = dl or get_current_datalayer()
+        dl = dl or current_datalayer.get()
 
+        assert (
+            dl
+        ), "No datalayer set. This probably happened because you never connected the datalayer. Please connect (either with async or sync) and try again."
         if self._openstore is None:
             self._openstore = xr.open_zarr(
                 store=dl.fs.get_mapper(self.value), consolidated=True
@@ -108,19 +110,12 @@ class Parquet:
 
     @classmethod
     def __get_validators__(cls):
-        # one or more validators may be yielded which will be called in the
-        # order to validate the input, each validator will receive as an input
-        # the value returned from the previous validator
         yield cls.validate
 
     @classmethod
     def validate(cls, v):
         if not isinstance(v, str):
             raise TypeError("string required")
-        # you could also return a string here which would mean model.post_code
-        # would be a string, pydantic won't care but you could end up with some
-        # confusion since the value's type won't match the type annotation
-        # exactly
         return cls(v)
 
     def __repr__(self):
@@ -131,8 +126,8 @@ class File:
     def __init__(self, value) -> None:
         self.value = value
 
-    def download(self):
-        dl = get_current_datalayer()
+    def download(self, dl=None):
+        dl = dl or current_datalayer.get()
         url = f"{dl.endpoint_url}{self.value}"
         local_filename = "test.tif"
         with requests.get(url, stream=True) as r:
@@ -166,8 +161,8 @@ class Upload:
     def __init__(self, value) -> None:
         self.value = value
 
-    def download(self):
-        dl = get_current_datalayer()
+    def download(self, dl=None):
+        dl = dl or current_datalayer.get()
         url = f"{dl.endpoint_url}{self.value}"
         local_filename = "test.tif"
         with requests.get(url, stream=True) as r:

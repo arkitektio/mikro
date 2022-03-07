@@ -2,7 +2,7 @@ from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
 import uuid
 from graphql import NamedTypeNode
-from koil.loop import koil
+from koil.loop import koil, unkoil
 from mikro.datalayer import DataLayer
 from rath.links.parsing import ParsingLink
 from rath.operation import Operation
@@ -47,10 +47,6 @@ class DataLayerParquetUploadLink(ParsingLink):
         self.connected = False
         self._lock = False
 
-    async def aconnect(self):
-        if not self.datalayer.connected:
-            await self.datalayer.aconnect()
-
     def store_df(self, df: pd.DataFrame) -> None:
 
         random_ui = uuid.uuid4()
@@ -60,8 +56,6 @@ class DataLayerParquetUploadLink(ParsingLink):
         return s3_path
 
     def parse(self, operation: Operation) -> Operation:
-        if not self.connected:
-            koil(self.aconnect())
 
         for node in filter_dataframe_nodes(operation):
             array = operation.variables[node.variable.name.value]
@@ -78,10 +72,6 @@ class DataLayerParquetUploadLink(ParsingLink):
 
         if not self._lock:
             self._lock = asyncio.Lock()
-
-        async with self._lock:
-            if not self.connected:
-                await self.aconnect()
 
         shrinky = filter_dataframe_nodes(operation)
         if shrinky:

@@ -1,11 +1,11 @@
-from mikro.funcs import aexecute, subscribe, asubscribe, execute
-from mikro.traits import Thumbnail, Sample, OmeroFile, Representation, Experiment, Table
-from mikro.scalars import Upload, Store, XArray, DataFrame, File
-from rath.turms.object import GraphQLObject
-from enum import Enum
-from typing import Dict, Iterator, AsyncIterator, Optional, List, Literal
+from mikro.scalars import File, Upload, XArray, DataFrame, Store
+from mikro.traits import Table, Thumbnail, Experiment, Sample, Representation, OmeroFile
+from typing import Dict, AsyncIterator, List, Iterator, Literal, Optional
 from pydantic import Field, BaseModel
-from mikro.mikro import Mikro
+from mikro.funcs import aexecute, subscribe, asubscribe, execute
+from rath.turms.object import GraphQLObject
+from mikro.mikro import MikroRath
+from enum import Enum
 
 
 class OmeroFileType(str, Enum):
@@ -597,7 +597,7 @@ class Search_experimentQuery(GraphQLObject):
 
     class Meta:
         domain = "mikro"
-        document = "query search_experiment($search: String) {\n  experiments(name: $search, limit: 20) {\n    id: id\n    label: name\n  }\n}"
+        document = "query search_experiment($search: String) {\n  experiments(name: $search, limit: 30) {\n    id: id\n    label: name\n  }\n}"
 
     class Config:
         frozen = True
@@ -906,64 +906,88 @@ class Create_experimentMutation(GraphQLObject):
         frozen = True
 
 
-async def aget_omero_file(id: str, mikro: Mikro = None) -> OmeroFileFragment:
+async def aget_omero_file(
+    id: str, mikrorath: MikroRath = None, as_task: bool = False
+) -> OmeroFileFragment:
     """get_omero_file
 
     Get a single representation by ID
 
     Arguments:
         id (ID): ID
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         OmeroFileFragment: The returned Mutation"""
-    return (await aexecute(Get_omero_fileQuery, {"id": id}, mikro=mikro)).omerofile
+    return (
+        await aexecute(
+            Get_omero_fileQuery, {"id": id}, mikrorath=mikrorath, as_task=as_task
+        )
+    ).omerofile
 
 
-def get_omero_file(id: str, mikro: Mikro = None) -> OmeroFileFragment:
+def get_omero_file(
+    id: str, mikrorath: MikroRath = None, as_task: bool = False
+) -> OmeroFileFragment:
     """get_omero_file
 
     Get a single representation by ID
 
     Arguments:
         id (ID): ID
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         OmeroFileFragment: The returned Mutation"""
-    return execute(Get_omero_fileQuery, {"id": id}, mikro=mikro).omerofile
+    return execute(
+        Get_omero_fileQuery, {"id": id}, mikrorath=mikrorath, as_task=as_task
+    ).omerofile
 
 
-async def aexpand_omerofile(id: str, mikro: Mikro = None) -> OmeroFileFragment:
+async def aexpand_omerofile(
+    id: str, mikrorath: MikroRath = None, as_task: bool = False
+) -> OmeroFileFragment:
     """expand_omerofile
 
     Get a single representation by ID
 
     Arguments:
         id (ID): ID
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         OmeroFileFragment: The returned Mutation"""
-    return (await aexecute(Expand_omerofileQuery, {"id": id}, mikro=mikro)).omerofile
+    return (
+        await aexecute(
+            Expand_omerofileQuery, {"id": id}, mikrorath=mikrorath, as_task=as_task
+        )
+    ).omerofile
 
 
-def expand_omerofile(id: str, mikro: Mikro = None) -> OmeroFileFragment:
+def expand_omerofile(
+    id: str, mikrorath: MikroRath = None, as_task: bool = False
+) -> OmeroFileFragment:
     """expand_omerofile
 
     Get a single representation by ID
 
     Arguments:
         id (ID): ID
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         OmeroFileFragment: The returned Mutation"""
-    return execute(Expand_omerofileQuery, {"id": id}, mikro=mikro).omerofile
+    return execute(
+        Expand_omerofileQuery, {"id": id}, mikrorath=mikrorath, as_task=as_task
+    ).omerofile
 
 
 async def asearch_omerofile(
-    search: str, mikro: Mikro = None
+    search: str, mikrorath: MikroRath = None, as_task: bool = False
 ) -> List[Search_omerofileQueryOmerofiles]:
     """search_omerofile
 
@@ -971,17 +995,23 @@ async def asearch_omerofile(
 
     Arguments:
         search (String): String
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         Search_omerofileQueryOmerofiles: The returned Mutation"""
     return (
-        await aexecute(Search_omerofileQuery, {"search": search}, mikro=mikro)
+        await aexecute(
+            Search_omerofileQuery,
+            {"search": search},
+            mikrorath=mikrorath,
+            as_task=as_task,
+        )
     ).omerofiles
 
 
 def search_omerofile(
-    search: str, mikro: Mikro = None
+    search: str, mikrorath: MikroRath = None, as_task: bool = False
 ) -> List[Search_omerofileQueryOmerofiles]:
     """search_omerofile
 
@@ -989,15 +1019,18 @@ def search_omerofile(
 
     Arguments:
         search (String): String
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         Search_omerofileQueryOmerofiles: The returned Mutation"""
-    return execute(Search_omerofileQuery, {"search": search}, mikro=mikro).omerofiles
+    return execute(
+        Search_omerofileQuery, {"search": search}, mikrorath=mikrorath, as_task=as_task
+    ).omerofiles
 
 
 async def aexpand_representation(
-    id: str, mikro: Mikro = None
+    id: str, mikrorath: MikroRath = None, as_task: bool = False
 ) -> RepresentationFragment:
     """expand_representation
 
@@ -1005,61 +1038,79 @@ async def aexpand_representation(
 
     Arguments:
         id (ID): ID
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         RepresentationFragment: The returned Mutation"""
     return (
-        await aexecute(Expand_representationQuery, {"id": id}, mikro=mikro)
+        await aexecute(
+            Expand_representationQuery, {"id": id}, mikrorath=mikrorath, as_task=as_task
+        )
     ).representation
 
 
-def expand_representation(id: str, mikro: Mikro = None) -> RepresentationFragment:
+def expand_representation(
+    id: str, mikrorath: MikroRath = None, as_task: bool = False
+) -> RepresentationFragment:
     """expand_representation
 
     Get a single representation by ID
 
     Arguments:
         id (ID): ID
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         RepresentationFragment: The returned Mutation"""
-    return execute(Expand_representationQuery, {"id": id}, mikro=mikro).representation
+    return execute(
+        Expand_representationQuery, {"id": id}, mikrorath=mikrorath, as_task=as_task
+    ).representation
 
 
-async def aget_representation(id: str, mikro: Mikro = None) -> RepresentationFragment:
+async def aget_representation(
+    id: str, mikrorath: MikroRath = None, as_task: bool = False
+) -> RepresentationFragment:
     """get_representation
 
     Get a single representation by ID
 
     Arguments:
         id (ID): ID
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         RepresentationFragment: The returned Mutation"""
     return (
-        await aexecute(Get_representationQuery, {"id": id}, mikro=mikro)
+        await aexecute(
+            Get_representationQuery, {"id": id}, mikrorath=mikrorath, as_task=as_task
+        )
     ).representation
 
 
-def get_representation(id: str, mikro: Mikro = None) -> RepresentationFragment:
+def get_representation(
+    id: str, mikrorath: MikroRath = None, as_task: bool = False
+) -> RepresentationFragment:
     """get_representation
 
     Get a single representation by ID
 
     Arguments:
         id (ID): ID
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         RepresentationFragment: The returned Mutation"""
-    return execute(Get_representationQuery, {"id": id}, mikro=mikro).representation
+    return execute(
+        Get_representationQuery, {"id": id}, mikrorath=mikrorath, as_task=as_task
+    ).representation
 
 
 async def asearch_representation(
-    search: str = None, mikro: Mikro = None
+    search: str = None, mikrorath: MikroRath = None, as_task: bool = False
 ) -> List[Search_representationQueryRepresentations]:
     """search_representation
 
@@ -1067,17 +1118,23 @@ async def asearch_representation(
 
     Arguments:
         search (String, Optional): String
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         Search_representationQueryRepresentations: The returned Mutation"""
     return (
-        await aexecute(Search_representationQuery, {"search": search}, mikro=mikro)
+        await aexecute(
+            Search_representationQuery,
+            {"search": search},
+            mikrorath=mikrorath,
+            as_task=as_task,
+        )
     ).representations
 
 
 def search_representation(
-    search: str = None, mikro: Mikro = None
+    search: str = None, mikrorath: MikroRath = None, as_task: bool = False
 ) -> List[Search_representationQueryRepresentations]:
     """search_representation
 
@@ -1085,99 +1142,138 @@ def search_representation(
 
     Arguments:
         search (String, Optional): String
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         Search_representationQueryRepresentations: The returned Mutation"""
     return execute(
-        Search_representationQuery, {"search": search}, mikro=mikro
+        Search_representationQuery,
+        {"search": search},
+        mikrorath=mikrorath,
+        as_task=as_task,
     ).representations
 
 
-async def aget_random_rep(mikro: Mikro = None) -> RepresentationFragment:
+async def aget_random_rep(
+    mikrorath: MikroRath = None, as_task: bool = False
+) -> RepresentationFragment:
     """get_random_rep
 
     Get a single representation by ID
 
     Arguments:
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         RepresentationFragment: The returned Mutation"""
-    return (await aexecute(Get_random_repQuery, {}, mikro=mikro)).randomRepresentation
+    return (
+        await aexecute(Get_random_repQuery, {}, mikrorath=mikrorath, as_task=as_task)
+    ).randomRepresentation
 
 
-def get_random_rep(mikro: Mikro = None) -> RepresentationFragment:
+def get_random_rep(
+    mikrorath: MikroRath = None, as_task: bool = False
+) -> RepresentationFragment:
     """get_random_rep
 
     Get a single representation by ID
 
     Arguments:
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         RepresentationFragment: The returned Mutation"""
-    return execute(Get_random_repQuery, {}, mikro=mikro).randomRepresentation
+    return execute(
+        Get_random_repQuery, {}, mikrorath=mikrorath, as_task=as_task
+    ).randomRepresentation
 
 
-async def athumbnail(id: str, mikro: Mikro = None) -> ThumbnailFragment:
+async def athumbnail(
+    id: str, mikrorath: MikroRath = None, as_task: bool = False
+) -> ThumbnailFragment:
     """Thumbnail
 
     Get a single representation by ID
 
     Arguments:
         id (ID): ID
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         ThumbnailFragment: The returned Mutation"""
-    return (await aexecute(ThumbnailQuery, {"id": id}, mikro=mikro)).thumbnail
+    return (
+        await aexecute(ThumbnailQuery, {"id": id}, mikrorath=mikrorath, as_task=as_task)
+    ).thumbnail
 
 
-def thumbnail(id: str, mikro: Mikro = None) -> ThumbnailFragment:
+def thumbnail(
+    id: str, mikrorath: MikroRath = None, as_task: bool = False
+) -> ThumbnailFragment:
     """Thumbnail
 
     Get a single representation by ID
 
     Arguments:
         id (ID): ID
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         ThumbnailFragment: The returned Mutation"""
-    return execute(ThumbnailQuery, {"id": id}, mikro=mikro).thumbnail
+    return execute(
+        ThumbnailQuery, {"id": id}, mikrorath=mikrorath, as_task=as_task
+    ).thumbnail
 
 
-async def aexpand_thumbnail(id: str, mikro: Mikro = None) -> ThumbnailFragment:
+async def aexpand_thumbnail(
+    id: str, mikrorath: MikroRath = None, as_task: bool = False
+) -> ThumbnailFragment:
     """expand_thumbnail
 
     Get a single representation by ID
 
     Arguments:
         id (ID): ID
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         ThumbnailFragment: The returned Mutation"""
-    return (await aexecute(Expand_thumbnailQuery, {"id": id}, mikro=mikro)).thumbnail
+    return (
+        await aexecute(
+            Expand_thumbnailQuery, {"id": id}, mikrorath=mikrorath, as_task=as_task
+        )
+    ).thumbnail
 
 
-def expand_thumbnail(id: str, mikro: Mikro = None) -> ThumbnailFragment:
+def expand_thumbnail(
+    id: str, mikrorath: MikroRath = None, as_task: bool = False
+) -> ThumbnailFragment:
     """expand_thumbnail
 
     Get a single representation by ID
 
     Arguments:
         id (ID): ID
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         ThumbnailFragment: The returned Mutation"""
-    return execute(Expand_thumbnailQuery, {"id": id}, mikro=mikro).thumbnail
+    return execute(
+        Expand_thumbnailQuery, {"id": id}, mikrorath=mikrorath, as_task=as_task
+    ).thumbnail
 
 
 async def aget_rois(
-    representation: str, type: List[RoiTypeInput] = None, mikro: Mikro = None
+    representation: str,
+    type: List[RoiTypeInput] = None,
+    mikrorath: MikroRath = None,
+    as_task: bool = False,
 ) -> List[ROIFragment]:
     """get_rois
 
@@ -1186,19 +1282,26 @@ async def aget_rois(
     Arguments:
         representation (ID): ID
         type (List[RoiTypeInput], Optional): RoiTypeInput
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         ROIFragment: The returned Mutation"""
     return (
         await aexecute(
-            Get_roisQuery, {"representation": representation, "type": type}, mikro=mikro
+            Get_roisQuery,
+            {"representation": representation, "type": type},
+            mikrorath=mikrorath,
+            as_task=as_task,
         )
     ).rois
 
 
 def get_rois(
-    representation: str, type: List[RoiTypeInput] = None, mikro: Mikro = None
+    representation: str,
+    type: List[RoiTypeInput] = None,
+    mikrorath: MikroRath = None,
+    as_task: bool = False,
 ) -> List[ROIFragment]:
     """get_rois
 
@@ -1207,127 +1310,169 @@ def get_rois(
     Arguments:
         representation (ID): ID
         type (List[RoiTypeInput], Optional): RoiTypeInput
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         ROIFragment: The returned Mutation"""
     return execute(
-        Get_roisQuery, {"representation": representation, "type": type}, mikro=mikro
+        Get_roisQuery,
+        {"representation": representation, "type": type},
+        mikrorath=mikrorath,
+        as_task=as_task,
     ).rois
 
 
-async def atable(id: str, mikro: Mikro = None) -> TableFragment:
+async def atable(
+    id: str, mikrorath: MikroRath = None, as_task: bool = False
+) -> TableFragment:
     """Table
 
     Get a single representation by ID
 
     Arguments:
         id (ID): ID
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         TableFragment: The returned Mutation"""
-    return (await aexecute(TableQuery, {"id": id}, mikro=mikro)).table
+    return (
+        await aexecute(TableQuery, {"id": id}, mikrorath=mikrorath, as_task=as_task)
+    ).table
 
 
-def table(id: str, mikro: Mikro = None) -> TableFragment:
+def table(id: str, mikrorath: MikroRath = None, as_task: bool = False) -> TableFragment:
     """Table
 
     Get a single representation by ID
 
     Arguments:
         id (ID): ID
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         TableFragment: The returned Mutation"""
-    return execute(TableQuery, {"id": id}, mikro=mikro).table
+    return execute(TableQuery, {"id": id}, mikrorath=mikrorath, as_task=as_task).table
 
 
-async def aexpand_table(id: str, mikro: Mikro = None) -> TableFragment:
+async def aexpand_table(
+    id: str, mikrorath: MikroRath = None, as_task: bool = False
+) -> TableFragment:
     """expand_table
 
     Get a single representation by ID
 
     Arguments:
         id (ID): ID
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         TableFragment: The returned Mutation"""
-    return (await aexecute(Expand_tableQuery, {"id": id}, mikro=mikro)).table
+    return (
+        await aexecute(
+            Expand_tableQuery, {"id": id}, mikrorath=mikrorath, as_task=as_task
+        )
+    ).table
 
 
-def expand_table(id: str, mikro: Mikro = None) -> TableFragment:
+def expand_table(
+    id: str, mikrorath: MikroRath = None, as_task: bool = False
+) -> TableFragment:
     """expand_table
 
     Get a single representation by ID
 
     Arguments:
         id (ID): ID
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         TableFragment: The returned Mutation"""
-    return execute(Expand_tableQuery, {"id": id}, mikro=mikro).table
+    return execute(
+        Expand_tableQuery, {"id": id}, mikrorath=mikrorath, as_task=as_task
+    ).table
 
 
-async def asearch_tables(mikro: Mikro = None) -> List[Search_tablesQueryTables]:
+async def asearch_tables(
+    mikrorath: MikroRath = None, as_task: bool = False
+) -> List[Search_tablesQueryTables]:
     """search_tables
 
     My samples return all of the users samples attached to the current user
 
     Arguments:
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         Search_tablesQueryTables: The returned Mutation"""
-    return (await aexecute(Search_tablesQuery, {}, mikro=mikro)).tables
+    return (
+        await aexecute(Search_tablesQuery, {}, mikrorath=mikrorath, as_task=as_task)
+    ).tables
 
 
-def search_tables(mikro: Mikro = None) -> List[Search_tablesQueryTables]:
+def search_tables(
+    mikrorath: MikroRath = None, as_task: bool = False
+) -> List[Search_tablesQueryTables]:
     """search_tables
 
     My samples return all of the users samples attached to the current user
 
     Arguments:
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         Search_tablesQueryTables: The returned Mutation"""
-    return execute(Search_tablesQuery, {}, mikro=mikro).tables
+    return execute(Search_tablesQuery, {}, mikrorath=mikrorath, as_task=as_task).tables
 
 
-async def aget_sample(id: str, mikro: Mikro = None) -> SampleFragment:
+async def aget_sample(
+    id: str, mikrorath: MikroRath = None, as_task: bool = False
+) -> SampleFragment:
     """get_sample
 
     Get a single representation by ID
 
     Arguments:
         id (ID): ID
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         SampleFragment: The returned Mutation"""
-    return (await aexecute(Get_sampleQuery, {"id": id}, mikro=mikro)).sample
+    return (
+        await aexecute(
+            Get_sampleQuery, {"id": id}, mikrorath=mikrorath, as_task=as_task
+        )
+    ).sample
 
 
-def get_sample(id: str, mikro: Mikro = None) -> SampleFragment:
+def get_sample(
+    id: str, mikrorath: MikroRath = None, as_task: bool = False
+) -> SampleFragment:
     """get_sample
 
     Get a single representation by ID
 
     Arguments:
         id (ID): ID
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         SampleFragment: The returned Mutation"""
-    return execute(Get_sampleQuery, {"id": id}, mikro=mikro).sample
+    return execute(
+        Get_sampleQuery, {"id": id}, mikrorath=mikrorath, as_task=as_task
+    ).sample
 
 
 async def asearch_sample(
-    search: str = None, mikro: Mikro = None
+    search: str = None, mikrorath: MikroRath = None, as_task: bool = False
 ) -> List[Search_sampleQuerySamples]:
     """search_sample
 
@@ -1335,15 +1480,20 @@ async def asearch_sample(
 
     Arguments:
         search (String, Optional): String
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         Search_sampleQuerySamples: The returned Mutation"""
-    return (await aexecute(Search_sampleQuery, {"search": search}, mikro=mikro)).samples
+    return (
+        await aexecute(
+            Search_sampleQuery, {"search": search}, mikrorath=mikrorath, as_task=as_task
+        )
+    ).samples
 
 
 def search_sample(
-    search: str = None, mikro: Mikro = None
+    search: str = None, mikrorath: MikroRath = None, as_task: bool = False
 ) -> List[Search_sampleQuerySamples]:
     """search_sample
 
@@ -1351,99 +1501,138 @@ def search_sample(
 
     Arguments:
         search (String, Optional): String
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         Search_sampleQuerySamples: The returned Mutation"""
-    return execute(Search_sampleQuery, {"search": search}, mikro=mikro).samples
+    return execute(
+        Search_sampleQuery, {"search": search}, mikrorath=mikrorath, as_task=as_task
+    ).samples
 
 
-async def aexpand_sample(id: str, mikro: Mikro = None) -> SampleFragment:
+async def aexpand_sample(
+    id: str, mikrorath: MikroRath = None, as_task: bool = False
+) -> SampleFragment:
     """expand_sample
 
     Get a single representation by ID
 
     Arguments:
         id (ID): ID
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         SampleFragment: The returned Mutation"""
-    return (await aexecute(Expand_sampleQuery, {"id": id}, mikro=mikro)).sample
+    return (
+        await aexecute(
+            Expand_sampleQuery, {"id": id}, mikrorath=mikrorath, as_task=as_task
+        )
+    ).sample
 
 
-def expand_sample(id: str, mikro: Mikro = None) -> SampleFragment:
+def expand_sample(
+    id: str, mikrorath: MikroRath = None, as_task: bool = False
+) -> SampleFragment:
     """expand_sample
 
     Get a single representation by ID
 
     Arguments:
         id (ID): ID
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         SampleFragment: The returned Mutation"""
-    return execute(Expand_sampleQuery, {"id": id}, mikro=mikro).sample
+    return execute(
+        Expand_sampleQuery, {"id": id}, mikrorath=mikrorath, as_task=as_task
+    ).sample
 
 
-async def aget_experiment(id: str, mikro: Mikro = None) -> ExperimentFragment:
+async def aget_experiment(
+    id: str, mikrorath: MikroRath = None, as_task: bool = False
+) -> ExperimentFragment:
     """get_experiment
 
     Get a single representation by ID
 
     Arguments:
         id (ID): ID
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         ExperimentFragment: The returned Mutation"""
-    return (await aexecute(Get_experimentQuery, {"id": id}, mikro=mikro)).experiment
+    return (
+        await aexecute(
+            Get_experimentQuery, {"id": id}, mikrorath=mikrorath, as_task=as_task
+        )
+    ).experiment
 
 
-def get_experiment(id: str, mikro: Mikro = None) -> ExperimentFragment:
+def get_experiment(
+    id: str, mikrorath: MikroRath = None, as_task: bool = False
+) -> ExperimentFragment:
     """get_experiment
 
     Get a single representation by ID
 
     Arguments:
         id (ID): ID
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         ExperimentFragment: The returned Mutation"""
-    return execute(Get_experimentQuery, {"id": id}, mikro=mikro).experiment
+    return execute(
+        Get_experimentQuery, {"id": id}, mikrorath=mikrorath, as_task=as_task
+    ).experiment
 
 
-async def aexpand_experiment(id: str, mikro: Mikro = None) -> ExperimentFragment:
+async def aexpand_experiment(
+    id: str, mikrorath: MikroRath = None, as_task: bool = False
+) -> ExperimentFragment:
     """expand_experiment
 
     Get a single representation by ID
 
     Arguments:
         id (ID): ID
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         ExperimentFragment: The returned Mutation"""
-    return (await aexecute(Expand_experimentQuery, {"id": id}, mikro=mikro)).experiment
+    return (
+        await aexecute(
+            Expand_experimentQuery, {"id": id}, mikrorath=mikrorath, as_task=as_task
+        )
+    ).experiment
 
 
-def expand_experiment(id: str, mikro: Mikro = None) -> ExperimentFragment:
+def expand_experiment(
+    id: str, mikrorath: MikroRath = None, as_task: bool = False
+) -> ExperimentFragment:
     """expand_experiment
 
     Get a single representation by ID
 
     Arguments:
         id (ID): ID
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         ExperimentFragment: The returned Mutation"""
-    return execute(Expand_experimentQuery, {"id": id}, mikro=mikro).experiment
+    return execute(
+        Expand_experimentQuery, {"id": id}, mikrorath=mikrorath, as_task=as_task
+    ).experiment
 
 
 async def asearch_experiment(
-    search: str = None, mikro: Mikro = None
+    search: str = None, mikrorath: MikroRath = None, as_task: bool = False
 ) -> List[Search_experimentQueryExperiments]:
     """search_experiment
 
@@ -1451,17 +1640,23 @@ async def asearch_experiment(
 
     Arguments:
         search (String, Optional): String
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         Search_experimentQueryExperiments: The returned Mutation"""
     return (
-        await aexecute(Search_experimentQuery, {"search": search}, mikro=mikro)
+        await aexecute(
+            Search_experimentQuery,
+            {"search": search},
+            mikrorath=mikrorath,
+            as_task=as_task,
+        )
     ).experiments
 
 
 def search_experiment(
-    search: str = None, mikro: Mikro = None
+    search: str = None, mikrorath: MikroRath = None, as_task: bool = False
 ) -> List[Search_experimentQueryExperiments]:
     """search_experiment
 
@@ -1469,15 +1664,18 @@ def search_experiment(
 
     Arguments:
         search (String, Optional): String
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         Search_experimentQueryExperiments: The returned Mutation"""
-    return execute(Search_experimentQuery, {"search": search}, mikro=mikro).experiments
+    return execute(
+        Search_experimentQuery, {"search": search}, mikrorath=mikrorath, as_task=as_task
+    ).experiments
 
 
 async def awatch_rois(
-    representation: str, mikro: Mikro = None
+    representation: str, mikrorath: MikroRath = None, as_task: bool = False
 ) -> AsyncIterator[Watch_roisSubscriptionRois]:
     """watch_rois
 
@@ -1485,18 +1683,22 @@ async def awatch_rois(
 
     Arguments:
         representation (ID): ID
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         Watch_roisSubscriptionRois: The returned Mutation"""
     async for event in asubscribe(
-        Watch_roisSubscription, {"representation": representation}, mikro=mikro
+        Watch_roisSubscription,
+        {"representation": representation},
+        mikrorath=mikrorath,
+        as_task=as_task,
     ):
         yield event.rois
 
 
 def watch_rois(
-    representation: str, mikro: Mikro = None
+    representation: str, mikrorath: MikroRath = None, as_task: bool = False
 ) -> Iterator[Watch_roisSubscriptionRois]:
     """watch_rois
 
@@ -1504,74 +1706,92 @@ def watch_rois(
 
     Arguments:
         representation (ID): ID
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         Watch_roisSubscriptionRois: The returned Mutation"""
     for event in subscribe(
-        Watch_roisSubscription, {"representation": representation}, mikro=mikro
+        Watch_roisSubscription,
+        {"representation": representation},
+        mikrorath=mikrorath,
+        as_task=as_task,
     ):
         yield event.rois
 
 
 async def awatch_samples(
-    mikro: Mikro = None,
+    mikrorath: MikroRath = None, as_task: bool = False
 ) -> AsyncIterator[Watch_samplesSubscriptionMysamples]:
     """watch_samples
 
 
 
     Arguments:
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         Watch_samplesSubscriptionMysamples: The returned Mutation"""
-    async for event in asubscribe(Watch_samplesSubscription, {}, mikro=mikro):
+    async for event in asubscribe(
+        Watch_samplesSubscription, {}, mikrorath=mikrorath, as_task=as_task
+    ):
         yield event.mySamples
 
 
-def watch_samples(mikro: Mikro = None) -> Iterator[Watch_samplesSubscriptionMysamples]:
+def watch_samples(
+    mikrorath: MikroRath = None, as_task: bool = False
+) -> Iterator[Watch_samplesSubscriptionMysamples]:
     """watch_samples
 
 
 
     Arguments:
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         Watch_samplesSubscriptionMysamples: The returned Mutation"""
-    for event in subscribe(Watch_samplesSubscription, {}, mikro=mikro):
+    for event in subscribe(
+        Watch_samplesSubscription, {}, mikrorath=mikrorath, as_task=as_task
+    ):
         yield event.mySamples
 
 
-async def anegotiate(mikro: Mikro = None) -> Dict:
+async def anegotiate(mikrorath: MikroRath = None, as_task: bool = False) -> Dict:
     """negotiate
 
 
 
     Arguments:
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         Dict: The returned Mutation"""
-    return (await aexecute(NegotiateMutation, {}, mikro=mikro)).negotiate
+    return (
+        await aexecute(NegotiateMutation, {}, mikrorath=mikrorath, as_task=as_task)
+    ).negotiate
 
 
-def negotiate(mikro: Mikro = None) -> Dict:
+def negotiate(mikrorath: MikroRath = None, as_task: bool = False) -> Dict:
     """negotiate
 
 
 
     Arguments:
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         Dict: The returned Mutation"""
-    return execute(NegotiateMutation, {}, mikro=mikro).negotiate
+    return execute(
+        NegotiateMutation, {}, mikrorath=mikrorath, as_task=as_task
+    ).negotiate
 
 
 async def aupload_bioimage(
-    file: Upload, mikro: Mikro = None
+    file: Upload, mikrorath: MikroRath = None, as_task: bool = False
 ) -> Upload_bioimageMutationUploadomerofile:
     """upload_bioimage
 
@@ -1579,17 +1799,23 @@ async def aupload_bioimage(
 
     Arguments:
         file (Upload): Upload
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         Upload_bioimageMutationUploadomerofile: The returned Mutation"""
     return (
-        await aexecute(Upload_bioimageMutation, {"file": file}, mikro=mikro)
+        await aexecute(
+            Upload_bioimageMutation,
+            {"file": file},
+            mikrorath=mikrorath,
+            as_task=as_task,
+        )
     ).uploadOmeroFile
 
 
 def upload_bioimage(
-    file: Upload, mikro: Mikro = None
+    file: Upload, mikrorath: MikroRath = None, as_task: bool = False
 ) -> Upload_bioimageMutationUploadomerofile:
     """upload_bioimage
 
@@ -1597,11 +1823,14 @@ def upload_bioimage(
 
     Arguments:
         file (Upload): Upload
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         Upload_bioimageMutationUploadomerofile: The returned Mutation"""
-    return execute(Upload_bioimageMutation, {"file": file}, mikro=mikro).uploadOmeroFile
+    return execute(
+        Upload_bioimageMutation, {"file": file}, mikrorath=mikrorath, as_task=as_task
+    ).uploadOmeroFile
 
 
 async def afrom_xarray(
@@ -1612,7 +1841,8 @@ async def afrom_xarray(
     tags: List[str] = None,
     sample: str = None,
     omero: OmeroRepresentationInput = None,
-    mikro: Mikro = None,
+    mikrorath: MikroRath = None,
+    as_task: bool = False,
 ) -> RepresentationFragment:
     """from_xarray
 
@@ -1626,7 +1856,8 @@ async def afrom_xarray(
         tags (List[String], Optional): String
         sample (ID, Optional): ID
         omero (OmeroRepresentationInput, Optional): OmeroRepresentationInput
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         RepresentationFragment: The returned Mutation"""
@@ -1642,7 +1873,8 @@ async def afrom_xarray(
                 "sample": sample,
                 "omero": omero,
             },
-            mikro=mikro,
+            mikrorath=mikrorath,
+            as_task=as_task,
         )
     ).fromXArray
 
@@ -1655,7 +1887,8 @@ def from_xarray(
     tags: List[str] = None,
     sample: str = None,
     omero: OmeroRepresentationInput = None,
-    mikro: Mikro = None,
+    mikrorath: MikroRath = None,
+    as_task: bool = False,
 ) -> RepresentationFragment:
     """from_xarray
 
@@ -1669,7 +1902,8 @@ def from_xarray(
         tags (List[String], Optional): String
         sample (ID, Optional): ID
         omero (OmeroRepresentationInput, Optional): OmeroRepresentationInput
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         RepresentationFragment: The returned Mutation"""
@@ -1684,7 +1918,8 @@ def from_xarray(
             "sample": sample,
             "omero": omero,
         },
-        mikro=mikro,
+        mikrorath=mikrorath,
+        as_task=as_task,
     ).fromXArray
 
 
@@ -1695,7 +1930,8 @@ async def adouble_upload(
     tags: List[str] = None,
     sample: str = None,
     omero: OmeroRepresentationInput = None,
-    mikro: Mikro = None,
+    mikrorath: MikroRath = None,
+    as_task: bool = False,
 ) -> Double_uploadMutation:
     """double_upload
 
@@ -1710,7 +1946,8 @@ async def adouble_upload(
         tags (List[String], Optional): String
         sample (ID, Optional): ID
         omero (OmeroRepresentationInput, Optional): OmeroRepresentationInput
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         Double_uploadMutation: The returned Mutation"""
@@ -1724,7 +1961,8 @@ async def adouble_upload(
             "sample": sample,
             "omero": omero,
         },
-        mikro=mikro,
+        mikrorath=mikrorath,
+        as_task=as_task,
     )
 
 
@@ -1735,7 +1973,8 @@ def double_upload(
     tags: List[str] = None,
     sample: str = None,
     omero: OmeroRepresentationInput = None,
-    mikro: Mikro = None,
+    mikrorath: MikroRath = None,
+    as_task: bool = False,
 ) -> Double_uploadMutation:
     """double_upload
 
@@ -1750,7 +1989,8 @@ def double_upload(
         tags (List[String], Optional): String
         sample (ID, Optional): ID
         omero (OmeroRepresentationInput, Optional): OmeroRepresentationInput
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         Double_uploadMutation: The returned Mutation"""
@@ -1764,12 +2004,13 @@ def double_upload(
             "sample": sample,
             "omero": omero,
         },
-        mikro=mikro,
+        mikrorath=mikrorath,
+        as_task=as_task,
     )
 
 
 async def acreate_thumbnail(
-    rep: str, file: File, mikro: Mikro = None
+    rep: str, file: File, mikrorath: MikroRath = None, as_task: bool = False
 ) -> ThumbnailFragment:
     """create_thumbnail
 
@@ -1778,18 +2019,24 @@ async def acreate_thumbnail(
     Arguments:
         rep (ID): ID
         file (ImageFile): ImageFile
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         ThumbnailFragment: The returned Mutation"""
     return (
         await aexecute(
-            Create_thumbnailMutation, {"rep": rep, "file": file}, mikro=mikro
+            Create_thumbnailMutation,
+            {"rep": rep, "file": file},
+            mikrorath=mikrorath,
+            as_task=as_task,
         )
     ).uploadThumbnail
 
 
-def create_thumbnail(rep: str, file: File, mikro: Mikro = None) -> ThumbnailFragment:
+def create_thumbnail(
+    rep: str, file: File, mikrorath: MikroRath = None, as_task: bool = False
+) -> ThumbnailFragment:
     """create_thumbnail
 
 
@@ -1797,12 +2044,16 @@ def create_thumbnail(rep: str, file: File, mikro: Mikro = None) -> ThumbnailFrag
     Arguments:
         rep (ID): ID
         file (ImageFile): ImageFile
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         ThumbnailFragment: The returned Mutation"""
     return execute(
-        Create_thumbnailMutation, {"rep": rep, "file": file}, mikro=mikro
+        Create_thumbnailMutation,
+        {"rep": rep, "file": file},
+        mikrorath=mikrorath,
+        as_task=as_task,
     ).uploadThumbnail
 
 
@@ -1812,7 +2063,8 @@ async def acreate_metric(
     rep: str = None,
     sample: str = None,
     experiment: str = None,
-    mikro: Mikro = None,
+    mikrorath: MikroRath = None,
+    as_task: bool = False,
 ) -> Create_metricMutationCreatemetric:
     """create_metric
 
@@ -1824,7 +2076,8 @@ async def acreate_metric(
         rep (ID, Optional): ID
         sample (ID, Optional): ID
         experiment (ID, Optional): ID
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         Create_metricMutationCreatemetric: The returned Mutation"""
@@ -1838,7 +2091,8 @@ async def acreate_metric(
                 "sample": sample,
                 "experiment": experiment,
             },
-            mikro=mikro,
+            mikrorath=mikrorath,
+            as_task=as_task,
         )
     ).createMetric
 
@@ -1849,7 +2103,8 @@ def create_metric(
     rep: str = None,
     sample: str = None,
     experiment: str = None,
-    mikro: Mikro = None,
+    mikrorath: MikroRath = None,
+    as_task: bool = False,
 ) -> Create_metricMutationCreatemetric:
     """create_metric
 
@@ -1861,7 +2116,8 @@ def create_metric(
         rep (ID, Optional): ID
         sample (ID, Optional): ID
         experiment (ID, Optional): ID
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         Create_metricMutationCreatemetric: The returned Mutation"""
@@ -1874,7 +2130,8 @@ def create_metric(
             "sample": sample,
             "experiment": experiment,
         },
-        mikro=mikro,
+        mikrorath=mikrorath,
+        as_task=as_task,
     ).createMetric
 
 
@@ -1883,7 +2140,8 @@ async def acreate_roi(
     vectors: List[InputVector],
     creator: str = None,
     type: RoiTypeInput = None,
-    mikro: Mikro = None,
+    mikrorath: MikroRath = None,
+    as_task: bool = False,
 ) -> ROIFragment:
     """create_roi
 
@@ -1894,7 +2152,8 @@ async def acreate_roi(
         vectors (List[InputVector]): InputVector
         creator (ID, Optional): ID
         type (RoiTypeInput, Optional): RoiTypeInput
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         ROIFragment: The returned Mutation"""
@@ -1907,7 +2166,8 @@ async def acreate_roi(
                 "creator": creator,
                 "type": type,
             },
-            mikro=mikro,
+            mikrorath=mikrorath,
+            as_task=as_task,
         )
     ).createROI
 
@@ -1917,7 +2177,8 @@ def create_roi(
     vectors: List[InputVector],
     creator: str = None,
     type: RoiTypeInput = None,
-    mikro: Mikro = None,
+    mikrorath: MikroRath = None,
+    as_task: bool = False,
 ) -> ROIFragment:
     """create_roi
 
@@ -1928,7 +2189,8 @@ def create_roi(
         vectors (List[InputVector]): InputVector
         creator (ID, Optional): ID
         type (RoiTypeInput, Optional): RoiTypeInput
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         ROIFragment: The returned Mutation"""
@@ -1940,36 +2202,49 @@ def create_roi(
             "creator": creator,
             "type": type,
         },
-        mikro=mikro,
+        mikrorath=mikrorath,
+        as_task=as_task,
     ).createROI
 
 
-async def afrom_df(df: DataFrame, mikro: Mikro = None) -> TableFragment:
+async def afrom_df(
+    df: DataFrame, mikrorath: MikroRath = None, as_task: bool = False
+) -> TableFragment:
     """from_df
 
     Creates a Representation
 
     Arguments:
         df (DataFrame): DataFrame
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         TableFragment: The returned Mutation"""
-    return (await aexecute(From_dfMutation, {"df": df}, mikro=mikro)).fromDf
+    return (
+        await aexecute(
+            From_dfMutation, {"df": df}, mikrorath=mikrorath, as_task=as_task
+        )
+    ).fromDf
 
 
-def from_df(df: DataFrame, mikro: Mikro = None) -> TableFragment:
+def from_df(
+    df: DataFrame, mikrorath: MikroRath = None, as_task: bool = False
+) -> TableFragment:
     """from_df
 
     Creates a Representation
 
     Arguments:
         df (DataFrame): DataFrame
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         TableFragment: The returned Mutation"""
-    return execute(From_dfMutation, {"df": df}, mikro=mikro).fromDf
+    return execute(
+        From_dfMutation, {"df": df}, mikrorath=mikrorath, as_task=as_task
+    ).fromDf
 
 
 async def acreate_sample(
@@ -1977,7 +2252,8 @@ async def acreate_sample(
     creator: str = None,
     meta: Dict = None,
     experiments: List[str] = None,
-    mikro: Mikro = None,
+    mikrorath: MikroRath = None,
+    as_task: bool = False,
 ) -> Create_sampleMutationCreatesample:
     """create_sample
 
@@ -1989,7 +2265,8 @@ async def acreate_sample(
         creator (String, Optional): String
         meta (GenericScalar, Optional): GenericScalar
         experiments (List[ID], Optional): ID
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         Create_sampleMutationCreatesample: The returned Mutation"""
@@ -2002,7 +2279,8 @@ async def acreate_sample(
                 "meta": meta,
                 "experiments": experiments,
             },
-            mikro=mikro,
+            mikrorath=mikrorath,
+            as_task=as_task,
         )
     ).createSample
 
@@ -2012,7 +2290,8 @@ def create_sample(
     creator: str = None,
     meta: Dict = None,
     experiments: List[str] = None,
-    mikro: Mikro = None,
+    mikrorath: MikroRath = None,
+    as_task: bool = False,
 ) -> Create_sampleMutationCreatesample:
     """create_sample
 
@@ -2024,14 +2303,16 @@ def create_sample(
         creator (String, Optional): String
         meta (GenericScalar, Optional): GenericScalar
         experiments (List[ID], Optional): ID
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         Create_sampleMutationCreatesample: The returned Mutation"""
     return execute(
         Create_sampleMutation,
         {"name": name, "creator": creator, "meta": meta, "experiments": experiments},
-        mikro=mikro,
+        mikrorath=mikrorath,
+        as_task=as_task,
     ).createSample
 
 
@@ -2040,7 +2321,8 @@ async def acreate_experiment(
     creator: str = None,
     meta: Dict = None,
     description: str = None,
-    mikro: Mikro = None,
+    mikrorath: MikroRath = None,
+    as_task: bool = False,
 ) -> ExperimentFragment:
     """create_experiment
 
@@ -2051,7 +2333,8 @@ async def acreate_experiment(
         creator (String, Optional): String
         meta (GenericScalar, Optional): GenericScalar
         description (String, Optional): String
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         ExperimentFragment: The returned Mutation"""
@@ -2064,7 +2347,8 @@ async def acreate_experiment(
                 "meta": meta,
                 "description": description,
             },
-            mikro=mikro,
+            mikrorath=mikrorath,
+            as_task=as_task,
         )
     ).createExperiment
 
@@ -2074,7 +2358,8 @@ def create_experiment(
     creator: str = None,
     meta: Dict = None,
     description: str = None,
-    mikro: Mikro = None,
+    mikrorath: MikroRath = None,
+    as_task: bool = False,
 ) -> ExperimentFragment:
     """create_experiment
 
@@ -2085,12 +2370,14 @@ def create_experiment(
         creator (String, Optional): String
         meta (GenericScalar, Optional): GenericScalar
         description (String, Optional): String
-        mikro (mikro.mikro.Mikro): The mikro client
+        mikrorath (mikro.mikro.MikroRath): The mikro rath client
+        as_task (bool): Should we return a task
 
     Returns:
         ExperimentFragment: The returned Mutation"""
     return execute(
         Create_experimentMutation,
         {"name": name, "creator": creator, "meta": meta, "description": description},
-        mikro=mikro,
+        mikrorath=mikrorath,
+        as_task=as_task,
     ).createExperiment

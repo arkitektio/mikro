@@ -36,10 +36,6 @@ class DataLayerXArrayUploadLink(ParsingLink):
     def __init__(self, datalayer: DataLayer, bucket: str = "zarr") -> None:
         self.datalayer = datalayer
 
-    async def aconnect(self):
-        if not self.datalayer.connected:
-            await self.datalayer.aconnect()
-
     def store_xarray(self, xarray: xr.DataArray) -> None:
         random_uuid = uuid4()
         s3_path = f"zarr/{random_uuid}"

@@ -1,6 +1,9 @@
 import contextvars
 import logging
 import os
+
+from pydantic import BaseModel
+from koil.decorators import koilable
 from koil.loop import koil
 from mikro.errors import NoDataLayerFound
 import s3fs
@@ -10,47 +13,12 @@ current_datalayer = contextvars.ContextVar("current_datalayer", default=None)
 GLOBAL_DATALAYER = None
 
 
-def set_current_datalayer(filesystem, set_global=True):
-    global GLOBAL_DATALAYER
-    current_datalayer.set(filesystem)
-    if set_global:
-        GLOBAL_DATALAYER = filesystem
-
-
-def set_global_datalayer(filesystem):
-    global GLOBAL_DATALAYER
-    GLOBAL_DATALAYER = filesystem
-
-
-def get_current_datalayer(allow_global=True):
-    global GLOBAL_DATALAYER
-    datalayer = current_datalayer.get()
-
-    if not datalayer:
-        if not allow_global:
-            raise NoDataLayerFound(
-                "No current mikro found and global mikro are not allowed"
-            )
-        if not GLOBAL_DATALAYER:
-            if os.getenv("MIKRO_ALLOW_DATALAYER_GLOBAL", "True") == "True":
-                try:
-                    from mikro.fakts.datalayer import FaktsDataLayer
-
-                    GLOBAL_DATALAYER = FaktsDataLayer()
-                    return GLOBAL_DATALAYER
-                except ImportError as e:
-                    raise NoDataLayerFound("Error creating Fakts Mikro") from e
-            else:
-                raise NoDataLayerFound(
-                    "No current mikro found and and no global mikro found"
-                )
-
-        return GLOBAL_DATALAYER
-
-    return datalayer
-
-
+@koilable(add_connectors=True)
 class DataLayer:
+    access_key: str
+    secret_key: str
+    endpoint_url: str
+
     def __init__(self, access_key="", secret_key="", endpoint_url="") -> None:
         self.access_key = access_key
         self.secret_key = secret_key
@@ -59,15 +27,9 @@ class DataLayer:
         self._s3fs = None
         super().__init__()
 
-    async def aconnect(self):
-
-        self.connected = True
-
-    def connect(self):
-        return koil(self.aconnect)
-
     @property
     def fs(self):
+        assert self.endpoint_url, "Endpoint url is not set"
         if not self._s3fs:
             if self.access_key:
                 os.environ["AWS_ACCESS_KEY_ID"] = self.access_key
@@ -84,3 +46,11 @@ class DataLayer:
             self._s3fs is not None
         ), "Filesystem is not connected yet, please make sure to connect first"
         return self._s3fs
+
+    async def __aenter__(self):
+        current_datalayer.set(self)
+        return self
+
+    async def __aexit__(self, *args, **kwargs):
+        current_datalayer.set(None)
+        return self

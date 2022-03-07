@@ -6,53 +6,17 @@ import pandas as pd
 import contextvars
 import logging
 
-current_mikro = contextvars.ContextVar("current_mikro", default=None)
-GLOBAL_MIKRO = None
+current_mikro_rath = contextvars.ContextVar("current_mikro_rath")
 
 
-logger = logging.getLogger(__name__)
-
-
-def set_current_mikro(herre, set_global=True):
-    global GLOBAL_MIKRO
-    current_mikro.set(herre)
-    if set_global:
-        GLOBAL_MIKRO = herre
-
-
-def set_global_mikro(herre):
-    global GLOBAL_MIKRO
-    GLOBAL_MIKRO = herre
-
-
-def get_current_mikro(allow_global=True):
-    global GLOBAL_MIKRO
-    herre = current_mikro.get()
-
-    if not herre:
-        if not allow_global:
-            raise NoMikroFound(
-                "No current mikro found and global mikro are not allowed"
-            )
-        if not GLOBAL_MIKRO:
-            if os.getenv("MIKRO_ALLOW_FAKTS_GLOBAL", "True") == "True":
-                try:
-
-                    from mikro.fakts.mikro import FaktsMikro
-
-                    GLOBAL_MIKRO = FaktsMikro()
-                    return GLOBAL_MIKRO
-                except ImportError as e:
-                    raise NoMikroFound("Error creating Fakts Mikro") from e
-            else:
-                raise NoMikroFound(
-                    "No current mikro found and and no global mikro found"
-                )
-
-        return GLOBAL_MIKRO
-
-    return herre
-
-
-class Mikro(rath.Rath):
+class MikroRath(rath.Rath):
     pass
+
+    async def __aenter__(self):
+        await super().__aenter__()
+        current_mikro_rath.set(self)
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await super().__aexit__(exc_type, exc_val, exc_tb)
+        current_mikro_rath.set(None)
