@@ -1,11 +1,11 @@
-from mikro.scalars import File, Upload, XArray, DataFrame, Store
-from mikro.traits import Table, Thumbnail, Experiment, Sample, Representation, OmeroFile
-from typing import Dict, AsyncIterator, List, Iterator, Literal, Optional
-from pydantic import Field, BaseModel
-from mikro.funcs import aexecute, subscribe, asubscribe, execute
-from rath.turms.object import GraphQLObject
-from mikro.mikro import MikroRath
 from enum import Enum
+from mikro.scalars import DataFrame, Upload, XArray, Store, File
+from typing import Optional, Dict, Iterator, Literal, List, AsyncIterator
+from pydantic import Field, BaseModel
+from mikro.traits import Experiment, Sample, Table, Thumbnail, OmeroFile, Representation
+from mikro.mikro import MikroRath
+from rath.turms.object import GraphQLObject
+from mikro.funcs import execute, asubscribe, subscribe, aexecute
 
 
 class OmeroFileType(str, Enum):

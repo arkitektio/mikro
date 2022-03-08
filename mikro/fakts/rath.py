@@ -5,9 +5,9 @@ from mikro.datalayer import DataLayer, current_datalayer
 from mikro.mikro import MikroRath
 from mikro.links.parquet import DataLayerParquetUploadLink
 from mikro.links.xarray import DataLayerXArrayUploadLink
-from rath.herre.links import HerreAuthTokenLink
 from rath.links.aiohttp import AIOHttpLink
 from rath.links.compose import compose
+from rath.links.auth import AuthTokenLink
 from rath.links.context import SwitchAsyncLink
 from rath.links.split import SplitLink
 from rath.links.websockets import WebSocketLink
@@ -39,7 +39,7 @@ class FaktsMikroRath(MikroRath):
             DataLayerParquetUploadLink(datalayer=datalayer),
             DataLayerXArrayUploadLink(datalayer=datalayer),
             SwitchAsyncLink(),
-            HerreAuthTokenLink(herre=herre),
+            AuthTokenLink(token_loader=herre.aget_token),
             SplitLink(
                 AIOHttpLink(url=config.endpoint_url),
                 WebSocketLink(

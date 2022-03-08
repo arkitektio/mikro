@@ -7,6 +7,9 @@ class Representation:
     def get_identifier():
         return "representation"
 
+    async def shrink(self):
+        return self.id
+
     @property
     def data(self) -> xr.DataArray:
         assert (
@@ -20,10 +23,16 @@ class Experiment:
     def get_identifier():
         return "experiment"
 
+    async def shrink(self):
+        return self.id
+
 
 class Sample:
     def get_identifier():
         return "sample"
+
+    async def shrink(self):
+        return self.id
 
 
 class Table:
