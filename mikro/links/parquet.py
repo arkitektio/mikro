@@ -2,7 +2,6 @@ from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
 import uuid
 from graphql import NamedTypeNode
-from koil.loop import koil, unkoil
 from mikro.datalayer import DataLayer
 from rath.links.parsing import ParsingLink
 from rath.operation import Operation
