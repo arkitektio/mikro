@@ -1,5 +1,3 @@
-import shutil
-import requests
 import xarray as xr
 import pyarrow.parquet as pq
 from mikro.datalayer import current_datalayer
@@ -129,9 +127,9 @@ class File:
         dl = dl or current_datalayer.get()
         url = f"{dl.endpoint_url}{self.value}"
         local_filename = "test.tif"
-        with requests.get(url, stream=True) as r:
-            with open(local_filename, "wb") as f:
-                shutil.copyfileobj(r.raw, f)
+        # requests.get(url, stream=True) as r:
+        #    with open(local_filename, "wb") as f:
+        #        shutil.copyfileobj(r.raw, f)
 
         return local_filename
 
@@ -164,9 +162,9 @@ class Upload:
         dl = dl or current_datalayer.get()
         url = f"{dl.endpoint_url}{self.value}"
         local_filename = "test.tif"
-        with requests.get(url, stream=True) as r:
-            with open(local_filename, "wb") as f:
-                shutil.copyfileobj(r.raw, f)
+        # with requests.get(url, stream=True) as r:
+        #    with open(local_filename, "wb") as f:
+        #       shutil.copyfileobj(r.raw, f)
 
         return local_filename
 
