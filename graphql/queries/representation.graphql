@@ -3,6 +3,11 @@ query expand_representation($id: ID!) {
     ...Representation
   }
 }
+query get_representation($id: ID!) {
+  representation(id: $id) {
+    ...Representation
+  }
+}
 
 query search_representation($search: String) {
   representations(name: $search, limit: 20) {

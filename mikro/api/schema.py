@@ -1,10 +1,10 @@
+from mikro.scalars import XArray, Store, DataFrame, File, Upload
+from typing import Iterator, Optional, List, Literal, AsyncIterator, Dict
 from enum import Enum
-from mikro.scalars import File, XArray, DataFrame, Upload, Store
-from typing import Optional, List, AsyncIterator, Literal, Iterator, Dict
-from pydantic import BaseModel, Field
-from mikro.funcs import execute, aexecute, subscribe, asubscribe
+from mikro.funcs import aexecute, subscribe, execute, asubscribe
+from mikro.traits import Experiment, OmeroFile, Sample, Representation, Thumbnail, Table
+from pydantic import Field, BaseModel
 from mikro.mikro import MikroRath
-from mikro.traits import OmeroFile, Thumbnail, Experiment, Representation, Sample, Table
 
 
 class OmeroFileType(str, Enum):
@@ -85,25 +85,25 @@ class RoiTypeInput(str, Enum):
 class OmeroRepresentationInput(BaseModel):
     planes: Optional[List[Optional["PlaneInput"]]]
     channels: Optional[List[Optional["ChannelInput"]]]
-    physicalSize: Optional["PhysicalSizeInput"]
+    physical_size: Optional["PhysicalSizeInput"] = Field(alias="physicalSize")
     scale: Optional[List[Optional[float]]]
 
 
 class PlaneInput(BaseModel):
-    zIndex: Optional[int]
-    yIndex: Optional[int]
-    xIndex: Optional[int]
-    cIndex: Optional[int]
-    tIndex: Optional[int]
-    exposureTime: Optional[float]
-    deltaT: Optional[float]
+    z_index: Optional[int] = Field(alias="zIndex")
+    y_index: Optional[int] = Field(alias="yIndex")
+    x_index: Optional[int] = Field(alias="xIndex")
+    c_index: Optional[int] = Field(alias="cIndex")
+    t_index: Optional[int] = Field(alias="tIndex")
+    exposure_time: Optional[float] = Field(alias="exposureTime")
+    delta_t: Optional[float] = Field(alias="deltaT")
 
 
 class ChannelInput(BaseModel):
     name: Optional[str]
-    emmissionWavelength: Optional[float]
-    excitationWavelength: Optional[float]
-    acquisitionMode: Optional[str]
+    emmission_wavelength: Optional[float] = Field(alias="emmissionWavelength")
+    excitation_wavelength: Optional[float] = Field(alias="excitationWavelength")
+    acquisition_mode: Optional[str] = Field(alias="acquisitionMode")
     color: Optional[str]
 
 
@@ -430,7 +430,9 @@ class Search_representationQuery(BaseModel):
 
 
 class Get_random_repQuery(BaseModel):
-    randomRepresentation: Optional[RepresentationFragment]
+    random_representation: Optional[RepresentationFragment] = Field(
+        alias="randomRepresentation"
+    )
     "Get a single representation by ID"
 
     class Meta:
@@ -701,7 +703,7 @@ class Watch_samplesSubscriptionMysamples(BaseModel):
 
 
 class Watch_samplesSubscription(BaseModel):
-    mySamples: Optional[Watch_samplesSubscriptionMysamples]
+    my_samples: Optional[Watch_samplesSubscriptionMysamples] = Field(alias="mySamples")
 
     class Meta:
         domain = "mikro"
@@ -734,7 +736,9 @@ class Upload_bioimageMutationUploadomerofile(OmeroFile, BaseModel):
 
 
 class Upload_bioimageMutation(BaseModel):
-    uploadOmeroFile: Optional[Upload_bioimageMutationUploadomerofile]
+    upload_omero_file: Optional[Upload_bioimageMutationUploadomerofile] = Field(
+        alias="uploadOmeroFile"
+    )
 
     class Meta:
         domain = "mikro"
@@ -745,7 +749,7 @@ class Upload_bioimageMutation(BaseModel):
 
 
 class From_xarrayMutation(BaseModel):
-    fromXArray: Optional[RepresentationFragment]
+    from_x_array: Optional[RepresentationFragment] = Field(alias="fromXArray")
     "Creates a Representation"
 
     class Meta:
@@ -799,7 +803,7 @@ class Double_uploadMutation(BaseModel):
 
 
 class Create_thumbnailMutation(BaseModel):
-    uploadThumbnail: Optional[ThumbnailFragment]
+    upload_thumbnail: Optional[ThumbnailFragment] = Field(alias="uploadThumbnail")
 
     class Meta:
         domain = "mikro"
@@ -841,14 +845,16 @@ class Create_metricMutationCreatemetric(BaseModel):
     "The Key"
     value: Optional[Dict]
     creator: Optional[Create_metricMutationCreatemetricCreator]
-    createdAt: str
+    created_at: str = Field(alias="createdAt")
 
     class Config:
         frozen = True
 
 
 class Create_metricMutation(BaseModel):
-    createMetric: Optional[Create_metricMutationCreatemetric]
+    create_metric: Optional[Create_metricMutationCreatemetric] = Field(
+        alias="createMetric"
+    )
     "Creates a Representation"
 
     class Meta:
@@ -860,7 +866,7 @@ class Create_metricMutation(BaseModel):
 
 
 class Create_roiMutation(BaseModel):
-    createROI: Optional[ROIFragment]
+    create_roi: Optional[ROIFragment] = Field(alias="createROI")
     "Creates a Sample"
 
     class Meta:
@@ -872,7 +878,7 @@ class Create_roiMutation(BaseModel):
 
 
 class From_dfMutation(BaseModel):
-    fromDf: Optional[TableFragment]
+    from_df: Optional[TableFragment] = Field(alias="fromDf")
     "Creates a Representation"
 
     class Meta:
@@ -909,7 +915,9 @@ class Create_sampleMutationCreatesample(Sample, BaseModel):
 
 
 class Create_sampleMutation(BaseModel):
-    createSample: Optional[Create_sampleMutationCreatesample]
+    create_sample: Optional[Create_sampleMutationCreatesample] = Field(
+        alias="createSample"
+    )
     "Creates a Sample\n    "
 
     class Meta:
@@ -921,7 +929,7 @@ class Create_sampleMutation(BaseModel):
 
 
 class Create_experimentMutation(BaseModel):
-    createExperiment: Optional[ExperimentFragment]
+    create_experiment: Optional[ExperimentFragment] = Field(alias="createExperiment")
     "Create an experiment (only signed in users)"
 
     class Meta:
@@ -1160,7 +1168,7 @@ async def aget_random_rep(
         RepresentationFragment"""
     return (
         await aexecute(Get_random_repQuery, {}, mikrorath=mikrorath)
-    ).randomRepresentation
+    ).random_representation
 
 
 def get_random_rep(mikrorath: MikroRath = None) -> Optional[RepresentationFragment]:
@@ -1173,7 +1181,7 @@ def get_random_rep(mikrorath: MikroRath = None) -> Optional[RepresentationFragme
 
     Returns:
         RepresentationFragment"""
-    return execute(Get_random_repQuery, {}, mikrorath=mikrorath).randomRepresentation
+    return execute(Get_random_repQuery, {}, mikrorath=mikrorath).random_representation
 
 
 async def athumbnail(
@@ -1635,7 +1643,7 @@ async def awatch_samples(
     Returns:
         Watch_samplesSubscriptionMysamples"""
     async for event in asubscribe(Watch_samplesSubscription, {}, mikrorath=mikrorath):
-        yield event.mySamples
+        yield event.my_samples
 
 
 def watch_samples(
@@ -1651,7 +1659,7 @@ def watch_samples(
     Returns:
         Watch_samplesSubscriptionMysamples"""
     for event in subscribe(Watch_samplesSubscription, {}, mikrorath=mikrorath):
-        yield event.mySamples
+        yield event.my_samples
 
 
 async def anegotiate(mikrorath: MikroRath = None) -> Optional[Dict]:
@@ -1695,7 +1703,7 @@ async def aupload_bioimage(
         Upload_bioimageMutationUploadomerofile"""
     return (
         await aexecute(Upload_bioimageMutation, {"file": file}, mikrorath=mikrorath)
-    ).uploadOmeroFile
+    ).upload_omero_file
 
 
 def upload_bioimage(
@@ -1713,7 +1721,7 @@ def upload_bioimage(
         Upload_bioimageMutationUploadomerofile"""
     return execute(
         Upload_bioimageMutation, {"file": file}, mikrorath=mikrorath
-    ).uploadOmeroFile
+    ).upload_omero_file
 
 
 async def afrom_xarray(
@@ -1756,7 +1764,7 @@ async def afrom_xarray(
             },
             mikrorath=mikrorath,
         )
-    ).fromXArray
+    ).from_x_array
 
 
 def from_xarray(
@@ -1797,7 +1805,7 @@ def from_xarray(
             "omero": omero,
         },
         mikrorath=mikrorath,
-    ).fromXArray
+    ).from_x_array
 
 
 async def adouble_upload(
@@ -1898,7 +1906,7 @@ async def acreate_thumbnail(
         await aexecute(
             Create_thumbnailMutation, {"rep": rep, "file": file}, mikrorath=mikrorath
         )
-    ).uploadThumbnail
+    ).upload_thumbnail
 
 
 def create_thumbnail(
@@ -1917,7 +1925,7 @@ def create_thumbnail(
         ThumbnailFragment"""
     return execute(
         Create_thumbnailMutation, {"rep": rep, "file": file}, mikrorath=mikrorath
-    ).uploadThumbnail
+    ).upload_thumbnail
 
 
 async def acreate_metric(
@@ -1954,7 +1962,7 @@ async def acreate_metric(
             },
             mikrorath=mikrorath,
         )
-    ).createMetric
+    ).create_metric
 
 
 def create_metric(
@@ -1989,7 +1997,7 @@ def create_metric(
             "value": value,
         },
         mikrorath=mikrorath,
-    ).createMetric
+    ).create_metric
 
 
 async def acreate_roi(
@@ -2023,7 +2031,7 @@ async def acreate_roi(
             },
             mikrorath=mikrorath,
         )
-    ).createROI
+    ).create_roi
 
 
 def create_roi(
@@ -2055,7 +2063,7 @@ def create_roi(
             "type": type,
         },
         mikrorath=mikrorath,
-    ).createROI
+    ).create_roi
 
 
 async def afrom_df(
@@ -2071,7 +2079,7 @@ async def afrom_df(
 
     Returns:
         TableFragment"""
-    return (await aexecute(From_dfMutation, {"df": df}, mikrorath=mikrorath)).fromDf
+    return (await aexecute(From_dfMutation, {"df": df}, mikrorath=mikrorath)).from_df
 
 
 def from_df(
@@ -2087,7 +2095,7 @@ def from_df(
 
     Returns:
         TableFragment"""
-    return execute(From_dfMutation, {"df": df}, mikrorath=mikrorath).fromDf
+    return execute(From_dfMutation, {"df": df}, mikrorath=mikrorath).from_df
 
 
 async def acreate_sample(
@@ -2122,7 +2130,7 @@ async def acreate_sample(
             },
             mikrorath=mikrorath,
         )
-    ).createSample
+    ).create_sample
 
 
 def create_sample(
@@ -2150,7 +2158,7 @@ def create_sample(
         Create_sampleMutation,
         {"name": name, "creator": creator, "meta": meta, "experiments": experiments},
         mikrorath=mikrorath,
-    ).createSample
+    ).create_sample
 
 
 async def acreate_experiment(
@@ -2184,7 +2192,7 @@ async def acreate_experiment(
             },
             mikrorath=mikrorath,
         )
-    ).createExperiment
+    ).create_experiment
 
 
 def create_experiment(
@@ -2211,4 +2219,4 @@ def create_experiment(
         Create_experimentMutation,
         {"name": name, "creator": creator, "meta": meta, "description": description},
         mikrorath=mikrorath,
-    ).createExperiment
+    ).create_experiment

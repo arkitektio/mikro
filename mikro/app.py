@@ -7,7 +7,6 @@ from koil.composition import Composition
 from koil.decorators import koilable
 from koil.helpers import unkoil
 from koil.koil import Koil
-from arkitekt.compositions.base import Arkitekt
 from mikro.composition.base import Mikro
 
 

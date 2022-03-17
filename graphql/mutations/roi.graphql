@@ -1,0 +1,15 @@
+mutation create_roi(
+  $representation: ID!
+  $vectors: [InputVector]!
+  $creator: ID
+  $type: RoiTypeInput
+) {
+  createROI(
+    representation: $representation
+    vectors: $vectors
+    type: $type
+    creator: $creator
+  ) {
+    ...ROI
+  }
+}

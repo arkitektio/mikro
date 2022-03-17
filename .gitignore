@@ -4,10 +4,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.pyc
-
+docs/reference
 # C extensions
 *.so
-logs.txt
 
 # Distribution / packaging
 .Python
@@ -146,3 +145,7 @@ media
 export
 static_collected
 data
+*.temp
+venv
+*.fakts.yaml
+logs.txt

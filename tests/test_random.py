@@ -1,14 +1,10 @@
 from mikro.api.schema import aget_random_rep
 import pytest
 
-
-async def test_normal_query():
-
-    rep = await aget_random_rep()
-    assert rep.id is not None, "Did not return random representation"
+from mikro.app import MikroApp
+from fakts import Fakts
 
 
-async def test_normal_query():
+def test_app_instantiation():
 
-    rep = await aget_random_rep()
-    assert rep.id is not None, "Did not return random representation"
+    app = MikroApp(fakts=Fakts(subapp="basic"))

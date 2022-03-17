@@ -1,0 +1,12 @@
+fragment ROI on ROI {
+  id
+  vectors {
+    x
+    y
+    z
+  }
+  type
+  representation {
+    id
+  }
+}

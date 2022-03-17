@@ -23,15 +23,6 @@ class MikroRathConfig(Config):
 
 
 class FaktsMikroRath(MikroRath):
-    def __init__(
-        self, fakts: Fakts = None, datalayer: DataLayer = None, herre: Herre = None
-    ) -> None:
-        link = None
-        self.datalayer = datalayer
-        self.herre = herre
-        self.fakts = fakts
-        super().__init__(link=link)
-
     def configure(
         self, config: MikroRathConfig, datalayer: DataLayer, herre: Herre
     ) -> None:
@@ -54,7 +45,7 @@ class FaktsMikroRath(MikroRath):
         herre = current_herre.get()
         datalayer = current_datalayer.get()
 
-        config = await MikroRathConfig.from_fakts(fakts=self.fakts)
+        config = await MikroRathConfig.from_fakts()
         self.configure(config, datalayer, herre)
 
         await super().__aenter__()

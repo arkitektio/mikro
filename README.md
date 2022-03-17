@@ -13,6 +13,8 @@ pip install mikro
 ```python
 from mikro import from_xarray
 
+app = MikroApp()
+
 data = xr.DataArray(np.zeros((1000,1000,10), dims=["x","y","z"])
 
 image = from_xarray(data, name="Zerod Image")

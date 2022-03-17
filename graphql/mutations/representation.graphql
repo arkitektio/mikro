@@ -1,6 +1,7 @@
 mutation from_xarray(
   $xarray: XArray!
   $name: String
+  $variety: RepresentationVarietyInput
   $origins: [ID]
   $tags: [String]
   $sample: ID
@@ -13,27 +14,9 @@ mutation from_xarray(
     tags: $tags
     sample: $sample
     omero: $omero
+    variety: $variety
   ) {
-    id
-    store
-    sample {
-      experiments {
-        name
-      }
-    }
-    origins {
-      id
-      name
-    }
-    tags
-    omero {
-      planes {
-        exposureTime
-        zIndex
-        yIndex
-        tIndex
-      }
-    }
+    ...Representation
   }
 }
 

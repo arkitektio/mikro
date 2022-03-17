@@ -1,0 +1,17 @@
+subscription watch_samples {
+  mySamples {
+    update {
+      id
+      name
+      experiments {
+        name
+      }
+    }
+    create {
+      name
+      experiments {
+        name
+      }
+    }
+  }
+}

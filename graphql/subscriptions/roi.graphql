@@ -1,0 +1,11 @@
+subscription watch_rois($representation: ID!) {
+  rois(representation: $representation) {
+    update {
+      ...ROI
+    }
+    delete
+    create {
+      ...ROI
+    }
+  }
+}

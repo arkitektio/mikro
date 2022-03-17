@@ -1,0 +1,5 @@
+query get_rois($representation: ID!, $type: [RoiTypeInput]) {
+  rois(representation: $representation, type: $type) {
+    ...ROI
+  }
+}
