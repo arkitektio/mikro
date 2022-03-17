@@ -2,6 +2,10 @@
 
 mikro is the python client for the mikro-server environment.
 
+# DEVELOPMENT
+
+This should not be used outside of lab conditions... OUR lab's conditions
+
 ### Installation
 
 ```bash
