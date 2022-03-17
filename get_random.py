@@ -1,5 +1,4 @@
-from mikro.api.schema import get_random_rep, get_representation
-from mikro import MikroApp
+from mikro import MikroApp, get_representation
 from fakts import Fakts
 
 

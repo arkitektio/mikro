@@ -15,13 +15,15 @@ pip install mikro
 ### Usage
 
 ```python
-from mikro import from_xarray
+from mikro import from_xarray, get_representation
 
-app = MikroApp()
+with MikroApp() as app:
 
-data = xr.DataArray(np.zeros((1000,1000,10), dims=["x","y","z"])
+    image = get_representation(105)
 
-image = from_xarray(data, name="Zerod Image")
+    data = xr.DataArray(np.zeros((1000,1000,10), dims=["x","y","z"])
+
+    newimage = from_xarray(data, name="Zerod Image")
 
 ```
 
