@@ -2,8 +2,10 @@ name: CI
 on:
   push:
     branches: [master]
+    paths: [mikro/**]
   pull_request:
     branches: [master]
+    paths: [mikro/**]
 jobs:
   mac_and_windows:
     strategy:

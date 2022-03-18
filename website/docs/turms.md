@@ -14,35 +14,80 @@ IDE and with your favourite client like rath.
 
 ### Inspiration
 
-GraphQL is a powerful query language
+GraphQL is a powerful query language.... TODO: WRITE STUFF HERE
+
+### Isn't code generation bad?
+
+No.
 
 ### Turms
 
 Turms can generate pydantic models that are automatically validated through your schema and makes working with
 graphql fragments and operations super easy.
 
-Turms requires a graphl.config.yaml file to generate code, for this
-example we can use the following:
+Mikros api is almost entirely code generated through turms and this configuration.
 
 ```yaml
 projects:
-  default:
-    schema: schema.graphql
-    documents: graphql/**.graphql
+  mikro:
+    schema: http://localhost:8080/graphql
+    documents: graphql/*/**.graphql
     extensions:
       turms:
-        out_dir: api
+        out_dir: mikro/api
+        freeze: True
         stylers:
-          - type: turms.stylers.capitalize.Capitalizer
+          - type: turms.stylers.default.DefaultStyler
+          - type: turms.stylers.appender.AppenderStyler
+            append_fragment: "Fragment"
         plugins:
           - type: turms.plugins.enums.EnumsPlugin
+          - type: turms.plugins.inputs.InputsPlugin
           - type: turms.plugins.fragments.FragmentsPlugin
-          - type: turms.plugins.operation.OperationsPlugin
-          - type: rath.turms.plugins.funcs.RathFuncsPlugin #this will create functions that we can use with rath
+          - type: turms.plugins.operations.OperationsPlugin
+          - type: turms.plugins.funcs.FuncsPlugin
+            global_kwargs:
+              - type: mikro.mikro.MikroRath
+                key: mikrorath
+                description: "The mikro rath client"
+            definitions:
+              - type: subscription
+                is_async: True
+                use: mikro.funcs.asubscribe
+              - type: query
+                is_async: True
+                use: mikro.funcs.aexecute
+              - type: mutation
+                is_async: True
+                use: mikro.funcs.aexecute
+              - type: subscription
+                use: mikro.funcs.subscribe
+              - type: query
+                use: mikro.funcs.execute
+              - type: mutation
+                use: mikro.funcs.execute
         processors:
-          - type: turms.processor.black.BlackProcessor
+          - type: turms.processors.black.BlackProcessor
         scalar_definitions:
-          uuid: str
+          XArray: mikro.scalars.XArray
+          File: mikro.scalars.File
+          ImageFile: mikro.scalars.File
+          Upload: mikro.scalars.Upload
+          DataFrame: mikro.scalars.DataFrame
+          Store: mikro.scalars.Store
+        additional_bases:
+          Representation:
+            - mikro.traits.Representation
+          Sample:
+            - mikro.traits.Sample
+          Table:
+            - mikro.traits.Table
+          OmeroFile:
+            - mikro.traits.OmeroFile
+          Thumbnail:
+            - mikro.traits.Thumbnail
+          Experiment:
+            - mikro.traits.Experiment
 ```
 
 With this generation rath will generate fully typed classes for enums, fragments, operations and additionally
