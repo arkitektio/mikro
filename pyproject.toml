@@ -19,6 +19,7 @@ pyarrow = "^6.0.1"
 dask = "^2022.2.1"
 fakts = "^0.1.46"
 turms = {version = "^0.2.3",python = ">=3.9"}
+rath = "^0.1.28"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.5"
