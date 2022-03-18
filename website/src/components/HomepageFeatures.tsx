@@ -11,26 +11,35 @@ type FeatureItem = {
 
 const FeatureList: FeatureItem[] = [
   {
-    title: "Single Purpose",
+    title: "GraphQL API",
     image: "/img/undraw_docusaurus_mountain.svg",
     description: (
       <>
-        Herre just wraps standard oauthlib with a few extra features. Its an
-        abstraction layer to easily integrated auth and authorization into your
-        application.
+        mikro is a GraphQL API that allows you to query and update your
+        Microscopy data in a simple and intuitive way. With GraphQL managing
+        data becomes a breeze and managing your data is no longer a challenge.
       </>
     ),
   },
   {
     title: "Pydantic",
     image: "/img/undraw_docusaurus_tree.svg",
-    description: <>Herre integrates well with pydantic.</>,
+    description: (
+      <>
+        mikro integrates well with pydantic and gives you sensible and fully
+        typed apis
+      </>
+    ),
   },
   {
     title: "Async ready",
     image: "/img/undraw_docusaurus_react.svg",
     description: (
-      <>Herre is async ready and provides a synchronous and asynchronous api</>
+      <>
+        mikro is async ready and provides a synchronous and asynchronous api, so
+        that you can choose your style and opt in for performance when you want
+        to
+      </>
     ),
   },
 ];
