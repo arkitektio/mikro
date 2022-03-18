@@ -20,9 +20,14 @@
             "command": "source venv/bin/activate; python host.py"
         },
         {
-            "label": "Provide",
+            "label": "Website",
             "type": "shell",
-            "command": "source venv/bin/activate; python provide.py"
+            "command": "cd website && yarn start"
+        },
+        {
+            "label": "Generate Docs",
+            "type": "shell",
+            "command": "source venv/bin/activate; pydoc-markdown"
         },
     ]
 }

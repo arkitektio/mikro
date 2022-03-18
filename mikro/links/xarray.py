@@ -31,10 +31,28 @@ class XArrayConversionException(Exception):
 
 
 class DataLayerXArrayUploadLink(ParsingLink):
+    """Data Layer Xarray Upload Link
+
+    This link is used to upload a Xarray to a DataLayer.
+    It parses queries, mutatoin and subscription arguments and
+    uploads the items to the DataLayer, and substitures the
+    XArray with the S3 path.
+
+    Args:
+        ParsingLink (_type_): _description_
+
+    Attributes:
+        FileVersion (str): The version of the file format.
+
+    """
+
     FILEVERSION = "0.1"
 
-    def __init__(self, datalayer: DataLayer, bucket: str = "zarr") -> None:
+    def __init__(
+        self, datalayer: DataLayer, bucket: str = "zarr", executor=None
+    ) -> None:
         self.datalayer = datalayer
+        self.executor = executor or ThreadPoolExecutor(max_workers=4)
 
     def store_xarray(self, xarray: xr.DataArray) -> None:
         random_uuid = uuid4()
@@ -98,16 +116,22 @@ class DataLayerXArrayUploadLink(ParsingLink):
             shrinked_v = []
             shrinked_f = []
 
-            with ThreadPoolExecutor(max_workers=4) as executor:
-                for node in shrinky:
-                    array = operation.variables[node.variable.name.value]
-                    co_future = executor.submit(self.store_xarray, array)
-                    shrinked_f.append(asyncio.wrap_future(co_future))
-                    shrinked_v.append(node.variable.name.value)
+            for node in shrinky:
+                array = operation.variables[node.variable.name.value]
+                co_future = self.executor_session.submit(self.store_xarray, array)
+                shrinked_f.append(asyncio.wrap_future(co_future))
+                shrinked_v.append(node.variable.name.value)
 
-                shrinked_x = await asyncio.gather(*shrinked_f)
+            shrinked_x = await asyncio.gather(*shrinked_f)
 
             update_dict = {v: x for v, x in zip(shrinked_v, shrinked_x)}
             operation.variables.update(update_dict)
 
         return operation
+
+    async def __aenter__(self) -> None:
+        """Enter the executor"""
+        self.executor_session = self.executor.__enter__()
+
+    async def __aexit__(self) -> None:
+        self.executor.__exit__()

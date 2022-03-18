@@ -38,15 +38,32 @@ class ParquetConversionException(Exception):
 
 
 class DataLayerParquetUploadLink(ParsingLink):
+    """Data Layer Parquet Upload Link
+
+    This link is used to upload a DataFrame to a DataLayer.
+    It parses queries, mutatoin and subscription arguments and
+    uploads the items to the DataLayer, and substitures the
+    DataFrame with the S3 path.
+
+    Args:
+        ParsingLink (_type_): _description_
+
+
+    """
+
     FILEVERSION = "0.1"
 
-    def __init__(self, datalayer: DataLayer, bucket: str = "parquet") -> None:
+    def __init__(
+        self, datalayer: DataLayer, bucket: str = "parquet", executor=None
+    ) -> None:
         self.datalayer = datalayer
         self.bucket = bucket
         self.connected = False
         self._lock = False
+        self.executor = executor or ThreadPoolExecutor(max_workers=4)
 
     def store_df(self, df: pd.DataFrame) -> None:
+        """Store a DataFrame in the DataLayer"""
 
         random_ui = uuid.uuid4()
         table: Table = Table.from_pandas(df)
@@ -55,6 +72,16 @@ class DataLayerParquetUploadLink(ParsingLink):
         return s3_path
 
     def parse(self, operation: Operation) -> Operation:
+        """Parse the operation (Sync)
+
+        Extracts the DataFrame from the operation and uploads it to the DataLayer.
+
+        Args:
+            operation (Operation): The operation to parse
+
+        Returns:
+            Operation: _description_
+        """
 
         for node in filter_dataframe_nodes(operation):
             array = operation.variables[node.variable.name.value]
@@ -68,6 +95,16 @@ class DataLayerParquetUploadLink(ParsingLink):
         return operation
 
     async def aparse(self, operation: Operation) -> Operation:
+        """Parse the operation (Async)
+
+        Extracts the DataFrame from the operation and uploads it to the DataLayer.
+
+        Args:
+            operation (Operation): The operation to parse
+
+        Returns:
+            Operation: _description_
+        """
 
         if not self._lock:
             self._lock = asyncio.Lock()
@@ -77,16 +114,22 @@ class DataLayerParquetUploadLink(ParsingLink):
             shrinked_v = []
             shrinked_f = []
 
-            with ThreadPoolExecutor(max_workers=4) as executor:
-                for node in shrinky:
-                    array = operation.variables[node.variable.name.value]
-                    co_future = executor.submit(self.store_df, array)
-                    shrinked_f.append(asyncio.wrap_future(co_future))
-                    shrinked_v.append(node.variable.name.value)
+            for node in shrinky:
+                array = operation.variables[node.variable.name.value]
+                co_future = self.executor_session.submit(self.store_df, array)
+                shrinked_f.append(asyncio.wrap_future(co_future))
+                shrinked_v.append(node.variable.name.value)
 
-                shrinked_x = await asyncio.gather(*shrinked_f)
+            shrinked_x = await asyncio.gather(*shrinked_f)
 
             update_dict = {v: x for v, x in zip(shrinked_v, shrinked_x)}
             operation.variables.update(update_dict)
 
         return operation
+
+    async def __aenter__(self) -> None:
+        """Enter the executor"""
+        self.executor_session = self.executor.__enter__()
+
+    async def __aexit__(self) -> None:
+        self.executor.__exit__()

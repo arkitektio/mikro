@@ -1,28 +1,23 @@
+"""Default Widgets
+
+This Module provides default widgets that can be used with the mikro app in an arkitekt
+context.
+
+Attributes:
+    MY_TOP_REPRESENTATIONS (SearchWidget): The top representations for the currently active user
+    MY_TOP_SAMPLES (SearchWidget): The top samples for the currently active user
+"""
+
+
 try:
+    from mikro.api.schema import Search_representationQuery, Search_sampleQuery
     from arkitekt.widgets import SliderWidget, SearchWidget
 
     MY_TOP_REPRESENTATIONS = SearchWidget(
-        query="""
-                    query Search($search: String){
-                        options: representations(name: $search){
-                            value: id
-                            label: name
-                        }
-                    }
-                    """
+        query=Search_representationQuery.Meta.document
     )
 
-    MY_TOP_SAMPLES = SearchWidget(
-        query="""
-                    query Search($search: String){
-                        options: samples(name: $search){
-                            value: id
-                            label: name
-                        }
-                    }
-                    """
-    )
+    MY_TOP_SAMPLES = SearchWidget(query=Search_sampleQuery.Meta.document)
 
 except:
-    MY_TOP_REPRESENTATIONS = None
-    MY_TOP_SAMPLES = None
+    pass

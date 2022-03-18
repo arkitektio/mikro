@@ -1,9 +1,18 @@
+""" 
+Custom scalars for Mikro.
+
+
+"""
+
+
 import xarray as xr
 import pyarrow.parquet as pq
 from mikro.datalayer import current_datalayer
 
 
 class XArray:
+    """A custom scalar for xarray."""
+
     def __init__(self, value) -> None:
         self.value = value
 
