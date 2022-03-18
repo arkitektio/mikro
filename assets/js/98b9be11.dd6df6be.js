@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkwebsite=self.webpackChunkwebsite||[]).push([[115],{7188:function(o){o.exports=JSON.parse('{"/mikro/blog/tags/mikro":{"allTagsPath":"/mikro/blog/tags","slug":"/mikro/blog/tags/mikro","name":"mikro","count":1,"permalink":"/mikro/blog/tags/mikro"}}')}}]);
