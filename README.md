@@ -1,5 +1,13 @@
 # mikro
 
+[![codecov](https://codecov.io/gh/jhnnsrs/mikro/branch/master/graph/badge.svg?token=UGXEA2THBV)](https://codecov.io/gh/jhnnsrs/mikro)
+[![PyPI version](https://badge.fury.io/py/mikro.svg)](https://pypi.org/project/mikro/)
+[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://pypi.org/project/mikro/)
+![Maintainer](https://img.shields.io/badge/maintainer-jhnnsrs-blue)
+[![PyPI pyversions](https://img.shields.io/pypi/pyversions/mikro.svg)](https://pypi.python.org/pypi/mikro/)
+[![PyPI status](https://img.shields.io/pypi/status/mikro.svg)](https://pypi.python.org/pypi/mikro/)
+[![PyPI download month](https://img.shields.io/pypi/dm/mikro.svg)](https://pypi.python.org/pypi/mikro/)
+
 mikro is the python client for the mikro-server environment.
 
 # DEVELOPMENT
