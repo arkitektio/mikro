@@ -25,7 +25,7 @@ const config = {
           sidebarPath: require.resolve('./sidebars.js'),
           remarkPlugins:[require('mdx-mermaid')],
           // Please change this to your repo.
-          editUrl: 'https://github.com/jhnnsrs/turms/edit/master/website/',
+          editUrl: 'https://github.com/jhnnsrs/mikro/edit/master/website/',
         },
         blog: {
           showReadingTime: true,
