@@ -39,6 +39,14 @@ the central server. Therefore its only composes two major components:
 Under the hood Mikro is build on the growing ecosystem of graphql and pydantic as well as the amazing toolstack
 of zarr, dask and xarray for scientific computation.
 
+### Features
+
+- Ability to retrieve complex relationships
+- Easy to extend with custom graphql logic (together with turms can generate APIs for very complex relationship)
+- Fast
+- Interoperable and standardization (has bindings for Dataframes and Numpy arrays)
+- Fully Typed and Validated(uses pydantic for validation)
+
 ### Prerequisits
 
 You need a fully configured mikro-server running in your lab, that mikro can connect to.
