@@ -1,10 +1,7 @@
 from enum import Enum
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel
-from fakts.fakts import Fakts, get_current_fakts
-from herre.herre import Herre, get_current_herre
 
-from mikro.mikro import Mikro
 
 
 class GrantType(str, Enum):

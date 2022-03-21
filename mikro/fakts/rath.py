@@ -1,5 +1,4 @@
 from graphql import OperationType
-from pydantic import BaseModel
 from herre.herre import Herre, current_herre
 from mikro.datalayer import DataLayer, current_datalayer
 from mikro.mikro import MikroRath
@@ -11,7 +10,7 @@ from rath.links.auth import AuthTokenLink
 from rath.links.context import SwitchAsyncLink
 from rath.links.split import SplitLink
 from rath.links.websockets import WebSocketLink
-from fakts import Fakts, Config
+from fakts import Config
 
 
 class MikroRathConfig(Config):
@@ -32,11 +31,11 @@ class FaktsMikroRath(MikroRath):
             SwitchAsyncLink(),
             AuthTokenLink(token_loader=herre.aget_token),
             SplitLink(
-                AIOHttpLink(url=config.endpoint_url),
-                WebSocketLink(
+                left=AIOHttpLink(url=config.endpoint_url),
+                right=WebSocketLink(
                     url=config.ws_endpoint_url, token_loader=herre.aget_token
                 ),
-                lambda o: o.node.operation != OperationType.SUBSCRIPTION,
+                split=lambda o: o.node.operation != OperationType.SUBSCRIPTION,
             ),
         )
 

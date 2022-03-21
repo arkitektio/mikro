@@ -3,7 +3,7 @@ from typing import Iterator, Optional, List, Literal, AsyncIterator, Dict
 from enum import Enum
 from mikro.funcs import aexecute, subscribe, execute, asubscribe
 from mikro.traits import Experiment, OmeroFile, Sample, Representation, Thumbnail, Table
-from pydantic import Field, BaseModel
+from pydantic import Field, BaseModel  # pylint: disable=no-name-in-module
 from mikro.mikro import MikroRath
 
 

@@ -11,7 +11,7 @@ Attributes:
 
 try:
     from mikro.api.schema import Search_representationQuery, Search_sampleQuery
-    from arkitekt.widgets import SliderWidget, SearchWidget
+    from arkitekt.widgets import SearchWidget
 
     MY_TOP_REPRESENTATIONS = SearchWidget(
         query=Search_representationQuery.Meta.document

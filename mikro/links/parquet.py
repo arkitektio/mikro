@@ -1,12 +1,14 @@
-from concurrent.futures import ThreadPoolExecutor
-from uuid import uuid4
+from concurrent.futures import Executor, ThreadPoolExecutor
+from typing import Optional
 import uuid
 from graphql import NamedTypeNode
+from inflection import underscore
+from pydantic import Field
+from typer import Option
 from mikro.datalayer import DataLayer
 from rath.links.parsing import ParsingLink
 from rath.operation import Operation
 from graphql.language import NonNullTypeNode
-import xarray as xr
 import asyncio
 import pandas as pd
 from pyarrow import Table
@@ -51,16 +53,16 @@ class DataLayerParquetUploadLink(ParsingLink):
 
     """
 
-    FILEVERSION = "0.1"
+    datalayer: Optional[DataLayer] = None
+    bucket: Optional[str] = "parquet"
+    executor: Optional[Executor] = Field(
+        default_factory=lambda: ThreadPoolExecutor(max_workers=4)
+    )
 
-    def __init__(
-        self, datalayer: DataLayer, bucket: str = "parquet", executor=None
-    ) -> None:
-        self.datalayer = datalayer
-        self.bucket = bucket
-        self.connected = False
-        self._lock = False
-        self.executor = executor or ThreadPoolExecutor(max_workers=4)
+    FILEVERSION = "0.1"
+    _connected = False
+    _lock: asyncio.Lock = False
+    _executor_session = None
 
     def store_df(self, df: pd.DataFrame) -> None:
         """Store a DataFrame in the DataLayer"""
@@ -116,7 +118,7 @@ class DataLayerParquetUploadLink(ParsingLink):
 
             for node in shrinky:
                 array = operation.variables[node.variable.name.value]
-                co_future = self.executor_session.submit(self.store_df, array)
+                co_future = self._executor_session.submit(self.store_df, array)
                 shrinked_f.append(asyncio.wrap_future(co_future))
                 shrinked_v.append(node.variable.name.value)
 
@@ -129,7 +131,12 @@ class DataLayerParquetUploadLink(ParsingLink):
 
     async def __aenter__(self) -> None:
         """Enter the executor"""
-        self.executor_session = self.executor.__enter__()
+        self._executor_session = self.executor.__enter__()
 
-    async def __aexit__(self) -> None:
-        self.executor.__exit__()
+    async def __aexit__(self, *args, **kwargs) -> None:
+        self.executor.__exit__(*args, **kwargs)
+
+    class Config:
+        arbitrary_types_allowed = True
+        underscore_attrs_are_private = True
+        extra = "forbid"

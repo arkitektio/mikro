@@ -1,4 +1,5 @@
-from mikro import MikroApp, get_representation
+from mikro import MikroApp
+from mikro.api.schema import get_representation
 from fakts import Fakts
 
 

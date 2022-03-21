@@ -33,18 +33,17 @@ Example:
 
 
 import contextvars
-import logging
 import os
+from typing import Optional
+from koil.composition import KoiledModel
 from koil.decorators import koilable
 import s3fs
 
 
 current_datalayer = contextvars.ContextVar("current_datalayer", default=None)
-GLOBAL_DATALAYER = None
 
 
-@koilable(add_connectors=True)
-class DataLayer:
+class DataLayer(KoiledModel):
     """Implements a S3 DataLayer
 
     This will be used to upload and download files from S3.
@@ -58,17 +57,12 @@ class DataLayer:
 
     """
 
-    access_key: str
-    secret_key: str
-    endpoint_url: str
+    access_key: str = ""
+    secret_key: str = ""
+    endpoint_url: str = ""
 
-    def __init__(self, access_key="", secret_key="", endpoint_url="") -> None:
-        self.access_key = access_key
-        self.secret_key = secret_key
-        self.endpoint_url = endpoint_url
-        self.connected = False
-        self._s3fs = None
-        super().__init__()
+    _s3fs: Optional[s3fs.S3FileSystem] = None
+    _connected = False
 
     @property
     def fs(self):
@@ -97,3 +91,7 @@ class DataLayer:
     async def __aexit__(self, *args, **kwargs):
         current_datalayer.set(None)
         return self
+
+    class Config:
+        arbitrary_types_allowed = True
+        underscore_attrs_are_private = True

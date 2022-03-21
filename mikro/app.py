@@ -38,15 +38,11 @@ Example:
 """
 
 
-from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import Field
 from herre import Herre
 from fakts import Fakts
 from herre.fakts.herre import FaktsHerre
 from koil.composition import Composition
-from koil.decorators import koilable
-from koil.helpers import unkoil
-from koil.koil import Koil
 from mikro.composition.base import Mikro
 
 

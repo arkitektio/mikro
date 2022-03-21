@@ -1,10 +1,5 @@
-import os
-from mikro.errors import NoMikroFound
 from rath import rath
-import xarray as xr
-import pandas as pd
 import contextvars
-import logging
 
 current_mikro_rath = contextvars.ContextVar("current_mikro_rath")
 

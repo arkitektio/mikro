@@ -11,7 +11,6 @@ If you want to add your own traits to the graphql type, you can do so by adding 
 
 """
 
-from typing import Optional
 import xarray as xr
 import pandas as pd
 

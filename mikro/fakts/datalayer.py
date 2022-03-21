@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from typing import Optional
 from fakts.config.base import Config
 from fakts.fakts import Fakts, current_fakts
 from herre.herre import Herre, current_herre
@@ -15,12 +15,8 @@ class DataLayerConfig(Config):
 
 
 class FaktsDataLayer(DataLayer):
-    def __init__(
-        self, *args, fakts: Fakts = None, herre: Herre = None, **kwargs
-    ) -> None:
-        self.fakts = fakts
-        self.herre = herre
-        super().__init__(*args, **kwargs)
+    fakts: Optional[Fakts] = None
+    herre: Optional[Herre] = None
 
     def configure(self, config: DataLayerConfig, herre: Herre) -> None:
         self.herre = herre
@@ -30,7 +26,8 @@ class FaktsDataLayer(DataLayer):
 
     async def __aenter__(self):
         self.herre = self.herre or current_herre.get()
-        config = await DataLayerConfig.from_fakts(self.fakts)
+        self.fakts = self.fakts or current_fakts.get()
+        config = await DataLayerConfig.from_fakts(fakts=self.fakts)
         self.configure(config, herre=self.herre)
 
         return await super().__aenter__()
