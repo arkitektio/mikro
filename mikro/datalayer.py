@@ -35,6 +35,8 @@ Example:
 import contextvars
 import os
 from typing import Optional
+
+from pydantic import SecretStr
 from koil.composition import KoiledModel
 from koil.decorators import koilable
 import s3fs
@@ -57,8 +59,8 @@ class DataLayer(KoiledModel):
 
     """
 
-    access_key: str = ""
-    secret_key: str = ""
+    access_key: SecretStr = ""
+    secret_key: SecretStr = ""
     endpoint_url: str = ""
 
     _s3fs: Optional[s3fs.S3FileSystem] = None

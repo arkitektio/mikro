@@ -1,7 +1,7 @@
 from graphql import OperationType
 from herre.herre import Herre, current_herre
 from mikro.datalayer import DataLayer, current_datalayer
-from mikro.mikro import MikroRath
+from mikro.rath import MikroRath
 from mikro.links.parquet import DataLayerParquetUploadLink
 from mikro.links.xarray import DataLayerXArrayUploadLink
 from rath.links.aiohttp import AIOHttpLink

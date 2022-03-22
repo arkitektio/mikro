@@ -4,7 +4,7 @@ from koil.composition import Composition
 from mikro.fakts.rath import FaktsMikroRath
 from mikro.fakts.datalayer import FaktsDataLayer
 from mikro.datalayer import DataLayer
-from mikro.mikro import MikroRath
+from mikro.rath import MikroRath
 
 
 @koilable(add_connectors=True)

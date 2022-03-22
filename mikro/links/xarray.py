@@ -51,7 +51,7 @@ class DataLayerXArrayUploadLink(ParsingLink):
     datalayer: Optional[DataLayer] = None
     bucket: Optional[str] = "zarr"
     executor: Optional[Executor] = Field(
-        default_factory=lambda: ThreadPoolExecutor(max_workers=4)
+        default_factory=lambda: ThreadPoolExecutor(max_workers=4), exclude=True
     )
 
     FILEVERSION = "0.1"

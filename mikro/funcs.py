@@ -1,4 +1,4 @@
-from mikro.mikro import MikroRath, current_mikro_rath
+from mikro.rath import MikroRath, current_mikro_rath
 
 
 def execute(

@@ -56,7 +56,7 @@ class DataLayerParquetUploadLink(ParsingLink):
     datalayer: Optional[DataLayer] = None
     bucket: Optional[str] = "parquet"
     executor: Optional[Executor] = Field(
-        default_factory=lambda: ThreadPoolExecutor(max_workers=4)
+        default_factory=lambda: ThreadPoolExecutor(max_workers=4), exclude=True
     )
 
     FILEVERSION = "0.1"

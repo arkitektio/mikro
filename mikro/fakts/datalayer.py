@@ -1,4 +1,6 @@
 from typing import Optional
+
+from pydantic import SecretStr
 from fakts.config.base import Config
 from fakts.fakts import Fakts, current_fakts
 from herre.herre import Herre, current_herre
@@ -6,8 +8,8 @@ from mikro.datalayer import DataLayer
 
 
 class DataLayerConfig(Config):
-    secret_key: str
-    access_key: str
+    secret_key: SecretStr
+    access_key: SecretStr
     endpoint_url: str
 
     class Config:
