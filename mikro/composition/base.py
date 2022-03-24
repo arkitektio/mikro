@@ -9,5 +9,5 @@ from mikro.rath import MikroRath
 
 @koilable(add_connectors=True)
 class Mikro(Composition):
-    rath: MikroRath = Field(default_factory=FaktsMikroRath)
     datalayer: DataLayer = Field(default_factory=FaktsDataLayer)
+    rath: MikroRath = Field(default_factory=FaktsMikroRath)

@@ -8,7 +8,7 @@ packages = [{include = "mikro"}]
 
 [tool.poetry.dependencies]
 python = "^3.8"
-herre="^0.1.68"
+herre="^0.1.71"
 inflection = "^0.5.1"
 zarr = "^2.11.1"
 xarray = "^2022.3.0"
@@ -16,14 +16,15 @@ s3fs = "^2022.2.0"
 pandas = "^1.3.4"
 pyarrow = "^6.0.1"
 dask = "^2022.2.1"
-fakts = "^0.1.46"
+fakts = "^0.1.47"
 turms = {version = "^0.2.3",python = ">=3.9", optional = true}
-rath = "^0.1.28"
+rath = "^0.1.31"
 websockets = "^10.2"
-arkitekt = "0.1.119"
+arkitekt = {version = "0.1.119", optional = true}
 
 [tool.poetry.extras]
-arkitekt = ["arkitekt"]
+turms = ["turms"]
+complete = ["turms","arkitekt"]
 
 
 [tool.poetry.dev-dependencies]

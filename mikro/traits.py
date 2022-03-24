@@ -11,11 +11,16 @@ If you want to add your own traits to the graphql type, you can do so by adding 
 
 """
 
+from typing import List
+import numpy as np
+from pydantic import BaseModel
 import xarray as xr
 import pandas as pd
 
+from rath.links.shrink import ShrinkByID
 
-class Representation:
+
+class Representation(BaseModel, ShrinkByID):
     """Representation Trait
 
     Implements both identifier and shrinking methods.
@@ -26,11 +31,11 @@ class Representation:
 
     """
 
-    def get_identifier():
-        return "representation"
+    id: str
 
-    async def shrink(self):
-        return self.id
+    @classmethod
+    def get_identifier(cls):
+        return "representation"
 
     @property
     def data(self) -> xr.DataArray:
@@ -42,30 +47,65 @@ class Representation:
         Raises:
             AssertionError: If the representation has no store attribute quries
         """
+        pstore = getattr(self, "store", None)
         assert (
-            self.store is not None
+            pstore is not None
         ), "Please query 'store' in your request on 'Representation'. Data is not accessible otherwise"
 
-        return self.store.open()
+        return pstore.open()
 
 
-class Experiment:
-    def get_identifier():
+class Experiment(BaseModel, ShrinkByID):
+    id: str
+
+    @classmethod
+    def get_identifier(cls):
         return "experiment"
 
-    async def shrink(self):
+
+class ROI(BaseModel, ShrinkByID):
+    """Additional Methods for ROI"""
+
+    id: str
+
+    @classmethod
+    def get_identifier(cls):
+        """THis classes identifier on the platform"""
+        return "roi"
+
+    async def ashrink(self):
+        """Shrinks this to a unique identifier on
+        the mikro server
+
+        Returns:
+            str: The unique identifier
+        """
         return self.id
 
+    @property
+    def vector_data(self) -> np.ndarray:
+        """A numpy array of the vectors of the ROI
 
-class Sample:
-    def get_identifier():
+        Returns:
+            np.ndarray: _description_
+        """
+        vector_list = getattr(self, "vectors", None)
+        assert (
+            vector_list
+        ), "Please query 'vectors' in your request on 'ROI'. Data is not accessible otherwise"
+        vector_list: list
+        return np.array([[v.x, v.y, v.z] for v in vector_list])
+
+
+class Sample(BaseModel, ShrinkByID):
+    id: str
+
+    @classmethod
+    def get_identifier(cls):
         return "sample"
 
-    async def shrink(self):
-        return self.id
 
-
-class Table:
+class Table(BaseModel, ShrinkByID):
     """Table Trait
 
     Implements both identifier and shrinking methods.
@@ -78,20 +118,33 @@ class Table:
 
     @property
     def data(self) -> pd.DataFrame:
-        assert (
-            self.parquet is not None
-        ), "Please query 'parquet' in your request on 'Table'. Data is not accessible otherwise"
-        return self.parquet.df
+        """The data of this table as a pandas dataframe
 
-    def get_identifier():
+        Returns:
+            pd.DataFrame: The Dataframe
+        """
+        pstore = getattr(self, "parquet", None)
+        assert (
+            pstore is not None
+        ), "Please query 'parquet' in your request on 'Table'. Data is not accessible otherwise"
+        return pstore.df
+
+    @classmethod
+    def get_identifier(cls):
         return "table"
 
 
-class Thumbnail:
-    def get_identifier():
+class Thumbnail(BaseModel, ShrinkByID):
+    id: str
+
+    @classmethod
+    def get_identifier(cls):
         return "thumbnail"
 
 
-class OmeroFile:
-    def get_identifier():
+class OmeroFile(BaseModel, ShrinkByID):
+    id: str
+
+    @classmethod
+    def get_identifier(cls):
         return "omerofile"

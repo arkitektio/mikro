@@ -17,8 +17,8 @@ projects:
           - type: turms.plugins.operations.OperationsPlugin
           - type: turms.plugins.funcs.FuncsPlugin
             global_kwargs:
-              - type: mikro.mikro.MikroRath
-                key: mikrorath
+              - type: mikro.rath.MikroRath
+                key: rath
                 description: "The mikro rath client"
             definitions:
               - type: subscription
@@ -58,3 +58,5 @@ projects:
             - mikro.traits.Thumbnail
           Experiment:
             - mikro.traits.Experiment
+          ROI:
+            - mikro.traits.ROI

@@ -7,4 +7,3 @@ class ConnectedApp(MikroApp, ArkitektApp):
     of both a Mikro App and a Arkitekt App.
     """
 
-    pass

@@ -60,7 +60,7 @@ name = "arkitekt"
 version = "0.1.119"
 description = "rpc and node backbone"
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.7,<4.0"
 
 [package.dependencies]
@@ -434,7 +434,7 @@ python-versions = ">=3.6,<4"
 
 [[package]]
 name = "herre"
-version = "0.1.69"
+version = "0.1.71"
 description = "openid connect client tailore to pyqt and async environments"
 category = "main"
 optional = false
@@ -442,14 +442,14 @@ python-versions = ">=3.7,<4.0"
 
 [package.dependencies]
 aiohttp = ">=3.7.4,<4.0.0"
-koil = "0.1.103"
+koil = "0.1.106"
 oauthlib = ">=3.1.1,<4.0.0"
 pydantic = ">=1.9.0,<2.0.0"
 QtPy = ">=1.11.1,<2.0.0"
 rich = ">=11.0.0,<12.0.0"
 
 [package.extras]
-fakts = ["fakts (==0.1.40)"]
+fakts = ["fakts (>=0.1.47,<0.2.0)"]
 
 [[package]]
 name = "idna"
@@ -510,7 +510,7 @@ python-versions = ">=2.6, !=3.0.*, !=3.1.*, !=3.2.*"
 
 [[package]]
 name = "koil"
-version = "0.1.103"
+version = "0.1.106"
 description = "Async for a sync world"
 category = "main"
 optional = false
@@ -964,7 +964,7 @@ python-versions = ">=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*"
 
 [[package]]
 name = "rath"
-version = "0.1.28"
+version = "0.1.31"
 description = "aiohttp powered apollo like graphql client"
 category = "main"
 optional = false
@@ -973,8 +973,11 @@ python-versions = ">=3.7,<4.0"
 [package.dependencies]
 aiohttp = ">=3.8.1,<4.0.0"
 graphql-core = ">=3.2.0,<4.0.0"
-koil = "0.1.103"
+koil = "0.1.106"
 pydantic = ">=1.9.0,<2.0.0"
+
+[package.extras]
+websockets = ["websockets (>=10.2,<11.0)"]
 
 [[package]]
 name = "requests"
@@ -1177,12 +1180,13 @@ numpy = ">=1.7"
 jupyter = ["notebook", "ipytree"]
 
 [extras]
-arkitekt = ["arkitekt"]
+complete = ["turms", "arkitekt"]
+turms = ["turms"]
 
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "ed5a0a46666843668a3a868da415480978b709ba97e5e8745ee646e2d1179ede"
+content-hash = "d90d5b88335980eb884ebc2f5a1f0846a5164b223a93953254b670b1071badbd"
 
 [metadata.files]
 aiobotocore = [
@@ -1480,8 +1484,8 @@ graphql-core = [
     {file = "graphql_core-3.2.0-py3-none-any.whl", hash = "sha256:0dda7e63676f119bb3d814621190fedad72fda07a8e9ab780bedd9f1957c6dc6"},
 ]
 herre = [
-    {file = "herre-0.1.69-py3-none-any.whl", hash = "sha256:bfed9606fbbc0547926e5527c97e776b77ffc913f4e307709b2587b960a51caf"},
-    {file = "herre-0.1.69.tar.gz", hash = "sha256:5785dc1948d7c6d20709249efd8c0c15b309f35b226946992fdee5f368fbbee4"},
+    {file = "herre-0.1.71-py3-none-any.whl", hash = "sha256:b46fde494af23a1363b6ec6410b6fb8b16aad170a6224a0cb598acd5d00e7b99"},
+    {file = "herre-0.1.71.tar.gz", hash = "sha256:8fd5df33550f9e06c90cafb4a482f1e92c98d80d22228b9b16a139a16ad0f874"},
 ]
 idna = [
     {file = "idna-3.3-py3-none-any.whl", hash = "sha256:84d9dd047ffa80596e0f246e2eab0b391788b0503584e8945f2368256d2735ff"},
@@ -1508,8 +1512,8 @@ jmespath = [
     {file = "jmespath-0.10.0.tar.gz", hash = "sha256:b85d0567b8666149a93172712e68920734333c0ce7e89b78b3e987f71e5ed4f9"},
 ]
 koil = [
-    {file = "koil-0.1.103-py3-none-any.whl", hash = "sha256:ddf26034c5f0ea415e540d6f283517818180a88f1c5d4348bfdb622cdb82cdf7"},
-    {file = "koil-0.1.103.tar.gz", hash = "sha256:6124281c8fae60e1f1e5b4132b4b91c9d1a9be518b715dfd55315301274a464f"},
+    {file = "koil-0.1.106-py3-none-any.whl", hash = "sha256:53fe8d6faa6a4d304262f7057470272f2ffad59c1a1265ea5bd827f5e0360c00"},
+    {file = "koil-0.1.106.tar.gz", hash = "sha256:3042f2a99b96e99befa5d8c724eb504103f4631247acb337ddeb842e58f4ac43"},
 ]
 lazy-object-proxy = [
     {file = "lazy-object-proxy-1.7.1.tar.gz", hash = "sha256:d609c75b986def706743cdebe5e47553f4a5a1da9c5ff66d76013ef396b5a8a4"},
@@ -1914,8 +1918,8 @@ qtpy = [
     {file = "QtPy-1.11.3.tar.gz", hash = "sha256:d427addd37386a8d786db81864a5536700861d95bf085cb31d1bea855d699557"},
 ]
 rath = [
-    {file = "rath-0.1.28-py3-none-any.whl", hash = "sha256:a1e5f7ea13119414866c0fefc779d8fa4caef15b9d24ca7da510fe3e17cd4904"},
-    {file = "rath-0.1.28.tar.gz", hash = "sha256:5890eefc278b4c070c35f338f9cc2157fb70d2dbd7902d0e9baa0230137112fa"},
+    {file = "rath-0.1.31-py3-none-any.whl", hash = "sha256:e1b55af74aae8fbfe7f4034e7a934aade42b55f51526ba8e1853045a4c9749b6"},
+    {file = "rath-0.1.31.tar.gz", hash = "sha256:991e4683e4a813a652dfe19e32aeb6dfc1305edd9321a2bc1a8ad2dc4cc37b24"},
 ]
 requests = [
     {file = "requests-2.27.1-py2.py3-none-any.whl", hash = "sha256:f22fa1e554c9ddfd16e6e41ac79759e17be9e492b3587efa038054674760e72d"},

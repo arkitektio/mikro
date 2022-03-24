@@ -2,9 +2,7 @@ from concurrent.futures import Executor, ThreadPoolExecutor
 from typing import Optional
 import uuid
 from graphql import NamedTypeNode
-from inflection import underscore
 from pydantic import Field
-from typer import Option
 from mikro.datalayer import DataLayer
 from rath.links.parsing import ParsingLink
 from rath.operation import Operation
@@ -53,7 +51,7 @@ class DataLayerParquetUploadLink(ParsingLink):
 
     """
 
-    datalayer: Optional[DataLayer] = None
+    datalayer: Optional[DataLayer]
     bucket: Optional[str] = "parquet"
     executor: Optional[Executor] = Field(
         default_factory=lambda: ThreadPoolExecutor(max_workers=4), exclude=True
@@ -131,6 +129,10 @@ class DataLayerParquetUploadLink(ParsingLink):
 
     async def __aenter__(self) -> None:
         """Enter the executor"""
+        assert (
+            self.datalayer is not None and self.bucket
+        ), "DataLayer and bucket must be set before entering this link"
+
         self._executor_session = self.executor.__enter__()
 
     async def __aexit__(self, *args, **kwargs) -> None:

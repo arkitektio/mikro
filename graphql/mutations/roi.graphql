@@ -2,7 +2,7 @@ mutation create_roi(
   $representation: ID!
   $vectors: [InputVector]!
   $creator: ID
-  $type: RoiTypeInput
+  $type: RoiTypeInput!
 ) {
   createROI(
     representation: $representation

@@ -9,6 +9,9 @@ from rath.operation import Operation
 from graphql.language import NonNullTypeNode
 import xarray as xr
 import asyncio
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def filter_xarray_nodes(operation: Operation):
@@ -48,7 +51,7 @@ class DataLayerXArrayUploadLink(ParsingLink):
 
     """
 
-    datalayer: Optional[DataLayer] = None
+    datalayer: Optional[DataLayer]
     bucket: Optional[str] = "zarr"
     executor: Optional[Executor] = Field(
         default_factory=lambda: ThreadPoolExecutor(max_workers=4), exclude=True
@@ -105,6 +108,7 @@ class DataLayerXArrayUploadLink(ParsingLink):
 
         for node in filter_xarray_nodes(operation):
             array = operation.variables[node.variable.name.value]
+            logger.info("Storing XArray")
 
             if isinstance(array, xr.DataArray):
                 operation.variables[node.variable.name.value] = self.store_xarray(array)
@@ -112,6 +116,7 @@ class DataLayerXArrayUploadLink(ParsingLink):
             else:
                 raise NotImplementedError("Can only store XArray at this moment")
 
+        print(operation.variables)
         return operation
 
     async def aparse(self, operation: Operation) -> Operation:
@@ -136,6 +141,9 @@ class DataLayerXArrayUploadLink(ParsingLink):
 
     async def __aenter__(self) -> None:
         """Enter the executor"""
+        assert (
+            self.datalayer is not None and self.bucket
+        ), "DataLayer and bucket must be set before entering this link"
         self._executor_session = self.executor.__enter__()
 
     async def __aexit__(self, *args, **kwargs) -> None:

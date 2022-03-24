@@ -1,10 +1,18 @@
-from typing import Iterator, Dict, Literal, List, Optional, AsyncIterator
-from mikro.funcs import subscribe, asubscribe, execute, aexecute
-from mikro.traits import Experiment, Thumbnail, OmeroFile, Table, Sample, Representation
+from typing import Optional, Dict, Iterator, List, Literal, AsyncIterator
+from pydantic import Field, BaseModel
+from mikro.funcs import aexecute, execute, subscribe, asubscribe
 from enum import Enum
-from mikro.scalars import Upload, DataFrame, Store, XArray, File
+from mikro.scalars import XArray, DataFrame, File, Store, Upload
+from mikro.traits import (
+    Experiment,
+    ROI,
+    Thumbnail,
+    Representation,
+    OmeroFile,
+    Table,
+    Sample,
+)
 from mikro.rath import MikroRath
-from pydantic import BaseModel, Field
 
 
 class OmeroFileType(str, Enum):
@@ -192,7 +200,7 @@ class ROIFragmentRepresentation(Representation, BaseModel):
         frozen = True
 
 
-class ROIFragment(BaseModel):
+class ROIFragment(ROI, BaseModel):
     typename: Optional[Literal["ROI"]] = Field(alias="__typename")
     id: str
     vectors: Optional[List[Optional[ROIFragmentVectors]]]
@@ -871,7 +879,7 @@ class Create_roiMutation(BaseModel):
 
     class Meta:
         domain = "mikro"
-        document = "fragment ROI on ROI {\n  id\n  vectors {\n    x\n    y\n    z\n  }\n  type\n  representation {\n    id\n  }\n}\n\nmutation create_roi($representation: ID!, $vectors: [InputVector]!, $creator: ID, $type: RoiTypeInput) {\n  createROI(\n    representation: $representation\n    vectors: $vectors\n    type: $type\n    creator: $creator\n  ) {\n    ...ROI\n  }\n}"
+        document = "fragment ROI on ROI {\n  id\n  vectors {\n    x\n    y\n    z\n  }\n  type\n  representation {\n    id\n  }\n}\n\nmutation create_roi($representation: ID!, $vectors: [InputVector]!, $creator: ID, $type: RoiTypeInput!) {\n  createROI(\n    representation: $representation\n    vectors: $vectors\n    type: $type\n    creator: $creator\n  ) {\n    ...ROI\n  }\n}"
 
     class Config:
         frozen = True
@@ -942,7 +950,7 @@ class Create_experimentMutation(BaseModel):
 
 async def aget_omero_file(
     id: Optional[str], rath: MikroRath = None
-) -> Optional[OmeroFileFragment]:
+) -> OmeroFileFragment:
     """get_omero_file
 
     Get a single representation by ID
@@ -956,9 +964,7 @@ async def aget_omero_file(
     return (await aexecute(Get_omero_fileQuery, {"id": id}, rath=rath)).omerofile
 
 
-def get_omero_file(
-    id: Optional[str], rath: MikroRath = None
-) -> Optional[OmeroFileFragment]:
+def get_omero_file(id: Optional[str], rath: MikroRath = None) -> OmeroFileFragment:
     """get_omero_file
 
     Get a single representation by ID
@@ -974,7 +980,7 @@ def get_omero_file(
 
 async def aexpand_omerofile(
     id: Optional[str], rath: MikroRath = None
-) -> Optional[OmeroFileFragment]:
+) -> OmeroFileFragment:
     """expand_omerofile
 
     Get a single representation by ID
@@ -988,9 +994,7 @@ async def aexpand_omerofile(
     return (await aexecute(Expand_omerofileQuery, {"id": id}, rath=rath)).omerofile
 
 
-def expand_omerofile(
-    id: Optional[str], rath: MikroRath = None
-) -> Optional[OmeroFileFragment]:
+def expand_omerofile(id: Optional[str], rath: MikroRath = None) -> OmeroFileFragment:
     """expand_omerofile
 
     Get a single representation by ID
@@ -1006,17 +1010,18 @@ def expand_omerofile(
 
 async def asearch_omerofile(
     search: Optional[str], rath: MikroRath = None
-) -> Optional[List[Search_omerofileQueryOmerofiles]]:
+) -> Search_omerofileQuery:
     """search_omerofile
 
-    My samples return all of the users samples attached to the current user
+
+     omerofiles: My samples return all of the users samples attached to the current user
 
     Arguments:
         search (str): search
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
-        Search_omerofileQueryOmerofiles"""
+        Search_omerofileQuery"""
     return (
         await aexecute(Search_omerofileQuery, {"search": search}, rath=rath)
     ).omerofiles
@@ -1024,23 +1029,24 @@ async def asearch_omerofile(
 
 def search_omerofile(
     search: Optional[str], rath: MikroRath = None
-) -> Optional[List[Search_omerofileQueryOmerofiles]]:
+) -> Search_omerofileQuery:
     """search_omerofile
 
-    My samples return all of the users samples attached to the current user
+
+     omerofiles: My samples return all of the users samples attached to the current user
 
     Arguments:
         search (str): search
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
-        Search_omerofileQueryOmerofiles"""
+        Search_omerofileQuery"""
     return execute(Search_omerofileQuery, {"search": search}, rath=rath).omerofiles
 
 
 async def aexpand_representation(
     id: Optional[str], rath: MikroRath = None
-) -> Optional[RepresentationFragment]:
+) -> RepresentationFragment:
     """expand_representation
 
     Get a single representation by ID
@@ -1058,7 +1064,7 @@ async def aexpand_representation(
 
 def expand_representation(
     id: Optional[str], rath: MikroRath = None
-) -> Optional[RepresentationFragment]:
+) -> RepresentationFragment:
     """expand_representation
 
     Get a single representation by ID
@@ -1074,7 +1080,7 @@ def expand_representation(
 
 async def aget_representation(
     id: Optional[str], rath: MikroRath = None
-) -> Optional[RepresentationFragment]:
+) -> RepresentationFragment:
     """get_representation
 
     Get a single representation by ID
@@ -1092,7 +1098,7 @@ async def aget_representation(
 
 def get_representation(
     id: Optional[str], rath: MikroRath = None
-) -> Optional[RepresentationFragment]:
+) -> RepresentationFragment:
     """get_representation
 
     Get a single representation by ID
@@ -1108,17 +1114,18 @@ def get_representation(
 
 async def asearch_representation(
     search: Optional[str] = None, rath: MikroRath = None
-) -> Optional[List[Search_representationQueryRepresentations]]:
+) -> Search_representationQuery:
     """search_representation
 
-    All represetations
+
+     representations: All represetations
 
     Arguments:
         search (Optional[str], optional): search.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
-        Search_representationQueryRepresentations"""
+        Search_representationQuery"""
     return (
         await aexecute(Search_representationQuery, {"search": search}, rath=rath)
     ).representations
@@ -1126,23 +1133,24 @@ async def asearch_representation(
 
 def search_representation(
     search: Optional[str] = None, rath: MikroRath = None
-) -> Optional[List[Search_representationQueryRepresentations]]:
+) -> Search_representationQuery:
     """search_representation
 
-    All represetations
+
+     representations: All represetations
 
     Arguments:
         search (Optional[str], optional): search.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
-        Search_representationQueryRepresentations"""
+        Search_representationQuery"""
     return execute(
         Search_representationQuery, {"search": search}, rath=rath
     ).representations
 
 
-async def aget_random_rep(rath: MikroRath = None) -> Optional[RepresentationFragment]:
+async def aget_random_rep(rath: MikroRath = None) -> RepresentationFragment:
     """get_random_rep
 
     Get a single representation by ID
@@ -1155,7 +1163,7 @@ async def aget_random_rep(rath: MikroRath = None) -> Optional[RepresentationFrag
     return (await aexecute(Get_random_repQuery, {}, rath=rath)).random_representation
 
 
-def get_random_rep(rath: MikroRath = None) -> Optional[RepresentationFragment]:
+def get_random_rep(rath: MikroRath = None) -> RepresentationFragment:
     """get_random_rep
 
     Get a single representation by ID
@@ -1168,9 +1176,7 @@ def get_random_rep(rath: MikroRath = None) -> Optional[RepresentationFragment]:
     return execute(Get_random_repQuery, {}, rath=rath).random_representation
 
 
-async def athumbnail(
-    id: Optional[str], rath: MikroRath = None
-) -> Optional[ThumbnailFragment]:
+async def athumbnail(id: Optional[str], rath: MikroRath = None) -> ThumbnailFragment:
     """Thumbnail
 
     Get a single representation by ID
@@ -1184,7 +1190,7 @@ async def athumbnail(
     return (await aexecute(ThumbnailQuery, {"id": id}, rath=rath)).thumbnail
 
 
-def thumbnail(id: Optional[str], rath: MikroRath = None) -> Optional[ThumbnailFragment]:
+def thumbnail(id: Optional[str], rath: MikroRath = None) -> ThumbnailFragment:
     """Thumbnail
 
     Get a single representation by ID
@@ -1200,7 +1206,7 @@ def thumbnail(id: Optional[str], rath: MikroRath = None) -> Optional[ThumbnailFr
 
 async def aexpand_thumbnail(
     id: Optional[str], rath: MikroRath = None
-) -> Optional[ThumbnailFragment]:
+) -> ThumbnailFragment:
     """expand_thumbnail
 
     Get a single representation by ID
@@ -1214,9 +1220,7 @@ async def aexpand_thumbnail(
     return (await aexecute(Expand_thumbnailQuery, {"id": id}, rath=rath)).thumbnail
 
 
-def expand_thumbnail(
-    id: Optional[str], rath: MikroRath = None
-) -> Optional[ThumbnailFragment]:
+def expand_thumbnail(id: Optional[str], rath: MikroRath = None) -> ThumbnailFragment:
     """expand_thumbnail
 
     Get a single representation by ID
@@ -1234,7 +1238,7 @@ async def aget_rois(
     representation: Optional[str],
     type: Optional[List[Optional[RoiTypeInput]]] = None,
     rath: MikroRath = None,
-) -> Optional[List[ROIFragment]]:
+) -> ROIFragment:
     """get_rois
 
     All represetations
@@ -1257,7 +1261,7 @@ def get_rois(
     representation: Optional[str],
     type: Optional[List[Optional[RoiTypeInput]]] = None,
     rath: MikroRath = None,
-) -> Optional[List[ROIFragment]]:
+) -> ROIFragment:
     """get_rois
 
     All represetations
@@ -1274,7 +1278,7 @@ def get_rois(
     ).rois
 
 
-async def atable(id: Optional[str], rath: MikroRath = None) -> Optional[TableFragment]:
+async def atable(id: Optional[str], rath: MikroRath = None) -> TableFragment:
     """Table
 
     Get a single representation by ID
@@ -1288,7 +1292,7 @@ async def atable(id: Optional[str], rath: MikroRath = None) -> Optional[TableFra
     return (await aexecute(TableQuery, {"id": id}, rath=rath)).table
 
 
-def table(id: Optional[str], rath: MikroRath = None) -> Optional[TableFragment]:
+def table(id: Optional[str], rath: MikroRath = None) -> TableFragment:
     """Table
 
     Get a single representation by ID
@@ -1302,9 +1306,7 @@ def table(id: Optional[str], rath: MikroRath = None) -> Optional[TableFragment]:
     return execute(TableQuery, {"id": id}, rath=rath).table
 
 
-async def aexpand_table(
-    id: Optional[str], rath: MikroRath = None
-) -> Optional[TableFragment]:
+async def aexpand_table(id: Optional[str], rath: MikroRath = None) -> TableFragment:
     """expand_table
 
     Get a single representation by ID
@@ -1318,7 +1320,7 @@ async def aexpand_table(
     return (await aexecute(Expand_tableQuery, {"id": id}, rath=rath)).table
 
 
-def expand_table(id: Optional[str], rath: MikroRath = None) -> Optional[TableFragment]:
+def expand_table(id: Optional[str], rath: MikroRath = None) -> TableFragment:
     """expand_table
 
     Get a single representation by ID
@@ -1332,37 +1334,35 @@ def expand_table(id: Optional[str], rath: MikroRath = None) -> Optional[TableFra
     return execute(Expand_tableQuery, {"id": id}, rath=rath).table
 
 
-async def asearch_tables(
-    rath: MikroRath = None,
-) -> Optional[List[Search_tablesQueryTables]]:
+async def asearch_tables(rath: MikroRath = None) -> Search_tablesQuery:
     """search_tables
 
-    My samples return all of the users samples attached to the current user
+
+     tables: My samples return all of the users samples attached to the current user
 
     Arguments:
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
-        Search_tablesQueryTables"""
+        Search_tablesQuery"""
     return (await aexecute(Search_tablesQuery, {}, rath=rath)).tables
 
 
-def search_tables(rath: MikroRath = None) -> Optional[List[Search_tablesQueryTables]]:
+def search_tables(rath: MikroRath = None) -> Search_tablesQuery:
     """search_tables
 
-    My samples return all of the users samples attached to the current user
+
+     tables: My samples return all of the users samples attached to the current user
 
     Arguments:
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
-        Search_tablesQueryTables"""
+        Search_tablesQuery"""
     return execute(Search_tablesQuery, {}, rath=rath).tables
 
 
-async def aget_sample(
-    id: Optional[str], rath: MikroRath = None
-) -> Optional[SampleFragment]:
+async def aget_sample(id: Optional[str], rath: MikroRath = None) -> SampleFragment:
     """get_sample
 
     Get a single representation by ID
@@ -1376,7 +1376,7 @@ async def aget_sample(
     return (await aexecute(Get_sampleQuery, {"id": id}, rath=rath)).sample
 
 
-def get_sample(id: Optional[str], rath: MikroRath = None) -> Optional[SampleFragment]:
+def get_sample(id: Optional[str], rath: MikroRath = None) -> SampleFragment:
     """get_sample
 
     Get a single representation by ID
@@ -1392,39 +1392,39 @@ def get_sample(id: Optional[str], rath: MikroRath = None) -> Optional[SampleFrag
 
 async def asearch_sample(
     search: Optional[str] = None, rath: MikroRath = None
-) -> Optional[List[Search_sampleQuerySamples]]:
+) -> Search_sampleQuery:
     """search_sample
 
-    All Samples
+
+     samples: All Samples
 
     Arguments:
         search (Optional[str], optional): search.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
-        Search_sampleQuerySamples"""
+        Search_sampleQuery"""
     return (await aexecute(Search_sampleQuery, {"search": search}, rath=rath)).samples
 
 
 def search_sample(
     search: Optional[str] = None, rath: MikroRath = None
-) -> Optional[List[Search_sampleQuerySamples]]:
+) -> Search_sampleQuery:
     """search_sample
 
-    All Samples
+
+     samples: All Samples
 
     Arguments:
         search (Optional[str], optional): search.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
-        Search_sampleQuerySamples"""
+        Search_sampleQuery"""
     return execute(Search_sampleQuery, {"search": search}, rath=rath).samples
 
 
-async def aexpand_sample(
-    id: Optional[str], rath: MikroRath = None
-) -> Optional[SampleFragment]:
+async def aexpand_sample(id: Optional[str], rath: MikroRath = None) -> SampleFragment:
     """expand_sample
 
     Get a single representation by ID
@@ -1438,9 +1438,7 @@ async def aexpand_sample(
     return (await aexecute(Expand_sampleQuery, {"id": id}, rath=rath)).sample
 
 
-def expand_sample(
-    id: Optional[str], rath: MikroRath = None
-) -> Optional[SampleFragment]:
+def expand_sample(id: Optional[str], rath: MikroRath = None) -> SampleFragment:
     """expand_sample
 
     Get a single representation by ID
@@ -1456,7 +1454,7 @@ def expand_sample(
 
 async def aget_experiment(
     id: Optional[str], rath: MikroRath = None
-) -> Optional[ExperimentFragment]:
+) -> ExperimentFragment:
     """get_experiment
 
     Get a single representation by ID
@@ -1470,9 +1468,7 @@ async def aget_experiment(
     return (await aexecute(Get_experimentQuery, {"id": id}, rath=rath)).experiment
 
 
-def get_experiment(
-    id: Optional[str], rath: MikroRath = None
-) -> Optional[ExperimentFragment]:
+def get_experiment(id: Optional[str], rath: MikroRath = None) -> ExperimentFragment:
     """get_experiment
 
     Get a single representation by ID
@@ -1488,7 +1484,7 @@ def get_experiment(
 
 async def aexpand_experiment(
     id: Optional[str], rath: MikroRath = None
-) -> Optional[ExperimentFragment]:
+) -> ExperimentFragment:
     """expand_experiment
 
     Get a single representation by ID
@@ -1502,9 +1498,7 @@ async def aexpand_experiment(
     return (await aexecute(Expand_experimentQuery, {"id": id}, rath=rath)).experiment
 
 
-def expand_experiment(
-    id: Optional[str], rath: MikroRath = None
-) -> Optional[ExperimentFragment]:
+def expand_experiment(id: Optional[str], rath: MikroRath = None) -> ExperimentFragment:
     """expand_experiment
 
     Get a single representation by ID
@@ -1520,17 +1514,18 @@ def expand_experiment(
 
 async def asearch_experiment(
     search: Optional[str] = None, rath: MikroRath = None
-) -> Optional[List[Search_experimentQueryExperiments]]:
+) -> Search_experimentQuery:
     """search_experiment
 
-    All Samples
+
+     experiments: All Samples
 
     Arguments:
         search (Optional[str], optional): search.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
-        Search_experimentQueryExperiments"""
+        Search_experimentQuery"""
     return (
         await aexecute(Search_experimentQuery, {"search": search}, rath=rath)
     ).experiments
@@ -1538,23 +1533,24 @@ async def asearch_experiment(
 
 def search_experiment(
     search: Optional[str] = None, rath: MikroRath = None
-) -> Optional[List[Search_experimentQueryExperiments]]:
+) -> Search_experimentQuery:
     """search_experiment
 
-    All Samples
+
+     experiments: All Samples
 
     Arguments:
         search (Optional[str], optional): search.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
-        Search_experimentQueryExperiments"""
+        Search_experimentQuery"""
     return execute(Search_experimentQuery, {"search": search}, rath=rath).experiments
 
 
 async def awatch_rois(
     representation: Optional[str], rath: MikroRath = None
-) -> AsyncIterator[Optional[Watch_roisSubscriptionRois]]:
+) -> AsyncIterator[Watch_roisSubscription]:
     """watch_rois
 
 
@@ -1564,7 +1560,7 @@ async def awatch_rois(
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
-        Watch_roisSubscriptionRois"""
+        Watch_roisSubscription"""
     async for event in asubscribe(
         Watch_roisSubscription, {"representation": representation}, rath=rath
     ):
@@ -1573,7 +1569,7 @@ async def awatch_rois(
 
 def watch_rois(
     representation: Optional[str], rath: MikroRath = None
-) -> Iterator[Optional[Watch_roisSubscriptionRois]]:
+) -> Iterator[Watch_roisSubscription]:
     """watch_rois
 
 
@@ -1583,7 +1579,7 @@ def watch_rois(
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
-        Watch_roisSubscriptionRois"""
+        Watch_roisSubscription"""
     for event in subscribe(
         Watch_roisSubscription, {"representation": representation}, rath=rath
     ):
@@ -1592,7 +1588,7 @@ def watch_rois(
 
 async def awatch_samples(
     rath: MikroRath = None,
-) -> AsyncIterator[Optional[Watch_samplesSubscriptionMysamples]]:
+) -> AsyncIterator[Watch_samplesSubscription]:
     """watch_samples
 
 
@@ -1601,14 +1597,12 @@ async def awatch_samples(
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
-        Watch_samplesSubscriptionMysamples"""
+        Watch_samplesSubscription"""
     async for event in asubscribe(Watch_samplesSubscription, {}, rath=rath):
         yield event.my_samples
 
 
-def watch_samples(
-    rath: MikroRath = None,
-) -> Iterator[Optional[Watch_samplesSubscriptionMysamples]]:
+def watch_samples(rath: MikroRath = None) -> Iterator[Watch_samplesSubscription]:
     """watch_samples
 
 
@@ -1617,12 +1611,12 @@ def watch_samples(
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
-        Watch_samplesSubscriptionMysamples"""
+        Watch_samplesSubscription"""
     for event in subscribe(Watch_samplesSubscription, {}, rath=rath):
         yield event.my_samples
 
 
-async def anegotiate(rath: MikroRath = None) -> Optional[Dict]:
+async def anegotiate(rath: MikroRath = None) -> Dict:
     """negotiate
 
 
@@ -1635,7 +1629,7 @@ async def anegotiate(rath: MikroRath = None) -> Optional[Dict]:
     return (await aexecute(NegotiateMutation, {}, rath=rath)).negotiate
 
 
-def negotiate(rath: MikroRath = None) -> Optional[Dict]:
+def negotiate(rath: MikroRath = None) -> Dict:
     """negotiate
 
 
@@ -1650,7 +1644,7 @@ def negotiate(rath: MikroRath = None) -> Optional[Dict]:
 
 async def aupload_bioimage(
     file: Optional[Upload], rath: MikroRath = None
-) -> Optional[Upload_bioimageMutationUploadomerofile]:
+) -> Upload_bioimageMutation:
     """upload_bioimage
 
 
@@ -1660,7 +1654,7 @@ async def aupload_bioimage(
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
-        Upload_bioimageMutationUploadomerofile"""
+        Upload_bioimageMutation"""
     return (
         await aexecute(Upload_bioimageMutation, {"file": file}, rath=rath)
     ).upload_omero_file
@@ -1668,7 +1662,7 @@ async def aupload_bioimage(
 
 def upload_bioimage(
     file: Optional[Upload], rath: MikroRath = None
-) -> Optional[Upload_bioimageMutationUploadomerofile]:
+) -> Upload_bioimageMutation:
     """upload_bioimage
 
 
@@ -1678,7 +1672,7 @@ def upload_bioimage(
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
-        Upload_bioimageMutationUploadomerofile"""
+        Upload_bioimageMutation"""
     return execute(Upload_bioimageMutation, {"file": file}, rath=rath).upload_omero_file
 
 
@@ -1691,7 +1685,7 @@ async def afrom_xarray(
     sample: Optional[str] = None,
     omero: Optional[OmeroRepresentationInput] = None,
     rath: MikroRath = None,
-) -> Optional[RepresentationFragment]:
+) -> RepresentationFragment:
     """from_xarray
 
     Creates a Representation
@@ -1734,7 +1728,7 @@ def from_xarray(
     sample: Optional[str] = None,
     omero: Optional[OmeroRepresentationInput] = None,
     rath: MikroRath = None,
-) -> Optional[RepresentationFragment]:
+) -> RepresentationFragment:
     """from_xarray
 
     Creates a Representation
@@ -1792,18 +1786,20 @@ async def adouble_upload(
 
     Returns:
         Double_uploadMutation"""
-    return await aexecute(
-        Double_uploadMutation,
-        {
-            "xarray": xarray,
-            "name": name,
-            "origins": origins,
-            "tags": tags,
-            "sample": sample,
-            "omero": omero,
-        },
-        rath=rath,
-    )
+    return (
+        await aexecute(
+            Double_uploadMutation,
+            {
+                "xarray": xarray,
+                "name": name,
+                "origins": origins,
+                "tags": tags,
+                "sample": sample,
+                "omero": omero,
+            },
+            rath=rath,
+        )
+    ).from_x_array
 
 
 def double_upload(
@@ -1843,12 +1839,12 @@ def double_upload(
             "omero": omero,
         },
         rath=rath,
-    )
+    ).from_x_array
 
 
 async def acreate_thumbnail(
     rep: Optional[str], file: Optional[File], rath: MikroRath = None
-) -> Optional[ThumbnailFragment]:
+) -> ThumbnailFragment:
     """create_thumbnail
 
 
@@ -1867,7 +1863,7 @@ async def acreate_thumbnail(
 
 def create_thumbnail(
     rep: Optional[str], file: Optional[File], rath: MikroRath = None
-) -> Optional[ThumbnailFragment]:
+) -> ThumbnailFragment:
     """create_thumbnail
 
 
@@ -1891,10 +1887,11 @@ async def acreate_metric(
     sample: Optional[str] = None,
     experiment: Optional[str] = None,
     rath: MikroRath = None,
-) -> Optional[Create_metricMutationCreatemetric]:
+) -> Create_metricMutation:
     """create_metric
 
-    Creates a Representation
+
+     createMetric: Creates a Representation
 
     Arguments:
         key (str): key
@@ -1905,7 +1902,7 @@ async def acreate_metric(
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
-        Create_metricMutationCreatemetric"""
+        Create_metricMutation"""
     return (
         await aexecute(
             Create_metricMutation,
@@ -1928,10 +1925,11 @@ def create_metric(
     sample: Optional[str] = None,
     experiment: Optional[str] = None,
     rath: MikroRath = None,
-) -> Optional[Create_metricMutationCreatemetric]:
+) -> Create_metricMutation:
     """create_metric
 
-    Creates a Representation
+
+     createMetric: Creates a Representation
 
     Arguments:
         key (str): key
@@ -1942,7 +1940,7 @@ def create_metric(
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
-        Create_metricMutationCreatemetric"""
+        Create_metricMutation"""
     return execute(
         Create_metricMutation,
         {
@@ -1959,10 +1957,10 @@ def create_metric(
 async def acreate_roi(
     representation: Optional[str],
     vectors: Optional[List[Optional[InputVector]]],
+    type: Optional[RoiTypeInput],
     creator: Optional[str] = None,
-    type: Optional[RoiTypeInput] = None,
     rath: MikroRath = None,
-) -> Optional[ROIFragment]:
+) -> ROIFragment:
     """create_roi
 
     Creates a Sample
@@ -1970,8 +1968,8 @@ async def acreate_roi(
     Arguments:
         representation (str): representation
         vectors (List[Optional[InputVector]]): vectors
+        type (RoiTypeInput): type
         creator (Optional[str], optional): creator.
-        type (Optional[RoiTypeInput], optional): type.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
@@ -1993,10 +1991,10 @@ async def acreate_roi(
 def create_roi(
     representation: Optional[str],
     vectors: Optional[List[Optional[InputVector]]],
+    type: Optional[RoiTypeInput],
     creator: Optional[str] = None,
-    type: Optional[RoiTypeInput] = None,
     rath: MikroRath = None,
-) -> Optional[ROIFragment]:
+) -> ROIFragment:
     """create_roi
 
     Creates a Sample
@@ -2004,8 +2002,8 @@ def create_roi(
     Arguments:
         representation (str): representation
         vectors (List[Optional[InputVector]]): vectors
+        type (RoiTypeInput): type
         creator (Optional[str], optional): creator.
-        type (Optional[RoiTypeInput], optional): type.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
@@ -2022,9 +2020,7 @@ def create_roi(
     ).create_roi
 
 
-async def afrom_df(
-    df: Optional[DataFrame], rath: MikroRath = None
-) -> Optional[TableFragment]:
+async def afrom_df(df: Optional[DataFrame], rath: MikroRath = None) -> TableFragment:
     """from_df
 
     Creates a Representation
@@ -2038,7 +2034,7 @@ async def afrom_df(
     return (await aexecute(From_dfMutation, {"df": df}, rath=rath)).from_df
 
 
-def from_df(df: Optional[DataFrame], rath: MikroRath = None) -> Optional[TableFragment]:
+def from_df(df: Optional[DataFrame], rath: MikroRath = None) -> TableFragment:
     """from_df
 
     Creates a Representation
@@ -2058,10 +2054,11 @@ async def acreate_sample(
     meta: Optional[Dict] = None,
     experiments: Optional[List[Optional[str]]] = None,
     rath: MikroRath = None,
-) -> Optional[Create_sampleMutationCreatesample]:
+) -> Create_sampleMutation:
     """create_sample
 
-    Creates a Sample
+
+     createSample: Creates a Sample
 
 
     Arguments:
@@ -2072,7 +2069,7 @@ async def acreate_sample(
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
-        Create_sampleMutationCreatesample"""
+        Create_sampleMutation"""
     return (
         await aexecute(
             Create_sampleMutation,
@@ -2093,10 +2090,11 @@ def create_sample(
     meta: Optional[Dict] = None,
     experiments: Optional[List[Optional[str]]] = None,
     rath: MikroRath = None,
-) -> Optional[Create_sampleMutationCreatesample]:
+) -> Create_sampleMutation:
     """create_sample
 
-    Creates a Sample
+
+     createSample: Creates a Sample
 
 
     Arguments:
@@ -2107,7 +2105,7 @@ def create_sample(
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
-        Create_sampleMutationCreatesample"""
+        Create_sampleMutation"""
     return execute(
         Create_sampleMutation,
         {"name": name, "creator": creator, "meta": meta, "experiments": experiments},
@@ -2121,7 +2119,7 @@ async def acreate_experiment(
     meta: Optional[Dict] = None,
     description: Optional[str] = None,
     rath: MikroRath = None,
-) -> Optional[ExperimentFragment]:
+) -> ExperimentFragment:
     """create_experiment
 
     Create an experiment (only signed in users)
@@ -2155,7 +2153,7 @@ def create_experiment(
     meta: Optional[Dict] = None,
     description: Optional[str] = None,
     rath: MikroRath = None,
-) -> Optional[ExperimentFragment]:
+) -> ExperimentFragment:
     """create_experiment
 
     Create an experiment (only signed in users)

@@ -38,7 +38,6 @@ from typing import Optional
 
 from pydantic import SecretStr
 from koil.composition import KoiledModel
-from koil.decorators import koilable
 import s3fs
 
 
@@ -71,13 +70,13 @@ class DataLayer(KoiledModel):
         assert self.endpoint_url, "Endpoint url is not set"
         if not self._s3fs:
             if self.access_key:
-                os.environ["AWS_ACCESS_KEY_ID"] = self.access_key
+                os.environ["AWS_ACCESS_KEY_ID"] = self.access_key.get_secret_value()
             if self.secret_key:
-                os.environ["AWS_SECRET_ACCESS_KEY"] = self.secret_key
+                os.environ["AWS_SECRET_ACCESS_KEY"] = self.secret_key.get_secret_value()
 
             self._s3fs = s3fs.S3FileSystem(
-                secret=self.secret_key,
-                key=self.access_key,
+                secret=self.secret_key.get_secret_value(),
+                key=self.access_key.get_secret_value(),
                 client_kwargs={"endpoint_url": self.endpoint_url},
             )
 
