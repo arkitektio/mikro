@@ -5,6 +5,7 @@ Custom scalars for Mikro.
 """
 
 
+from pydantic import BaseModel
 import xarray as xr
 import pyarrow.parquet as pq
 from mikro.datalayer import current_datalayer
@@ -36,13 +37,13 @@ class XArray:
 
     @classmethod
     def validate(cls, v):
-        if not isinstance(v, str):
-            raise TypeError("string required")
+        if not isinstance(v, xr.DataArray):
+            raise TypeError("This needs to be a instance of xarray.DataArray")
         # you could also return a string here which would mean model.post_code
         # would be a string, pydantic won't care but you could end up with some
         # confusion since the value's type won't match the type annotation
         # exactly
-        return cls(v)
+        return v
 
     def __repr__(self):
         return f"XArray({self.value})"

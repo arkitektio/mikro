@@ -1,0 +1,16 @@
+mutation create_label(
+  $instance: Int!
+  $representation: ID!
+  $creator: ID!
+  $name: String
+) {
+  createLabel(
+    instance: $instance
+    representation: $representation
+    creator: $creator
+    name: $name
+  ) {
+    id
+    instance
+  }
+}

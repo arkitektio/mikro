@@ -11,9 +11,10 @@ If you want to add your own traits to the graphql type, you can do so by adding 
 
 """
 
-from typing import List
+from typing import List, TypeVar
+from wsgiref.validate import validator
 import numpy as np
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, root_validator
 import xarray as xr
 import pandas as pd
 
@@ -56,7 +57,7 @@ class Representation(BaseModel, ShrinkByID):
 
 
 class Experiment(BaseModel, ShrinkByID):
-    id: str
+    id: str = Field(validator)
 
     @classmethod
     def get_identifier(cls):
@@ -148,3 +149,28 @@ class OmeroFile(BaseModel, ShrinkByID):
     @classmethod
     def get_identifier(cls):
         return "omerofile"
+
+
+T = TypeVar("T", bound="BaseModel")
+
+
+class Vectorizable:
+    @classmethod
+    def list_from_numpyarray(cls: T, x: np.ndarray) -> List[T]:
+        """Creates a list of InputVector from a numpya array
+
+        Args:
+            vector_list (List[List[float]]): A list of lists of floats
+
+        Returns:
+            List[Vectorizable]: A list of InputVector
+        """
+        assert x.ndim == 2, "Needs to be a List array of vectors"
+        if x.shape[1] == 3:
+            return [cls(x=i[0], y=i[1], z=i[2]) for i in x.tolist()]
+        elif x.shape[1] == 2:
+            return [cls(x=i[0], y=i[1]) for i in x.tolist()]
+        else:
+            raise NotImplementedError(
+                f"Incompatible shape {x.shape} of {x}. List dimension needs to either be of size 2 or 3"
+            )

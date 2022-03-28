@@ -9,4 +9,8 @@ fragment ROI on ROI {
   representation {
     id
   }
+  creator {
+    email
+    color
+  }
 }
