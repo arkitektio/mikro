@@ -1,20 +1,20 @@
-from mikro.scalars import Upload, File, XArray, DataFrame, Store
-from typing import Literal, AsyncIterator, Iterator, Dict, Optional, List
+from typing import Iterator, AsyncIterator, Literal, Optional, Dict, List
+from mikro.scalars import DataFrame, XArray, File, Store, Upload
 from mikro.traits import (
-    Experiment,
-    OmeroFile,
-    Vectorizable,
     Representation,
-    ROI,
-    Thumbnail,
-    Table,
+    OmeroFile,
     Sample,
+    Thumbnail,
+    Experiment,
+    Vectorizable,
+    ROI,
+    Table,
 )
-from pydantic import Field, BaseModel
-from mikro.funcs import asubscribe, execute, aexecute, subscribe
-from rath.scalars import ID
 from enum import Enum
 from mikro.rath import MikroRath
+from mikro.funcs import subscribe, asubscribe, aexecute, execute
+from pydantic import BaseModel, Field
+from rath.scalars import ID
 
 
 class OmeroFileType(str, Enum):

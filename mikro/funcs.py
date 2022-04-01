@@ -41,4 +41,3 @@ async def asubscribe(operation, variables, rath: MikroRath = None):
         operation.Meta.document, operation.Arguments(**variables).dict(by_alias=True)
     ):
         yield operation(**event.data)
-        yield operation(**event.data)

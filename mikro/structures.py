@@ -9,11 +9,11 @@ You can of course overwrite this in your app if you need to expand to a more com
 
 
 try:
-    from arkitekt.structures.registry import get_current_structure_registry
+    from arkitekt.structures.default import get_default_structure_registry
     from arkitekt.widgets import SearchWidget
     from mikro.api.schema import *
 
-    structure_reg = get_current_structure_registry()
+    structure_reg = get_default_structure_registry()
     structure_reg.register_as_structure(
         RepresentationFragment,
         expand=aexpand_representation,
@@ -32,4 +32,4 @@ try:
     structure_reg.register_as_structure(ThumbnailFragment, expand=aexpand_thumbnail)
     structure_reg.register_as_structure(OmeroFileFragment, expand=aexpand_omerofile)
 except ImportError:
-    pass
+    structure_reg = None
