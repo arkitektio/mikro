@@ -1,19 +1,19 @@
-from typing import Iterator, AsyncIterator, Literal, Optional, Dict, List
-from mikro.scalars import DataFrame, XArray, File, Store, Upload
 from mikro.traits import (
-    Representation,
-    OmeroFile,
-    Sample,
-    Thumbnail,
-    Experiment,
-    Vectorizable,
-    ROI,
     Table,
+    Representation,
+    Sample,
+    ROI,
+    Vectorizable,
+    Experiment,
+    Thumbnail,
+    OmeroFile,
 )
+from typing import Optional, List, Literal, AsyncIterator, Iterator, Dict
+from mikro.funcs import execute, subscribe, asubscribe, aexecute
+from pydantic import BaseModel, Field
+from mikro.scalars import Store, XArray, Upload, File, DataFrame
 from enum import Enum
 from mikro.rath import MikroRath
-from mikro.funcs import subscribe, asubscribe, aexecute, execute
-from pydantic import BaseModel, Field
 from rath.scalars import ID
 
 
