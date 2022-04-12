@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkwebsite=self.webpackChunkwebsite||[]).push([[37],{1532:function(e){e.exports=JSON.parse('{"allTagsPath":"/mikro/blog/tags","name":"mikro","count":1,"permalink":"/mikro/blog/tags/mikro"}')}}]);
