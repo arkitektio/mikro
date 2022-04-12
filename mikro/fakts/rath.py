@@ -7,7 +7,6 @@ from mikro.links.xarray import DataLayerXArrayUploadLink
 from rath.links.aiohttp import AIOHttpLink
 from rath.links.compose import compose
 from rath.links.auth import AuthTokenLink
-from rath.links.context import SwitchAsyncLink
 from rath.links.dictinglink import DictingLink
 from rath.links.shrink import ShrinkingLink
 from rath.links.split import SplitLink
@@ -55,7 +54,6 @@ class FaktsMikroRath(MikroRath):
             TranspileLink(registry=registry),
             ShrinkingLink(),
             DictingLink(),
-            SwitchAsyncLink(),
             AuthTokenLink(token_loader=herre.aget_token),
             SplitLink(
                 left=AIOHttpLink(url=config.endpoint_url),

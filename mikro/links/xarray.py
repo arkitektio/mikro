@@ -104,21 +104,6 @@ class DataLayerXArrayUploadLink(ParsingLink):
         dataset.to_zarr(store=store, consolidated=True, compute=True)
         return s3_path
 
-    def parse(self, operation: Operation) -> Operation:
-
-        for node in filter_xarray_nodes(operation):
-            array = operation.variables[node.variable.name.value]
-            logger.info("Storing XArray")
-
-            if isinstance(array, xr.DataArray):
-                operation.variables[node.variable.name.value] = self.store_xarray(array)
-
-            else:
-                raise NotImplementedError("Can only store XArray at this moment")
-
-        print(operation.variables)
-        return operation
-
     async def aparse(self, operation: Operation) -> Operation:
 
         shrinky = filter_xarray_nodes(operation)

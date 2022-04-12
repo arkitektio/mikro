@@ -36,8 +36,7 @@ This modules provides the datalayer.
 ## DataLayer Objects
 
 ```python
-@koilable(add_connectors=True)
-class DataLayer()
+class DataLayer(KoiledModel)
 ```
 
 Implements a S3 DataLayer

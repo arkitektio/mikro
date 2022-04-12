@@ -43,10 +43,11 @@
       "type": "category"
     },
     "reference/app",
+    "reference/arkitekt",
     "reference/datalayer",
     "reference/errors",
     "reference/funcs",
-    "reference/mikro",
+    "reference/rath",
     "reference/scalars",
     "reference/structures",
     "reference/traits",
