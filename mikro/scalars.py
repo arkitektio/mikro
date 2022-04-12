@@ -5,7 +5,6 @@ Custom scalars for Mikro.
 """
 
 
-from pydantic import BaseModel
 import xarray as xr
 import pyarrow.parquet as pq
 from mikro.datalayer import current_datalayer

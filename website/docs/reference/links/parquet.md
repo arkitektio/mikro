@@ -28,25 +28,6 @@ def store_df(df: pd.DataFrame) -> None
 
 Store a DataFrame in the DataLayer
 
-#### parse
-
-```python
-def parse(operation: Operation) -> Operation
-```
-
-Parse the operation (Sync)
-
-Extracts the DataFrame from the operation and uploads it to the DataLayer.
-
-**Arguments**:
-
-- `operation` _Operation_ - The operation to parse
-  
-
-**Returns**:
-
-- `Operation` - _description_
-
 #### aparse
 
 ```python

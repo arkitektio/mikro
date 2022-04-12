@@ -8,7 +8,7 @@ def execute(
 ):
     rath = rath or current_mikro_rath.get()
     return operation(
-        **rath.execute(
+        **rath.query(
             operation.Meta.document,
             operation.Arguments(**variables).dict(by_alias=True),
         ).data
@@ -21,7 +21,7 @@ async def aexecute(
     rath: MikroRath = None,
 ):
     rath = rath or current_mikro_rath.get()
-    x = await rath.aexecute(
+    x = await rath.aquery(
         operation.Meta.document, operation.Arguments(**variables).dict(by_alias=True)
     )
     return operation(**x.data)

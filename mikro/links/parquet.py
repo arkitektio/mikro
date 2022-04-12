@@ -71,29 +71,6 @@ class DataLayerParquetUploadLink(ParsingLink):
         pq.write_table(table, s3_path, filesystem=self.datalayer.fs)
         return s3_path
 
-    def parse(self, operation: Operation) -> Operation:
-        """Parse the operation (Sync)
-
-        Extracts the DataFrame from the operation and uploads it to the DataLayer.
-
-        Args:
-            operation (Operation): The operation to parse
-
-        Returns:
-            Operation: _description_
-        """
-
-        for node in filter_dataframe_nodes(operation):
-            array = operation.variables[node.variable.name.value]
-
-            if isinstance(array, pd.DataFrame):
-                operation.variables[node.variable.name.value] = self.store_df(array)
-
-            else:
-                raise NotImplementedError("Can only store XArray at this moment")
-
-        return operation
-
     async def aparse(self, operation: Operation) -> Operation:
         """Parse the operation (Async)
 

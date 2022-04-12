@@ -14,7 +14,7 @@ If you want to add your own traits to the graphql type, you can do so by adding 
 from typing import List, TypeVar
 from wsgiref.validate import validator
 import numpy as np
-from pydantic import BaseModel, Field, root_validator
+from pydantic import BaseModel, Field
 import xarray as xr
 import pandas as pd
 
