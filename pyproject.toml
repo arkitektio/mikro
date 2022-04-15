@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "mikro"
-version = "0.1.73"
+version = "0.1.74"
 description = "images for arnheim"
 authors = ["jhnnsrs <jhnnsrs@gmail.com>"]
 license = "CC BY-NC 3.0"

@@ -8,6 +8,7 @@ from .integration.utils import wait_for_http_response
 from .utils import build_relative
 import xarray as xr
 from testcontainers.compose import DockerCompose
+from herre.fakts import FaktsHerre
 
 
 @pytest.mark.integration
@@ -30,7 +31,8 @@ def app():
             subapp="test",
             grants=[YamlGrant(filepath=build_relative("configs/test.yaml"))],
             force_refresh=True,
-        )
+        ),
+        herre=FaktsHerre(no_temp=True),
     )
 
 
