@@ -12,9 +12,8 @@ If you want to add your own traits to the graphql type, you can do so by adding 
 """
 
 from typing import List, TypeVar
-from wsgiref.validate import validator
 import numpy as np
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 import xarray as xr
 import pandas as pd
 
@@ -34,10 +33,6 @@ class Representation(BaseModel, ShrinkByID):
 
     id: str
 
-    @classmethod
-    def get_identifier(cls):
-        return "representation"
-
     @property
     def data(self) -> xr.DataArray:
         """The Data of the Representation as an xr.DataArray
@@ -55,33 +50,26 @@ class Representation(BaseModel, ShrinkByID):
 
         return pstore.open()
 
+    @property
+    def adata(self) -> xr.DataArray:
+        """The Data of the Representation as an xr.DataArray
 
-class Experiment(BaseModel, ShrinkByID):
-    id: str = Field(validator)
+        Returns:
+            xr.DataArray: The associated object.
 
-    @classmethod
-    def get_identifier(cls):
-        return "experiment"
+        Raises:
+            AssertionError: If the representation has no store attribute quries
+        """
+        pstore = getattr(self, "store", None)
+        assert (
+            pstore is not None
+        ), "Please query 'store' in your request on 'Representation'. Data is not accessible otherwise"
+
+        return pstore.aopen()
 
 
 class ROI(BaseModel, ShrinkByID):
     """Additional Methods for ROI"""
-
-    id: str
-
-    @classmethod
-    def get_identifier(cls):
-        """THis classes identifier on the platform"""
-        return "roi"
-
-    async def ashrink(self):
-        """Shrinks this to a unique identifier on
-        the mikro server
-
-        Returns:
-            str: The unique identifier
-        """
-        return self.id
 
     @property
     def vector_data(self) -> np.ndarray:
@@ -96,14 +84,6 @@ class ROI(BaseModel, ShrinkByID):
         ), "Please query 'vectors' in your request on 'ROI'. Data is not accessible otherwise"
         vector_list: list
         return np.array([[v.x, v.y, v.z] for v in vector_list])
-
-
-class Sample(BaseModel, ShrinkByID):
-    id: str
-
-    @classmethod
-    def get_identifier(cls):
-        return "sample"
 
 
 class Table(BaseModel, ShrinkByID):
@@ -129,26 +109,6 @@ class Table(BaseModel, ShrinkByID):
             pstore is not None
         ), "Please query 'parquet' in your request on 'Table'. Data is not accessible otherwise"
         return pstore.df
-
-    @classmethod
-    def get_identifier(cls):
-        return "table"
-
-
-class Thumbnail(BaseModel, ShrinkByID):
-    id: str
-
-    @classmethod
-    def get_identifier(cls):
-        return "thumbnail"
-
-
-class OmeroFile(BaseModel, ShrinkByID):
-    id: str
-
-    @classmethod
-    def get_identifier(cls):
-        return "omerofile"
 
 
 T = TypeVar("T", bound="BaseModel")

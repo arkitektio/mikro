@@ -1,15 +1,12 @@
 from typing import Optional
 
-from pydantic import SecretStr
 from fakts.config.base import Config
-from fakts.fakts import Fakts, current_fakts
+from fakts.fakts import Fakts
 from herre.herre import Herre, current_herre
 from mikro.datalayer import DataLayer
 
 
 class DataLayerConfig(Config):
-    secret_key: SecretStr
-    access_key: SecretStr
     endpoint_url: str
 
     class Config:
@@ -17,19 +14,19 @@ class DataLayerConfig(Config):
 
 
 class FaktsDataLayer(DataLayer):
+    fakts_group: str
     fakts: Optional[Fakts] = None
     herre: Optional[Herre] = None
 
     def configure(self, config: DataLayerConfig, herre: Herre) -> None:
         self.herre = herre
-        self.access_key = config.access_key
-        self.secret_key = config.secret_key
         self.endpoint_url = config.endpoint_url
 
-    async def __aenter__(self):
+    async def aconnect(self):
         self.herre = self.herre or current_herre.get()
-        self.fakts = self.fakts or current_fakts.get()
-        config = await DataLayerConfig.from_fakts(fakts=self.fakts)
+        config = await DataLayerConfig.from_fakts(self.fakts_group)
         self.configure(config, herre=self.herre)
+        return await super().aconnect()
 
+    async def __aenter__(self):
         return await super().__aenter__()

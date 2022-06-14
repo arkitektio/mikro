@@ -1,20 +1,11 @@
-from pydantic import BaseModel, Field
-from mikro.scalars import DataFrame, Store, Upload, XArray, File
-from typing import Optional, List, Literal, AsyncIterator, Iterator, Dict
-from mikro.traits import (
-    Table,
-    Vectorizable,
-    Thumbnail,
-    Sample,
-    OmeroFile,
-    Experiment,
-    ROI,
-    Representation,
-)
-from mikro.funcs import asubscribe, subscribe, aexecute, execute
+from pydantic import Field, BaseModel
+from mikro.funcs import aexecute, execute, asubscribe, subscribe
+from enum import Enum
+from typing import AsyncIterator, Literal, Iterator, List, Optional, Dict
+from mikro.scalars import Upload, File, ArrayInput, Store, DataFrame
+from mikro.traits import Vectorizable, ROI, Representation, Table
 from rath.scalars import ID
 from mikro.rath import MikroRath
-from enum import Enum
 
 
 class OmeroFileType(str, Enum):
@@ -134,7 +125,7 @@ class InputVector(BaseModel, Vectorizable):
     "Z-coordinate"
 
 
-class RepresentationFragmentSample(Sample, BaseModel):
+class RepresentationFragmentSample(BaseModel):
     """Samples are storage containers for representations. A Sample is to be understood analogous to a Biological Sample. It existed in Time (the time of acquisiton and experimental procedure),
     was measured in space (x,y,z) and in different modalities (c). Sample therefore provide a datacontainer where each Representation of
     the data shares the same dimensions. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample
@@ -165,7 +156,7 @@ class RepresentationFragment(Representation, BaseModel):
         frozen = True
 
 
-class ThumbnailFragment(Thumbnail, BaseModel):
+class ThumbnailFragment(BaseModel):
     typename: Optional[Literal["Thumbnail"]] = Field(alias="__typename")
     id: ID
     image: Optional[str]
@@ -235,7 +226,7 @@ class TableFragmentCreator(BaseModel):
         frozen = True
 
 
-class TableFragmentSample(Sample, BaseModel):
+class TableFragmentSample(BaseModel):
     """Samples are storage containers for representations. A Sample is to be understood analogous to a Biological Sample. It existed in Time (the time of acquisiton and experimental procedure),
     was measured in space (x,y,z) and in different modalities (c). Sample therefore provide a datacontainer where each Representation of
     the data shares the same dimensions. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample
@@ -261,7 +252,7 @@ class TableFragmentRepresentation(Representation, BaseModel):
         frozen = True
 
 
-class TableFragmentExperiment(Experiment, BaseModel):
+class TableFragmentExperiment(BaseModel):
     """A Representation is a multi-dimensional Array that can do what ever it wants @elements/experiment"""
 
     typename: Optional[Literal["Experiment"]] = Field(alias="__typename")
@@ -301,7 +292,7 @@ class SampleFragmentRepresentations(Representation, BaseModel):
         frozen = True
 
 
-class SampleFragmentExperiments(Experiment, BaseModel):
+class SampleFragmentExperiments(BaseModel):
     """A Representation is a multi-dimensional Array that can do what ever it wants @elements/experiment"""
 
     typename: Optional[Literal["Experiment"]] = Field(alias="__typename")
@@ -311,7 +302,7 @@ class SampleFragmentExperiments(Experiment, BaseModel):
         frozen = True
 
 
-class SampleFragment(Sample, BaseModel):
+class SampleFragment(BaseModel):
     typename: Optional[Literal["Sample"]] = Field(alias="__typename")
     name: str
     id: ID
@@ -323,7 +314,7 @@ class SampleFragment(Sample, BaseModel):
         frozen = True
 
 
-class OmeroFileFragment(OmeroFile, BaseModel):
+class OmeroFileFragment(BaseModel):
     typename: Optional[Literal["OmeroFile"]] = Field(alias="__typename")
     id: ID
     name: str
@@ -343,12 +334,36 @@ class ExperimentFragmentCreator(BaseModel):
         frozen = True
 
 
-class ExperimentFragment(Experiment, BaseModel):
+class ExperimentFragment(BaseModel):
     typename: Optional[Literal["Experiment"]] = Field(alias="__typename")
     id: ID
     name: str
     creator: Optional[ExperimentFragmentCreator]
     meta: Optional[Dict]
+
+    class Config:
+        frozen = True
+
+
+class RequestQueryRequest(BaseModel):
+    typename: Optional[Literal["Credentials"]] = Field(alias="__typename")
+    access_key: Optional[str] = Field(alias="accessKey")
+    status: Optional[str]
+    secret_key: Optional[str] = Field(alias="secretKey")
+
+    class Config:
+        frozen = True
+
+
+class RequestQuery(BaseModel):
+    request: Optional[RequestQueryRequest]
+    "Get a single representation by ID"
+
+    class Arguments(BaseModel):
+        pass
+
+    class Meta:
+        document = "query Request {\n  request {\n    accessKey\n    status\n    secretKey\n  }\n}"
 
     class Config:
         frozen = True
@@ -382,7 +397,7 @@ class Expand_omerofileQuery(BaseModel):
         frozen = True
 
 
-class Search_omerofileQueryOmerofiles(OmeroFile, BaseModel):
+class Search_omerofileQueryOmerofiles(BaseModel):
     typename: Optional[Literal["OmeroFile"]] = Field(alias="__typename")
     id: ID
     label: str
@@ -588,7 +603,7 @@ class Get_sampleQuery(BaseModel):
         frozen = True
 
 
-class Search_sampleQuerySamples(Sample, BaseModel):
+class Search_sampleQuerySamples(BaseModel):
     """Samples are storage containers for representations. A Sample is to be understood analogous to a Biological Sample. It existed in Time (the time of acquisiton and experimental procedure),
     was measured in space (x,y,z) and in different modalities (c). Sample therefore provide a datacontainer where each Representation of
     the data shares the same dimensions. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample
@@ -658,7 +673,7 @@ class Expand_experimentQuery(BaseModel):
         frozen = True
 
 
-class Search_experimentQueryExperiments(Experiment, BaseModel):
+class Search_experimentQueryExperiments(BaseModel):
     """A Representation is a multi-dimensional Array that can do what ever it wants @elements/experiment"""
 
     typename: Optional[Literal["Experiment"]] = Field(alias="__typename")
@@ -706,7 +721,7 @@ class Watch_roisSubscription(BaseModel):
         frozen = True
 
 
-class Watch_samplesSubscriptionMysamplesUpdateExperiments(Experiment, BaseModel):
+class Watch_samplesSubscriptionMysamplesUpdateExperiments(BaseModel):
     """A Representation is a multi-dimensional Array that can do what ever it wants @elements/experiment"""
 
     typename: Optional[Literal["Experiment"]] = Field(alias="__typename")
@@ -716,7 +731,7 @@ class Watch_samplesSubscriptionMysamplesUpdateExperiments(Experiment, BaseModel)
         frozen = True
 
 
-class Watch_samplesSubscriptionMysamplesUpdate(Sample, BaseModel):
+class Watch_samplesSubscriptionMysamplesUpdate(BaseModel):
     """Samples are storage containers for representations. A Sample is to be understood analogous to a Biological Sample. It existed in Time (the time of acquisiton and experimental procedure),
     was measured in space (x,y,z) and in different modalities (c). Sample therefore provide a datacontainer where each Representation of
     the data shares the same dimensions. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample
@@ -731,7 +746,7 @@ class Watch_samplesSubscriptionMysamplesUpdate(Sample, BaseModel):
         frozen = True
 
 
-class Watch_samplesSubscriptionMysamplesCreateExperiments(Experiment, BaseModel):
+class Watch_samplesSubscriptionMysamplesCreateExperiments(BaseModel):
     """A Representation is a multi-dimensional Array that can do what ever it wants @elements/experiment"""
 
     typename: Optional[Literal["Experiment"]] = Field(alias="__typename")
@@ -741,7 +756,7 @@ class Watch_samplesSubscriptionMysamplesCreateExperiments(Experiment, BaseModel)
         frozen = True
 
 
-class Watch_samplesSubscriptionMysamplesCreate(Sample, BaseModel):
+class Watch_samplesSubscriptionMysamplesCreate(BaseModel):
     """Samples are storage containers for representations. A Sample is to be understood analogous to a Biological Sample. It existed in Time (the time of acquisiton and experimental procedure),
     was measured in space (x,y,z) and in different modalities (c). Sample therefore provide a datacontainer where each Representation of
     the data shares the same dimensions. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample
@@ -790,7 +805,7 @@ class NegotiateMutation(BaseModel):
         frozen = True
 
 
-class Upload_bioimageMutationUploadomerofile(OmeroFile, BaseModel):
+class Upload_bioimageMutationUploadomerofile(BaseModel):
     typename: Optional[Literal["OmeroFile"]] = Field(alias="__typename")
     id: ID
     file: Optional[File]
@@ -901,7 +916,7 @@ class From_xarrayMutation(BaseModel):
     "Creates a Representation"
 
     class Arguments(BaseModel):
-        xarray: XArray
+        xarray: ArrayInput
         name: Optional[str] = None
         variety: Optional[RepresentationVarietyInput] = None
         origins: Optional[List[Optional[ID]]] = None
@@ -951,7 +966,7 @@ class Double_uploadMutation(BaseModel):
     "Creates a Representation"
 
     class Arguments(BaseModel):
-        xarray: XArray
+        xarray: ArrayInput
         name: Optional[str] = None
         origins: Optional[List[Optional[ID]]] = None
         tags: Optional[List[Optional[str]]] = None
@@ -1078,7 +1093,7 @@ class Create_sampleMutationCreatesampleCreator(BaseModel):
         frozen = True
 
 
-class Create_sampleMutationCreatesample(Sample, BaseModel):
+class Create_sampleMutationCreatesample(BaseModel):
     """Samples are storage containers for representations. A Sample is to be understood analogous to a Biological Sample. It existed in Time (the time of acquisiton and experimental procedure),
     was measured in space (x,y,z) and in different modalities (c). Sample therefore provide a datacontainer where each Representation of
     the data shares the same dimensions. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample
@@ -1127,6 +1142,32 @@ class Create_experimentMutation(BaseModel):
 
     class Config:
         frozen = True
+
+
+async def arequest(rath: MikroRath = None) -> Optional[RequestQueryRequest]:
+    """Request
+
+
+
+    Arguments:
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[RequestQueryRequest]"""
+    return (await aexecute(RequestQuery, {}, rath=rath)).request
+
+
+def request(rath: MikroRath = None) -> Optional[RequestQueryRequest]:
+    """Request
+
+
+
+    Arguments:
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[RequestQueryRequest]"""
+    return execute(RequestQuery, {}, rath=rath).request
 
 
 async def aget_omero_file(
@@ -2064,7 +2105,7 @@ def create_label(
 
 
 async def afrom_xarray(
-    xarray: XArray,
+    xarray: ArrayInput,
     name: Optional[str] = None,
     variety: Optional[RepresentationVarietyInput] = None,
     origins: Optional[List[Optional[ID]]] = None,
@@ -2083,7 +2124,7 @@ async def afrom_xarray(
 
 
     Arguments:
-        xarray (XArray): xarray
+        xarray (ArrayInput): xarray
         name (Optional[str], optional): name.
         variety (Optional[RepresentationVarietyInput], optional): variety.
         origins (Optional[List[Optional[ID]]], optional): origins.
@@ -2112,7 +2153,7 @@ async def afrom_xarray(
 
 
 def from_xarray(
-    xarray: XArray,
+    xarray: ArrayInput,
     name: Optional[str] = None,
     variety: Optional[RepresentationVarietyInput] = None,
     origins: Optional[List[Optional[ID]]] = None,
@@ -2131,7 +2172,7 @@ def from_xarray(
 
 
     Arguments:
-        xarray (XArray): xarray
+        xarray (ArrayInput): xarray
         name (Optional[str], optional): name.
         variety (Optional[RepresentationVarietyInput], optional): variety.
         origins (Optional[List[Optional[ID]]], optional): origins.
@@ -2158,7 +2199,7 @@ def from_xarray(
 
 
 async def adouble_upload(
-    xarray: XArray,
+    xarray: ArrayInput,
     name: Optional[str] = None,
     origins: Optional[List[Optional[ID]]] = None,
     tags: Optional[List[Optional[str]]] = None,
@@ -2181,7 +2222,7 @@ async def adouble_upload(
 
 
     Arguments:
-        xarray (XArray): xarray
+        xarray (ArrayInput): xarray
         name (Optional[str], optional): name.
         origins (Optional[List[Optional[ID]]], optional): origins.
         tags (Optional[List[Optional[str]]], optional): tags.
@@ -2206,7 +2247,7 @@ async def adouble_upload(
 
 
 def double_upload(
-    xarray: XArray,
+    xarray: ArrayInput,
     name: Optional[str] = None,
     origins: Optional[List[Optional[ID]]] = None,
     tags: Optional[List[Optional[str]]] = None,
@@ -2229,7 +2270,7 @@ def double_upload(
 
 
     Arguments:
-        xarray (XArray): xarray
+        xarray (ArrayInput): xarray
         name (Optional[str], optional): name.
         origins (Optional[List[Optional[ID]]], optional): origins.
         tags (Optional[List[Optional[str]]], optional): tags.

@@ -19,6 +19,7 @@ def environment():
         compose_file_name="docker-compose.yaml",
     ) as compose:
         wait_for_http_response("http://localhost:8008/ht", max_retries=5)
+        wait_for_http_response("http://localhost:8088/ht", max_retries=5)
         yield
 
 
