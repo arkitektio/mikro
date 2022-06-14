@@ -3,11 +3,11 @@ info:
   name: localhost
 services:
   herre:
-    base_url: http://localhost:8008/o
-    endpoint_url: http://localhost:8008/graphql
-    healthz: http://localhost:8008/ht
+    base_url: http://localhost:8019/o
+    endpoint_url: http://localhost:8019/graphql
+    healthz: http://localhost:8019/ht
     secure: false
-    ws_endpoint_url: ws://localhost:8008/graphql
+    ws_endpoint_url: ws://localhost:8019/graphql
   mikro:
     datalayer:
       endpoint_url: http://localhost:9008

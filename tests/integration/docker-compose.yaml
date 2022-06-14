@@ -14,7 +14,7 @@ services:
       - ./configs/herre.yaml:/workspace/config.yaml
       - ./fakts:/workspace/fakts
     ports:
-      - 8008:8000
+      - 8019:8000
     depends_on:
       - daten
   mikro:

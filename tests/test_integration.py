@@ -19,7 +19,7 @@ def environment():
         filepath=build_relative("integration"),
         compose_file_name="docker-compose.yaml",
     ) as compose:
-        wait_for_http_response("http://localhost:8008/ht", max_retries=5)
+        wait_for_http_response("http://localhost:8019/ht", max_retries=5)
         wait_for_http_response("http://localhost:8088/ht", max_retries=5)
         yield
 
@@ -34,7 +34,7 @@ def app():
                 client_id="DSNwVKbSmvKuIUln36FmpWNVE2KrbS2oRX0ke8PJ",
                 client_secret="Gp3VldiWUmHgKkIxZjL2aEjVmNwnSyIGHWbQJo6bWMDoIUlBqvUyoGWUWAe6jI3KRXDOsD13gkYVCZR0po1BLFO9QT4lktKODHDs0GyyJEzmIjkpEOItfdCC4zIa3Qzu",
                 graph="localhost",
-                discovery=StaticDiscovery(base_url="http://localhost:8008/f/"),
+                discovery=StaticDiscovery(base_url="http://localhost:8019/f/"),
             ),
             force_refresh=True,
         ),
