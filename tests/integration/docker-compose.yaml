@@ -35,8 +35,6 @@ services:
     environment:
       MINIO_ACCESS_KEY: kBcG6sCIlQvOWPOpzJhu
       MINIO_SECRET_KEY: FjiprDl3qHwIMR7azM2M
-    labels:
-      platform: elements.storage
   redis:
     image: redis:latest
     labels:
