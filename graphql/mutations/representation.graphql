@@ -7,6 +7,7 @@ mutation from_xarray(
   $sample: ID
   $omero: OmeroRepresentationInput
 ) {
+  # Creates a Representation from an xarray dataset.
   fromXArray(
     xarray: $xarray
     name: $name

@@ -12,7 +12,7 @@ query expand_omerofile($id: ID!) {
 
 query search_omerofile($search: String!) {
   omerofiles(name: $search) {
-    id: id
+    value: id
     label: name
   }
 }

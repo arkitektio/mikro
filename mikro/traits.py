@@ -11,7 +11,8 @@ If you want to add your own traits to the graphql type, you can do so by adding 
 
 """
 
-from typing import List, TypeVar
+from asyncio import get_running_loop
+from typing import Awaitable, List, TypeVar
 import numpy as np
 from pydantic import BaseModel
 import xarray as xr
@@ -35,7 +36,7 @@ class Representation(BaseModel, ShrinkByID):
 
     @property
     def data(self) -> xr.DataArray:
-        """The Data of the Representation as an xr.DataArray
+        """The Data of the Representation as an xr.DataArray. Not accessible from asyncio
 
         Returns:
             xr.DataArray: The associated object.
@@ -43,16 +44,23 @@ class Representation(BaseModel, ShrinkByID):
         Raises:
             AssertionError: If the representation has no store attribute quries
         """
-        pstore = getattr(self, "store", None)
-        assert (
-            pstore is not None
-        ), "Please query 'store' in your request on 'Representation'. Data is not accessible otherwise"
+        try:
+            get_running_loop()
+        except RuntimeError:
+            pstore = getattr(self, "store", None)
+            assert (
+                pstore is not None
+            ), "Please query 'store' in your request on 'Representation'. Data is not accessible otherwise"
 
-        return pstore.open()
+            return pstore.open()
+
+        raise RuntimeError(
+            "This method is not available when running in an event loop . Please use adata to retreive a future to your data."
+        )
 
     @property
-    def adata(self) -> xr.DataArray:
-        """The Data of the Representation as an xr.DataArray
+    def adata(self) -> Awaitable[xr.DataArray]:
+        """The Data of the Representation as an xr.DataArray. Accessible from asyncio.
 
         Returns:
             xr.DataArray: The associated object.
@@ -126,6 +134,8 @@ class Vectorizable:
             List[Vectorizable]: A list of InputVector
         """
         assert x.ndim == 2, "Needs to be a List array of vectors"
+        if x.shape[1] == 4:
+            return [cls(x=i[0], y=i[1], z=i[2], t=i[3]) for i in x.tolist()]
         if x.shape[1] == 3:
             return [cls(x=i[0], y=i[1], z=i[2]) for i in x.tolist()]
         elif x.shape[1] == 2:

@@ -1,12 +1,12 @@
-from typing import Optional
+from typing import Any, Dict, Optional
 
-from fakts.config.base import Config
-from fakts.fakts import Fakts
+from fakts.fakt.base import Fakt
+from fakts.fakts import Fakts, get_current_fakts
 from herre.herre import Herre, current_herre
 from mikro.datalayer import DataLayer
 
 
-class DataLayerConfig(Config):
+class DataLayerFakt(Fakt):
     endpoint_url: str
 
     class Config:
@@ -18,14 +18,18 @@ class FaktsDataLayer(DataLayer):
     fakts: Optional[Fakts] = None
     herre: Optional[Herre] = None
 
-    def configure(self, config: DataLayerConfig, herre: Herre) -> None:
-        self.herre = herre
-        self.endpoint_url = config.endpoint_url
+    _old_fakt: Dict[str, Any] = {}
+
+    def configure(self, fakt: DataLayerFakt) -> None:
+        self.herre = self.herre or current_herre.get()
+        self.endpoint_url = fakt.endpoint_url
 
     async def aconnect(self):
-        self.herre = self.herre or current_herre.get()
-        config = await DataLayerConfig.from_fakts(self.fakts_group)
-        self.configure(config, herre=self.herre)
+        fakts = get_current_fakts()
+
+        if fakts.has_changed(self._old_fakt, self.fakts_group):
+            self._old_fakt = await fakts.aget(self.fakts_group)
+            self.configure(DataLayerFakt(**self._old_fakt))
         return await super().aconnect()
 
     async def __aenter__(self):

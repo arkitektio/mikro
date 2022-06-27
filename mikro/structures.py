@@ -36,7 +36,10 @@ try:
         ThumbnailFragment, identifier="@mikro/thumbnail", expand=aexpand_thumbnail
     )
     structure_reg.register_as_structure(
-        OmeroFileFragment, identifier="@mikro/omerofile", expand=aexpand_omerofile
+        OmeroFileFragment,
+        identifier="@mikro/omerofile",
+        expand=aexpand_omerofile,
+        default_widget=SearchWidget(query=Search_omerofileQuery.Meta.document),
     )
 except ImportError:
     structure_reg = None

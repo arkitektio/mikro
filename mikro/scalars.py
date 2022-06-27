@@ -8,6 +8,7 @@ Custom scalars for Mikro.
 import xarray as xr
 import pyarrow.parquet as pq
 import pandas as pd
+import numpy as np
 
 
 class XArrayConversionException(Exception):
@@ -41,6 +42,10 @@ class ArrayInput:
 
     @classmethod
     def validate(cls, v):
+
+        if isinstance(v, np.ndarray):
+            dims = ["c", "t", "z", "x", "y"]
+            v = xr.DataArray(v, dims=dims[5 - v.ndim :])
 
         if not isinstance(v, xr.DataArray):
             raise ValueError("This needs to be a instance of xarray.DataArray")
@@ -215,6 +220,8 @@ class Parquet:
 
 
 class File:
+    __file__ = True
+
     def __init__(self, value) -> None:
         self.value = value
 
@@ -237,8 +244,6 @@ class File:
 
     @classmethod
     def validate(cls, v):
-        if not isinstance(v, str):
-            raise TypeError("string required")
         # you could also return a string here which would mean model.post_code
         # would be a string, pydantic won't care but you could end up with some
         # confusion since the value's type won't match the type annotation

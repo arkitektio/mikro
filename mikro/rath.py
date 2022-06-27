@@ -9,6 +9,7 @@ from rath.contrib.herre.links.auth import HerreAuthLink
 from rath.links.base import TerminatingLink
 from rath.links.compose import compose
 from rath.links.dictinglink import DictingLink
+from rath.links.file import FileExtraction
 from rath.links.shrink import ShrinkingLink
 from rath.links.split import SplitLink
 
@@ -20,6 +21,7 @@ class MikroRath(rath.Rath):
     link: TerminatingLink = Field(
         default_factory=lambda: compose(
             DataLayerUploadLink(),
+            FileExtraction(),
             ShrinkingLink(),
             DictingLink(),
             HerreAuthLink(),
