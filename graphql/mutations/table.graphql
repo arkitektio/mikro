@@ -1,5 +1,5 @@
-mutation from_df($df: DataFrame!) {
-  fromDf(df: $df) {
+mutation from_df($df: DataFrame!, $name: String!) {
+  fromDf(df: $df, name: $name) {
     ...Table
   }
 }

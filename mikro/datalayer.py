@@ -45,7 +45,7 @@ from pydantic import Field, SecretStr
 from koil.composition import KoiledModel
 import s3fs
 
-from mikro.scalars import ArrayInput, ParquetInput
+from mikro.scalars import ArrayInput, DataFrame, ParquetInput
 
 
 current_datalayer = contextvars.ContextVar("current_datalayer", default=None)
@@ -102,15 +102,15 @@ class DataLayer(KoiledModel):
 
         return await asyncio.wrap_future(co_future)
 
-    async def astore_parquet_input(self, pqinput: ParquetInput) -> None:
+    async def astore_parquet_input(self, pqinput: DataFrame) -> None:
         """Store a DataFrame in the DataLayer"""
         if not self._connected:
             if self.auto_connect:
                 await self.aconnect()
 
         random_ui = uuid.uuid4()
-        table: Table = Table.from_pandas(pqinput)
-        s3_path = f"parquet/{random_ui}"
+        table: Table = Table.from_pandas(pqinput.value)
+        s3_path = f"s3://parquet/{random_ui}"
         co_future = self._executor_session.submit(self._storetable, table, s3_path)
         return await asyncio.wrap_future(co_future)
 

@@ -8,6 +8,9 @@ You can of course overwrite this in your app if you need to expand to a more com
 """
 
 
+from arkitekt.widgets import ImageReturnWidget
+
+
 try:
     from arkitekt.structures.default import get_default_structure_registry
     from arkitekt.widgets import SearchWidget
@@ -33,7 +36,13 @@ try:
         default_widget=SearchWidget(query=Search_experimentQuery.Meta.document),
     )
     structure_reg.register_as_structure(
-        ThumbnailFragment, identifier="@mikro/thumbnail", expand=aexpand_thumbnail
+        ThumbnailFragment,
+        identifier="@mikro/thumbnail",
+        expand=aexpand_thumbnail,
+        default_widget=SearchWidget(query=Search_thumbnailsQuery.Meta.document),
+        default_returnwidget=ImageReturnWidget(
+            query=Image_for_thumbnailQuery.Meta.document
+        ),
     )
     structure_reg.register_as_structure(
         OmeroFileFragment,

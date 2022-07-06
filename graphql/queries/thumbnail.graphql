@@ -9,3 +9,17 @@ query expand_thumbnail($id: ID!) {
     ...Thumbnail
   }
 }
+
+query search_thumbnails($search: String) {
+  thumbnails(name: $search, limit: 20) {
+    value: id
+    label: image
+  }
+}
+
+query image_for_thumbnail($id: ID!) {
+  image: thumbnail(id: $id) {
+    path: image
+    label: image
+  }
+}

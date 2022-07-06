@@ -112,11 +112,11 @@ class Table(BaseModel, ShrinkByID):
         Returns:
             pd.DataFrame: The Dataframe
         """
-        pstore = getattr(self, "parquet", None)
+        pstore = getattr(self, "store", None)
         assert (
             pstore is not None
         ), "Please query 'parquet' in your request on 'Table'. Data is not accessible otherwise"
-        return pstore.df
+        return pstore.open()
 
 
 T = TypeVar("T", bound="BaseModel")

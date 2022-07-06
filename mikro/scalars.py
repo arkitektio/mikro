@@ -194,12 +194,17 @@ class Parquet:
         self.value = value
         self._openstore = None
 
-    @property
-    def df(self):
+    def open(self, dl=None):
+        from mikro.datalayer import current_datalayer
+
+        dl = dl or current_datalayer.get()
+
+        assert (
+            dl
+        ), "No datalayer set. This probably happened because you never connected the datalayer. Please connect (either with async or sync) and try again."
         if not self._openstore:
-            s3_path = f"zarr/{self.value}"
-            return (
-                pq.ParquetDataset(s3_path, filesystem=self._getFileSystem())
+            self._openstore = (
+                pq.ParquetDataset(self.value, filesystem=dl.fs)
                 .read_pandas()
                 .to_pandas()
             )
@@ -324,8 +329,8 @@ class DataFrame:
 
     @classmethod
     def validate(cls, v):
-        if not isinstance(v, str):
-            raise TypeError("string required")
+        if not isinstance(v, pd.DataFrame):
+            raise TypeError("Dataframe required")
         # you could also return a string here which would mean model.post_code
         # would be a string, pydantic won't care but you could end up with some
         # confusion since the value's type won't match the type annotation

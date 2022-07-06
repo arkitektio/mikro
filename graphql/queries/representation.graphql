@@ -25,3 +25,9 @@ query get_random_rep {
     ...Representation
   }
 }
+
+query my_accessibles {
+  accessiblerepresentations {
+    ...Representation
+  }
+}

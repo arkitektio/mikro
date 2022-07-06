@@ -1,4 +1,4 @@
-query Table($id: ID!) {
+query get_table($id: ID!) {
   table(id: $id) {
     ...Table
   }
@@ -15,4 +15,3 @@ query search_tables {
     label: name
   }
 }
-

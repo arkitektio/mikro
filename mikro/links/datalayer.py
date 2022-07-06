@@ -1,7 +1,7 @@
 import asyncio
 
 from mikro.datalayer import DataLayer, current_datalayer
-from mikro.scalars import ArrayInput, ParquetInput
+from mikro.scalars import ArrayInput, DataFrame, ParquetInput
 from rath.links.parsing import ParsingLink
 from rath.operation import Operation
 
@@ -72,7 +72,7 @@ class DataLayerUploadLink(ParsingLink):
             datalayer.astore_array_input, operation.variables, ArrayInput
         )
         operation.variables = await apply_recursive(
-            datalayer.astore_parquet_input, operation.variables, ParquetInput
+            datalayer.astore_parquet_input, operation.variables, DataFrame
         )
 
         return operation

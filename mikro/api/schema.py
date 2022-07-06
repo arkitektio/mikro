@@ -1,10 +1,10 @@
-from mikro.funcs import asubscribe, aexecute, execute, subscribe
-from pydantic import BaseModel, Field
-from mikro.traits import Table, Vectorizable, ROI, Representation
-from mikro.scalars import File, ArrayInput, DataFrame, Store, Upload
-from rath.scalars import ID
-from typing import Optional, AsyncIterator, List, Dict, Iterator, Literal
+from typing import AsyncIterator, Optional, Iterator, List, Dict, Literal
+from mikro.traits import Vectorizable, ROI, Representation, Table
+from mikro.scalars import DataFrame, ArrayInput, Store, Parquet, Upload, File
+from mikro.funcs import execute, asubscribe, subscribe, aexecute
 from enum import Enum
+from pydantic import Field, BaseModel
+from rath.scalars import ID
 from mikro.rath import MikroRath
 
 
@@ -81,6 +81,23 @@ class RoiTypeInput(str, Enum):
     "Path"
     UNKNOWN = "UNKNOWN"
     "Unknown"
+
+
+class AvailableModels(str, Enum):
+    GRUNNLAG_ANIMAL = "GRUNNLAG_ANIMAL"
+    GRUNNLAG_EXPERIMENT = "GRUNNLAG_EXPERIMENT"
+    GRUNNLAG_EXPERIMENTALGROUP = "GRUNNLAG_EXPERIMENTALGROUP"
+    GRUNNLAG_REPRESENTATION = "GRUNNLAG_REPRESENTATION"
+    GRUNNLAG_THUMBNAIL = "GRUNNLAG_THUMBNAIL"
+    GRUNNLAG_SAMPLE = "GRUNNLAG_SAMPLE"
+    GRUNNLAG_ROI = "GRUNNLAG_ROI"
+    GRUNNLAG_OMEROFILE = "GRUNNLAG_OMEROFILE"
+    GRUNNLAG_METRIC = "GRUNNLAG_METRIC"
+    GRUNNLAG_ANTIBODY = "GRUNNLAG_ANTIBODY"
+    GRUNNLAG_USERMETA = "GRUNNLAG_USERMETA"
+    GRUNNLAG_LABEL = "GRUNNLAG_LABEL"
+    GRUNNLAG_SIZEFEATURE = "GRUNNLAG_SIZEFEATURE"
+    BORD_TABLE = "BORD_TABLE"
 
 
 class OmeroRepresentationInput(BaseModel):
@@ -235,8 +252,7 @@ class TableFragment(Table, BaseModel):
     name: str
     tags: Optional[List[Optional[str]]]
     "A comma-separated list of tags."
-    store: Optional[str]
-    "The location of the Parquet on the Storage System (S3 or Media-URL)"
+    store: Optional[Parquet]
     creator: Optional[TableFragmentCreator]
     sample: Optional[TableFragmentSample]
     representation: Optional[TableFragmentRepresentation]
@@ -412,6 +428,16 @@ class Get_random_repQuery(BaseModel):
         document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  type\n  id\n  store\n  variety\n  name\n}\n\nquery get_random_rep {\n  randomRepresentation {\n    ...Representation\n  }\n}"
 
 
+class My_accessiblesQuery(BaseModel):
+    accessiblerepresentations: Optional[List[Optional[RepresentationFragment]]]
+
+    class Arguments(BaseModel):
+        pass
+
+    class Meta:
+        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  type\n  id\n  store\n  variety\n  name\n}\n\nquery my_accessibles {\n  accessiblerepresentations {\n    ...Representation\n  }\n}"
+
+
 class ThumbnailQuery(BaseModel):
     thumbnail: Optional[ThumbnailFragment]
     "Get a single representation by ID"
@@ -434,6 +460,44 @@ class Expand_thumbnailQuery(BaseModel):
         document = "fragment Thumbnail on Thumbnail {\n  id\n  image\n}\n\nquery expand_thumbnail($id: ID!) {\n  thumbnail(id: $id) {\n    ...Thumbnail\n  }\n}"
 
 
+class Search_thumbnailsQueryThumbnails(BaseModel):
+    """Thumbnail(id, representation, image)"""
+
+    typename: Optional[Literal["Thumbnail"]] = Field(alias="__typename")
+    value: ID
+    label: Optional[str]
+
+
+class Search_thumbnailsQuery(BaseModel):
+    thumbnails: Optional[List[Optional[Search_thumbnailsQueryThumbnails]]]
+    "All represetations"
+
+    class Arguments(BaseModel):
+        search: Optional[str] = None
+
+    class Meta:
+        document = "query search_thumbnails($search: String) {\n  thumbnails(name: $search, limit: 20) {\n    value: id\n    label: image\n  }\n}"
+
+
+class Image_for_thumbnailQueryImage(BaseModel):
+    """Thumbnail(id, representation, image)"""
+
+    typename: Optional[Literal["Thumbnail"]] = Field(alias="__typename")
+    path: Optional[str]
+    label: Optional[str]
+
+
+class Image_for_thumbnailQuery(BaseModel):
+    image: Optional[Image_for_thumbnailQueryImage]
+    "Get a single representation by ID"
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "query image_for_thumbnail($id: ID!) {\n  image: thumbnail(id: $id) {\n    path: image\n    label: image\n  }\n}"
+
+
 class Get_roisQuery(BaseModel):
     rois: Optional[List[Optional[ROIFragment]]]
     "All represetations"
@@ -446,7 +510,7 @@ class Get_roisQuery(BaseModel):
         document = "fragment ROI on ROI {\n  id\n  vectors {\n    x\n    y\n    z\n  }\n  type\n  representation {\n    id\n  }\n  creator {\n    email\n    color\n  }\n}\n\nquery get_rois($representation: ID!, $type: [RoiTypeInput]) {\n  rois(representation: $representation, type: $type) {\n    ...ROI\n  }\n}"
 
 
-class TableQuery(BaseModel):
+class Get_tableQuery(BaseModel):
     table: Optional[TableFragment]
     "Get a single representation by ID"
 
@@ -454,7 +518,7 @@ class TableQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Table on Table {\n  id\n  name\n  tags\n  store\n  creator {\n    email\n  }\n  sample {\n    id\n  }\n  representation {\n    id\n  }\n  experiment {\n    id\n  }\n}\n\nquery Table($id: ID!) {\n  table(id: $id) {\n    ...Table\n  }\n}"
+        document = "fragment Table on Table {\n  id\n  name\n  tags\n  store\n  creator {\n    email\n  }\n  sample {\n    id\n  }\n  representation {\n    id\n  }\n  experiment {\n    id\n  }\n}\n\nquery get_table($id: ID!) {\n  table(id: $id) {\n    ...Table\n  }\n}"
 
 
 class Expand_tableQuery(BaseModel):
@@ -870,9 +934,10 @@ class From_dfMutation(BaseModel):
 
     class Arguments(BaseModel):
         df: DataFrame
+        name: str
 
     class Meta:
-        document = "fragment Table on Table {\n  id\n  name\n  tags\n  store\n  creator {\n    email\n  }\n  sample {\n    id\n  }\n  representation {\n    id\n  }\n  experiment {\n    id\n  }\n}\n\nmutation from_df($df: DataFrame!) {\n  fromDf(df: $df) {\n    ...Table\n  }\n}"
+        document = "fragment Table on Table {\n  id\n  name\n  tags\n  store\n  creator {\n    email\n  }\n  sample {\n    id\n  }\n  representation {\n    id\n  }\n  experiment {\n    id\n  }\n}\n\nmutation from_df($df: DataFrame!, $name: String!) {\n  fromDf(df: $df, name: $name) {\n    ...Table\n  }\n}"
 
 
 class Create_sampleMutationCreatesampleCreator(BaseModel):
@@ -1198,6 +1263,48 @@ def get_random_rep(rath: MikroRath = None) -> Optional[RepresentationFragment]:
     return execute(Get_random_repQuery, {}, rath=rath).random_representation
 
 
+async def amy_accessibles(
+    rath: MikroRath = None,
+) -> Optional[List[Optional[RepresentationFragment]]]:
+    """my_accessibles
+
+
+     accessiblerepresentations: A Representation is a multi-dimensional Array that can do what ever it wants
+
+
+    @elements/rep:latest
+
+
+    Arguments:
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[RepresentationFragment]]]"""
+    return (
+        await aexecute(My_accessiblesQuery, {}, rath=rath)
+    ).accessiblerepresentations
+
+
+def my_accessibles(
+    rath: MikroRath = None,
+) -> Optional[List[Optional[RepresentationFragment]]]:
+    """my_accessibles
+
+
+     accessiblerepresentations: A Representation is a multi-dimensional Array that can do what ever it wants
+
+
+    @elements/rep:latest
+
+
+    Arguments:
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[RepresentationFragment]]]"""
+    return execute(My_accessiblesQuery, {}, rath=rath).accessiblerepresentations
+
+
 async def athumbnail(id: ID, rath: MikroRath = None) -> Optional[ThumbnailFragment]:
     """Thumbnail
 
@@ -1264,6 +1371,80 @@ def expand_thumbnail(id: ID, rath: MikroRath = None) -> Optional[ThumbnailFragme
     return execute(Expand_thumbnailQuery, {"id": id}, rath=rath).thumbnail
 
 
+async def asearch_thumbnails(
+    search: Optional[str] = None, rath: MikroRath = None
+) -> Optional[List[Optional[Search_thumbnailsQueryThumbnails]]]:
+    """search_thumbnails
+
+
+     thumbnails: Thumbnail(id, representation, image)
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[Search_thumbnailsQueryThumbnails]]]"""
+    return (
+        await aexecute(Search_thumbnailsQuery, {"search": search}, rath=rath)
+    ).thumbnails
+
+
+def search_thumbnails(
+    search: Optional[str] = None, rath: MikroRath = None
+) -> Optional[List[Optional[Search_thumbnailsQueryThumbnails]]]:
+    """search_thumbnails
+
+
+     thumbnails: Thumbnail(id, representation, image)
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[Search_thumbnailsQueryThumbnails]]]"""
+    return execute(Search_thumbnailsQuery, {"search": search}, rath=rath).thumbnails
+
+
+async def aimage_for_thumbnail(
+    id: ID, rath: MikroRath = None
+) -> Optional[Image_for_thumbnailQueryImage]:
+    """image_for_thumbnail
+
+
+     image: Thumbnail(id, representation, image)
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[Image_for_thumbnailQueryThumbnail]"""
+    return (await aexecute(Image_for_thumbnailQuery, {"id": id}, rath=rath)).thumbnail
+
+
+def image_for_thumbnail(
+    id: ID, rath: MikroRath = None
+) -> Optional[Image_for_thumbnailQueryImage]:
+    """image_for_thumbnail
+
+
+     image: Thumbnail(id, representation, image)
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[Image_for_thumbnailQueryThumbnail]"""
+    return execute(Image_for_thumbnailQuery, {"id": id}, rath=rath).thumbnail
+
+
 async def aget_rois(
     representation: ID,
     type: Optional[List[Optional[RoiTypeInput]]] = None,
@@ -1308,8 +1489,8 @@ def get_rois(
     ).rois
 
 
-async def atable(id: ID, rath: MikroRath = None) -> Optional[TableFragment]:
-    """Table
+async def aget_table(id: ID, rath: MikroRath = None) -> Optional[TableFragment]:
+    """get_table
 
 
 
@@ -1319,11 +1500,11 @@ async def atable(id: ID, rath: MikroRath = None) -> Optional[TableFragment]:
 
     Returns:
         Optional[TableFragment]"""
-    return (await aexecute(TableQuery, {"id": id}, rath=rath)).table
+    return (await aexecute(Get_tableQuery, {"id": id}, rath=rath)).table
 
 
-def table(id: ID, rath: MikroRath = None) -> Optional[TableFragment]:
-    """Table
+def get_table(id: ID, rath: MikroRath = None) -> Optional[TableFragment]:
+    """get_table
 
 
 
@@ -1333,7 +1514,7 @@ def table(id: ID, rath: MikroRath = None) -> Optional[TableFragment]:
 
     Returns:
         Optional[TableFragment]"""
-    return execute(TableQuery, {"id": id}, rath=rath).table
+    return execute(Get_tableQuery, {"id": id}, rath=rath).table
 
 
 async def aexpand_table(id: ID, rath: MikroRath = None) -> Optional[TableFragment]:
@@ -2228,32 +2409,40 @@ def create_roi(
     ).create_roi
 
 
-async def afrom_df(df: DataFrame, rath: MikroRath = None) -> Optional[TableFragment]:
+async def afrom_df(
+    df: DataFrame, name: str, rath: MikroRath = None
+) -> Optional[TableFragment]:
     """from_df
 
 
 
     Arguments:
         df (DataFrame): df
+        name (str): name
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[TableFragment]"""
-    return (await aexecute(From_dfMutation, {"df": df}, rath=rath)).from_df
+    return (
+        await aexecute(From_dfMutation, {"df": df, "name": name}, rath=rath)
+    ).from_df
 
 
-def from_df(df: DataFrame, rath: MikroRath = None) -> Optional[TableFragment]:
+def from_df(
+    df: DataFrame, name: str, rath: MikroRath = None
+) -> Optional[TableFragment]:
     """from_df
 
 
 
     Arguments:
         df (DataFrame): df
+        name (str): name
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[TableFragment]"""
-    return execute(From_dfMutation, {"df": df}, rath=rath).from_df
+    return execute(From_dfMutation, {"df": df, "name": name}, rath=rath).from_df
 
 
 async def acreate_sample(
