@@ -1,10 +1,10 @@
-from typing import AsyncIterator, Optional, Iterator, List, Dict, Literal
-from mikro.traits import Vectorizable, ROI, Representation, Table
-from mikro.scalars import DataFrame, ArrayInput, Store, Parquet, Upload, File
+from mikro.traits import Representation, Vectorizable, Table, ROI
+from typing import Literal, Dict, List, Iterator, AsyncIterator, Optional
+from mikro.scalars import DataFrame, Store, File, ArrayInput, Parquet, Upload
 from mikro.funcs import execute, asubscribe, subscribe, aexecute
-from enum import Enum
-from pydantic import Field, BaseModel
 from rath.scalars import ID
+from pydantic import Field, BaseModel
+from enum import Enum
 from mikro.rath import MikroRath
 
 
@@ -140,6 +140,17 @@ class InputVector(BaseModel, Vectorizable):
     "Y-coordinate"
     z: Optional[float]
     "Z-coordinate"
+
+
+class GroupAssignmentInput(BaseModel):
+    permissions: List[Optional[str]]
+    group: ID
+
+
+class UserAssignmentInput(BaseModel):
+    permissions: List[Optional[str]]
+    user: str
+    "The user email"
 
 
 class RepresentationFragmentSample(BaseModel):
