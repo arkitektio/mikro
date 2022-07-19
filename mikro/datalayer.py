@@ -95,7 +95,7 @@ class DataLayer(KoiledModel):
                 await self.aconnect()
 
         random_uuid = uuid.uuid4()
-        s3_path = f"s3://zarr/{random_uuid}"
+        s3_path = f"zarr/{random_uuid}.zarr"
         dataset = xarray.value.to_dataset(name="data")
         dataset.attrs["fileversion"] = "v1"
         co_future = self._executor_session.submit(self._storedataset, dataset, s3_path)

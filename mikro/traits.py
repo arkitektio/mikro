@@ -91,7 +91,7 @@ class ROI(BaseModel, ShrinkByID):
             vector_list
         ), "Please query 'vectors' in your request on 'ROI'. Data is not accessible otherwise"
         vector_list: list
-        return np.array([[v.x, v.y, v.z] for v in vector_list])
+        return np.array([[v.x, v.y] for v in vector_list])
 
 
 class Table(BaseModel, ShrinkByID):
@@ -124,7 +124,7 @@ T = TypeVar("T", bound="BaseModel")
 
 class Vectorizable:
     @classmethod
-    def list_from_numpyarray(cls: T, x: np.ndarray) -> List[T]:
+    def list_from_numpyarray(cls: T, x: np.ndarray, t=None, c=None, z=None) -> List[T]:
         """Creates a list of InputVector from a numpya array
 
         Args:
@@ -134,12 +134,13 @@ class Vectorizable:
             List[Vectorizable]: A list of InputVector
         """
         assert x.ndim == 2, "Needs to be a List array of vectors"
+        print(x)
         if x.shape[1] == 4:
-            return [cls(x=i[0], y=i[1], z=i[2], t=i[3]) for i in x.tolist()]
+            return [cls(x=i[0], y=i[1], z=i[2], t=i[3], c=c) for i in x.tolist()]
         if x.shape[1] == 3:
-            return [cls(x=i[0], y=i[1], z=i[2]) for i in x.tolist()]
+            return [cls(x=i[0], y=i[1], z=i[2], t=t, c=c) for i in x.tolist()]
         elif x.shape[1] == 2:
-            return [cls(x=i[0], y=i[1]) for i in x.tolist()]
+            return [cls(x=i[0], y=i[1], t=t, c=c, z=z) for i in x.tolist()]
         else:
             raise NotImplementedError(
                 f"Incompatible shape {x.shape} of {x}. List dimension needs to either be of size 2 or 3"

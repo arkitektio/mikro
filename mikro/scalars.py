@@ -65,14 +65,17 @@ class ArrayInput:
 
         chunks = {
             "t": 1,
-            "x": v.sizes["x"],
-            "y": v.sizes["y"],
-            "z": 1,
+            "x": 200,
+            "y": 200,
+            "z": v.sizes["z"],
+            "c": 1,
         }
 
         v = v.chunk(
             {key: chunksize for key, chunksize in chunks.items() if key in v.dims}
         )
+
+        v = v.transpose(*"xyczt")
 
         return cls(v)
 

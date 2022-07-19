@@ -1,11 +1,29 @@
-from mikro.traits import Representation, Vectorizable, Table, ROI
-from typing import Literal, Dict, List, Iterator, AsyncIterator, Optional
-from mikro.scalars import DataFrame, Store, File, ArrayInput, Parquet, Upload
-from mikro.funcs import execute, asubscribe, subscribe, aexecute
-from rath.scalars import ID
-from pydantic import Field, BaseModel
-from enum import Enum
+from typing import Optional, Dict, Iterator, AsyncIterator, Literal, List
 from mikro.rath import MikroRath
+from pydantic import Field, BaseModel
+from rath.scalars import ID
+from mikro.scalars import Parquet, File, Store, Upload, DataFrame, ArrayInput
+from mikro.traits import ROI, Vectorizable, Representation, Table
+from mikro.funcs import execute, aexecute, asubscribe, subscribe
+from enum import Enum
+
+
+class AvailableModels(str, Enum):
+    GRUNNLAG_ANIMAL = "GRUNNLAG_ANIMAL"
+    GRUNNLAG_EXPERIMENT = "GRUNNLAG_EXPERIMENT"
+    GRUNNLAG_EXPERIMENTALGROUP = "GRUNNLAG_EXPERIMENTALGROUP"
+    GRUNNLAG_REPRESENTATION = "GRUNNLAG_REPRESENTATION"
+    GRUNNLAG_THUMBNAIL = "GRUNNLAG_THUMBNAIL"
+    GRUNNLAG_SAMPLE = "GRUNNLAG_SAMPLE"
+    GRUNNLAG_ROI = "GRUNNLAG_ROI"
+    GRUNNLAG_OMEROFILE = "GRUNNLAG_OMEROFILE"
+    GRUNNLAG_METRIC = "GRUNNLAG_METRIC"
+    GRUNNLAG_ANTIBODY = "GRUNNLAG_ANTIBODY"
+    GRUNNLAG_USERMETA = "GRUNNLAG_USERMETA"
+    GRUNNLAG_LABEL = "GRUNNLAG_LABEL"
+    GRUNNLAG_SIZEFEATURE = "GRUNNLAG_SIZEFEATURE"
+    GRUNNLAG_COMMENT = "GRUNNLAG_COMMENT"
+    BORD_TABLE = "BORD_TABLE"
 
 
 class OmeroFileType(str, Enum):
@@ -83,23 +101,6 @@ class RoiTypeInput(str, Enum):
     "Unknown"
 
 
-class AvailableModels(str, Enum):
-    GRUNNLAG_ANIMAL = "GRUNNLAG_ANIMAL"
-    GRUNNLAG_EXPERIMENT = "GRUNNLAG_EXPERIMENT"
-    GRUNNLAG_EXPERIMENTALGROUP = "GRUNNLAG_EXPERIMENTALGROUP"
-    GRUNNLAG_REPRESENTATION = "GRUNNLAG_REPRESENTATION"
-    GRUNNLAG_THUMBNAIL = "GRUNNLAG_THUMBNAIL"
-    GRUNNLAG_SAMPLE = "GRUNNLAG_SAMPLE"
-    GRUNNLAG_ROI = "GRUNNLAG_ROI"
-    GRUNNLAG_OMEROFILE = "GRUNNLAG_OMEROFILE"
-    GRUNNLAG_METRIC = "GRUNNLAG_METRIC"
-    GRUNNLAG_ANTIBODY = "GRUNNLAG_ANTIBODY"
-    GRUNNLAG_USERMETA = "GRUNNLAG_USERMETA"
-    GRUNNLAG_LABEL = "GRUNNLAG_LABEL"
-    GRUNNLAG_SIZEFEATURE = "GRUNNLAG_SIZEFEATURE"
-    BORD_TABLE = "BORD_TABLE"
-
-
 class OmeroRepresentationInput(BaseModel):
     planes: Optional[List[Optional["PlaneInput"]]]
     channels: Optional[List[Optional["ChannelInput"]]]
@@ -140,6 +141,10 @@ class InputVector(BaseModel, Vectorizable):
     "Y-coordinate"
     z: Optional[float]
     "Z-coordinate"
+    c: Optional[float]
+    "C-coordinate"
+    t: Optional[float]
+    "T-coordinate"
 
 
 class GroupAssignmentInput(BaseModel):
@@ -151,6 +156,22 @@ class UserAssignmentInput(BaseModel):
     permissions: List[Optional[str]]
     user: str
     "The user email"
+
+
+class DescendendInput(BaseModel):
+    children: Optional[List[Optional["DescendendInput"]]]
+    typename: Optional[str]
+    "The type of the descendent"
+    user: Optional[str]
+    "The user that is mentioned"
+    bold: Optional[bool]
+    "Is this a bold leaf?"
+    italic: Optional[bool]
+    "Is this a italic leaf?"
+    code: Optional[bool]
+    "Is this a code leaf?"
+    text: Optional[str]
+    "The text of the leaf"
 
 
 class RepresentationFragmentSample(BaseModel):
@@ -399,7 +420,7 @@ class Get_representationQuery(BaseModel):
         document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  type\n  id\n  store\n  variety\n  name\n}\n\nquery get_representation($id: ID!) {\n  representation(id: $id) {\n    ...Representation\n  }\n}"
 
 
-class Search_representationQueryRepresentations(Representation, BaseModel):
+class Search_representationQueryOptions(Representation, BaseModel):
     """A Representation is a multi-dimensional Array that can do what ever it wants
 
 
@@ -412,14 +433,14 @@ class Search_representationQueryRepresentations(Representation, BaseModel):
 
 
 class Search_representationQuery(BaseModel):
-    representations: Optional[List[Optional[Search_representationQueryRepresentations]]]
+    options: Optional[List[Optional[Search_representationQueryOptions]]]
     "All represetations"
 
     class Arguments(BaseModel):
         search: Optional[str] = None
 
     class Meta:
-        document = "query search_representation($search: String) {\n  representations(name: $search, limit: 20) {\n    value: id\n    label: name\n  }\n}"
+        document = "query search_representation($search: String) {\n  options: representations(name: $search, limit: 20) {\n    value: id\n    label: name\n  }\n}"
 
 
 class Get_random_repQuery(BaseModel):
@@ -1200,11 +1221,11 @@ def get_representation(
 
 async def asearch_representation(
     search: Optional[str] = None, rath: MikroRath = None
-) -> Optional[List[Optional[Search_representationQueryRepresentations]]]:
+) -> Optional[List[Optional[Search_representationQueryOptions]]]:
     """search_representation
 
 
-     representations: A Representation is a multi-dimensional Array that can do what ever it wants
+     options: A Representation is a multi-dimensional Array that can do what ever it wants
 
 
     @elements/rep:latest
@@ -1223,11 +1244,11 @@ async def asearch_representation(
 
 def search_representation(
     search: Optional[str] = None, rath: MikroRath = None
-) -> Optional[List[Optional[Search_representationQueryRepresentations]]]:
+) -> Optional[List[Optional[Search_representationQueryOptions]]]:
     """search_representation
 
 
-     representations: A Representation is a multi-dimensional Array that can do what ever it wants
+     options: A Representation is a multi-dimensional Array that can do what ever it wants
 
 
     @elements/rep:latest
@@ -2592,4 +2613,5 @@ def create_experiment(
     ).create_experiment
 
 
+DescendendInput.update_forward_refs()
 OmeroRepresentationInput.update_forward_refs()

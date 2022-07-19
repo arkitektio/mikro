@@ -9,6 +9,7 @@ import xarray as xr
 
 from mikro.scalars import ArrayInput
 
+
 class Arguments(BaseModel):
     x: ArrayInput
 
@@ -16,8 +17,8 @@ class Arguments(BaseModel):
 def test_numpy_serialization():
     x = np.random.random((1000, 1000, 10))
 
-    with pytest.raises(pydantic.error_wrappers.ValidationError):
-        Arguments(x=x)
+    t = Arguments(x=x)
+    assert t.x.value.ndim == 5, "Should be five dimensionsal"
 
 
 def test_xarray_serialization():

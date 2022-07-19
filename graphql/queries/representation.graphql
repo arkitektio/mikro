@@ -11,7 +11,7 @@ query get_representation($id: ID!) {
 }
 
 query search_representation($search: String) {
-  representations(name: $search, limit: 20) {
+  options: representations(name: $search, limit: 20) {
     value: id
     label: name
   }
