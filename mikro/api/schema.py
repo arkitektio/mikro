@@ -1,44 +1,46 @@
-from typing import Optional, Dict, Iterator, AsyncIterator, Literal, List
-from mikro.rath import MikroRath
-from pydantic import Field, BaseModel
+from mikro.funcs import aexecute, execute, asubscribe, subscribe
+from typing import Dict, Optional, Literal, Iterator, AsyncIterator, List
 from rath.scalars import ID
-from mikro.scalars import Parquet, File, Store, Upload, DataFrame, ArrayInput
-from mikro.traits import ROI, Vectorizable, Representation, Table
-from mikro.funcs import execute, aexecute, asubscribe, subscribe
+from mikro.scalars import Parquet, DataFrame, ArrayInput, Store, File
+from mikro.rath import MikroRath
+from mikro.traits import Representation, Vectorizable, ROI, Table
+from datetime import datetime
+from pydantic import Field, BaseModel
 from enum import Enum
 
 
-class AvailableModels(str, Enum):
-    GRUNNLAG_ANIMAL = "GRUNNLAG_ANIMAL"
+class CommentableModels(str, Enum):
+    GRUNNLAG_USERMETA = "GRUNNLAG_USERMETA"
+    GRUNNLAG_ANTIBODY = "GRUNNLAG_ANTIBODY"
     GRUNNLAG_EXPERIMENT = "GRUNNLAG_EXPERIMENT"
     GRUNNLAG_EXPERIMENTALGROUP = "GRUNNLAG_EXPERIMENTALGROUP"
-    GRUNNLAG_REPRESENTATION = "GRUNNLAG_REPRESENTATION"
-    GRUNNLAG_THUMBNAIL = "GRUNNLAG_THUMBNAIL"
-    GRUNNLAG_SAMPLE = "GRUNNLAG_SAMPLE"
-    GRUNNLAG_ROI = "GRUNNLAG_ROI"
+    GRUNNLAG_ANIMAL = "GRUNNLAG_ANIMAL"
     GRUNNLAG_OMEROFILE = "GRUNNLAG_OMEROFILE"
+    GRUNNLAG_SAMPLE = "GRUNNLAG_SAMPLE"
+    GRUNNLAG_REPRESENTATION = "GRUNNLAG_REPRESENTATION"
     GRUNNLAG_METRIC = "GRUNNLAG_METRIC"
-    GRUNNLAG_ANTIBODY = "GRUNNLAG_ANTIBODY"
-    GRUNNLAG_USERMETA = "GRUNNLAG_USERMETA"
+    GRUNNLAG_THUMBNAIL = "GRUNNLAG_THUMBNAIL"
+    GRUNNLAG_ROI = "GRUNNLAG_ROI"
     GRUNNLAG_LABEL = "GRUNNLAG_LABEL"
     GRUNNLAG_SIZEFEATURE = "GRUNNLAG_SIZEFEATURE"
-    GRUNNLAG_COMMENT = "GRUNNLAG_COMMENT"
     BORD_TABLE = "BORD_TABLE"
 
 
-class OmeroFileType(str, Enum):
-    """An enumeration."""
-
-    TIFF = "TIFF"
-    "Tiff"
-    JPEG = "JPEG"
-    "Jpeg"
-    MSR = "MSR"
-    "MSR File"
-    CZI = "CZI"
-    "Zeiss Microscopy File"
-    UNKNOWN = "UNKNOWN"
-    "Unwknon File Format"
+class SharableModels(str, Enum):
+    GRUNNLAG_USERMETA = "GRUNNLAG_USERMETA"
+    GRUNNLAG_ANTIBODY = "GRUNNLAG_ANTIBODY"
+    GRUNNLAG_EXPERIMENT = "GRUNNLAG_EXPERIMENT"
+    GRUNNLAG_EXPERIMENTALGROUP = "GRUNNLAG_EXPERIMENTALGROUP"
+    GRUNNLAG_ANIMAL = "GRUNNLAG_ANIMAL"
+    GRUNNLAG_OMEROFILE = "GRUNNLAG_OMEROFILE"
+    GRUNNLAG_SAMPLE = "GRUNNLAG_SAMPLE"
+    GRUNNLAG_REPRESENTATION = "GRUNNLAG_REPRESENTATION"
+    GRUNNLAG_METRIC = "GRUNNLAG_METRIC"
+    GRUNNLAG_THUMBNAIL = "GRUNNLAG_THUMBNAIL"
+    GRUNNLAG_ROI = "GRUNNLAG_ROI"
+    GRUNNLAG_LABEL = "GRUNNLAG_LABEL"
+    GRUNNLAG_SIZEFEATURE = "GRUNNLAG_SIZEFEATURE"
+    BORD_TABLE = "BORD_TABLE"
 
 
 class RepresentationVariety(str, Enum):
@@ -84,6 +86,21 @@ class ROIType(str, Enum):
     "Unknown"
 
 
+class OmeroFileType(str, Enum):
+    """An enumeration."""
+
+    TIFF = "TIFF"
+    "Tiff"
+    JPEG = "JPEG"
+    "Jpeg"
+    MSR = "MSR"
+    "MSR File"
+    CZI = "CZI"
+    "Zeiss Microscopy File"
+    UNKNOWN = "UNKNOWN"
+    "Unwknon File Format"
+
+
 class RoiTypeInput(str, Enum):
     """An enumeration."""
 
@@ -99,6 +116,33 @@ class RoiTypeInput(str, Enum):
     "Path"
     UNKNOWN = "UNKNOWN"
     "Unknown"
+
+
+class DescendendInput(BaseModel):
+    children: Optional[List[Optional["DescendendInput"]]]
+    typename: Optional[str]
+    "The type of the descendent"
+    user: Optional[str]
+    "The user that is mentioned"
+    bold: Optional[bool]
+    "Is this a bold leaf?"
+    italic: Optional[bool]
+    "Is this a italic leaf?"
+    code: Optional[bool]
+    "Is this a code leaf?"
+    text: Optional[str]
+    "The text of the leaf"
+
+
+class GroupAssignmentInput(BaseModel):
+    permissions: List[Optional[str]]
+    group: ID
+
+
+class UserAssignmentInput(BaseModel):
+    permissions: List[Optional[str]]
+    user: str
+    "The user email"
 
 
 class OmeroRepresentationInput(BaseModel):
@@ -147,33 +191,6 @@ class InputVector(BaseModel, Vectorizable):
     "T-coordinate"
 
 
-class GroupAssignmentInput(BaseModel):
-    permissions: List[Optional[str]]
-    group: ID
-
-
-class UserAssignmentInput(BaseModel):
-    permissions: List[Optional[str]]
-    user: str
-    "The user email"
-
-
-class DescendendInput(BaseModel):
-    children: Optional[List[Optional["DescendendInput"]]]
-    typename: Optional[str]
-    "The type of the descendent"
-    user: Optional[str]
-    "The user that is mentioned"
-    bold: Optional[bool]
-    "Is this a bold leaf?"
-    italic: Optional[bool]
-    "Is this a italic leaf?"
-    code: Optional[bool]
-    "Is this a code leaf?"
-    text: Optional[str]
-    "The text of the leaf"
-
-
 class RepresentationFragmentSample(BaseModel):
     """Samples are storage containers for representations. A Sample is to be understood analogous to a Biological Sample. It existed in Time (the time of acquisiton and experimental procedure),
     was measured in space (x,y,z) and in different modalities (c). Sample therefore provide a datacontainer where each Representation of
@@ -183,6 +200,11 @@ class RepresentationFragmentSample(BaseModel):
     typename: Optional[Literal["Sample"]] = Field(alias="__typename")
     id: ID
     name: str
+
+
+class RepresentationFragmentOmero(BaseModel):
+    typename: Optional[Literal["OmeroRepresentation"]] = Field(alias="__typename")
+    scale: Optional[List[Optional[float]]]
 
 
 class RepresentationFragment(Representation, BaseModel):
@@ -197,6 +219,8 @@ class RepresentationFragment(Representation, BaseModel):
     "The Representation can have varying types, consult your API"
     name: Optional[str]
     "Cleartext name"
+    omero: Optional[RepresentationFragmentOmero]
+    "Metadata in Omero-compliant format"
 
 
 class ThumbnailFragment(BaseModel):
@@ -226,12 +250,10 @@ class ROIFragmentRepresentation(Representation, BaseModel):
 
 
 class ROIFragmentCreator(BaseModel):
-    """A reflection on the real User"""
-
     typename: Optional[Literal["User"]] = Field(alias="__typename")
     email: str
-    color: Optional[str]
-    "The associated color for this user"
+    color: str
+    "The color of the user"
 
 
 class ROIFragment(ROI, BaseModel):
@@ -245,8 +267,6 @@ class ROIFragment(ROI, BaseModel):
 
 
 class TableFragmentCreator(BaseModel):
-    """A reflection on the real User"""
-
     typename: Optional[Literal["User"]] = Field(alias="__typename")
     email: str
 
@@ -322,11 +342,10 @@ class OmeroFileFragment(BaseModel):
     id: ID
     name: str
     file: Optional[File]
+    type: OmeroFileType
 
 
 class ExperimentFragmentCreator(BaseModel):
-    """A reflection on the real User"""
-
     typename: Optional[Literal["User"]] = Field(alias="__typename")
     email: str
 
@@ -365,7 +384,7 @@ class Get_omero_fileQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment OmeroFile on OmeroFile {\n  id\n  name\n  file\n}\n\nquery get_omero_file($id: ID!) {\n  omerofile(id: $id) {\n    ...OmeroFile\n  }\n}"
+        document = "fragment OmeroFile on OmeroFile {\n  id\n  name\n  file\n  type\n}\n\nquery get_omero_file($id: ID!) {\n  omerofile(id: $id) {\n    ...OmeroFile\n  }\n}"
 
 
 class Expand_omerofileQuery(BaseModel):
@@ -376,7 +395,7 @@ class Expand_omerofileQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment OmeroFile on OmeroFile {\n  id\n  name\n  file\n}\n\nquery expand_omerofile($id: ID!) {\n  omerofile(id: $id) {\n    ...OmeroFile\n  }\n}"
+        document = "fragment OmeroFile on OmeroFile {\n  id\n  name\n  file\n  type\n}\n\nquery expand_omerofile($id: ID!) {\n  omerofile(id: $id) {\n    ...OmeroFile\n  }\n}"
 
 
 class Search_omerofileQueryOmerofiles(BaseModel):
@@ -406,7 +425,7 @@ class Expand_representationQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  type\n  id\n  store\n  variety\n  name\n}\n\nquery expand_representation($id: ID!) {\n  representation(id: $id) {\n    ...Representation\n  }\n}"
+        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  type\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n  }\n}\n\nquery expand_representation($id: ID!) {\n  representation(id: $id) {\n    ...Representation\n  }\n}"
 
 
 class Get_representationQuery(BaseModel):
@@ -417,7 +436,7 @@ class Get_representationQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  type\n  id\n  store\n  variety\n  name\n}\n\nquery get_representation($id: ID!) {\n  representation(id: $id) {\n    ...Representation\n  }\n}"
+        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  type\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n  }\n}\n\nquery get_representation($id: ID!) {\n  representation(id: $id) {\n    ...Representation\n  }\n}"
 
 
 class Search_representationQueryOptions(Representation, BaseModel):
@@ -457,7 +476,7 @@ class Get_random_repQuery(BaseModel):
         pass
 
     class Meta:
-        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  type\n  id\n  store\n  variety\n  name\n}\n\nquery get_random_rep {\n  randomRepresentation {\n    ...Representation\n  }\n}"
+        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  type\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n  }\n}\n\nquery get_random_rep {\n  randomRepresentation {\n    ...Representation\n  }\n}"
 
 
 class My_accessiblesQuery(BaseModel):
@@ -467,7 +486,7 @@ class My_accessiblesQuery(BaseModel):
         pass
 
     class Meta:
-        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  type\n  id\n  store\n  variety\n  name\n}\n\nquery my_accessibles {\n  accessiblerepresentations {\n    ...Representation\n  }\n}"
+        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  type\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n  }\n}\n\nquery my_accessibles {\n  accessiblerepresentations {\n    ...Representation\n  }\n}"
 
 
 class ThumbnailQuery(BaseModel):
@@ -762,10 +781,10 @@ class Upload_bioimageMutation(BaseModel):
     )
 
     class Arguments(BaseModel):
-        file: Upload
+        file: File
 
     class Meta:
-        document = "mutation upload_bioimage($file: Upload!) {\n  uploadOmeroFile(file: $file) {\n    id\n    file\n    type\n    name\n  }\n}"
+        document = "mutation upload_bioimage($file: ImageFile!) {\n  uploadOmeroFile(file: $file) {\n    id\n    file\n    type\n    name\n  }\n}"
 
 
 class Create_size_featureMutationCreatesizefeatureLabelRepresentation(
@@ -846,7 +865,7 @@ class From_xarrayMutation(BaseModel):
         omero: Optional[OmeroRepresentationInput] = None
 
     class Meta:
-        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  type\n  id\n  store\n  variety\n  name\n}\n\nmutation from_xarray($xarray: XArray!, $name: String, $variety: RepresentationVarietyInput, $origins: [ID], $tags: [String], $sample: ID, $omero: OmeroRepresentationInput) {\n  fromXArray(\n    xarray: $xarray\n    name: $name\n    origins: $origins\n    tags: $tags\n    sample: $sample\n    omero: $omero\n    variety: $variety\n  ) {\n    ...Representation\n  }\n}"
+        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  type\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n  }\n}\n\nmutation from_xarray($xarray: XArray!, $name: String, $variety: RepresentationVarietyInput, $origins: [ID], $tags: [String], $sample: ID, $omero: OmeroRepresentationInput) {\n  fromXArray(\n    xarray: $xarray\n    name: $name\n    origins: $origins\n    tags: $tags\n    sample: $sample\n    omero: $omero\n    variety: $variety\n  ) {\n    ...Representation\n  }\n}"
 
 
 class Double_uploadMutationX(Representation, BaseModel):
@@ -889,6 +908,22 @@ class Double_uploadMutation(BaseModel):
         document = "mutation double_upload($xarray: XArray!, $name: String, $origins: [ID], $tags: [String], $sample: ID, $omero: OmeroRepresentationInput) {\n  x: fromXArray(\n    xarray: $xarray\n    name: $name\n    origins: $origins\n    tags: $tags\n    sample: $sample\n    omero: $omero\n  ) {\n    id\n    store\n  }\n  y: fromXArray(\n    xarray: $xarray\n    name: $name\n    origins: $origins\n    tags: $tags\n    sample: $sample\n    omero: $omero\n  ) {\n    id\n    store\n  }\n}"
 
 
+class Update_representationMutation(BaseModel):
+    update_representation: Optional[RepresentationFragment] = Field(
+        alias="updateRepresentation"
+    )
+    "Updates an Representation (also retriggers meta-data retrieval from data stored in)"
+
+    class Arguments(BaseModel):
+        id: ID
+        tags: Optional[List[Optional[str]]] = None
+        sample: Optional[ID] = None
+        variety: Optional[RepresentationVarietyInput] = None
+
+    class Meta:
+        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  type\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n  }\n}\n\nmutation update_representation($id: ID!, $tags: [String], $sample: ID, $variety: RepresentationVarietyInput) {\n  updateRepresentation(rep: $id, tags: $tags, sample: $sample, variety: $variety) {\n    ...Representation\n  }\n}"
+
+
 class Create_thumbnailMutation(BaseModel):
     upload_thumbnail: Optional[ThumbnailFragment] = Field(alias="uploadThumbnail")
 
@@ -911,8 +946,6 @@ class Create_metricMutationCreatemetricRep(Representation, BaseModel):
 
 
 class Create_metricMutationCreatemetricCreator(BaseModel):
-    """A reflection on the real User"""
-
     typename: Optional[Literal["User"]] = Field(alias="__typename")
     id: ID
 
@@ -926,7 +959,7 @@ class Create_metricMutationCreatemetric(BaseModel):
     "The Key"
     value: Optional[Dict]
     creator: Optional[Create_metricMutationCreatemetricCreator]
-    created_at: str = Field(alias="createdAt")
+    created_at: datetime = Field(alias="createdAt")
 
 
 class Create_metricMutation(BaseModel):
@@ -960,6 +993,34 @@ class Create_roiMutation(BaseModel):
         document = "fragment ROI on ROI {\n  id\n  vectors {\n    x\n    y\n    z\n  }\n  type\n  representation {\n    id\n  }\n  creator {\n    email\n    color\n  }\n}\n\nmutation create_roi($representation: ID!, $vectors: [InputVector]!, $creator: ID, $type: RoiTypeInput!) {\n  createROI(\n    representation: $representation\n    vectors: $vectors\n    type: $type\n    creator: $creator\n  ) {\n    ...ROI\n  }\n}"
 
 
+class Get_roiQuery(BaseModel):
+    roi: Optional[ROIFragment]
+    "Get a single representation by ID"
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "fragment ROI on ROI {\n  id\n  vectors {\n    x\n    y\n    z\n  }\n  type\n  representation {\n    id\n  }\n  creator {\n    email\n    color\n  }\n}\n\nquery get_roi($id: ID!) {\n  roi(id: $id) {\n    ...ROI\n  }\n}"
+
+
+class Search_roisQueryRois(ROI, BaseModel):
+    typename: Optional[Literal["ROI"]] = Field(alias="__typename")
+    label: ID
+    value: ID
+
+
+class Search_roisQuery(BaseModel):
+    rois: Optional[List[Optional[Search_roisQueryRois]]]
+    "All represetations"
+
+    class Arguments(BaseModel):
+        search: str
+
+    class Meta:
+        document = "query search_rois($search: String!) {\n  rois(repname: $search) {\n    label: id\n    value: id\n  }\n}"
+
+
 class From_dfMutation(BaseModel):
     from_df: Optional[TableFragment] = Field(alias="fromDf")
     "Creates a Representation"
@@ -973,8 +1034,6 @@ class From_dfMutation(BaseModel):
 
 
 class Create_sampleMutationCreatesampleCreator(BaseModel):
-    """A reflection on the real User"""
-
     typename: Optional[Literal["User"]] = Field(alias="__typename")
     email: str
 
@@ -1936,14 +1995,14 @@ def negotiate(rath: MikroRath = None) -> Optional[Dict]:
 
 
 async def aupload_bioimage(
-    file: Upload, rath: MikroRath = None
+    file: File, rath: MikroRath = None
 ) -> Optional[Upload_bioimageMutationUploadomerofile]:
     """upload_bioimage
 
 
 
     Arguments:
-        file (Upload): file
+        file (File): file
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
@@ -1954,14 +2013,14 @@ async def aupload_bioimage(
 
 
 def upload_bioimage(
-    file: Upload, rath: MikroRath = None
+    file: File, rath: MikroRath = None
 ) -> Optional[Upload_bioimageMutationUploadomerofile]:
     """upload_bioimage
 
 
 
     Arguments:
-        file (Upload): file
+        file (File): file
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
@@ -2261,6 +2320,72 @@ def double_upload(
     )
 
 
+async def aupdate_representation(
+    id: ID,
+    tags: Optional[List[Optional[str]]] = None,
+    sample: Optional[ID] = None,
+    variety: Optional[RepresentationVarietyInput] = None,
+    rath: MikroRath = None,
+) -> Optional[RepresentationFragment]:
+    """update_representation
+
+
+     updateRepresentation: A Representation is a multi-dimensional Array that can do what ever it wants
+
+
+    @elements/rep:latest
+
+
+    Arguments:
+        id (ID): id
+        tags (Optional[List[Optional[str]]], optional): tags.
+        sample (Optional[ID], optional): sample.
+        variety (Optional[RepresentationVarietyInput], optional): variety.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[RepresentationFragment]"""
+    return (
+        await aexecute(
+            Update_representationMutation,
+            {"id": id, "tags": tags, "sample": sample, "variety": variety},
+            rath=rath,
+        )
+    ).update_representation
+
+
+def update_representation(
+    id: ID,
+    tags: Optional[List[Optional[str]]] = None,
+    sample: Optional[ID] = None,
+    variety: Optional[RepresentationVarietyInput] = None,
+    rath: MikroRath = None,
+) -> Optional[RepresentationFragment]:
+    """update_representation
+
+
+     updateRepresentation: A Representation is a multi-dimensional Array that can do what ever it wants
+
+
+    @elements/rep:latest
+
+
+    Arguments:
+        id (ID): id
+        tags (Optional[List[Optional[str]]], optional): tags.
+        sample (Optional[ID], optional): sample.
+        variety (Optional[RepresentationVarietyInput], optional): variety.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[RepresentationFragment]"""
+    return execute(
+        Update_representationMutation,
+        {"id": id, "tags": tags, "sample": sample, "variety": variety},
+        rath=rath,
+    ).update_representation
+
+
 async def acreate_thumbnail(
     rep: ID, file: File, rath: MikroRath = None
 ) -> Optional[ThumbnailFragment]:
@@ -2439,6 +2564,66 @@ def create_roi(
         },
         rath=rath,
     ).create_roi
+
+
+async def aget_roi(id: ID, rath: MikroRath = None) -> Optional[ROIFragment]:
+    """get_roi
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[ROIFragment]"""
+    return (await aexecute(Get_roiQuery, {"id": id}, rath=rath)).roi
+
+
+def get_roi(id: ID, rath: MikroRath = None) -> Optional[ROIFragment]:
+    """get_roi
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[ROIFragment]"""
+    return execute(Get_roiQuery, {"id": id}, rath=rath).roi
+
+
+async def asearch_rois(
+    search: str, rath: MikroRath = None
+) -> Optional[List[Optional[Search_roisQueryRois]]]:
+    """search_rois
+
+
+
+    Arguments:
+        search (str): search
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[Search_roisQueryRois]]]"""
+    return (await aexecute(Search_roisQuery, {"search": search}, rath=rath)).rois
+
+
+def search_rois(
+    search: str, rath: MikroRath = None
+) -> Optional[List[Optional[Search_roisQueryRois]]]:
+    """search_rois
+
+
+
+    Arguments:
+        search (str): search
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[Search_roisQueryRois]]]"""
+    return execute(Search_roisQuery, {"search": search}, rath=rath).rois
 
 
 async def afrom_df(

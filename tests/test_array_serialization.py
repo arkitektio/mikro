@@ -1,9 +1,4 @@
 from pydantic import BaseModel
-import pydantic
-import pytest
-from mikro.app import MikroApp
-from fakts import Fakts
-from fakts.grants import YamlGrant
 import numpy as np
 import xarray as xr
 

@@ -1,20 +1,16 @@
 import numpy as np
 import pytest
-from mikro.app import MikroApp
-from fakts import Fakts
 from mikro.api.schema import create_sample, from_xarray, get_random_rep
 from .integration.utils import wait_for_http_response
 from .utils import build_relative
 import xarray as xr
-from testcontainers.compose import DockerCompose
-from herre.fakts import FaktsHerre
-from fakts.grants.remote.claim import ClaimGrant
-from fakts.grants.remote.base import StaticDiscovery
 
 
 @pytest.mark.integration
 @pytest.fixture(scope="session")
 def environment():
+    from testcontainers.compose import DockerCompose
+
     with DockerCompose(
         filepath=build_relative("integration"),
         compose_file_name="docker-compose.yaml",
@@ -27,6 +23,11 @@ def environment():
 @pytest.mark.integration
 @pytest.fixture
 def app():
+    from fakts import Fakts
+    from arkitekt.apps.mikro import MikroApp
+    from herre.fakts import FaktsHerre
+    from fakts.grants.remote.claim import ClaimGrant
+    from fakts.grants.remote.base import StaticDiscovery
 
     return MikroApp(
         fakts=Fakts(
@@ -62,10 +63,13 @@ def test_get_random(app, environment):
         x = get_random_rep()
         assert x.id, "Did not get a random rep"
 
+
 @pytest.mark.integration
 def test_create_sample(app, environment):
 
     with app:
         x = create_sample(name="johannes")
         assert x.id, "Was not able to create a sample"
-        assert x.creator.email == "jhnnsr@gmail.com", "Sample did not have the right user name attached"
+        assert (
+            x.creator.email == "jhnnsr@gmail.com"
+        ), "Sample did not have the right user name attached"

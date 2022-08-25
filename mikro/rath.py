@@ -3,35 +3,29 @@ from pydantic import Field
 from mikro.links.datalayer import DataLayerUploadLink
 from rath import rath
 import contextvars
-from rath.contrib.fakts.links.aiohttp import FaktsAIOHttpLink
-from rath.contrib.fakts.links.websocket import FaktsWebsocketLink
-from rath.contrib.herre.links.auth import HerreAuthLink
-from rath.links.base import TerminatingLink
-from rath.links.compose import compose
+from rath.links.auth import AuthTokenLink
+from rath.links.compose import TypedComposedLink, compose
 from rath.links.dictinglink import DictingLink
 from rath.links.file import FileExtraction
 from rath.links.shrink import ShrinkingLink
 from rath.links.split import SplitLink
 
 
+
 current_mikro_rath = contextvars.ContextVar("current_mikro_rath")
 
 
+class MikroLinkComposition(TypedComposedLink):
+    datalayer: DataLayerUploadLink = Field(default_factory=DataLayerUploadLink)
+    fileextraction: FileExtraction = Field(default_factory=FileExtraction)
+    shrinking: ShrinkingLink = Field(default_factory=ShrinkingLink)
+    dicting: DictingLink = Field(default_factory=DictingLink)
+    auth: AuthTokenLink
+    split: SplitLink
+
+
 class MikroRath(rath.Rath):
-    link: TerminatingLink = Field(
-        default_factory=lambda: compose(
-            DataLayerUploadLink(),
-            FileExtraction(),
-            ShrinkingLink(),
-            DictingLink(),
-            HerreAuthLink(),
-            SplitLink(
-                left=FaktsAIOHttpLink(fakts_group="mikro"),
-                right=FaktsWebsocketLink(fakts_group="mikro"),
-                split=lambda o: o.node.operation != OperationType.SUBSCRIPTION,
-            ),
-        )
-    )
+    link: MikroLinkComposition
 
     async def __aenter__(self):
         await super().__aenter__()

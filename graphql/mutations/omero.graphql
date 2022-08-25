@@ -1,4 +1,4 @@
-mutation upload_bioimage($file: Upload!) {
+mutation upload_bioimage($file: ImageFile!) {
   uploadOmeroFile(file: $file) {
     id
     file

@@ -7,13 +7,9 @@ You can of course overwrite this in your app if you need to expand to a more com
 
 """
 
-
-from arkitekt.widgets import ImageReturnWidget
-
-
 try:
-    from arkitekt.structures.default import get_default_structure_registry
-    from arkitekt.widgets import SearchWidget
+    from rekuest.structures.default import get_default_structure_registry
+    from rekuest.widgets import SearchWidget, ImageReturnWidget
     from mikro.api.schema import *
 
     structure_reg = get_default_structure_registry()
@@ -28,6 +24,12 @@ try:
         identifier="@mikro/sample",
         expand=aexpand_sample,
         default_widget=SearchWidget(query=Search_sampleQuery.Meta.document),
+    )
+    structure_reg.register_as_structure(
+        TableFragment,
+        identifier="@mikro/table",
+        expand=aexpand_table,
+        default_widget=SearchWidget(query=Search_tablesQuery.Meta.document),
     )
     structure_reg.register_as_structure(
         ExperimentFragment,
@@ -49,6 +51,12 @@ try:
         identifier="@mikro/omerofile",
         expand=aexpand_omerofile,
         default_widget=SearchWidget(query=Search_omerofileQuery.Meta.document),
+    )
+    structure_reg.register_as_structure(
+        ROIFragment,
+        identifier="@mikro/roi",
+        expand=aget_roi,
+        default_widget=SearchWidget(query=Search_roisQuery.Meta.document),
     )
 except ImportError:
     structure_reg = None

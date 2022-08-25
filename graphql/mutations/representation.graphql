@@ -52,3 +52,19 @@ mutation double_upload(
     store
   }
 }
+
+mutation update_representation(
+  $id: ID!
+  $tags: [String]
+  $sample: ID
+  $variety: RepresentationVarietyInput
+) {
+  updateRepresentation(
+    rep: $id
+    tags: $tags
+    sample: $sample
+    variety: $variety
+  ) {
+    ...Representation
+  }
+}

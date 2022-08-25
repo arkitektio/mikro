@@ -5,6 +5,8 @@ Custom scalars for Mikro.
 """
 
 
+import os
+import uuid
 import xarray as xr
 import pyarrow.parquet as pq
 import pandas as pd
@@ -65,9 +67,9 @@ class ArrayInput:
 
         chunks = {
             "t": 1,
-            "x": 200,
-            "y": 200,
-            "z": v.sizes["z"],
+            "x": v.sizes["x"],
+            "y": v.sizes["y"],
+            "z": 1,
             "c": 1,
         }
 
@@ -75,7 +77,7 @@ class ArrayInput:
             {key: chunksize for key, chunksize in chunks.items() if key in v.dims}
         )
 
-        v = v.transpose(*"xyczt")
+        v = v.transpose(*"ctzyx")
 
         return cls(v)
 
@@ -234,14 +236,25 @@ class File:
         self.value = value
 
     def download(self, dl=None):
+        from mikro.datalayer import current_datalayer
+        import requests
+        import shutil
+
         dl = dl or current_datalayer.get()
         url = f"{dl.endpoint_url}{self.value}"
-        local_filename = "test.tif"
-        # requests.get(url, stream=True) as r:
-        #    with open(local_filename, "wb") as f:
-        #        shutil.copyfileobj(r.raw, f)
+        x = str(uuid.uuid4())
+        local_filename = f"{x}.tif"
+        with requests.get(url, stream=True) as r:
+            with open(local_filename, "wb") as f:
+                shutil.copyfileobj(r.raw, f)
+                return local_filename
 
-        return local_filename
+    def __enter__(self):
+        self.local_file = self.download()
+        return self.local_file
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        os.remove(self.local_file)
 
     @classmethod
     def __get_validators__(cls):
