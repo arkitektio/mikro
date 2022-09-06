@@ -10,7 +10,7 @@ def execute(
     return operation(
         **rath.query(
             operation.Meta.document,
-            operation.Arguments(**variables).dict(by_alias=True),
+            operation.Arguments(**variables),
         ).data
     )
 
@@ -21,23 +21,19 @@ async def aexecute(
     rath: MikroRath = None,
 ):
     rath = rath or current_mikro_rath.get()
-    x = await rath.aquery(
-        operation.Meta.document, operation.Arguments(**variables).dict(by_alias=True)
-    )
+    x = await rath.aquery(operation.Meta.document, operation.Arguments(**variables))
     return operation(**x.data)
 
 
 def subscribe(operation, variables, rath: MikroRath = None):
     rath = rath or current_mikro_rath.get()
-    for ev in rath.subscribe(
-        operation.Meta.document, operation.Arguments(**variables).dict(by_alias=True)
-    ):
+    for ev in rath.subscribe(operation.Meta.document, operation.Arguments(**variables)):
         yield operation(**ev.data)
 
 
 async def asubscribe(operation, variables, rath: MikroRath = None):
     rath = rath or current_mikro_rath.get()
     async for event in rath.asubscribe(
-        operation.Meta.document, operation.Arguments(**variables).dict(by_alias=True)
+        operation.Meta.document, operation.Arguments(**variables)
     ):
         yield operation(**event.data)

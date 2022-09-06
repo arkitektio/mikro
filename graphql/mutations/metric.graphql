@@ -3,7 +3,7 @@ mutation create_metric(
   $sample: ID
   $experiment: ID
   $key: String!
-  $value: GenericScalar!
+  $value: MetricValue!
 ) {
   createMetric(
     rep: $rep
@@ -12,15 +12,6 @@ mutation create_metric(
     key: $key
     value: $value
   ) {
-    id
-    rep {
-      id
-    }
-    key
-    value
-    creator {
-      id
-    }
-    createdAt
+    ...Metric
   }
 }

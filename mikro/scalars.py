@@ -6,6 +6,7 @@ Custom scalars for Mikro.
 
 
 import os
+from typing import Any
 import uuid
 import xarray as xr
 import pyarrow.parquet as pq
@@ -15,6 +16,10 @@ import numpy as np
 
 class XArrayConversionException(Exception):
     pass
+
+
+MetricValue = Any
+FeatureValue = Any
 
 
 class ArrayInput:

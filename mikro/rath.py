@@ -11,14 +11,12 @@ from rath.links.shrink import ShrinkingLink
 from rath.links.split import SplitLink
 
 
-
 current_mikro_rath = contextvars.ContextVar("current_mikro_rath")
 
 
 class MikroLinkComposition(TypedComposedLink):
     datalayer: DataLayerUploadLink = Field(default_factory=DataLayerUploadLink)
     fileextraction: FileExtraction = Field(default_factory=FileExtraction)
-    shrinking: ShrinkingLink = Field(default_factory=ShrinkingLink)
     dicting: DictingLink = Field(default_factory=DictingLink)
     auth: AuthTokenLink
     split: SplitLink

@@ -1,0 +1,12 @@
+fragment Metric on Metric {
+  id
+  rep {
+    id
+  }
+  key
+  value
+  creator {
+    id
+  }
+  createdAt
+}

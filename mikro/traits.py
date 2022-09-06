@@ -34,6 +34,9 @@ class Representation(BaseModel, ShrinkByID):
 
     id: str
 
+    def get_identifier():
+        return "@mikro/representation"
+
     @property
     def data(self) -> xr.DataArray:
         """The Data of the Representation as an xr.DataArray. Not accessible from asyncio

@@ -1,12 +1,20 @@
-from mikro.funcs import aexecute, execute, asubscribe, subscribe
-from typing import Dict, Optional, Literal, Iterator, AsyncIterator, List
+from typing import Optional, Dict, List, AsyncIterator, Iterator, Literal
 from rath.scalars import ID
-from mikro.scalars import Parquet, DataFrame, ArrayInput, Store, File
-from mikro.rath import MikroRath
-from mikro.traits import Representation, Vectorizable, ROI, Table
-from datetime import datetime
+from mikro.funcs import asubscribe, execute, aexecute, subscribe
+from mikro.scalars import (
+    Parquet,
+    File,
+    FeatureValue,
+    ArrayInput,
+    Store,
+    MetricValue,
+    DataFrame,
+)
 from pydantic import Field, BaseModel
+from datetime import datetime
+from mikro.traits import Representation, Table, Vectorizable, ROI
 from enum import Enum
+from mikro.rath import MikroRath
 
 
 class CommentableModels(str, Enum):
@@ -18,11 +26,12 @@ class CommentableModels(str, Enum):
     GRUNNLAG_OMEROFILE = "GRUNNLAG_OMEROFILE"
     GRUNNLAG_SAMPLE = "GRUNNLAG_SAMPLE"
     GRUNNLAG_REPRESENTATION = "GRUNNLAG_REPRESENTATION"
+    GRUNNLAG_OMERO = "GRUNNLAG_OMERO"
     GRUNNLAG_METRIC = "GRUNNLAG_METRIC"
     GRUNNLAG_THUMBNAIL = "GRUNNLAG_THUMBNAIL"
     GRUNNLAG_ROI = "GRUNNLAG_ROI"
     GRUNNLAG_LABEL = "GRUNNLAG_LABEL"
-    GRUNNLAG_SIZEFEATURE = "GRUNNLAG_SIZEFEATURE"
+    GRUNNLAG_FEATURE = "GRUNNLAG_FEATURE"
     BORD_TABLE = "BORD_TABLE"
 
 
@@ -35,12 +44,28 @@ class SharableModels(str, Enum):
     GRUNNLAG_OMEROFILE = "GRUNNLAG_OMEROFILE"
     GRUNNLAG_SAMPLE = "GRUNNLAG_SAMPLE"
     GRUNNLAG_REPRESENTATION = "GRUNNLAG_REPRESENTATION"
+    GRUNNLAG_OMERO = "GRUNNLAG_OMERO"
     GRUNNLAG_METRIC = "GRUNNLAG_METRIC"
     GRUNNLAG_THUMBNAIL = "GRUNNLAG_THUMBNAIL"
     GRUNNLAG_ROI = "GRUNNLAG_ROI"
     GRUNNLAG_LABEL = "GRUNNLAG_LABEL"
-    GRUNNLAG_SIZEFEATURE = "GRUNNLAG_SIZEFEATURE"
+    GRUNNLAG_FEATURE = "GRUNNLAG_FEATURE"
     BORD_TABLE = "BORD_TABLE"
+
+
+class OmeroFileType(str, Enum):
+    """An enumeration."""
+
+    TIFF = "TIFF"
+    "Tiff"
+    JPEG = "JPEG"
+    "Jpeg"
+    MSR = "MSR"
+    "MSR File"
+    CZI = "CZI"
+    "Zeiss Microscopy File"
+    UNKNOWN = "UNKNOWN"
+    "Unwknon File Format"
 
 
 class RepresentationVariety(str, Enum):
@@ -84,21 +109,6 @@ class ROIType(str, Enum):
     "Path"
     UNKNOWN = "UNKNOWN"
     "Unknown"
-
-
-class OmeroFileType(str, Enum):
-    """An enumeration."""
-
-    TIFF = "TIFF"
-    "Tiff"
-    JPEG = "JPEG"
-    "Jpeg"
-    MSR = "MSR"
-    "MSR File"
-    CZI = "CZI"
-    "Zeiss Microscopy File"
-    UNKNOWN = "UNKNOWN"
-    "Unwknon File Format"
 
 
 class RoiTypeInput(str, Enum):
@@ -150,6 +160,7 @@ class OmeroRepresentationInput(BaseModel):
     channels: Optional[List[Optional["ChannelInput"]]]
     physical_size: Optional["PhysicalSizeInput"] = Field(alias="physicalSize")
     scale: Optional[List[Optional[float]]]
+    acquisition_date: Optional[datetime] = Field(alias="acquisitionDate")
 
 
 class PlaneInput(BaseModel):
@@ -203,7 +214,7 @@ class RepresentationFragmentSample(BaseModel):
 
 
 class RepresentationFragmentOmero(BaseModel):
-    typename: Optional[Literal["OmeroRepresentation"]] = Field(alias="__typename")
+    typename: Optional[Literal["Omero"]] = Field(alias="__typename")
     scale: Optional[List[Optional[float]]]
 
 
@@ -220,13 +231,40 @@ class RepresentationFragment(Representation, BaseModel):
     name: Optional[str]
     "Cleartext name"
     omero: Optional[RepresentationFragmentOmero]
-    "Metadata in Omero-compliant format"
 
 
 class ThumbnailFragment(BaseModel):
     typename: Optional[Literal["Thumbnail"]] = Field(alias="__typename")
     id: ID
     image: Optional[str]
+
+
+class MetricFragmentRep(Representation, BaseModel):
+    """A Representation is a multi-dimensional Array that can do what ever it wants
+
+
+    @elements/rep:latest"""
+
+    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
+    id: ID
+
+
+class MetricFragmentCreator(BaseModel):
+    typename: Optional[Literal["User"]] = Field(alias="__typename")
+    id: ID
+
+
+class MetricFragment(BaseModel):
+    typename: Optional[Literal["Metric"]] = Field(alias="__typename")
+    id: ID
+    rep: Optional[MetricFragmentRep]
+    "The Representatoin this Metric belongs to"
+    key: str
+    "The Key"
+    value: Optional[MetricValue]
+    "Value"
+    creator: Optional[MetricFragmentCreator]
+    created_at: datetime = Field(alias="createdAt")
 
 
 class ROIFragmentVectors(BaseModel):
@@ -415,6 +453,33 @@ class Search_omerofileQuery(BaseModel):
         document = "query search_omerofile($search: String!) {\n  omerofiles(name: $search) {\n    value: id\n    label: name\n  }\n}"
 
 
+class Get_labelQueryLabelforFeatures(BaseModel):
+    typename: Optional[Literal["Feature"]] = Field(alias="__typename")
+    id: ID
+    key: str
+    "The sKesyss"
+    value: Optional[FeatureValue]
+    "Value"
+
+
+class Get_labelQueryLabelfor(BaseModel):
+    typename: Optional[Literal["Label"]] = Field(alias="__typename")
+    id: ID
+    features: List[Get_labelQueryLabelforFeatures]
+
+
+class Get_labelQuery(BaseModel):
+    label_for: Optional[Get_labelQueryLabelfor] = Field(alias="labelFor")
+    "Get a label for a specific instance on a specific representation"
+
+    class Arguments(BaseModel):
+        representation: ID
+        instance: int
+
+    class Meta:
+        document = "query get_label($representation: ID!, $instance: Int!) {\n  labelFor(representation: $representation, instance: $instance) {\n    id\n    features {\n      id\n      key\n      value\n    }\n  }\n}"
+
+
 class Expand_representationQuery(BaseModel):
     """Creates a new representation"""
 
@@ -547,6 +612,19 @@ class Image_for_thumbnailQuery(BaseModel):
 
     class Meta:
         document = "query image_for_thumbnail($id: ID!) {\n  image: thumbnail(id: $id) {\n    path: image\n    label: image\n  }\n}"
+
+
+class Expand_metricQuery(BaseModel):
+    """Creates a new representation"""
+
+    metric: Optional[MetricFragment]
+    "Get a single representation by ID"
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "fragment Metric on Metric {\n  id\n  rep {\n    id\n  }\n  key\n  value\n  creator {\n    id\n  }\n  createdAt\n}\n\nquery expand_metric($id: ID!) {\n  metric(id: $id) {\n    ...Metric\n  }\n}"
 
 
 class Get_roisQuery(BaseModel):
@@ -787,9 +865,7 @@ class Upload_bioimageMutation(BaseModel):
         document = "mutation upload_bioimage($file: ImageFile!) {\n  uploadOmeroFile(file: $file) {\n    id\n    file\n    type\n    name\n  }\n}"
 
 
-class Create_size_featureMutationCreatesizefeatureLabelRepresentation(
-    Representation, BaseModel
-):
+class Create_featureMutationCreatefeatureLabelRepresentation(Representation, BaseModel):
     """A Representation is a multi-dimensional Array that can do what ever it wants
 
 
@@ -799,34 +875,34 @@ class Create_size_featureMutationCreatesizefeatureLabelRepresentation(
     id: ID
 
 
-class Create_size_featureMutationCreatesizefeatureLabel(BaseModel):
+class Create_featureMutationCreatefeatureLabel(BaseModel):
     typename: Optional[Literal["Label"]] = Field(alias="__typename")
     id: ID
-    representation: Optional[
-        Create_size_featureMutationCreatesizefeatureLabelRepresentation
-    ]
+    representation: Optional[Create_featureMutationCreatefeatureLabelRepresentation]
 
 
-class Create_size_featureMutationCreatesizefeature(BaseModel):
-    typename: Optional[Literal["SizeFeature"]] = Field(alias="__typename")
+class Create_featureMutationCreatefeature(BaseModel):
+    typename: Optional[Literal["Feature"]] = Field(alias="__typename")
     id: ID
-    size: float
-    label: Optional[Create_size_featureMutationCreatesizefeatureLabel]
+    key: str
+    "The sKesyss"
+    value: Optional[FeatureValue]
+    "Value"
+    label: Optional[Create_featureMutationCreatefeatureLabel]
 
 
-class Create_size_featureMutation(BaseModel):
-    create_size_feature: Optional[Create_size_featureMutationCreatesizefeature] = Field(
-        alias="createSizeFeature"
-    )
+class Create_featureMutation(BaseModel):
+    createfeature: Optional[Create_featureMutationCreatefeature]
     "Creates a Sample"
 
     class Arguments(BaseModel):
         label: ID
-        size: float
+        key: Optional[str] = None
+        value: FeatureValue
         creator: Optional[ID] = None
 
     class Meta:
-        document = "mutation create_size_feature($label: ID!, $size: Float!, $creator: ID) {\n  createSizeFeature(label: $label, size: $size, creator: $creator) {\n    id\n    size\n    label {\n      id\n      representation {\n        id\n      }\n    }\n  }\n}"
+        document = "mutation create_feature($label: ID!, $key: String, $value: FeatureValue!, $creator: ID) {\n  createfeature(label: $label, key: $key, value: $value, creator: $creator) {\n    id\n    key\n    value\n    label {\n      id\n      representation {\n        id\n      }\n    }\n  }\n}"
 
 
 class Create_labelMutationCreatelabel(BaseModel):
@@ -860,12 +936,13 @@ class From_xarrayMutation(BaseModel):
         name: Optional[str] = None
         variety: Optional[RepresentationVarietyInput] = None
         origins: Optional[List[Optional[ID]]] = None
+        files: Optional[List[Optional[ID]]] = None
         tags: Optional[List[Optional[str]]] = None
         sample: Optional[ID] = None
         omero: Optional[OmeroRepresentationInput] = None
 
     class Meta:
-        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  type\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n  }\n}\n\nmutation from_xarray($xarray: XArray!, $name: String, $variety: RepresentationVarietyInput, $origins: [ID], $tags: [String], $sample: ID, $omero: OmeroRepresentationInput) {\n  fromXArray(\n    xarray: $xarray\n    name: $name\n    origins: $origins\n    tags: $tags\n    sample: $sample\n    omero: $omero\n    variety: $variety\n  ) {\n    ...Representation\n  }\n}"
+        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  type\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n  }\n}\n\nmutation from_xarray($xarray: XArray!, $name: String, $variety: RepresentationVarietyInput, $origins: [ID], $files: [ID], $tags: [String], $sample: ID, $omero: OmeroRepresentationInput) {\n  fromXArray(\n    xarray: $xarray\n    name: $name\n    origins: $origins\n    tags: $tags\n    sample: $sample\n    omero: $omero\n    files: $files\n    variety: $variety\n  ) {\n    ...Representation\n  }\n}"
 
 
 class Double_uploadMutationX(Representation, BaseModel):
@@ -935,37 +1012,8 @@ class Create_thumbnailMutation(BaseModel):
         document = "fragment Thumbnail on Thumbnail {\n  id\n  image\n}\n\nmutation create_thumbnail($rep: ID!, $file: ImageFile!) {\n  uploadThumbnail(rep: $rep, file: $file) {\n    ...Thumbnail\n  }\n}"
 
 
-class Create_metricMutationCreatemetricRep(Representation, BaseModel):
-    """A Representation is a multi-dimensional Array that can do what ever it wants
-
-
-    @elements/rep:latest"""
-
-    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
-    id: ID
-
-
-class Create_metricMutationCreatemetricCreator(BaseModel):
-    typename: Optional[Literal["User"]] = Field(alias="__typename")
-    id: ID
-
-
-class Create_metricMutationCreatemetric(BaseModel):
-    typename: Optional[Literal["Metric"]] = Field(alias="__typename")
-    id: ID
-    rep: Optional[Create_metricMutationCreatemetricRep]
-    "The Representatoin this Metric belongs to"
-    key: str
-    "The Key"
-    value: Optional[Dict]
-    creator: Optional[Create_metricMutationCreatemetricCreator]
-    created_at: datetime = Field(alias="createdAt")
-
-
 class Create_metricMutation(BaseModel):
-    create_metric: Optional[Create_metricMutationCreatemetric] = Field(
-        alias="createMetric"
-    )
+    create_metric: Optional[MetricFragment] = Field(alias="createMetric")
     "Creates a Representation"
 
     class Arguments(BaseModel):
@@ -973,10 +1021,10 @@ class Create_metricMutation(BaseModel):
         sample: Optional[ID] = None
         experiment: Optional[ID] = None
         key: str
-        value: Dict
+        value: MetricValue
 
     class Meta:
-        document = "mutation create_metric($rep: ID, $sample: ID, $experiment: ID, $key: String!, $value: GenericScalar!) {\n  createMetric(\n    rep: $rep\n    sample: $sample\n    experiment: $experiment\n    key: $key\n    value: $value\n  ) {\n    id\n    rep {\n      id\n    }\n    key\n    value\n    creator {\n      id\n    }\n    createdAt\n  }\n}"
+        document = "fragment Metric on Metric {\n  id\n  rep {\n    id\n  }\n  key\n  value\n  creator {\n    id\n  }\n  createdAt\n}\n\nmutation create_metric($rep: ID, $sample: ID, $experiment: ID, $key: String!, $value: MetricValue!) {\n  createMetric(\n    rep: $rep\n    sample: $sample\n    experiment: $experiment\n    key: $key\n    value: $value\n  ) {\n    ...Metric\n  }\n}"
 
 
 class Create_roiMutation(BaseModel):
@@ -1198,6 +1246,50 @@ def search_omerofile(
     Returns:
         Optional[List[Optional[Search_omerofileQueryOmerofiles]]]"""
     return execute(Search_omerofileQuery, {"search": search}, rath=rath).omerofiles
+
+
+async def aget_label(
+    representation: ID, instance: int, rath: MikroRath = None
+) -> Optional[Get_labelQueryLabelfor]:
+    """get_label
+
+
+
+    Arguments:
+        representation (ID): representation
+        instance (int): instance
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[Get_labelQueryLabelfor]"""
+    return (
+        await aexecute(
+            Get_labelQuery,
+            {"representation": representation, "instance": instance},
+            rath=rath,
+        )
+    ).label_for
+
+
+def get_label(
+    representation: ID, instance: int, rath: MikroRath = None
+) -> Optional[Get_labelQueryLabelfor]:
+    """get_label
+
+
+
+    Arguments:
+        representation (ID): representation
+        instance (int): instance
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[Get_labelQueryLabelfor]"""
+    return execute(
+        Get_labelQuery,
+        {"representation": representation, "instance": instance},
+        rath=rath,
+    ).label_for
 
 
 async def aexpand_representation(
@@ -1534,6 +1626,34 @@ def image_for_thumbnail(
     Returns:
         Optional[Image_for_thumbnailQueryThumbnail]"""
     return execute(Image_for_thumbnailQuery, {"id": id}, rath=rath).thumbnail
+
+
+async def aexpand_metric(id: ID, rath: MikroRath = None) -> Optional[MetricFragment]:
+    """expand_metric
+
+     Creates a new representation
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[MetricFragment]"""
+    return (await aexecute(Expand_metricQuery, {"id": id}, rath=rath)).metric
+
+
+def expand_metric(id: ID, rath: MikroRath = None) -> Optional[MetricFragment]:
+    """expand_metric
+
+     Creates a new representation
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[MetricFragment]"""
+    return execute(Expand_metricQuery, {"id": id}, rath=rath).metric
 
 
 async def aget_rois(
@@ -2028,50 +2148,60 @@ def upload_bioimage(
     return execute(Upload_bioimageMutation, {"file": file}, rath=rath).upload_omero_file
 
 
-async def acreate_size_feature(
-    label: ID, size: float, creator: Optional[ID] = None, rath: MikroRath = None
-) -> Optional[Create_size_featureMutationCreatesizefeature]:
-    """create_size_feature
+async def acreate_feature(
+    label: ID,
+    value: FeatureValue,
+    key: Optional[str] = None,
+    creator: Optional[ID] = None,
+    rath: MikroRath = None,
+) -> Optional[Create_featureMutationCreatefeature]:
+    """create_feature
 
 
 
     Arguments:
         label (ID): label
-        size (float): size
+        value (FeatureValue): value
+        key (Optional[str], optional): key.
         creator (Optional[ID], optional): creator.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
-        Optional[Create_size_featureMutationCreatesizefeature]"""
+        Optional[Create_featureMutationCreatefeature]"""
     return (
         await aexecute(
-            Create_size_featureMutation,
-            {"label": label, "size": size, "creator": creator},
+            Create_featureMutation,
+            {"label": label, "key": key, "value": value, "creator": creator},
             rath=rath,
         )
-    ).create_size_feature
+    ).createfeature
 
 
-def create_size_feature(
-    label: ID, size: float, creator: Optional[ID] = None, rath: MikroRath = None
-) -> Optional[Create_size_featureMutationCreatesizefeature]:
-    """create_size_feature
+def create_feature(
+    label: ID,
+    value: FeatureValue,
+    key: Optional[str] = None,
+    creator: Optional[ID] = None,
+    rath: MikroRath = None,
+) -> Optional[Create_featureMutationCreatefeature]:
+    """create_feature
 
 
 
     Arguments:
         label (ID): label
-        size (float): size
+        value (FeatureValue): value
+        key (Optional[str], optional): key.
         creator (Optional[ID], optional): creator.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
-        Optional[Create_size_featureMutationCreatesizefeature]"""
+        Optional[Create_featureMutationCreatefeature]"""
     return execute(
-        Create_size_featureMutation,
-        {"label": label, "size": size, "creator": creator},
+        Create_featureMutation,
+        {"label": label, "key": key, "value": value, "creator": creator},
         rath=rath,
-    ).create_size_feature
+    ).createfeature
 
 
 async def acreate_label(
@@ -2145,6 +2275,7 @@ async def afrom_xarray(
     name: Optional[str] = None,
     variety: Optional[RepresentationVarietyInput] = None,
     origins: Optional[List[Optional[ID]]] = None,
+    files: Optional[List[Optional[ID]]] = None,
     tags: Optional[List[Optional[str]]] = None,
     sample: Optional[ID] = None,
     omero: Optional[OmeroRepresentationInput] = None,
@@ -2159,6 +2290,7 @@ async def afrom_xarray(
         name (Optional[str], optional): name.
         variety (Optional[RepresentationVarietyInput], optional): variety.
         origins (Optional[List[Optional[ID]]], optional): origins.
+        files (Optional[List[Optional[ID]]], optional): files.
         tags (Optional[List[Optional[str]]], optional): tags.
         sample (Optional[ID], optional): sample.
         omero (Optional[OmeroRepresentationInput], optional): omero.
@@ -2174,6 +2306,7 @@ async def afrom_xarray(
                 "name": name,
                 "variety": variety,
                 "origins": origins,
+                "files": files,
                 "tags": tags,
                 "sample": sample,
                 "omero": omero,
@@ -2188,6 +2321,7 @@ def from_xarray(
     name: Optional[str] = None,
     variety: Optional[RepresentationVarietyInput] = None,
     origins: Optional[List[Optional[ID]]] = None,
+    files: Optional[List[Optional[ID]]] = None,
     tags: Optional[List[Optional[str]]] = None,
     sample: Optional[ID] = None,
     omero: Optional[OmeroRepresentationInput] = None,
@@ -2202,6 +2336,7 @@ def from_xarray(
         name (Optional[str], optional): name.
         variety (Optional[RepresentationVarietyInput], optional): variety.
         origins (Optional[List[Optional[ID]]], optional): origins.
+        files (Optional[List[Optional[ID]]], optional): files.
         tags (Optional[List[Optional[str]]], optional): tags.
         sample (Optional[ID], optional): sample.
         omero (Optional[OmeroRepresentationInput], optional): omero.
@@ -2216,6 +2351,7 @@ def from_xarray(
             "name": name,
             "variety": variety,
             "origins": origins,
+            "files": files,
             "tags": tags,
             "sample": sample,
             "omero": omero,
@@ -2430,26 +2566,26 @@ def create_thumbnail(
 
 async def acreate_metric(
     key: str,
-    value: Dict,
+    value: MetricValue,
     rep: Optional[ID] = None,
     sample: Optional[ID] = None,
     experiment: Optional[ID] = None,
     rath: MikroRath = None,
-) -> Optional[Create_metricMutationCreatemetric]:
+) -> Optional[MetricFragment]:
     """create_metric
 
 
 
     Arguments:
         key (str): key
-        value (Dict): value
+        value (MetricValue): value
         rep (Optional[ID], optional): rep.
         sample (Optional[ID], optional): sample.
         experiment (Optional[ID], optional): experiment.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
-        Optional[Create_metricMutationCreatemetric]"""
+        Optional[MetricFragment]"""
     return (
         await aexecute(
             Create_metricMutation,
@@ -2467,26 +2603,26 @@ async def acreate_metric(
 
 def create_metric(
     key: str,
-    value: Dict,
+    value: MetricValue,
     rep: Optional[ID] = None,
     sample: Optional[ID] = None,
     experiment: Optional[ID] = None,
     rath: MikroRath = None,
-) -> Optional[Create_metricMutationCreatemetric]:
+) -> Optional[MetricFragment]:
     """create_metric
 
 
 
     Arguments:
         key (str): key
-        value (Dict): value
+        value (MetricValue): value
         rep (Optional[ID], optional): rep.
         sample (Optional[ID], optional): sample.
         experiment (Optional[ID], optional): experiment.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
-        Optional[Create_metricMutationCreatemetric]"""
+        Optional[MetricFragment]"""
     return execute(
         Create_metricMutation,
         {

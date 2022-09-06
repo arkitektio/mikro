@@ -7,6 +7,9 @@ You can of course overwrite this in your app if you need to expand to a more com
 
 """
 
+from rekuest.widgets import CustomReturnWidget
+
+
 try:
     from rekuest.structures.default import get_default_structure_registry
     from rekuest.widgets import SearchWidget, ImageReturnWidget
@@ -18,6 +21,13 @@ try:
         identifier="@mikro/representation",
         expand=aexpand_representation,
         default_widget=SearchWidget(query=Search_representationQuery.Meta.document),
+    )
+    structure_reg.register_as_structure(
+        MetricFragment,
+        identifier="@mikro/metric",
+        expand=aexpand_metric,
+        default_widget=None,
+        default_returnwidget=CustomReturnWidget(hook="metric"),
     )
     structure_reg.register_as_structure(
         SampleFragment,

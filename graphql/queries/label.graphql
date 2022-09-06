@@ -1,0 +1,10 @@
+query get_label($representation: ID!, $instance: Int!) {
+  labelFor(representation: $representation, instance: $instance) {
+    id
+    features {
+      id
+      key
+      value
+    }
+  }
+}
