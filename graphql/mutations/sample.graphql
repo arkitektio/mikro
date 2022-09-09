@@ -3,12 +3,14 @@ mutation create_sample(
   $creator: String
   $meta: GenericScalar
   $experiments: [ID]
+  $tags: [String]
 ) {
   createSample(
     name: $name
     creator: $creator
     meta: $meta
     experiments: $experiments
+    tags: $tags
   ) {
     id
     name

@@ -1,20 +1,20 @@
-from typing import Optional, Dict, List, AsyncIterator, Iterator, Literal
-from rath.scalars import ID
-from mikro.funcs import asubscribe, execute, aexecute, subscribe
+from mikro.funcs import asubscribe, aexecute, subscribe, execute
+from typing import Iterator, Literal, Optional, Dict, List, AsyncIterator
 from mikro.scalars import (
     Parquet,
-    File,
-    FeatureValue,
-    ArrayInput,
     Store,
-    MetricValue,
+    FeatureValue,
+    File,
     DataFrame,
+    ArrayInput,
+    MetricValue,
 )
-from pydantic import Field, BaseModel
-from datetime import datetime
-from mikro.traits import Representation, Table, Vectorizable, ROI
-from enum import Enum
+from mikro.traits import ROI, Table, Vectorizable, Representation
 from mikro.rath import MikroRath
+from pydantic import Field, BaseModel
+from rath.scalars import ID
+from datetime import datetime
+from enum import Enum
 
 
 class CommentableModels(str, Enum):
@@ -465,7 +465,8 @@ class Get_labelQueryLabelforFeatures(BaseModel):
 class Get_labelQueryLabelfor(BaseModel):
     typename: Optional[Literal["Label"]] = Field(alias="__typename")
     id: ID
-    features: List[Get_labelQueryLabelforFeatures]
+    features: Optional[List[Optional[Get_labelQueryLabelforFeatures]]]
+    "Features attached to this Label"
 
 
 class Get_labelQuery(BaseModel):
@@ -918,11 +919,11 @@ class Create_labelMutation(BaseModel):
     class Arguments(BaseModel):
         instance: int
         representation: ID
-        creator: ID
+        creator: Optional[ID] = None
         name: Optional[str] = None
 
     class Meta:
-        document = "mutation create_label($instance: Int!, $representation: ID!, $creator: ID!, $name: String) {\n  createLabel(\n    instance: $instance\n    representation: $representation\n    creator: $creator\n    name: $name\n  ) {\n    id\n    instance\n  }\n}"
+        document = "mutation create_label($instance: Int!, $representation: ID!, $creator: ID, $name: String) {\n  createLabel(\n    instance: $instance\n    representation: $representation\n    creator: $creator\n    name: $name\n  ) {\n    id\n    instance\n  }\n}"
 
 
 class From_xarrayMutation(BaseModel):
@@ -1109,9 +1110,10 @@ class Create_sampleMutation(BaseModel):
         creator: Optional[str] = None
         meta: Optional[Dict] = None
         experiments: Optional[List[Optional[ID]]] = None
+        tags: Optional[List[Optional[str]]] = None
 
     class Meta:
-        document = "mutation create_sample($name: String, $creator: String, $meta: GenericScalar, $experiments: [ID]) {\n  createSample(\n    name: $name\n    creator: $creator\n    meta: $meta\n    experiments: $experiments\n  ) {\n    id\n    name\n    creator {\n      email\n    }\n  }\n}"
+        document = "mutation create_sample($name: String, $creator: String, $meta: GenericScalar, $experiments: [ID], $tags: [String]) {\n  createSample(\n    name: $name\n    creator: $creator\n    meta: $meta\n    experiments: $experiments\n    tags: $tags\n  ) {\n    id\n    name\n    creator {\n      email\n    }\n  }\n}"
 
 
 class Create_experimentMutation(BaseModel):
@@ -2207,7 +2209,7 @@ def create_feature(
 async def acreate_label(
     instance: int,
     representation: ID,
-    creator: ID,
+    creator: Optional[ID] = None,
     name: Optional[str] = None,
     rath: MikroRath = None,
 ) -> Optional[Create_labelMutationCreatelabel]:
@@ -2218,7 +2220,7 @@ async def acreate_label(
     Arguments:
         instance (int): instance
         representation (ID): representation
-        creator (ID): creator
+        creator (Optional[ID], optional): creator.
         name (Optional[str], optional): name.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
@@ -2241,7 +2243,7 @@ async def acreate_label(
 def create_label(
     instance: int,
     representation: ID,
-    creator: ID,
+    creator: Optional[ID] = None,
     name: Optional[str] = None,
     rath: MikroRath = None,
 ) -> Optional[Create_labelMutationCreatelabel]:
@@ -2252,7 +2254,7 @@ def create_label(
     Arguments:
         instance (int): instance
         representation (ID): representation
-        creator (ID): creator
+        creator (Optional[ID], optional): creator.
         name (Optional[str], optional): name.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
@@ -2803,6 +2805,7 @@ async def acreate_sample(
     creator: Optional[str] = None,
     meta: Optional[Dict] = None,
     experiments: Optional[List[Optional[ID]]] = None,
+    tags: Optional[List[Optional[str]]] = None,
     rath: MikroRath = None,
 ) -> Optional[Create_sampleMutationCreatesample]:
     """create_sample
@@ -2819,6 +2822,7 @@ async def acreate_sample(
         creator (Optional[str], optional): creator.
         meta (Optional[Dict], optional): meta.
         experiments (Optional[List[Optional[ID]]], optional): experiments.
+        tags (Optional[List[Optional[str]]], optional): tags.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
@@ -2831,6 +2835,7 @@ async def acreate_sample(
                 "creator": creator,
                 "meta": meta,
                 "experiments": experiments,
+                "tags": tags,
             },
             rath=rath,
         )
@@ -2842,6 +2847,7 @@ def create_sample(
     creator: Optional[str] = None,
     meta: Optional[Dict] = None,
     experiments: Optional[List[Optional[ID]]] = None,
+    tags: Optional[List[Optional[str]]] = None,
     rath: MikroRath = None,
 ) -> Optional[Create_sampleMutationCreatesample]:
     """create_sample
@@ -2858,13 +2864,20 @@ def create_sample(
         creator (Optional[str], optional): creator.
         meta (Optional[Dict], optional): meta.
         experiments (Optional[List[Optional[ID]]], optional): experiments.
+        tags (Optional[List[Optional[str]]], optional): tags.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[Create_sampleMutationCreatesample]"""
     return execute(
         Create_sampleMutation,
-        {"name": name, "creator": creator, "meta": meta, "experiments": experiments},
+        {
+            "name": name,
+            "creator": creator,
+            "meta": meta,
+            "experiments": experiments,
+            "tags": tags,
+        },
         rath=rath,
     ).create_sample
 
