@@ -20,7 +20,9 @@ try:
         RepresentationFragment,
         identifier="@mikro/representation",
         expand=aexpand_representation,
-        default_widget=SearchWidget(query=Search_representationQuery.Meta.document),
+        default_widget=SearchWidget(
+            query=Search_representationQuery.Meta.document, ward="mikro"
+        ),
     )
     structure_reg.register_as_structure(
         MetricFragment,
@@ -33,25 +35,33 @@ try:
         SampleFragment,
         identifier="@mikro/sample",
         expand=aexpand_sample,
-        default_widget=SearchWidget(query=Search_sampleQuery.Meta.document),
+        default_widget=SearchWidget(
+            query=Search_sampleQuery.Meta.document, ward="mikro"
+        ),
     )
     structure_reg.register_as_structure(
         TableFragment,
         identifier="@mikro/table",
         expand=aexpand_table,
-        default_widget=SearchWidget(query=Search_tablesQuery.Meta.document),
+        default_widget=SearchWidget(
+            query=Search_tablesQuery.Meta.document, ward="mikro"
+        ),
     )
     structure_reg.register_as_structure(
         ExperimentFragment,
         identifier="@mikro/experiment",
         expand=aexpand_experiment,
-        default_widget=SearchWidget(query=Search_experimentQuery.Meta.document),
+        default_widget=SearchWidget(
+            query=Search_experimentQuery.Meta.document, ward="mikro"
+        ),
     )
     structure_reg.register_as_structure(
         ThumbnailFragment,
         identifier="@mikro/thumbnail",
         expand=aexpand_thumbnail,
-        default_widget=SearchWidget(query=Search_thumbnailsQuery.Meta.document),
+        default_widget=SearchWidget(
+            query=Search_thumbnailsQuery.Meta.document, ward="mikro"
+        ),
         default_returnwidget=ImageReturnWidget(
             query=Image_for_thumbnailQuery.Meta.document
         ),
@@ -60,13 +70,15 @@ try:
         OmeroFileFragment,
         identifier="@mikro/omerofile",
         expand=aexpand_omerofile,
-        default_widget=SearchWidget(query=Search_omerofileQuery.Meta.document),
+        default_widget=SearchWidget(
+            query=Search_omerofileQuery.Meta.document, ward="mikro"
+        ),
     )
     structure_reg.register_as_structure(
         ROIFragment,
         identifier="@mikro/roi",
         expand=aget_roi,
-        default_widget=SearchWidget(query=Search_roisQuery.Meta.document),
+        default_widget=SearchWidget(query=Search_roisQuery.Meta.document, ward="mikro"),
     )
 except ImportError:
     structure_reg = None

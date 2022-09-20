@@ -10,8 +10,8 @@ query expand_table($id: ID!) {
   }
 }
 query search_tables {
-  tables {
-    id: id
+  options: tables {
+    value: id
     label: name
   }
 }

@@ -1,20 +1,20 @@
-from mikro.funcs import asubscribe, aexecute, subscribe, execute
-from typing import Iterator, Literal, Optional, Dict, List, AsyncIterator
+from datetime import datetime
+from typing import Iterator, AsyncIterator, Literal, Optional, List, Dict
+from enum import Enum
 from mikro.scalars import (
-    Parquet,
-    Store,
+    ArrayInput,
+    DataFrame,
     FeatureValue,
     File,
-    DataFrame,
-    ArrayInput,
     MetricValue,
+    Parquet,
+    Store,
 )
-from mikro.traits import ROI, Table, Vectorizable, Representation
-from mikro.rath import MikroRath
+from mikro.funcs import subscribe, asubscribe, execute, aexecute
+from mikro.traits import Representation, Table, ROI, Vectorizable
 from pydantic import Field, BaseModel
+from mikro.rath import MikroRath
 from rath.scalars import ID
-from datetime import datetime
-from enum import Enum
 
 
 class CommentableModels(str, Enum):
@@ -109,6 +109,17 @@ class ROIType(str, Enum):
     "Path"
     UNKNOWN = "UNKNOWN"
     "Unknown"
+
+
+class PandasDType(str, Enum):
+    OBJECT = "OBJECT"
+    INT64 = "INT64"
+    FLOAT64 = "FLOAT64"
+    BOOL = "BOOL"
+    CATEGORY = "CATEGORY"
+    DATETIME65 = "DATETIME65"
+    TIMEDELTA = "TIMEDELTA"
+    UNICODE = "UNICODE"
 
 
 class RoiTypeInput(str, Enum):
@@ -436,21 +447,21 @@ class Expand_omerofileQuery(BaseModel):
         document = "fragment OmeroFile on OmeroFile {\n  id\n  name\n  file\n  type\n}\n\nquery expand_omerofile($id: ID!) {\n  omerofile(id: $id) {\n    ...OmeroFile\n  }\n}"
 
 
-class Search_omerofileQueryOmerofiles(BaseModel):
+class Search_omerofileQueryOptions(BaseModel):
     typename: Optional[Literal["OmeroFile"]] = Field(alias="__typename")
     value: ID
     label: str
 
 
 class Search_omerofileQuery(BaseModel):
-    omerofiles: Optional[List[Optional[Search_omerofileQueryOmerofiles]]]
+    options: Optional[List[Optional[Search_omerofileQueryOptions]]]
     "My samples return all of the users samples attached to the current user"
 
     class Arguments(BaseModel):
         search: str
 
     class Meta:
-        document = "query search_omerofile($search: String!) {\n  omerofiles(name: $search) {\n    value: id\n    label: name\n  }\n}"
+        document = "query search_omerofile($search: String!) {\n  options: omerofiles(name: $search) {\n    value: id\n    label: name\n  }\n}"
 
 
 class Get_labelQueryLabelforFeatures(BaseModel):
@@ -662,23 +673,21 @@ class Expand_tableQuery(BaseModel):
         document = "fragment Table on Table {\n  id\n  name\n  tags\n  store\n  creator {\n    email\n  }\n  sample {\n    id\n  }\n  representation {\n    id\n  }\n  experiment {\n    id\n  }\n}\n\nquery expand_table($id: ID!) {\n  table(id: $id) {\n    ...Table\n  }\n}"
 
 
-class Search_tablesQueryTables(Table, BaseModel):
+class Search_tablesQueryOptions(Table, BaseModel):
     typename: Optional[Literal["Table"]] = Field(alias="__typename")
-    id: ID
+    value: ID
     label: str
 
 
 class Search_tablesQuery(BaseModel):
-    tables: Optional[List[Optional[Search_tablesQueryTables]]]
+    options: Optional[List[Optional[Search_tablesQueryOptions]]]
     "My samples return all of the users samples attached to the current user"
 
     class Arguments(BaseModel):
         pass
 
     class Meta:
-        document = (
-            "query search_tables {\n  tables {\n    id: id\n    label: name\n  }\n}"
-        )
+        document = "query search_tables {\n  options: tables {\n    value: id\n    label: name\n  }\n}"
 
 
 class Get_sampleQuery(BaseModel):
@@ -692,7 +701,7 @@ class Get_sampleQuery(BaseModel):
         document = "fragment Sample on Sample {\n  name\n  id\n  representations {\n    id\n  }\n  meta\n  experiments {\n    id\n  }\n}\n\nquery get_sample($id: ID!) {\n  sample(id: $id) {\n    ...Sample\n  }\n}"
 
 
-class Search_sampleQuerySamples(BaseModel):
+class Search_sampleQueryOptions(BaseModel):
     """Samples are storage containers for representations. A Sample is to be understood analogous to a Biological Sample. It existed in Time (the time of acquisiton and experimental procedure),
     was measured in space (x,y,z) and in different modalities (c). Sample therefore provide a datacontainer where each Representation of
     the data shares the same dimensions. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample
@@ -704,14 +713,14 @@ class Search_sampleQuerySamples(BaseModel):
 
 
 class Search_sampleQuery(BaseModel):
-    samples: Optional[List[Optional[Search_sampleQuerySamples]]]
+    options: Optional[List[Optional[Search_sampleQueryOptions]]]
     "All Samples"
 
     class Arguments(BaseModel):
         search: Optional[str] = None
 
     class Meta:
-        document = "query search_sample($search: String) {\n  samples(name: $search, limit: 20) {\n    value: id\n    label: name\n  }\n}"
+        document = "query search_sample($search: String) {\n  options: samples(name: $search, limit: 20) {\n    value: id\n    label: name\n  }\n}"
 
 
 class Expand_sampleQuery(BaseModel):
@@ -747,7 +756,7 @@ class Expand_experimentQuery(BaseModel):
         document = "fragment Experiment on Experiment {\n  id\n  name\n  creator {\n    email\n  }\n  meta\n}\n\nquery expand_experiment($id: ID!) {\n  experiment(id: $id) {\n    ...Experiment\n  }\n}"
 
 
-class Search_experimentQueryExperiments(BaseModel):
+class Search_experimentQueryOptions(BaseModel):
     """A Representation is a multi-dimensional Array that can do what ever it wants @elements/experiment"""
 
     typename: Optional[Literal["Experiment"]] = Field(alias="__typename")
@@ -756,14 +765,14 @@ class Search_experimentQueryExperiments(BaseModel):
 
 
 class Search_experimentQuery(BaseModel):
-    experiments: Optional[List[Optional[Search_experimentQueryExperiments]]]
+    options: Optional[List[Optional[Search_experimentQueryOptions]]]
     "All Samples"
 
     class Arguments(BaseModel):
         search: Optional[str] = None
 
     class Meta:
-        document = "query search_experiment($search: String) {\n  experiments(name: $search, limit: 30) {\n    id: id\n    label: name\n  }\n}"
+        document = "query search_experiment($search: String) {\n  options: experiments(name: $search, limit: 30) {\n    id: id\n    label: name\n  }\n}"
 
 
 class Watch_roisSubscriptionRois(BaseModel):
@@ -1218,7 +1227,7 @@ def expand_omerofile(id: ID, rath: MikroRath = None) -> Optional[OmeroFileFragme
 
 async def asearch_omerofile(
     search: str, rath: MikroRath = None
-) -> Optional[List[Optional[Search_omerofileQueryOmerofiles]]]:
+) -> Optional[List[Optional[Search_omerofileQueryOptions]]]:
     """search_omerofile
 
 
@@ -1236,7 +1245,7 @@ async def asearch_omerofile(
 
 def search_omerofile(
     search: str, rath: MikroRath = None
-) -> Optional[List[Optional[Search_omerofileQueryOmerofiles]]]:
+) -> Optional[List[Optional[Search_omerofileQueryOptions]]]:
     """search_omerofile
 
 
@@ -1760,7 +1769,7 @@ def expand_table(id: ID, rath: MikroRath = None) -> Optional[TableFragment]:
 
 async def asearch_tables(
     rath: MikroRath = None,
-) -> Optional[List[Optional[Search_tablesQueryTables]]]:
+) -> Optional[List[Optional[Search_tablesQueryOptions]]]:
     """search_tables
 
 
@@ -1775,7 +1784,7 @@ async def asearch_tables(
 
 def search_tables(
     rath: MikroRath = None,
-) -> Optional[List[Optional[Search_tablesQueryTables]]]:
+) -> Optional[List[Optional[Search_tablesQueryOptions]]]:
     """search_tables
 
 
@@ -1828,11 +1837,11 @@ def get_sample(id: ID, rath: MikroRath = None) -> Optional[SampleFragment]:
 
 async def asearch_sample(
     search: Optional[str] = None, rath: MikroRath = None
-) -> Optional[List[Optional[Search_sampleQuerySamples]]]:
+) -> Optional[List[Optional[Search_sampleQueryOptions]]]:
     """search_sample
 
 
-     samples: Samples are storage containers for representations. A Sample is to be understood analogous to a Biological Sample. It existed in Time (the time of acquisiton and experimental procedure),
+     options: Samples are storage containers for representations. A Sample is to be understood analogous to a Biological Sample. It existed in Time (the time of acquisiton and experimental procedure),
         was measured in space (x,y,z) and in different modalities (c). Sample therefore provide a datacontainer where each Representation of
         the data shares the same dimensions. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample
 
@@ -1849,11 +1858,11 @@ async def asearch_sample(
 
 def search_sample(
     search: Optional[str] = None, rath: MikroRath = None
-) -> Optional[List[Optional[Search_sampleQuerySamples]]]:
+) -> Optional[List[Optional[Search_sampleQueryOptions]]]:
     """search_sample
 
 
-     samples: Samples are storage containers for representations. A Sample is to be understood analogous to a Biological Sample. It existed in Time (the time of acquisiton and experimental procedure),
+     options: Samples are storage containers for representations. A Sample is to be understood analogous to a Biological Sample. It existed in Time (the time of acquisiton and experimental procedure),
         was measured in space (x,y,z) and in different modalities (c). Sample therefore provide a datacontainer where each Representation of
         the data shares the same dimensions. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample
 
@@ -1976,11 +1985,11 @@ def expand_experiment(id: ID, rath: MikroRath = None) -> Optional[ExperimentFrag
 
 async def asearch_experiment(
     search: Optional[str] = None, rath: MikroRath = None
-) -> Optional[List[Optional[Search_experimentQueryExperiments]]]:
+) -> Optional[List[Optional[Search_experimentQueryOptions]]]:
     """search_experiment
 
 
-     experiments: A Representation is a multi-dimensional Array that can do what ever it wants @elements/experiment
+     options: A Representation is a multi-dimensional Array that can do what ever it wants @elements/experiment
 
 
     Arguments:
@@ -1996,11 +2005,11 @@ async def asearch_experiment(
 
 def search_experiment(
     search: Optional[str] = None, rath: MikroRath = None
-) -> Optional[List[Optional[Search_experimentQueryExperiments]]]:
+) -> Optional[List[Optional[Search_experimentQueryOptions]]]:
     """search_experiment
 
 
-     experiments: A Representation is a multi-dimensional Array that can do what ever it wants @elements/experiment
+     options: A Representation is a multi-dimensional Array that can do what ever it wants @elements/experiment
 
 
     Arguments:

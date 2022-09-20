@@ -5,7 +5,7 @@ query get_sample($id: ID!) {
 }
 
 query search_sample($search: String) {
-  samples(name: $search, limit: 20) {
+  options: samples(name: $search, limit: 20) {
     value: id
     label: name
   }
