@@ -8,3 +8,9 @@ query get_label($representation: ID!, $instance: Int!) {
     }
   }
 }
+
+query expand_label($id: ID!) {
+  label(id: $id) {
+    ...Label
+  }
+}

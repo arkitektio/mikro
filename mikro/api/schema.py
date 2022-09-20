@@ -1,19 +1,19 @@
-from datetime import datetime
-from typing import Iterator, AsyncIterator, Literal, Optional, List, Dict
-from enum import Enum
 from mikro.scalars import (
     ArrayInput,
-    DataFrame,
     FeatureValue,
     File,
+    DataFrame,
     MetricValue,
-    Parquet,
     Store,
+    Parquet,
 )
-from mikro.funcs import subscribe, asubscribe, execute, aexecute
-from mikro.traits import Representation, Table, ROI, Vectorizable
-from pydantic import Field, BaseModel
+from mikro.funcs import execute, subscribe, aexecute, asubscribe
+from typing import Iterator, Optional, Literal, List, AsyncIterator, Dict
+from enum import Enum
+from mikro.traits import Table, Representation, ROI, Vectorizable
 from mikro.rath import MikroRath
+from datetime import datetime
+from pydantic import BaseModel, Field
 from rath.scalars import ID
 
 
@@ -211,6 +211,51 @@ class InputVector(BaseModel, Vectorizable):
     "C-coordinate"
     t: Optional[float]
     "T-coordinate"
+
+
+class FeatureFragmentLabelRepresentation(Representation, BaseModel):
+    """A Representation is a multi-dimensional Array that can do what ever it wants
+
+
+    @elements/rep:latest"""
+
+    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
+    id: ID
+
+
+class FeatureFragmentLabel(BaseModel):
+    typename: Optional[Literal["Label"]] = Field(alias="__typename")
+    instance: int
+    representation: Optional[FeatureFragmentLabelRepresentation]
+
+
+class FeatureFragment(BaseModel):
+    typename: Optional[Literal["Feature"]] = Field(alias="__typename")
+    label: Optional[FeatureFragmentLabel]
+    id: ID
+    key: str
+    "The sKesyss"
+    value: Optional[FeatureValue]
+    "Value"
+
+
+class LabelFragmentRepresentation(Representation, BaseModel):
+    """A Representation is a multi-dimensional Array that can do what ever it wants
+
+
+    @elements/rep:latest"""
+
+    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
+    id: ID
+    name: Optional[str]
+    "Cleartext name"
+
+
+class LabelFragment(BaseModel):
+    typename: Optional[Literal["Label"]] = Field(alias="__typename")
+    instance: int
+    id: ID
+    representation: Optional[LabelFragmentRepresentation]
 
 
 class RepresentationFragmentSample(BaseModel):
@@ -464,6 +509,17 @@ class Search_omerofileQuery(BaseModel):
         document = "query search_omerofile($search: String!) {\n  options: omerofiles(name: $search) {\n    value: id\n    label: name\n  }\n}"
 
 
+class Expand_featureQuery(BaseModel):
+    feature: Optional[FeatureFragment]
+    "Get a single representation by ID"
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "fragment Feature on Feature {\n  label {\n    instance\n    representation {\n      id\n    }\n  }\n  id\n  key\n  value\n}\n\nquery expand_feature($id: ID!) {\n  feature(id: $id) {\n    ...Feature\n  }\n}"
+
+
 class Get_labelQueryLabelforFeatures(BaseModel):
     typename: Optional[Literal["Feature"]] = Field(alias="__typename")
     id: ID
@@ -490,6 +546,17 @@ class Get_labelQuery(BaseModel):
 
     class Meta:
         document = "query get_label($representation: ID!, $instance: Int!) {\n  labelFor(representation: $representation, instance: $instance) {\n    id\n    features {\n      id\n      key\n      value\n    }\n  }\n}"
+
+
+class Expand_labelQuery(BaseModel):
+    label: Optional[LabelFragment]
+    "Get a single representation by ID"
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "fragment Label on Label {\n  instance\n  id\n  representation {\n    id\n    name\n  }\n}\n\nquery expand_label($id: ID!) {\n  label(id: $id) {\n    ...Label\n  }\n}"
 
 
 class Expand_representationQuery(BaseModel):
@@ -1259,6 +1326,34 @@ def search_omerofile(
     return execute(Search_omerofileQuery, {"search": search}, rath=rath).omerofiles
 
 
+async def aexpand_feature(id: ID, rath: MikroRath = None) -> Optional[FeatureFragment]:
+    """expand_feature
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[FeatureFragment]"""
+    return (await aexecute(Expand_featureQuery, {"id": id}, rath=rath)).feature
+
+
+def expand_feature(id: ID, rath: MikroRath = None) -> Optional[FeatureFragment]:
+    """expand_feature
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[FeatureFragment]"""
+    return execute(Expand_featureQuery, {"id": id}, rath=rath).feature
+
+
 async def aget_label(
     representation: ID, instance: int, rath: MikroRath = None
 ) -> Optional[Get_labelQueryLabelfor]:
@@ -1301,6 +1396,34 @@ def get_label(
         {"representation": representation, "instance": instance},
         rath=rath,
     ).label_for
+
+
+async def aexpand_label(id: ID, rath: MikroRath = None) -> Optional[LabelFragment]:
+    """expand_label
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[LabelFragment]"""
+    return (await aexecute(Expand_labelQuery, {"id": id}, rath=rath)).label
+
+
+def expand_label(id: ID, rath: MikroRath = None) -> Optional[LabelFragment]:
+    """expand_label
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[LabelFragment]"""
+    return execute(Expand_labelQuery, {"id": id}, rath=rath).label
 
 
 async def aexpand_representation(

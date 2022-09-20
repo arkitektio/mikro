@@ -80,5 +80,17 @@ try:
         expand=aget_roi,
         default_widget=SearchWidget(query=Search_roisQuery.Meta.document, ward="mikro"),
     )
+    structure_reg.register_as_structure(
+        FeatureFragment,
+        identifier="@mikro/feature",
+        expand=aexpand_feature,
+        default_widget=SearchWidget(query=Search_roisQuery.Meta.document, ward="mikro"),
+    )
+    structure_reg.register_as_structure(
+        LabelFragment,
+        identifier="@mikro/label",
+        expand=aexpand_label,
+        default_widget=SearchWidget(query=Search_roisQuery.Meta.document, ward="mikro"),
+    )
 except ImportError:
     structure_reg = None
