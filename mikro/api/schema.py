@@ -1,20 +1,20 @@
-from mikro.scalars import (
-    ArrayInput,
-    FeatureValue,
-    File,
-    DataFrame,
-    MetricValue,
-    Store,
-    Parquet,
-)
-from mikro.funcs import execute, subscribe, aexecute, asubscribe
-from typing import Iterator, Optional, Literal, List, AsyncIterator, Dict
-from enum import Enum
-from mikro.traits import Table, Representation, ROI, Vectorizable
-from mikro.rath import MikroRath
-from datetime import datetime
-from pydantic import BaseModel, Field
+from mikro.funcs import execute, subscribe, asubscribe, aexecute
+from typing import Optional, Literal, Iterator, Dict, AsyncIterator, List
+from mikro.traits import Vectorizable, Table, Representation, ROI
 from rath.scalars import ID
+from mikro.scalars import (
+    Parquet,
+    DataFrame,
+    File,
+    FeatureValue,
+    ArrayInput,
+    Store,
+    MetricValue,
+)
+from pydantic import Field, BaseModel
+from datetime import datetime
+from enum import Enum
+from mikro.rath import MikroRath
 
 
 class CommentableModels(str, Enum):
@@ -656,7 +656,7 @@ class Expand_thumbnailQuery(BaseModel):
 
 
 class Search_thumbnailsQueryThumbnails(BaseModel):
-    """Thumbnail(id, representation, image)"""
+    """Thumbnail(id, representation, image, major_color)"""
 
     typename: Optional[Literal["Thumbnail"]] = Field(alias="__typename")
     value: ID
@@ -675,7 +675,7 @@ class Search_thumbnailsQuery(BaseModel):
 
 
 class Image_for_thumbnailQueryImage(BaseModel):
-    """Thumbnail(id, representation, image)"""
+    """Thumbnail(id, representation, image, major_color)"""
 
     typename: Optional[Literal["Thumbnail"]] = Field(alias="__typename")
     path: Optional[str]
@@ -827,7 +827,7 @@ class Search_experimentQueryOptions(BaseModel):
     """A Representation is a multi-dimensional Array that can do what ever it wants @elements/experiment"""
 
     typename: Optional[Literal["Experiment"]] = Field(alias="__typename")
-    id: ID
+    value: ID
     label: str
 
 
@@ -839,7 +839,7 @@ class Search_experimentQuery(BaseModel):
         search: Optional[str] = None
 
     class Meta:
-        document = "query search_experiment($search: String) {\n  options: experiments(name: $search, limit: 30) {\n    id: id\n    label: name\n  }\n}"
+        document = "query search_experiment($search: String) {\n  options: experiments(name: $search, limit: 30) {\n    value: id\n    label: name\n  }\n}"
 
 
 class Watch_roisSubscriptionRois(BaseModel):
@@ -1084,9 +1084,10 @@ class Create_thumbnailMutation(BaseModel):
     class Arguments(BaseModel):
         rep: ID
         file: File
+        major_color: Optional[str] = None
 
     class Meta:
-        document = "fragment Thumbnail on Thumbnail {\n  id\n  image\n}\n\nmutation create_thumbnail($rep: ID!, $file: ImageFile!) {\n  uploadThumbnail(rep: $rep, file: $file) {\n    ...Thumbnail\n  }\n}"
+        document = "fragment Thumbnail on Thumbnail {\n  id\n  image\n}\n\nmutation create_thumbnail($rep: ID!, $file: ImageFile!, $major_color: String) {\n  uploadThumbnail(rep: $rep, file: $file, majorColor: $major_color) {\n    ...Thumbnail\n  }\n}"
 
 
 class Create_metricMutation(BaseModel):
@@ -1201,9 +1202,10 @@ class Create_experimentMutation(BaseModel):
         creator: Optional[str] = None
         meta: Optional[Dict] = None
         description: Optional[str] = None
+        tags: Optional[List[Optional[str]]] = None
 
     class Meta:
-        document = "fragment Experiment on Experiment {\n  id\n  name\n  creator {\n    email\n  }\n  meta\n}\n\nmutation create_experiment($name: String!, $creator: String, $meta: GenericScalar, $description: String) {\n  createExperiment(\n    name: $name\n    creator: $creator\n    description: $description\n    meta: $meta\n  ) {\n    ...Experiment\n  }\n}"
+        document = "fragment Experiment on Experiment {\n  id\n  name\n  creator {\n    email\n  }\n  meta\n}\n\nmutation create_experiment($name: String!, $creator: String, $meta: GenericScalar, $description: String, $tags: [String]) {\n  createExperiment(\n    name: $name\n    creator: $creator\n    description: $description\n    meta: $meta\n    tags: $tags\n  ) {\n    ...Experiment\n  }\n}"
 
 
 async def arequest(rath: MikroRath = None) -> Optional[RequestQueryRequest]:
@@ -1626,7 +1628,7 @@ async def athumbnail(id: ID, rath: MikroRath = None) -> Optional[ThumbnailFragme
     """Thumbnail
 
 
-     thumbnail: Thumbnail(id, representation, image)
+     thumbnail: Thumbnail(id, representation, image, major_color)
 
 
     Arguments:
@@ -1642,7 +1644,7 @@ def thumbnail(id: ID, rath: MikroRath = None) -> Optional[ThumbnailFragment]:
     """Thumbnail
 
 
-     thumbnail: Thumbnail(id, representation, image)
+     thumbnail: Thumbnail(id, representation, image, major_color)
 
 
     Arguments:
@@ -1660,7 +1662,7 @@ async def aexpand_thumbnail(
     """expand_thumbnail
 
 
-     thumbnail: Thumbnail(id, representation, image)
+     thumbnail: Thumbnail(id, representation, image, major_color)
 
 
     Arguments:
@@ -1676,7 +1678,7 @@ def expand_thumbnail(id: ID, rath: MikroRath = None) -> Optional[ThumbnailFragme
     """expand_thumbnail
 
 
-     thumbnail: Thumbnail(id, representation, image)
+     thumbnail: Thumbnail(id, representation, image, major_color)
 
 
     Arguments:
@@ -1694,7 +1696,7 @@ async def asearch_thumbnails(
     """search_thumbnails
 
 
-     thumbnails: Thumbnail(id, representation, image)
+     thumbnails: Thumbnail(id, representation, image, major_color)
 
 
     Arguments:
@@ -1714,7 +1716,7 @@ def search_thumbnails(
     """search_thumbnails
 
 
-     thumbnails: Thumbnail(id, representation, image)
+     thumbnails: Thumbnail(id, representation, image, major_color)
 
 
     Arguments:
@@ -1732,7 +1734,7 @@ async def aimage_for_thumbnail(
     """image_for_thumbnail
 
 
-     image: Thumbnail(id, representation, image)
+     image: Thumbnail(id, representation, image, major_color)
 
 
     Arguments:
@@ -1750,7 +1752,7 @@ def image_for_thumbnail(
     """image_for_thumbnail
 
 
-     image: Thumbnail(id, representation, image)
+     image: Thumbnail(id, representation, image, major_color)
 
 
     Arguments:
@@ -2657,44 +2659,52 @@ def update_representation(
 
 
 async def acreate_thumbnail(
-    rep: ID, file: File, rath: MikroRath = None
+    rep: ID, file: File, major_color: Optional[str] = None, rath: MikroRath = None
 ) -> Optional[ThumbnailFragment]:
     """create_thumbnail
 
 
-     uploadThumbnail: Thumbnail(id, representation, image)
+     uploadThumbnail: Thumbnail(id, representation, image, major_color)
 
 
     Arguments:
         rep (ID): rep
         file (File): file
+        major_color (Optional[str], optional): major_color.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[ThumbnailFragment]"""
     return (
-        await aexecute(Create_thumbnailMutation, {"rep": rep, "file": file}, rath=rath)
+        await aexecute(
+            Create_thumbnailMutation,
+            {"rep": rep, "file": file, "major_color": major_color},
+            rath=rath,
+        )
     ).upload_thumbnail
 
 
 def create_thumbnail(
-    rep: ID, file: File, rath: MikroRath = None
+    rep: ID, file: File, major_color: Optional[str] = None, rath: MikroRath = None
 ) -> Optional[ThumbnailFragment]:
     """create_thumbnail
 
 
-     uploadThumbnail: Thumbnail(id, representation, image)
+     uploadThumbnail: Thumbnail(id, representation, image, major_color)
 
 
     Arguments:
         rep (ID): rep
         file (File): file
+        major_color (Optional[str], optional): major_color.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[ThumbnailFragment]"""
     return execute(
-        Create_thumbnailMutation, {"rep": rep, "file": file}, rath=rath
+        Create_thumbnailMutation,
+        {"rep": rep, "file": file, "major_color": major_color},
+        rath=rath,
     ).upload_thumbnail
 
 
@@ -3019,6 +3029,7 @@ async def acreate_experiment(
     creator: Optional[str] = None,
     meta: Optional[Dict] = None,
     description: Optional[str] = None,
+    tags: Optional[List[Optional[str]]] = None,
     rath: MikroRath = None,
 ) -> Optional[ExperimentFragment]:
     """create_experiment
@@ -3032,6 +3043,7 @@ async def acreate_experiment(
         creator (Optional[str], optional): creator.
         meta (Optional[Dict], optional): meta.
         description (Optional[str], optional): description.
+        tags (Optional[List[Optional[str]]], optional): tags.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
@@ -3044,6 +3056,7 @@ async def acreate_experiment(
                 "creator": creator,
                 "meta": meta,
                 "description": description,
+                "tags": tags,
             },
             rath=rath,
         )
@@ -3055,6 +3068,7 @@ def create_experiment(
     creator: Optional[str] = None,
     meta: Optional[Dict] = None,
     description: Optional[str] = None,
+    tags: Optional[List[Optional[str]]] = None,
     rath: MikroRath = None,
 ) -> Optional[ExperimentFragment]:
     """create_experiment
@@ -3068,13 +3082,20 @@ def create_experiment(
         creator (Optional[str], optional): creator.
         meta (Optional[Dict], optional): meta.
         description (Optional[str], optional): description.
+        tags (Optional[List[Optional[str]]], optional): tags.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[ExperimentFragment]"""
     return execute(
         Create_experimentMutation,
-        {"name": name, "creator": creator, "meta": meta, "description": description},
+        {
+            "name": name,
+            "creator": creator,
+            "meta": meta,
+            "description": description,
+            "tags": tags,
+        },
         rath=rath,
     ).create_experiment
 

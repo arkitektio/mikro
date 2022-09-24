@@ -14,10 +14,10 @@ try:
     from rekuest.widgets import SearchWidget
 
     MY_TOP_REPRESENTATIONS = SearchWidget(
-        query=Search_representationQuery.Meta.document
+        query=Search_representationQuery.Meta.document, ward="mikro"
     )
 
-    MY_TOP_SAMPLES = SearchWidget(query=Search_sampleQuery.Meta.document)
+    MY_TOP_SAMPLES = SearchWidget(query=Search_sampleQuery.Meta.document, ward="mikro")
 
 except:
     pass
