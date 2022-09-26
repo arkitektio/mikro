@@ -11,4 +11,9 @@ fragment Representation on Representation {
   omero {
     scale
   }
+  origins {
+    id
+    store
+    variety
+  }
 }

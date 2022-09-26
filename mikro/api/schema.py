@@ -1,19 +1,19 @@
-from mikro.funcs import execute, subscribe, asubscribe, aexecute
-from typing import Optional, Literal, Iterator, Dict, AsyncIterator, List
-from mikro.traits import Vectorizable, Table, Representation, ROI
-from rath.scalars import ID
-from mikro.scalars import (
-    Parquet,
-    DataFrame,
-    File,
-    FeatureValue,
-    ArrayInput,
-    Store,
-    MetricValue,
-)
-from pydantic import Field, BaseModel
-from datetime import datetime
 from enum import Enum
+from mikro.scalars import (
+    File,
+    Store,
+    Parquet,
+    ArrayInput,
+    MetricValue,
+    DataFrame,
+    FeatureValue,
+)
+from typing import List, Iterator, Optional, Literal, AsyncIterator, Dict
+from rath.scalars import ID
+from mikro.traits import Vectorizable, ROI, Table, Representation
+from datetime import datetime
+from pydantic import Field, BaseModel
+from mikro.funcs import subscribe, asubscribe, aexecute, execute
 from mikro.rath import MikroRath
 
 
@@ -274,6 +274,19 @@ class RepresentationFragmentOmero(BaseModel):
     scale: Optional[List[Optional[float]]]
 
 
+class RepresentationFragmentOrigins(Representation, BaseModel):
+    """A Representation is a multi-dimensional Array that can do what ever it wants
+
+
+    @elements/rep:latest"""
+
+    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
+    id: ID
+    store: Optional[Store]
+    variety: RepresentationVariety
+    "The Representation can have varying types, consult your API"
+
+
 class RepresentationFragment(Representation, BaseModel):
     typename: Optional[Literal["Representation"]] = Field(alias="__typename")
     sample: Optional[RepresentationFragmentSample]
@@ -287,6 +300,7 @@ class RepresentationFragment(Representation, BaseModel):
     name: Optional[str]
     "Cleartext name"
     omero: Optional[RepresentationFragmentOmero]
+    origins: List[RepresentationFragmentOrigins]
 
 
 class ThumbnailFragment(BaseModel):
@@ -569,7 +583,7 @@ class Expand_representationQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  type\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n  }\n}\n\nquery expand_representation($id: ID!) {\n  representation(id: $id) {\n    ...Representation\n  }\n}"
+        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  type\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nquery expand_representation($id: ID!) {\n  representation(id: $id) {\n    ...Representation\n  }\n}"
 
 
 class Get_representationQuery(BaseModel):
@@ -580,7 +594,7 @@ class Get_representationQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  type\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n  }\n}\n\nquery get_representation($id: ID!) {\n  representation(id: $id) {\n    ...Representation\n  }\n}"
+        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  type\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nquery get_representation($id: ID!) {\n  representation(id: $id) {\n    ...Representation\n  }\n}"
 
 
 class Search_representationQueryOptions(Representation, BaseModel):
@@ -620,7 +634,7 @@ class Get_random_repQuery(BaseModel):
         pass
 
     class Meta:
-        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  type\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n  }\n}\n\nquery get_random_rep {\n  randomRepresentation {\n    ...Representation\n  }\n}"
+        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  type\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nquery get_random_rep {\n  randomRepresentation {\n    ...Representation\n  }\n}"
 
 
 class My_accessiblesQuery(BaseModel):
@@ -630,7 +644,7 @@ class My_accessiblesQuery(BaseModel):
         pass
 
     class Meta:
-        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  type\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n  }\n}\n\nquery my_accessibles {\n  accessiblerepresentations {\n    ...Representation\n  }\n}"
+        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  type\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nquery my_accessibles {\n  accessiblerepresentations {\n    ...Representation\n  }\n}"
 
 
 class ThumbnailQuery(BaseModel):
@@ -937,9 +951,10 @@ class Upload_bioimageMutation(BaseModel):
 
     class Arguments(BaseModel):
         file: File
+        name: Optional[str] = None
 
     class Meta:
-        document = "mutation upload_bioimage($file: ImageFile!) {\n  uploadOmeroFile(file: $file) {\n    id\n    file\n    type\n    name\n  }\n}"
+        document = "mutation upload_bioimage($file: ImageFile!, $name: String) {\n  uploadOmeroFile(file: $file, name: $name) {\n    id\n    file\n    type\n    name\n  }\n}"
 
 
 class Create_featureMutationCreatefeatureLabelRepresentation(Representation, BaseModel):
@@ -1019,7 +1034,7 @@ class From_xarrayMutation(BaseModel):
         omero: Optional[OmeroRepresentationInput] = None
 
     class Meta:
-        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  type\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n  }\n}\n\nmutation from_xarray($xarray: XArray!, $name: String, $variety: RepresentationVarietyInput, $origins: [ID], $files: [ID], $tags: [String], $sample: ID, $omero: OmeroRepresentationInput) {\n  fromXArray(\n    xarray: $xarray\n    name: $name\n    origins: $origins\n    tags: $tags\n    sample: $sample\n    omero: $omero\n    files: $files\n    variety: $variety\n  ) {\n    ...Representation\n  }\n}"
+        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  type\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nmutation from_xarray($xarray: XArray!, $name: String, $variety: RepresentationVarietyInput, $origins: [ID], $files: [ID], $tags: [String], $sample: ID, $omero: OmeroRepresentationInput) {\n  fromXArray(\n    xarray: $xarray\n    name: $name\n    origins: $origins\n    tags: $tags\n    sample: $sample\n    omero: $omero\n    files: $files\n    variety: $variety\n  ) {\n    ...Representation\n  }\n}"
 
 
 class Double_uploadMutationX(Representation, BaseModel):
@@ -1075,7 +1090,7 @@ class Update_representationMutation(BaseModel):
         variety: Optional[RepresentationVarietyInput] = None
 
     class Meta:
-        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  type\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n  }\n}\n\nmutation update_representation($id: ID!, $tags: [String], $sample: ID, $variety: RepresentationVarietyInput) {\n  updateRepresentation(rep: $id, tags: $tags, sample: $sample, variety: $variety) {\n    ...Representation\n  }\n}"
+        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  type\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nmutation update_representation($id: ID!, $tags: [String], $sample: ID, $variety: RepresentationVarietyInput) {\n  updateRepresentation(rep: $id, tags: $tags, sample: $sample, variety: $variety) {\n    ...Representation\n  }\n}"
 
 
 class Create_thumbnailMutation(BaseModel):
@@ -2251,7 +2266,7 @@ def negotiate(rath: MikroRath = None) -> Optional[Dict]:
 
 
 async def aupload_bioimage(
-    file: File, rath: MikroRath = None
+    file: File, name: Optional[str] = None, rath: MikroRath = None
 ) -> Optional[Upload_bioimageMutationUploadomerofile]:
     """upload_bioimage
 
@@ -2259,17 +2274,18 @@ async def aupload_bioimage(
 
     Arguments:
         file (File): file
+        name (Optional[str], optional): name.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[Upload_bioimageMutationUploadomerofile]"""
     return (
-        await aexecute(Upload_bioimageMutation, {"file": file}, rath=rath)
+        await aexecute(Upload_bioimageMutation, {"file": file, "name": name}, rath=rath)
     ).upload_omero_file
 
 
 def upload_bioimage(
-    file: File, rath: MikroRath = None
+    file: File, name: Optional[str] = None, rath: MikroRath = None
 ) -> Optional[Upload_bioimageMutationUploadomerofile]:
     """upload_bioimage
 
@@ -2277,11 +2293,14 @@ def upload_bioimage(
 
     Arguments:
         file (File): file
+        name (Optional[str], optional): name.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[Upload_bioimageMutationUploadomerofile]"""
-    return execute(Upload_bioimageMutation, {"file": file}, rath=rath).upload_omero_file
+    return execute(
+        Upload_bioimageMutation, {"file": file, "name": name}, rath=rath
+    ).upload_omero_file
 
 
 async def acreate_feature(
