@@ -247,8 +247,7 @@ class File:
 
         dl = dl or current_datalayer.get()
         url = f"{dl.endpoint_url}{self.value}"
-        x = str(uuid.uuid4())
-        local_filename = f"{x}.tif"
+        local_filename = self.value.split("/")[-1].split("?")[0]
         with requests.get(url, stream=True) as r:
             with open(local_filename, "wb") as f:
                 shutil.copyfileobj(r.raw, f)

@@ -29,7 +29,7 @@ try:
         identifier="@mikro/metric",
         expand=aexpand_metric,
         default_widget=None,
-        default_returnwidget=CustomReturnWidget(hook="metric"),
+        default_returnwidget=CustomReturnWidget(hook="metric", ward="mikro"),
     )
     structure_reg.register_as_structure(
         SampleFragment,
@@ -63,7 +63,7 @@ try:
             query=Search_thumbnailsQuery.Meta.document, ward="mikro"
         ),
         default_returnwidget=ImageReturnWidget(
-            query=Image_for_thumbnailQuery.Meta.document
+            query=Image_for_thumbnailQuery.Meta.document, ward="mikro"
         ),
     )
     structure_reg.register_as_structure(
@@ -77,7 +77,7 @@ try:
     structure_reg.register_as_structure(
         ROIFragment,
         identifier="@mikro/roi",
-        expand=aget_roi,
+        expand=aexpand_roi,
         default_widget=SearchWidget(query=Search_roisQuery.Meta.document, ward="mikro"),
     )
     structure_reg.register_as_structure(

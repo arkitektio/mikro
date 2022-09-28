@@ -1,6 +1,6 @@
 fragment Metric on Metric {
   id
-  rep {
+  representation {
     id
   }
   key

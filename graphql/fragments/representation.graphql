@@ -10,6 +10,13 @@ fragment Representation on Representation {
   name
   omero {
     scale
+    physicalSize {
+      x
+      y
+      z
+      t
+      c
+    }
   }
   origins {
     id

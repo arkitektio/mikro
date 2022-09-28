@@ -10,7 +10,11 @@ Attributes:
 
 
 try:
-    from mikro.api.schema import Search_representationQuery, Search_sampleQuery
+    from mikro.api.schema import (
+        Search_representationQuery,
+        Search_sampleQuery,
+        Search_tagsQuery,
+    )
     from rekuest.widgets import SearchWidget
 
     MY_TOP_REPRESENTATIONS = SearchWidget(
@@ -18,6 +22,8 @@ try:
     )
 
     MY_TOP_SAMPLES = SearchWidget(query=Search_sampleQuery.Meta.document, ward="mikro")
+
+    TAGS_WIDGET = SearchWidget(query=Search_tagsQuery.Meta.document, ward="mikro")
 
 except:
     pass

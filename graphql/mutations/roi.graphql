@@ -3,12 +3,16 @@ mutation create_roi(
   $vectors: [InputVector]!
   $creator: ID
   $type: RoiTypeInput!
+  $label: String
+  $tags: [String]
 ) {
   createROI(
     representation: $representation
     vectors: $vectors
     type: $type
     creator: $creator
+    label: $label
+    tags: $tags
   ) {
     ...ROI
   }

@@ -1,12 +1,12 @@
 mutation create_metric(
-  $rep: ID
+  $representation: ID
   $sample: ID
   $experiment: ID
   $key: String!
   $value: MetricValue!
 ) {
   createMetric(
-    rep: $rep
+    representation: $representation
     sample: $sample
     experiment: $experiment
     key: $key

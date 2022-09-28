@@ -1,0 +1,11 @@
+fragment Instrument on Instrument {
+  id
+  dichroics
+  detectors
+  filters
+  name
+  lotNumber
+  serialNumber
+  manufacturer
+  model
+}

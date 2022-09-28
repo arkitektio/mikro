@@ -1,0 +1,23 @@
+mutation create_instrument(
+  $detectors: [GenericScalar]
+  $dichroics: [GenericScalar]
+  $filters: [GenericScalar]
+  $name: String!
+  $lotNumber: String
+  $serialNumber: String
+  $model: String
+  $manufacturer: String
+) {
+  createInstrument(
+    detectors: $detectors
+    dichroics: $dichroics
+    filters: $filters
+    name: $name
+    lotNumber: $lotNumber
+    serialNumber: $serialNumber
+    model: $model
+    manufacturer: $manufacturer
+  ) {
+    ...Instrument
+  }
+}
