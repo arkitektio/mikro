@@ -3,7 +3,6 @@ fragment Representation on Representation {
     id
     name
   }
-  type
   id
   store
   variety

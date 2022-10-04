@@ -4,5 +4,4 @@ fragment Experiment on Experiment {
   creator {
     email
   }
-  meta
 }
