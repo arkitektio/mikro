@@ -29,7 +29,6 @@ services:
       - minio
   minio:
     image: jhnnsrs/datalayer:prod
-    command: server /export
     ports:
       - 9008:9000
     environment:

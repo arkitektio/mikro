@@ -7,12 +7,12 @@ You can of course overwrite this in your app if you need to expand to a more com
 
 """
 
-from rekuest.widgets import CustomReturnWidget
 
 
 try:
     from rekuest.structures.default import get_default_structure_registry
     from rekuest.widgets import SearchWidget, ImageReturnWidget
+    from rekuest.widgets import CustomReturnWidget
     from mikro.api.schema import *
 
     structure_reg = get_default_structure_registry()

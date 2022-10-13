@@ -1,19 +1,53 @@
+from functools import cached_property
 import numpy as np
 import pytest
 from mikro.api.schema import create_sample, from_xarray, get_random_rep
 from .integration.utils import wait_for_http_response
 from .utils import build_relative
 import xarray as xr
+import os
+import subprocess
+from testcontainers.compose import DockerCompose
+
+class DockerV2Compose(DockerCompose):
+
+    @cached_property
+    def docker_cmd_comment(self):
+        """Returns the base docker command by testing the docker compose api
+
+        Returns:
+            list[ſt]: _description_
+        """
+        return ["docker","compose"] if subprocess.run(["docker", "compose", "--help"], stdout=subprocess.DEVNULL,
+        stderr=subprocess.STDOUT).returncode == 0 else ["docker-compose"]
+
+    def docker_compose_command(self):
+        """
+        Returns command parts used for the docker compose commands
+
+        Returns
+        -------
+        list[str]
+            The docker compose command parts
+        """
+        docker_compose_cmd = self.docker_cmd_comment
+        for file in self.compose_file_names:
+            docker_compose_cmd += ['-f', file]
+        if self.env_file:
+            docker_compose_cmd += ['--env-file', self.env_file]
+        return docker_compose_cmd
+
 
 
 @pytest.mark.integration
 @pytest.fixture(scope="session")
 def environment():
-    from testcontainers.compose import DockerCompose
 
-    with DockerCompose(
+    assert os.path.exists(build_relative("integration")), "Integration tests not found"
+
+    with DockerV2Compose(
         filepath=build_relative("integration"),
-        compose_file_name="docker-compose.yaml",
+        compose_file_name="docker-compose.yml",
     ) as compose:
         wait_for_http_response("http://localhost:8019/ht", max_retries=5)
         wait_for_http_response("http://localhost:8088/ht", max_retries=5)
@@ -53,7 +87,7 @@ def test_write_random(app, environment):
             name="test_random_write",
         )
         assert x.id, "Did not get a random rep"
-        assert x.data.shape == (1, 1, 1000, 1000, 10), "Did not write data"
+        assert x.data.shape == (1, 1, 10, 1000, 1000), "Did not write data according to schema ( T, C, Z, Y, X )"
 
 
 @pytest.mark.integration
