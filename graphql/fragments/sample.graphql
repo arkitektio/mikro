@@ -4,7 +4,6 @@ fragment Sample on Sample {
   representations {
     id
   }
-  meta
   experiments {
     id
   }

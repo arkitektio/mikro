@@ -1,7 +1,7 @@
 mutation create_label(
   $instance: Int!
   $representation: ID!
-  $creator: ID!
+  $creator: ID
   $name: String
 ) {
   createLabel(

@@ -1,14 +1,14 @@
 mutation create_experiment(
   $name: String!
   $creator: String
-  $meta: GenericScalar
   $description: String
+  $tags: [String]
 ) {
   createExperiment(
     name: $name
     creator: $creator
     description: $description
-    meta: $meta
+    tags: $tags
   ) {
     ...Experiment
   }

@@ -1,0 +1,11 @@
+fragment Feature on Feature {
+  label {
+    instance
+    representation {
+      id
+    }
+  }
+  id
+  key
+  value
+}

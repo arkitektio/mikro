@@ -11,10 +11,10 @@ If you want to add your own traits to the graphql type, you can do so by adding 
 
 """
 
-from typing import List, TypeVar
-from wsgiref.validate import validator
+from asyncio import get_running_loop
+from typing import Awaitable, List, TypeVar
 import numpy as np
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 import xarray as xr
 import pandas as pd
 
@@ -34,13 +34,36 @@ class Representation(BaseModel, ShrinkByID):
 
     id: str
 
-    @classmethod
-    def get_identifier(cls):
-        return "representation"
+    def get_identifier():
+        return "@mikro/representation"
 
     @property
     def data(self) -> xr.DataArray:
-        """The Data of the Representation as an xr.DataArray
+        """The Data of the Representation as an xr.DataArray. Not accessible from asyncio
+
+        Returns:
+            xr.DataArray: The associated object.
+
+        Raises:
+            AssertionError: If the representation has no store attribute quries
+        """
+        try:
+            get_running_loop()
+        except RuntimeError:
+            pstore = getattr(self, "store", None)
+            assert (
+                pstore is not None
+            ), "Please query 'store' in your request on 'Representation'. Data is not accessible otherwise"
+
+            return pstore.open()
+
+        raise RuntimeError(
+            "This method is not available when running in an event loop . Please use adata to retreive a future to your data."
+        )
+
+    @property
+    def adata(self) -> Awaitable[xr.DataArray]:
+        """The Data of the Representation as an xr.DataArray. Accessible from asyncio.
 
         Returns:
             xr.DataArray: The associated object.
@@ -53,35 +76,11 @@ class Representation(BaseModel, ShrinkByID):
             pstore is not None
         ), "Please query 'store' in your request on 'Representation'. Data is not accessible otherwise"
 
-        return pstore.open()
-
-
-class Experiment(BaseModel, ShrinkByID):
-    id: str = Field(validator)
-
-    @classmethod
-    def get_identifier(cls):
-        return "experiment"
+        return pstore.aopen()
 
 
 class ROI(BaseModel, ShrinkByID):
     """Additional Methods for ROI"""
-
-    id: str
-
-    @classmethod
-    def get_identifier(cls):
-        """THis classes identifier on the platform"""
-        return "roi"
-
-    async def ashrink(self):
-        """Shrinks this to a unique identifier on
-        the mikro server
-
-        Returns:
-            str: The unique identifier
-        """
-        return self.id
 
     @property
     def vector_data(self) -> np.ndarray:
@@ -95,15 +94,7 @@ class ROI(BaseModel, ShrinkByID):
             vector_list
         ), "Please query 'vectors' in your request on 'ROI'. Data is not accessible otherwise"
         vector_list: list
-        return np.array([[v.x, v.y, v.z] for v in vector_list])
-
-
-class Sample(BaseModel, ShrinkByID):
-    id: str
-
-    @classmethod
-    def get_identifier(cls):
-        return "sample"
+        return np.array([[v.x, v.y] for v in vector_list])
 
 
 class Table(BaseModel, ShrinkByID):
@@ -124,31 +115,11 @@ class Table(BaseModel, ShrinkByID):
         Returns:
             pd.DataFrame: The Dataframe
         """
-        pstore = getattr(self, "parquet", None)
+        pstore = getattr(self, "store", None)
         assert (
             pstore is not None
         ), "Please query 'parquet' in your request on 'Table'. Data is not accessible otherwise"
-        return pstore.df
-
-    @classmethod
-    def get_identifier(cls):
-        return "table"
-
-
-class Thumbnail(BaseModel, ShrinkByID):
-    id: str
-
-    @classmethod
-    def get_identifier(cls):
-        return "thumbnail"
-
-
-class OmeroFile(BaseModel, ShrinkByID):
-    id: str
-
-    @classmethod
-    def get_identifier(cls):
-        return "omerofile"
+        return pstore.open()
 
 
 T = TypeVar("T", bound="BaseModel")
@@ -156,7 +127,7 @@ T = TypeVar("T", bound="BaseModel")
 
 class Vectorizable:
     @classmethod
-    def list_from_numpyarray(cls: T, x: np.ndarray) -> List[T]:
+    def list_from_numpyarray(cls: T, x: np.ndarray, t=None, c=None, z=None) -> List[T]:
         """Creates a list of InputVector from a numpya array
 
         Args:
@@ -166,10 +137,13 @@ class Vectorizable:
             List[Vectorizable]: A list of InputVector
         """
         assert x.ndim == 2, "Needs to be a List array of vectors"
+        print(x)
+        if x.shape[1] == 4:
+            return [cls(x=i[0], y=i[1], z=i[2], t=i[3], c=c) for i in x.tolist()]
         if x.shape[1] == 3:
-            return [cls(x=i[0], y=i[1], z=i[2]) for i in x.tolist()]
+            return [cls(x=i[0], y=i[1], z=i[2], t=t, c=c) for i in x.tolist()]
         elif x.shape[1] == 2:
-            return [cls(x=i[0], y=i[1]) for i in x.tolist()]
+            return [cls(x=i[0], y=i[1], t=t, c=c, z=z) for i in x.tolist()]
         else:
             raise NotImplementedError(
                 f"Incompatible shape {x.shape} of {x}. List dimension needs to either be of size 2 or 3"

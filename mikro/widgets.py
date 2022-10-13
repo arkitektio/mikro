@@ -10,14 +10,20 @@ Attributes:
 
 
 try:
-    from mikro.api.schema import Search_representationQuery, Search_sampleQuery
-    from arkitekt.widgets import SearchWidget
+    from mikro.api.schema import (
+        Search_representationQuery,
+        Search_sampleQuery,
+        Search_tagsQuery,
+    )
+    from rekuest.widgets import SearchWidget
 
     MY_TOP_REPRESENTATIONS = SearchWidget(
-        query=Search_representationQuery.Meta.document
+        query=Search_representationQuery.Meta.document, ward="mikro"
     )
 
-    MY_TOP_SAMPLES = SearchWidget(query=Search_sampleQuery.Meta.document)
+    MY_TOP_SAMPLES = SearchWidget(query=Search_sampleQuery.Meta.document, ward="mikro")
+
+    TAGS_WIDGET = SearchWidget(query=Search_tagsQuery.Meta.document, ward="mikro")
 
 except:
     pass

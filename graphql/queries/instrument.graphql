@@ -1,0 +1,18 @@
+query get_instrument($id: ID, $name: String) {
+  instrument(id: $id, name: $name) {
+    ...Instrument
+  }
+}
+
+query expand_instrument($id: ID!) {
+  instrument(id: $id) {
+    ...Instrument
+  }
+}
+
+query search_instruments($search: String) {
+  options: instruments(name: $search, limit: 30) {
+    value: id
+    label: name
+  }
+}

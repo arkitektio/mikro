@@ -1,5 +1,5 @@
-mutation upload_bioimage($file: Upload!) {
-  uploadOmeroFile(file: $file) {
+mutation upload_bioimage($file: ImageFile!, $name: String) {
+  uploadOmeroFile(file: $file, name: $name) {
     id
     file
     type

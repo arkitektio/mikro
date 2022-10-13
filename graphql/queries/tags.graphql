@@ -1,0 +1,6 @@
+query search_tags($search: String) {
+  options: tags(name: $search) {
+    value: slug
+    label: name
+  }
+}

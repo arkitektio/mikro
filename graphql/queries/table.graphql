@@ -1,4 +1,4 @@
-query Table($id: ID!) {
+query get_table($id: ID!) {
   table(id: $id) {
     ...Table
   }
@@ -10,9 +10,8 @@ query expand_table($id: ID!) {
   }
 }
 query search_tables {
-  tables {
-    id: id
+  options: tables {
+    value: id
     label: name
   }
 }
-

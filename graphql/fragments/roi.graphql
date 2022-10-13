@@ -1,8 +1,35 @@
 fragment ROI on ROI {
   id
+  label
   vectors {
     x
     y
+    t
+    c
+    z
+  }
+  type
+  representation {
+    id
+  }
+  derivedRepresentations {
+    id
+  }
+  creator {
+    email
+    id
+    color
+  }
+}
+
+fragment ListROI on ROI {
+  id
+  label
+  vectors {
+    x
+    y
+    t
+    c
     z
   }
   type
@@ -11,6 +38,7 @@ fragment ROI on ROI {
   }
   creator {
     email
+    id
     color
   }
 }

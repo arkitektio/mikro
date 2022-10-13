@@ -11,8 +11,8 @@ query expand_experiment($id: ID!) {
 }
 
 query search_experiment($search: String) {
-  experiments(name: $search, limit: 30) {
-    id: id
+  options: experiments(name: $search, limit: 30) {
+    value: id
     label: name
   }
 }

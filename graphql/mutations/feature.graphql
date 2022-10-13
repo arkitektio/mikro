@@ -1,7 +1,13 @@
-mutation create_size_feature($label: ID!, $size: Float!, $creator: ID) {
-  createSizeFeature(label: $label, size: $size, creator: $creator) {
+mutation create_feature(
+  $label: ID!
+  $key: String
+  $value: FeatureValue!
+  $creator: ID
+) {
+  createfeature(label: $label, key: $key, value: $value, creator: $creator) {
     id
-    size
+    key
+    value
     label {
       id
       representation {

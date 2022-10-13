@@ -3,9 +3,23 @@ fragment Representation on Representation {
     id
     name
   }
-  type
   id
   store
   variety
   name
+  omero {
+    scale
+    physicalSize {
+      x
+      y
+      z
+      t
+      c
+    }
+  }
+  origins {
+    id
+    store
+    variety
+  }
 }

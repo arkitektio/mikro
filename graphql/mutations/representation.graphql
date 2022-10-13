@@ -3,10 +3,13 @@ mutation from_xarray(
   $name: String
   $variety: RepresentationVarietyInput
   $origins: [ID]
+  $file_origins: [ID]
+  $roi_origins: [ID]
   $tags: [String]
   $sample: ID
   $omero: OmeroRepresentationInput
 ) {
+  # Creates a Representation from an xarray dataset.
   fromXArray(
     xarray: $xarray
     name: $name
@@ -14,6 +17,8 @@ mutation from_xarray(
     tags: $tags
     sample: $sample
     omero: $omero
+    fileOrigins: $file_origins
+    roiOrigins: $roi_origins
     variety: $variety
   ) {
     ...Representation
@@ -49,5 +54,21 @@ mutation double_upload(
   ) {
     id
     store
+  }
+}
+
+mutation update_representation(
+  $id: ID!
+  $tags: [String]
+  $sample: ID
+  $variety: RepresentationVarietyInput
+) {
+  updateRepresentation(
+    rep: $id
+    tags: $tags
+    sample: $sample
+    variety: $variety
+  ) {
+    ...Representation
   }
 }

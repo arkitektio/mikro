@@ -1,0 +1,5 @@
+query expand_feature($id: ID!) {
+  feature(id: $id) {
+    ...Feature
+  }
+}

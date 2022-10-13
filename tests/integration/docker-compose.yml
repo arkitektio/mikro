@@ -1,0 +1,42 @@
+version: "3.4"
+
+services:
+  daten:
+    image: jhnnsrs/daten:prod
+    restart: always
+    environment:
+      POSTGRES_MULTIPLE_DATABASES: herre_db, mikro_db
+      POSTGRES_PASSWORD: 6398045f7711b517ac0aa3c7e6b77a63
+      POSTGRES_USER: arkitekt
+  herre:
+    image: jhnnsrs/herre:prod
+    volumes:
+      - ./configs/herre.yaml:/workspace/config.yaml
+      - ./fakts:/workspace/fakts
+    ports:
+      - 8019:8000
+    depends_on:
+      - daten
+  mikro:
+    image: jhnnsrs/mikro:prod
+    ports:
+      - 8088:8080
+    volumes:
+      - ./configs/mikro.yaml:/workspace/config.yaml
+    depends_on:
+      - redis
+      - daten
+      - minio
+  minio:
+    image: jhnnsrs/datalayer:prod
+    ports:
+      - 9008:9000
+    environment:
+      MINIO_ACCESS_KEY: kBcG6sCIlQvOWPOpzJhu
+      MINIO_SECRET_KEY: FjiprDl3qHwIMR7azM2M
+  redis:
+    image: redis:latest
+    labels:
+      platform: redis
+
+
