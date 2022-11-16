@@ -1,5 +1,15 @@
-mutation create_thumbnail($rep: ID!, $file: ImageFile!, $major_color: String) {
-  uploadThumbnail(rep: $rep, file: $file, majorColor: $major_color) {
+mutation create_thumbnail(
+  $rep: ID!
+  $file: ImageFile!
+  $major_color: String
+  $blurhash: String
+) {
+  uploadThumbnail(
+    rep: $rep
+    file: $file
+    majorColor: $major_color
+    blurhash: $blurhash
+  ) {
     ...Thumbnail
   }
 }

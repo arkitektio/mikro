@@ -1,20 +1,20 @@
-from mikro.traits import ROI, Table, Representation, Vectorizable
-from typing import Dict, Literal, List, Iterator, Optional, AsyncIterator
-from mikro.scalars import (
-    DataFrame,
-    Store,
-    MetricValue,
-    ArrayInput,
-    FeatureValue,
-    Parquet,
-    File,
-)
-from mikro.funcs import aexecute, asubscribe, execute, subscribe
 from mikro.rath import MikroRath
-from rath.scalars import ID
-from pydantic import BaseModel, Field
-from datetime import datetime
 from enum import Enum
+from mikro.scalars import (
+    ArrayInput,
+    File,
+    Store,
+    DataFrame,
+    MetricValue,
+    Parquet,
+    FeatureValue,
+)
+from pydantic import BaseModel, Field
+from typing import Iterator, Literal, Dict, AsyncIterator, Optional, List
+from mikro.traits import ROI, Representation, Table, Vectorizable
+from mikro.funcs import aexecute, subscribe, asubscribe, execute
+from datetime import datetime
+from rath.scalars import ID
 
 
 class CommentableModels(str, Enum):
@@ -191,7 +191,7 @@ class GroupAssignmentInput(BaseModel):
 class UserAssignmentInput(BaseModel):
     permissions: List[Optional[str]]
     user: str
-    "The user email"
+    "The user id"
 
 
 class OmeroRepresentationInput(BaseModel):
@@ -311,7 +311,7 @@ class ImagingEnvironmentInput(BaseModel):
 
     Follows the OME model for imaging environment"""
 
-    air_pessure: Optional[float] = Field(alias="airPessure")
+    air_pressure: Optional[float] = Field(alias="airPressure")
     "The air pressure during the acquisition"
     co2_percent: Optional[float] = Field(alias="co2Percent")
     "The CO2 percentage in the environment"
@@ -1202,9 +1202,10 @@ class Create_thumbnailMutation(BaseModel):
         rep: ID
         file: File
         major_color: Optional[str] = None
+        blurhash: Optional[str] = None
 
     class Meta:
-        document = "fragment Thumbnail on Thumbnail {\n  id\n  image\n}\n\nmutation create_thumbnail($rep: ID!, $file: ImageFile!, $major_color: String) {\n  uploadThumbnail(rep: $rep, file: $file, majorColor: $major_color) {\n    ...Thumbnail\n  }\n}"
+        document = "fragment Thumbnail on Thumbnail {\n  id\n  image\n}\n\nmutation create_thumbnail($rep: ID!, $file: ImageFile!, $major_color: String, $blurhash: String) {\n  uploadThumbnail(\n    rep: $rep\n    file: $file\n    majorColor: $major_color\n    blurhash: $blurhash\n  ) {\n    ...Thumbnail\n  }\n}"
 
 
 class NegotiateMutation(BaseModel):
@@ -1593,7 +1594,7 @@ class Update_representationMutation(BaseModel):
 
 class Create_metricMutation(BaseModel):
     create_metric: Optional[MetricFragment] = Field(alias="createMetric")
-    "Create a metric\n\n    This mutation creates a metric and returns the created metric.\n    "
+    "Create a metric\n\n    This mutation creates a metric and returns the created metric.\n    \n    "
 
     class Arguments(BaseModel):
         representation: Optional[ID] = None
@@ -2337,7 +2338,11 @@ def create_label(
 
 
 async def acreate_thumbnail(
-    rep: ID, file: File, major_color: Optional[str] = None, rath: MikroRath = None
+    rep: ID,
+    file: File,
+    major_color: Optional[str] = None,
+    blurhash: Optional[str] = None,
+    rath: MikroRath = None,
 ) -> Optional[ThumbnailFragment]:
     """create_thumbnail
 
@@ -2352,6 +2357,7 @@ async def acreate_thumbnail(
         rep (ID): rep
         file (File): file
         major_color (Optional[str], optional): major_color.
+        blurhash (Optional[str], optional): blurhash.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
@@ -2359,14 +2365,23 @@ async def acreate_thumbnail(
     return (
         await aexecute(
             Create_thumbnailMutation,
-            {"rep": rep, "file": file, "major_color": major_color},
+            {
+                "rep": rep,
+                "file": file,
+                "major_color": major_color,
+                "blurhash": blurhash,
+            },
             rath=rath,
         )
     ).upload_thumbnail
 
 
 def create_thumbnail(
-    rep: ID, file: File, major_color: Optional[str] = None, rath: MikroRath = None
+    rep: ID,
+    file: File,
+    major_color: Optional[str] = None,
+    blurhash: Optional[str] = None,
+    rath: MikroRath = None,
 ) -> Optional[ThumbnailFragment]:
     """create_thumbnail
 
@@ -2381,13 +2396,14 @@ def create_thumbnail(
         rep (ID): rep
         file (File): file
         major_color (Optional[str], optional): major_color.
+        blurhash (Optional[str], optional): blurhash.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[ThumbnailFragment]"""
     return execute(
         Create_thumbnailMutation,
-        {"rep": rep, "file": file, "major_color": major_color},
+        {"rep": rep, "file": file, "major_color": major_color, "blurhash": blurhash},
         rath=rath,
     ).upload_thumbnail
 
@@ -2784,7 +2800,7 @@ async def acreate_feature(
     """create_feature
 
 
-     createfeature:  A Feature is a numerical key value pair that is attached to a Label.
+     createfeature: A Feature is a numerical key value pair that is attached to a Label.
 
         You can model it for example as a key value pair of a class instance of a segmentation mask.
         Representation -> Label0 -> Feature0
@@ -2828,7 +2844,7 @@ def create_feature(
     """create_feature
 
 
-     createfeature:  A Feature is a numerical key value pair that is attached to a Label.
+     createfeature: A Feature is a numerical key value pair that is attached to a Label.
 
         You can model it for example as a key value pair of a class instance of a segmentation mask.
         Representation -> Label0 -> Feature0
@@ -4245,7 +4261,7 @@ async def aexpand_feature(id: ID, rath: MikroRath = None) -> Optional[FeatureFra
     """expand_feature
 
 
-     feature:  A Feature is a numerical key value pair that is attached to a Label.
+     feature: A Feature is a numerical key value pair that is attached to a Label.
 
         You can model it for example as a key value pair of a class instance of a segmentation mask.
         Representation -> Label0 -> Feature0
@@ -4274,7 +4290,7 @@ def expand_feature(id: ID, rath: MikroRath = None) -> Optional[FeatureFragment]:
     """expand_feature
 
 
-     feature:  A Feature is a numerical key value pair that is attached to a Label.
+     feature: A Feature is a numerical key value pair that is attached to a Label.
 
         You can model it for example as a key value pair of a class instance of a segmentation mask.
         Representation -> Label0 -> Feature0
