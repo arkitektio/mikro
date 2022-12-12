@@ -1,0 +1,13 @@
+fragment Stage on Stage {
+  id
+  kind
+  name
+  physicalSize
+}
+
+fragment ListStage on Stage {
+  id
+  name
+  kind
+  physicalSize
+}

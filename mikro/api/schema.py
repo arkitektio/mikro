@@ -1,32 +1,35 @@
-from mikro.rath import MikroRath
-from enum import Enum
 from mikro.scalars import (
-    ArrayInput,
-    File,
     Store,
-    DataFrame,
+    ParquetInput,
     MetricValue,
-    Parquet,
     FeatureValue,
+    XArrayInput,
+    Parquet,
+    File,
 )
+from mikro.rath import MikroRath
+from typing import Iterator, AsyncIterator, List, Dict, Tuple, Literal, Optional
+from mikro.funcs import asubscribe, subscribe, execute, aexecute
 from pydantic import BaseModel, Field
-from typing import Iterator, Literal, Dict, AsyncIterator, Optional, List
-from mikro.traits import ROI, Representation, Table, Vectorizable
-from mikro.funcs import aexecute, subscribe, asubscribe, execute
+from mikro.traits import Objective, Representation, Table, Vectorizable, ROI, Stage
 from datetime import datetime
 from rath.scalars import ID
+from enum import Enum
 
 
 class CommentableModels(str, Enum):
     GRUNNLAG_USERMETA = "GRUNNLAG_USERMETA"
     GRUNNLAG_ANTIBODY = "GRUNNLAG_ANTIBODY"
+    GRUNNLAG_OBJECTIVE = "GRUNNLAG_OBJECTIVE"
+    GRUNNLAG_INSTRUMENT = "GRUNNLAG_INSTRUMENT"
     GRUNNLAG_EXPERIMENT = "GRUNNLAG_EXPERIMENT"
     GRUNNLAG_EXPERIMENTALGROUP = "GRUNNLAG_EXPERIMENTALGROUP"
     GRUNNLAG_ANIMAL = "GRUNNLAG_ANIMAL"
     GRUNNLAG_OMEROFILE = "GRUNNLAG_OMEROFILE"
     GRUNNLAG_SAMPLE = "GRUNNLAG_SAMPLE"
+    GRUNNLAG_STAGE = "GRUNNLAG_STAGE"
+    GRUNNLAG_POSITION = "GRUNNLAG_POSITION"
     GRUNNLAG_REPRESENTATION = "GRUNNLAG_REPRESENTATION"
-    GRUNNLAG_INSTRUMENT = "GRUNNLAG_INSTRUMENT"
     GRUNNLAG_OMERO = "GRUNNLAG_OMERO"
     GRUNNLAG_METRIC = "GRUNNLAG_METRIC"
     GRUNNLAG_THUMBNAIL = "GRUNNLAG_THUMBNAIL"
@@ -41,13 +44,16 @@ class SharableModels(str, Enum):
 
     GRUNNLAG_USERMETA = "GRUNNLAG_USERMETA"
     GRUNNLAG_ANTIBODY = "GRUNNLAG_ANTIBODY"
+    GRUNNLAG_OBJECTIVE = "GRUNNLAG_OBJECTIVE"
+    GRUNNLAG_INSTRUMENT = "GRUNNLAG_INSTRUMENT"
     GRUNNLAG_EXPERIMENT = "GRUNNLAG_EXPERIMENT"
     GRUNNLAG_EXPERIMENTALGROUP = "GRUNNLAG_EXPERIMENTALGROUP"
     GRUNNLAG_ANIMAL = "GRUNNLAG_ANIMAL"
     GRUNNLAG_OMEROFILE = "GRUNNLAG_OMEROFILE"
     GRUNNLAG_SAMPLE = "GRUNNLAG_SAMPLE"
+    GRUNNLAG_STAGE = "GRUNNLAG_STAGE"
+    GRUNNLAG_POSITION = "GRUNNLAG_POSITION"
     GRUNNLAG_REPRESENTATION = "GRUNNLAG_REPRESENTATION"
-    GRUNNLAG_INSTRUMENT = "GRUNNLAG_INSTRUMENT"
     GRUNNLAG_OMERO = "GRUNNLAG_OMERO"
     GRUNNLAG_METRIC = "GRUNNLAG_METRIC"
     GRUNNLAG_THUMBNAIL = "GRUNNLAG_THUMBNAIL"
@@ -95,6 +101,30 @@ class ROIType(str, Enum):
     "Point"
 
 
+class RepresentationVarietyInput(str, Enum):
+    """Variety expresses the Type of Representation we are dealing with"""
+
+    MASK = "MASK"
+    "Mask (Value represent Labels)"
+    VOXEL = "VOXEL"
+    "Voxel (Value represent Intensity)"
+    RGB = "RGB"
+    "RGB (First three channel represent RGB)"
+    UNKNOWN = "UNKNOWN"
+    "Unknown"
+
+
+class PandasDType(str, Enum):
+    OBJECT = "OBJECT"
+    INT64 = "INT64"
+    FLOAT64 = "FLOAT64"
+    BOOL = "BOOL"
+    CATEGORY = "CATEGORY"
+    DATETIME65 = "DATETIME65"
+    TIMEDELTA = "TIMEDELTA"
+    UNICODE = "UNICODE"
+
+
 class RepresentationVariety(str, Enum):
     """An enumeration."""
 
@@ -108,17 +138,12 @@ class RepresentationVariety(str, Enum):
     "Unknown"
 
 
-class RepresentationVarietyInput(str, Enum):
-    """Variety expresses the Type of Representation we are dealing with"""
+class AcquisitionKind(str, Enum):
+    """What do the multiple positions in this acquistion represent?"""
 
-    MASK = "MASK"
-    "Mask (Value represent Labels)"
-    VOXEL = "VOXEL"
-    "Voxel (Value represent Intensity)"
-    RGB = "RGB"
-    "RGB (First three channel represent RGB)"
+    POSTION_IS_SAMPLE = "POSTION_IS_SAMPLE"
+    POSITION_IS_ROI = "POSITION_IS_ROI"
     UNKNOWN = "UNKNOWN"
-    "Unknown"
 
 
 class Medium(str, Enum):
@@ -156,19 +181,8 @@ class RoiTypeInput(str, Enum):
     "Point"
 
 
-class PandasDType(str, Enum):
-    OBJECT = "OBJECT"
-    INT64 = "INT64"
-    FLOAT64 = "FLOAT64"
-    BOOL = "BOOL"
-    CATEGORY = "CATEGORY"
-    DATETIME65 = "DATETIME65"
-    TIMEDELTA = "TIMEDELTA"
-    UNICODE = "UNICODE"
-
-
 class DescendendInput(BaseModel):
-    children: Optional[List[Optional["DescendendInput"]]]
+    children: Optional[Tuple[Optional["DescendendInput"], ...]]
     typename: Optional[str]
     "The type of the descendent"
     user: Optional[str]
@@ -182,16 +196,25 @@ class DescendendInput(BaseModel):
     text: Optional[str]
     "The text of the leaf"
 
+    class Config:
+        frozen = True
+
 
 class GroupAssignmentInput(BaseModel):
-    permissions: List[Optional[str]]
+    permissions: Tuple[Optional[str], ...]
     group: ID
+
+    class Config:
+        frozen = True
 
 
 class UserAssignmentInput(BaseModel):
-    permissions: List[Optional[str]]
+    permissions: Tuple[Optional[str], ...]
     user: str
     "The user id"
+
+    class Config:
+        frozen = True
 
 
 class OmeroRepresentationInput(BaseModel):
@@ -202,10 +225,11 @@ class OmeroRepresentationInput(BaseModel):
     part of the mikro datamodel and are not accessed here.
     - Some parameters are ommited as they are not really used"""
 
-    planes: Optional[List[Optional["PlaneInput"]]]
-    channels: Optional[List[Optional["ChannelInput"]]]
+    planes: Optional[Tuple[Optional["PlaneInput"], ...]]
+    channels: Optional[Tuple[Optional["ChannelInput"], ...]]
     physical_size: Optional["PhysicalSizeInput"] = Field(alias="physicalSize")
-    scale: Optional[List[Optional[float]]]
+    scale: Optional[Tuple[Optional[float], ...]]
+    position: Optional[ID]
     acquisition_date: Optional[datetime] = Field(alias="acquisitionDate")
     objective_settings: Optional["ObjectiveSettingsInput"] = Field(
         alias="objectiveSettings"
@@ -214,6 +238,10 @@ class OmeroRepresentationInput(BaseModel):
         alias="imagingEnvironment"
     )
     instrument: Optional[ID]
+    objective: Optional[ID]
+
+    class Config:
+        frozen = True
 
 
 class PlaneInput(BaseModel):
@@ -247,6 +275,9 @@ class PlaneInput(BaseModel):
     delta_t: Optional[float] = Field(alias="deltaT")
     "The Delta T to the origin of the image acqusition"
 
+    class Config:
+        frozen = True
+
 
 class ChannelInput(BaseModel):
     """A channel in an image
@@ -264,6 +295,9 @@ class ChannelInput(BaseModel):
     "The acquisition mode of the channel"
     color: Optional[str]
     "The default color for the channel (might be ommited by the rendered)"
+
+    class Config:
+        frozen = True
 
 
 class PhysicalSizeInput(BaseModel):
@@ -290,6 +324,9 @@ class PhysicalSizeInput(BaseModel):
     c: Optional[float]
     "Physical size of *one* Pixel in the c dimension (in nm)"
 
+    class Config:
+        frozen = True
+
 
 class ObjectiveSettingsInput(BaseModel):
     """Settings of the objective used to acquire the image
@@ -304,6 +341,9 @@ class ObjectiveSettingsInput(BaseModel):
     "The numerical aperture of the objective"
     working_distance: Optional[float] = Field(alias="workingDistance")
     "The working distance of the objective"
+
+    class Config:
+        frozen = True
 
 
 class ImagingEnvironmentInput(BaseModel):
@@ -322,8 +362,11 @@ class ImagingEnvironmentInput(BaseModel):
     map: Optional[Dict]
     "A map of the imaging environment. Key value based"
 
+    class Config:
+        frozen = True
 
-class InputVector(BaseModel, Vectorizable):
+
+class InputVector(Vectorizable, BaseModel):
     x: Optional[float]
     "X-coordinate"
     y: Optional[float]
@@ -334,6 +377,9 @@ class InputVector(BaseModel, Vectorizable):
     "C-coordinate"
     t: Optional[float]
     "T-coordinate"
+
+    class Config:
+        frozen = True
 
 
 class LabelFragmentRepresentation(Representation, BaseModel):
@@ -374,6 +420,9 @@ class LabelFragmentRepresentation(Representation, BaseModel):
     name: Optional[str]
     "Cleartext name"
 
+    class Config:
+        frozen = True
+
 
 class LabelFragment(BaseModel):
     typename: Optional[Literal["Label"]] = Field(alias="__typename")
@@ -383,11 +432,17 @@ class LabelFragment(BaseModel):
     representation: Optional[LabelFragmentRepresentation]
     "The Representation this Label instance belongs to"
 
+    class Config:
+        frozen = True
+
 
 class ThumbnailFragment(BaseModel):
     typename: Optional[Literal["Thumbnail"]] = Field(alias="__typename")
     id: ID
     image: Optional[str]
+
+    class Config:
+        frozen = True
 
 
 class TableFragmentCreator(BaseModel):
@@ -408,12 +463,18 @@ class TableFragmentCreator(BaseModel):
     typename: Optional[Literal["User"]] = Field(alias="__typename")
     email: str
 
+    class Config:
+        frozen = True
+
 
 class TableFragmentSample(BaseModel):
     """Samples are storage containers for representations. A Sample is to be understood analogous to a Biological Sample. It existed in Time (the time of acquisiton and experimental procedure), was measured in space (x,y,z) and in different modalities (c). Sample therefore provide a datacontainer where each Representation of the data shares the same dimensions. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample"""
 
     typename: Optional[Literal["Sample"]] = Field(alias="__typename")
     id: ID
+
+    class Config:
+        frozen = True
 
 
 class TableFragmentRepresentation(Representation, BaseModel):
@@ -452,6 +513,9 @@ class TableFragmentRepresentation(Representation, BaseModel):
     typename: Optional[Literal["Representation"]] = Field(alias="__typename")
     id: ID
 
+    class Config:
+        frozen = True
+
 
 class TableFragmentExperiment(BaseModel):
     """
@@ -471,12 +535,15 @@ class TableFragmentExperiment(BaseModel):
     typename: Optional[Literal["Experiment"]] = Field(alias="__typename")
     id: ID
 
+    class Config:
+        frozen = True
+
 
 class TableFragment(Table, BaseModel):
     typename: Optional[Literal["Table"]] = Field(alias="__typename")
     id: ID
     name: str
-    tags: Optional[List[Optional[str]]]
+    tags: Optional[Tuple[Optional[str], ...]]
     "A comma-separated list of tags."
     store: Optional[Parquet]
     "The parquet store for the table"
@@ -488,6 +555,37 @@ class TableFragment(Table, BaseModel):
     "The Representation this Table belongs to"
     experiment: Optional[TableFragmentExperiment]
     "The Experiment this Table belongs to."
+
+    class Config:
+        frozen = True
+
+
+class StageFragment(Stage, BaseModel):
+    typename: Optional[Literal["Stage"]] = Field(alias="__typename")
+    id: ID
+    kind: Optional[AcquisitionKind]
+    "The kind of acquisition"
+    name: str
+    "The name of the stage"
+    physical_size: Optional[Tuple[Optional[float], ...]] = Field(alias="physicalSize")
+    "The physical size of the stage"
+
+    class Config:
+        frozen = True
+
+
+class ListStageFragment(Stage, BaseModel):
+    typename: Optional[Literal["Stage"]] = Field(alias="__typename")
+    id: ID
+    name: str
+    "The name of the stage"
+    kind: Optional[AcquisitionKind]
+    "The kind of acquisition"
+    physical_size: Optional[Tuple[Optional[float], ...]] = Field(alias="physicalSize")
+    "The physical size of the stage"
+
+    class Config:
+        frozen = True
 
 
 class SampleFragmentRepresentations(Representation, BaseModel):
@@ -526,6 +624,9 @@ class SampleFragmentRepresentations(Representation, BaseModel):
     typename: Optional[Literal["Representation"]] = Field(alias="__typename")
     id: ID
 
+    class Config:
+        frozen = True
+
 
 class SampleFragmentExperiments(BaseModel):
     """
@@ -545,16 +646,22 @@ class SampleFragmentExperiments(BaseModel):
     typename: Optional[Literal["Experiment"]] = Field(alias="__typename")
     id: ID
 
+    class Config:
+        frozen = True
+
 
 class SampleFragment(BaseModel):
     typename: Optional[Literal["Sample"]] = Field(alias="__typename")
     name: str
     "The name of the sample"
     id: ID
-    representations: Optional[List[Optional[SampleFragmentRepresentations]]]
+    representations: Optional[Tuple[Optional[SampleFragmentRepresentations], ...]]
     "Associated representations of this Sample"
-    experiments: List[SampleFragmentExperiments]
+    experiments: Tuple[SampleFragmentExperiments, ...]
     "The experiments this sample belongs to"
+
+    class Config:
+        frozen = True
 
 
 class ROIFragmentVectors(BaseModel):
@@ -569,6 +676,9 @@ class ROIFragmentVectors(BaseModel):
     "C-coordinate"
     z: Optional[float]
     "Z-coordinate"
+
+    class Config:
+        frozen = True
 
 
 class ROIFragmentRepresentation(Representation, BaseModel):
@@ -607,6 +717,9 @@ class ROIFragmentRepresentation(Representation, BaseModel):
     typename: Optional[Literal["Representation"]] = Field(alias="__typename")
     id: ID
 
+    class Config:
+        frozen = True
+
 
 class ROIFragmentDerivedrepresentations(Representation, BaseModel):
     """A Representation is 5-dimensional representation of an image
@@ -644,6 +757,9 @@ class ROIFragmentDerivedrepresentations(Representation, BaseModel):
     typename: Optional[Literal["Representation"]] = Field(alias="__typename")
     id: ID
 
+    class Config:
+        frozen = True
+
 
 class ROIFragmentCreator(BaseModel):
     """User
@@ -666,23 +782,29 @@ class ROIFragmentCreator(BaseModel):
     color: str
     "The prefered color of the user"
 
+    class Config:
+        frozen = True
+
 
 class ROIFragment(ROI, BaseModel):
     typename: Optional[Literal["ROI"]] = Field(alias="__typename")
     id: ID
     label: Optional[str]
     "The label of the ROI (for UI)"
-    vectors: Optional[List[Optional[ROIFragmentVectors]]]
+    vectors: Optional[Tuple[Optional[ROIFragmentVectors], ...]]
     "The vectors of the ROI"
     type: ROIType
     "The Roi can have varying types, consult your API"
     representation: Optional[ROIFragmentRepresentation]
     "The Representation this ROI was original used to create (drawn on)"
-    derived_representations: List[ROIFragmentDerivedrepresentations] = Field(
+    derived_representations: Tuple[ROIFragmentDerivedrepresentations, ...] = Field(
         alias="derivedRepresentations"
     )
     creator: ROIFragmentCreator
     "The user that created the ROI"
+
+    class Config:
+        frozen = True
 
 
 class ListROIFragmentVectors(BaseModel):
@@ -697,6 +819,9 @@ class ListROIFragmentVectors(BaseModel):
     "C-coordinate"
     z: Optional[float]
     "Z-coordinate"
+
+    class Config:
+        frozen = True
 
 
 class ListROIFragmentRepresentation(Representation, BaseModel):
@@ -735,6 +860,9 @@ class ListROIFragmentRepresentation(Representation, BaseModel):
     typename: Optional[Literal["Representation"]] = Field(alias="__typename")
     id: ID
 
+    class Config:
+        frozen = True
+
 
 class ListROIFragmentCreator(BaseModel):
     """User
@@ -757,13 +885,16 @@ class ListROIFragmentCreator(BaseModel):
     color: str
     "The prefered color of the user"
 
+    class Config:
+        frozen = True
+
 
 class ListROIFragment(ROI, BaseModel):
     typename: Optional[Literal["ROI"]] = Field(alias="__typename")
     id: ID
     label: Optional[str]
     "The label of the ROI (for UI)"
-    vectors: Optional[List[Optional[ListROIFragmentVectors]]]
+    vectors: Optional[Tuple[Optional[ListROIFragmentVectors], ...]]
     "The vectors of the ROI"
     type: ROIType
     "The Roi can have varying types, consult your API"
@@ -771,6 +902,9 @@ class ListROIFragment(ROI, BaseModel):
     "The Representation this ROI was original used to create (drawn on)"
     creator: ListROIFragmentCreator
     "The user that created the ROI"
+
+    class Config:
+        frozen = True
 
 
 class FeatureFragmentLabelRepresentation(Representation, BaseModel):
@@ -809,6 +943,9 @@ class FeatureFragmentLabelRepresentation(Representation, BaseModel):
     typename: Optional[Literal["Representation"]] = Field(alias="__typename")
     id: ID
 
+    class Config:
+        frozen = True
+
 
 class FeatureFragmentLabel(BaseModel):
     """A Label is a trough model for image and features.
@@ -829,6 +966,9 @@ class FeatureFragmentLabel(BaseModel):
     representation: Optional[FeatureFragmentLabelRepresentation]
     "The Representation this Label instance belongs to"
 
+    class Config:
+        frozen = True
+
 
 class FeatureFragment(BaseModel):
     typename: Optional[Literal["Feature"]] = Field(alias="__typename")
@@ -839,6 +979,9 @@ class FeatureFragment(BaseModel):
     "The key of the feature"
     value: Optional[FeatureValue]
     "Value"
+
+    class Config:
+        frozen = True
 
 
 class InstrumentFragment(BaseModel):
@@ -852,6 +995,9 @@ class InstrumentFragment(BaseModel):
     serial_number: Optional[str] = Field(alias="serialNumber")
     manufacturer: Optional[str]
     model: Optional[str]
+
+    class Config:
+        frozen = True
 
 
 class ExperimentFragmentCreator(BaseModel):
@@ -872,6 +1018,9 @@ class ExperimentFragmentCreator(BaseModel):
     typename: Optional[Literal["User"]] = Field(alias="__typename")
     email: str
 
+    class Config:
+        frozen = True
+
 
 class ExperimentFragment(BaseModel):
     typename: Optional[Literal["Experiment"]] = Field(alias="__typename")
@@ -881,6 +1030,9 @@ class ExperimentFragment(BaseModel):
     creator: Optional[ExperimentFragmentCreator]
     "The user that created the experiment"
 
+    class Config:
+        frozen = True
+
 
 class RepresentationFragmentSample(BaseModel):
     """Samples are storage containers for representations. A Sample is to be understood analogous to a Biological Sample. It existed in Time (the time of acquisiton and experimental procedure), was measured in space (x,y,z) and in different modalities (c). Sample therefore provide a datacontainer where each Representation of the data shares the same dimensions. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample"""
@@ -889,6 +1041,9 @@ class RepresentationFragmentSample(BaseModel):
     id: ID
     name: str
     "The name of the sample"
+
+    class Config:
+        frozen = True
 
 
 class RepresentationFragmentOmeroPhysicalsize(BaseModel):
@@ -916,22 +1071,26 @@ class RepresentationFragmentOmeroPhysicalsize(BaseModel):
     c: Optional[float]
     "Physical size of *one* Pixel in the c dimension (in µm)"
 
+    class Config:
+        frozen = True
+
 
 class RepresentationFragmentOmero(BaseModel):
-    """Omero is a model that stores the omero meta data
+    """Omero is a through model that stores the real world context of an image
 
-    This model is used to store the omero meta data. It is used to store the meta data of the omero file.
-    Its implementation is based on the omero meta data model. Refer to the omero documentation for more information.
-
-
+    This means that it stores the position (corresponding to the relative displacement to
+    a stage (Both are models)), objective and other meta data of the image.
 
     """
 
     typename: Optional[Literal["Omero"]] = Field(alias="__typename")
-    scale: Optional[List[Optional[float]]]
+    scale: Optional[Tuple[Optional[float], ...]]
     physical_size: Optional[RepresentationFragmentOmeroPhysicalsize] = Field(
         alias="physicalSize"
     )
+
+    class Config:
+        frozen = True
 
 
 class RepresentationFragmentOrigins(Representation, BaseModel):
@@ -973,11 +1132,16 @@ class RepresentationFragmentOrigins(Representation, BaseModel):
     variety: RepresentationVariety
     "The Representation can have vasrying types, consult your API"
 
+    class Config:
+        frozen = True
+
 
 class RepresentationFragment(Representation, BaseModel):
     typename: Optional[Literal["Representation"]] = Field(alias="__typename")
     sample: Optional[RepresentationFragmentSample]
     "The Sample this representation belosngs to"
+    shape: Optional[Tuple[int, ...]]
+    "The arrays shape"
     id: ID
     store: Optional[Store]
     variety: RepresentationVariety
@@ -985,7 +1149,23 @@ class RepresentationFragment(Representation, BaseModel):
     name: Optional[str]
     "Cleartext name"
     omero: Optional[RepresentationFragmentOmero]
-    origins: List[RepresentationFragmentOrigins]
+    origins: Tuple[RepresentationFragmentOrigins, ...]
+
+    class Config:
+        frozen = True
+
+
+class ListRepresentationFragment(Representation, BaseModel):
+    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
+    id: ID
+    shape: Optional[Tuple[int, ...]]
+    "The arrays shape"
+    name: Optional[str]
+    "Cleartext name"
+    store: Optional[Store]
+
+    class Config:
+        frozen = True
 
 
 class MetricFragmentRepresentation(Representation, BaseModel):
@@ -1024,6 +1204,9 @@ class MetricFragmentRepresentation(Representation, BaseModel):
     typename: Optional[Literal["Representation"]] = Field(alias="__typename")
     id: ID
 
+    class Config:
+        frozen = True
+
 
 class MetricFragmentCreator(BaseModel):
     """User
@@ -1043,6 +1226,9 @@ class MetricFragmentCreator(BaseModel):
     typename: Optional[Literal["User"]] = Field(alias="__typename")
     id: ID
 
+    class Config:
+        frozen = True
+
 
 class MetricFragment(BaseModel):
     typename: Optional[Literal["Metric"]] = Field(alias="__typename")
@@ -1056,6 +1242,31 @@ class MetricFragment(BaseModel):
     creator: Optional[MetricFragmentCreator]
     created_at: datetime = Field(alias="createdAt")
 
+    class Config:
+        frozen = True
+
+
+class OmeroFileFragmentExperiments(BaseModel):
+    """
+    An experiment is a collection of samples and their representations.
+    It mimics the concept of an experiment in the lab and is the top level
+    object in the data model.
+
+    You can use the experiment to group samples and representations likewise
+    to how you would group files into folders in a file system.
+
+
+
+
+
+    """
+
+    typename: Optional[Literal["Experiment"]] = Field(alias="__typename")
+    id: ID
+
+    class Config:
+        frozen = True
+
 
 class OmeroFileFragment(BaseModel):
     typename: Optional[Literal["OmeroFile"]] = Field(alias="__typename")
@@ -1066,6 +1277,50 @@ class OmeroFileFragment(BaseModel):
     "The file"
     type: OmeroFileType
     "The type of the file"
+    experiments: Tuple[OmeroFileFragmentExperiments, ...]
+    "The experiment this file belongs to"
+
+    class Config:
+        frozen = True
+
+
+class PositionFragmentOmeros(BaseModel):
+    """Omero is a through model that stores the real world context of an image
+
+    This means that it stores the position (corresponding to the relative displacement to
+    a stage (Both are models)), objective and other meta data of the image.
+
+    """
+
+    typename: Optional[Literal["Omero"]] = Field(alias="__typename")
+    representation: ListRepresentationFragment
+
+    class Config:
+        frozen = True
+
+
+class PositionFragment(BaseModel):
+    typename: Optional[Literal["Position"]] = Field(alias="__typename")
+    id: ID
+    stage: ListStageFragment
+    x: Optional[float]
+    y: Optional[float]
+    z: Optional[float]
+    omeros: Optional[Tuple[Optional[PositionFragmentOmeros], ...]]
+    "Associated images through Omero"
+
+    class Config:
+        frozen = True
+
+
+class ObjectiveFragment(Objective, BaseModel):
+    typename: Optional[Literal["Objective"]] = Field(alias="__typename")
+    id: ID
+    name: str
+    magnification: float
+
+    class Config:
+        frozen = True
 
 
 class Watch_samplesSubscriptionMysamplesUpdateExperiments(BaseModel):
@@ -1087,6 +1342,9 @@ class Watch_samplesSubscriptionMysamplesUpdateExperiments(BaseModel):
     name: str
     "The name of the experiment"
 
+    class Config:
+        frozen = True
+
 
 class Watch_samplesSubscriptionMysamplesUpdate(BaseModel):
     """Samples are storage containers for representations. A Sample is to be understood analogous to a Biological Sample. It existed in Time (the time of acquisiton and experimental procedure), was measured in space (x,y,z) and in different modalities (c). Sample therefore provide a datacontainer where each Representation of the data shares the same dimensions. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample"""
@@ -1095,8 +1353,11 @@ class Watch_samplesSubscriptionMysamplesUpdate(BaseModel):
     id: ID
     name: str
     "The name of the sample"
-    experiments: List[Watch_samplesSubscriptionMysamplesUpdateExperiments]
+    experiments: Tuple[Watch_samplesSubscriptionMysamplesUpdateExperiments, ...]
     "The experiments this sample belongs to"
+
+    class Config:
+        frozen = True
 
 
 class Watch_samplesSubscriptionMysamplesCreateExperiments(BaseModel):
@@ -1118,6 +1379,9 @@ class Watch_samplesSubscriptionMysamplesCreateExperiments(BaseModel):
     name: str
     "The name of the experiment"
 
+    class Config:
+        frozen = True
+
 
 class Watch_samplesSubscriptionMysamplesCreate(BaseModel):
     """Samples are storage containers for representations. A Sample is to be understood analogous to a Biological Sample. It existed in Time (the time of acquisiton and experimental procedure), was measured in space (x,y,z) and in different modalities (c). Sample therefore provide a datacontainer where each Representation of the data shares the same dimensions. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample"""
@@ -1125,14 +1389,20 @@ class Watch_samplesSubscriptionMysamplesCreate(BaseModel):
     typename: Optional[Literal["Sample"]] = Field(alias="__typename")
     name: str
     "The name of the sample"
-    experiments: List[Watch_samplesSubscriptionMysamplesCreateExperiments]
+    experiments: Tuple[Watch_samplesSubscriptionMysamplesCreateExperiments, ...]
     "The experiments this sample belongs to"
+
+    class Config:
+        frozen = True
 
 
 class Watch_samplesSubscriptionMysamples(BaseModel):
     typename: Optional[Literal["SamplesEvent"]] = Field(alias="__typename")
     update: Optional[Watch_samplesSubscriptionMysamplesUpdate]
     create: Optional[Watch_samplesSubscriptionMysamplesCreate]
+
+    class Config:
+        frozen = True
 
 
 class Watch_samplesSubscription(BaseModel):
@@ -1150,6 +1420,9 @@ class Watch_roisSubscriptionRois(BaseModel):
     update: Optional[ListROIFragment]
     delete: Optional[ID]
     create: Optional[ListROIFragment]
+
+    class Config:
+        frozen = True
 
 
 class Watch_roisSubscription(BaseModel):
@@ -1179,6 +1452,9 @@ class Create_labelMutationCreatelabel(BaseModel):
     id: ID
     instance: int
     "The instance value of the representation (pixel value). Must be a value of the image array"
+
+    class Config:
+        frozen = True
 
 
 class Create_labelMutation(BaseModel):
@@ -1223,11 +1499,25 @@ class From_dfMutation(BaseModel):
     "Creates a Representation"
 
     class Arguments(BaseModel):
-        df: DataFrame
+        df: ParquetInput
         name: str
 
     class Meta:
-        document = "fragment Table on Table {\n  id\n  name\n  tags\n  store\n  creator {\n    email\n  }\n  sample {\n    id\n  }\n  representation {\n    id\n  }\n  experiment {\n    id\n  }\n}\n\nmutation from_df($df: DataFrame!, $name: String!) {\n  fromDf(df: $df, name: $name) {\n    ...Table\n  }\n}"
+        document = "fragment Table on Table {\n  id\n  name\n  tags\n  store\n  creator {\n    email\n  }\n  sample {\n    id\n  }\n  representation {\n    id\n  }\n  experiment {\n    id\n  }\n}\n\nmutation from_df($df: ParquetInput!, $name: String!) {\n  fromDf(df: $df, name: $name) {\n    ...Table\n  }\n}"
+
+
+class Create_stageMutation(BaseModel):
+    create_stage: Optional[StageFragment] = Field(alias="createStage")
+    "Creates a Stage\n    \n    This mutation creates a Feature and returns the created Feature.\n    We require a reference to the label that the feature belongs to.\n    As well as the key and value of the feature.\n    \n    There can be multiple features with the same label, but only one feature per key\n    per label"
+
+    class Arguments(BaseModel):
+        name: str
+        creator: Optional[ID] = None
+        tags: Optional[List[Optional[str]]] = None
+        physical_size: List[Optional[float]]
+
+    class Meta:
+        document = "fragment Stage on Stage {\n  id\n  kind\n  name\n  physicalSize\n}\n\nmutation create_stage($name: String!, $creator: ID, $tags: [String], $physical_size: [Float]!) {\n  createStage(\n    name: $name\n    creator: $creator\n    tags: $tags\n    physicalSize: $physical_size\n  ) {\n    ...Stage\n  }\n}"
 
 
 class Create_sampleMutationCreatesampleCreator(BaseModel):
@@ -1248,6 +1538,9 @@ class Create_sampleMutationCreatesampleCreator(BaseModel):
     typename: Optional[Literal["User"]] = Field(alias="__typename")
     email: str
 
+    class Config:
+        frozen = True
+
 
 class Create_sampleMutationCreatesample(BaseModel):
     """Samples are storage containers for representations. A Sample is to be understood analogous to a Biological Sample. It existed in Time (the time of acquisiton and experimental procedure), was measured in space (x,y,z) and in different modalities (c). Sample therefore provide a datacontainer where each Representation of the data shares the same dimensions. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample"""
@@ -1258,6 +1551,9 @@ class Create_sampleMutationCreatesample(BaseModel):
     "The name of the sample"
     creator: Optional[Create_sampleMutationCreatesampleCreator]
     "The user that created the sample"
+
+    class Config:
+        frozen = True
 
 
 class Create_sampleMutation(BaseModel):
@@ -1291,46 +1587,6 @@ class Create_roiMutation(BaseModel):
 
     class Meta:
         document = "fragment ROI on ROI {\n  id\n  label\n  vectors {\n    x\n    y\n    t\n    c\n    z\n  }\n  type\n  representation {\n    id\n  }\n  derivedRepresentations {\n    id\n  }\n  creator {\n    email\n    id\n    color\n  }\n}\n\nmutation create_roi($representation: ID!, $vectors: [InputVector]!, $creator: ID, $type: RoiTypeInput!, $label: String, $tags: [String]) {\n  createROI(\n    representation: $representation\n    vectors: $vectors\n    type: $type\n    creator: $creator\n    label: $label\n    tags: $tags\n  ) {\n    ...ROI\n  }\n}"
-
-
-class Get_roiQuery(BaseModel):
-    roi: Optional[ROIFragment]
-    'Get a single Roi by ID"\n    \n    Returns a single Roi by ID. If the user does not have access\n    to the Roi, an error will be raised.'
-
-    class Arguments(BaseModel):
-        id: ID
-
-    class Meta:
-        document = "fragment ROI on ROI {\n  id\n  label\n  vectors {\n    x\n    y\n    t\n    c\n    z\n  }\n  type\n  representation {\n    id\n  }\n  derivedRepresentations {\n    id\n  }\n  creator {\n    email\n    id\n    color\n  }\n}\n\nquery get_roi($id: ID!) {\n  roi(id: $id) {\n    ...ROI\n  }\n}"
-
-
-class Search_roisQueryRois(ROI, BaseModel):
-    """A ROI is a region of interest in a representation.
-
-    This region is to be regarded as a view on the representation. Depending
-    on the implementatoin (type) of the ROI, the view can be constructed
-    differently. For example, a rectangular ROI can be constructed by cropping
-    the representation according to its 2 vectors. while a polygonal ROI can be constructed by masking the
-    representation with the polygon.
-
-    The ROI can also store a name and a description. This is used to display the ROI in the UI.
-
-    """
-
-    typename: Optional[Literal["ROI"]] = Field(alias="__typename")
-    label: ID
-    value: ID
-
-
-class Search_roisQuery(BaseModel):
-    rois: Optional[List[Optional[Search_roisQueryRois]]]
-    "All Rois\n    \n    This query returns all Rois that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Rois that the user has access to. If the user is an amdin\n    or superuser, all Rois will be returned."
-
-    class Arguments(BaseModel):
-        search: str
-
-    class Meta:
-        document = "query search_rois($search: String!) {\n  rois(repname: $search) {\n    label: id\n    value: id\n  }\n}"
 
 
 class Create_featureMutationCreatefeatureLabelRepresentation(Representation, BaseModel):
@@ -1369,6 +1625,9 @@ class Create_featureMutationCreatefeatureLabelRepresentation(Representation, Bas
     typename: Optional[Literal["Representation"]] = Field(alias="__typename")
     id: ID
 
+    class Config:
+        frozen = True
+
 
 class Create_featureMutationCreatefeatureLabel(BaseModel):
     """A Label is a trough model for image and features.
@@ -1387,6 +1646,9 @@ class Create_featureMutationCreatefeatureLabel(BaseModel):
     id: ID
     representation: Optional[Create_featureMutationCreatefeatureLabelRepresentation]
     "The Representation this Label instance belongs to"
+
+    class Config:
+        frozen = True
 
 
 class Create_featureMutationCreatefeature(BaseModel):
@@ -1414,6 +1676,9 @@ class Create_featureMutationCreatefeature(BaseModel):
     label: Optional[Create_featureMutationCreatefeatureLabel]
     "The Label this Feature belongs to"
 
+    class Config:
+        frozen = True
+
 
 class Create_featureMutation(BaseModel):
     createfeature: Optional[Create_featureMutationCreatefeature]
@@ -1438,13 +1703,14 @@ class Create_instrumentMutation(BaseModel):
         dichroics: Optional[List[Optional[Dict]]] = None
         filters: Optional[List[Optional[Dict]]] = None
         name: str
+        objectives: Optional[List[Optional[ID]]] = None
         lot_number: Optional[str] = None
         serial_number: Optional[str] = None
         model: Optional[str] = None
         manufacturer: Optional[str] = None
 
     class Meta:
-        document = "fragment Instrument on Instrument {\n  id\n  dichroics\n  detectors\n  filters\n  name\n  lotNumber\n  serialNumber\n  manufacturer\n  model\n}\n\nmutation create_instrument($detectors: [GenericScalar], $dichroics: [GenericScalar], $filters: [GenericScalar], $name: String!, $lotNumber: String, $serialNumber: String, $model: String, $manufacturer: String) {\n  createInstrument(\n    detectors: $detectors\n    dichroics: $dichroics\n    filters: $filters\n    name: $name\n    lotNumber: $lotNumber\n    serialNumber: $serialNumber\n    model: $model\n    manufacturer: $manufacturer\n  ) {\n    ...Instrument\n  }\n}"
+        document = "fragment Instrument on Instrument {\n  id\n  dichroics\n  detectors\n  filters\n  name\n  lotNumber\n  serialNumber\n  manufacturer\n  model\n}\n\nmutation create_instrument($detectors: [GenericScalar], $dichroics: [GenericScalar], $filters: [GenericScalar], $name: String!, $objectives: [ID], $lotNumber: String, $serialNumber: String, $model: String, $manufacturer: String) {\n  createInstrument(\n    detectors: $detectors\n    dichroics: $dichroics\n    filters: $filters\n    name: $name\n    lotNumber: $lotNumber\n    objectives: $objectives\n    serialNumber: $serialNumber\n    model: $model\n    manufacturer: $manufacturer\n  ) {\n    ...Instrument\n  }\n}"
 
 
 class Create_experimentMutation(BaseModel):
@@ -1468,7 +1734,7 @@ class From_xarrayMutation(BaseModel):
     "Creates a Representation"
 
     class Arguments(BaseModel):
-        xarray: ArrayInput
+        xarray: XArrayInput
         name: Optional[str] = None
         variety: Optional[RepresentationVarietyInput] = None
         origins: Optional[List[Optional[ID]]] = None
@@ -1479,7 +1745,7 @@ class From_xarrayMutation(BaseModel):
         omero: Optional[OmeroRepresentationInput] = None
 
     class Meta:
-        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nmutation from_xarray($xarray: XArray!, $name: String, $variety: RepresentationVarietyInput, $origins: [ID], $file_origins: [ID], $roi_origins: [ID], $tags: [String], $sample: ID, $omero: OmeroRepresentationInput) {\n  fromXArray(\n    xarray: $xarray\n    name: $name\n    origins: $origins\n    tags: $tags\n    sample: $sample\n    omero: $omero\n    fileOrigins: $file_origins\n    roiOrigins: $roi_origins\n    variety: $variety\n  ) {\n    ...Representation\n  }\n}"
+        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nmutation from_xarray($xarray: XArrayInput!, $name: String, $variety: RepresentationVarietyInput, $origins: [ID], $file_origins: [ID], $roi_origins: [ID], $tags: [String], $sample: ID, $omero: OmeroRepresentationInput) {\n  fromXArray(\n    xarray: $xarray\n    name: $name\n    origins: $origins\n    tags: $tags\n    sample: $sample\n    omero: $omero\n    fileOrigins: $file_origins\n    roiOrigins: $roi_origins\n    variety: $variety\n  ) {\n    ...Representation\n  }\n}"
 
 
 class Double_uploadMutationX(Representation, BaseModel):
@@ -1519,6 +1785,9 @@ class Double_uploadMutationX(Representation, BaseModel):
     id: ID
     store: Optional[Store]
 
+    class Config:
+        frozen = True
+
 
 class Double_uploadMutationY(Representation, BaseModel):
     """A Representation is 5-dimensional representation of an image
@@ -1557,6 +1826,9 @@ class Double_uploadMutationY(Representation, BaseModel):
     id: ID
     store: Optional[Store]
 
+    class Config:
+        frozen = True
+
 
 class Double_uploadMutation(BaseModel):
     x: Optional[Double_uploadMutationX]
@@ -1565,7 +1837,7 @@ class Double_uploadMutation(BaseModel):
     "Creates a Representation"
 
     class Arguments(BaseModel):
-        xarray: ArrayInput
+        xarray: XArrayInput
         name: Optional[str] = None
         origins: Optional[List[Optional[ID]]] = None
         tags: Optional[List[Optional[str]]] = None
@@ -1573,7 +1845,7 @@ class Double_uploadMutation(BaseModel):
         omero: Optional[OmeroRepresentationInput] = None
 
     class Meta:
-        document = "mutation double_upload($xarray: XArray!, $name: String, $origins: [ID], $tags: [String], $sample: ID, $omero: OmeroRepresentationInput) {\n  x: fromXArray(\n    xarray: $xarray\n    name: $name\n    origins: $origins\n    tags: $tags\n    sample: $sample\n    omero: $omero\n  ) {\n    id\n    store\n  }\n  y: fromXArray(\n    xarray: $xarray\n    name: $name\n    origins: $origins\n    tags: $tags\n    sample: $sample\n    omero: $omero\n  ) {\n    id\n    store\n  }\n}"
+        document = "mutation double_upload($xarray: XArrayInput!, $name: String, $origins: [ID], $tags: [String], $sample: ID, $omero: OmeroRepresentationInput) {\n  x: fromXArray(\n    xarray: $xarray\n    name: $name\n    origins: $origins\n    tags: $tags\n    sample: $sample\n    omero: $omero\n  ) {\n    id\n    store\n  }\n  y: fromXArray(\n    xarray: $xarray\n    name: $name\n    origins: $origins\n    tags: $tags\n    sample: $sample\n    omero: $omero\n  ) {\n    id\n    store\n  }\n}"
 
 
 class Update_representationMutation(BaseModel):
@@ -1589,7 +1861,7 @@ class Update_representationMutation(BaseModel):
         variety: Optional[RepresentationVarietyInput] = None
 
     class Meta:
-        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nmutation update_representation($id: ID!, $tags: [String], $sample: ID, $variety: RepresentationVarietyInput) {\n  updateRepresentation(rep: $id, tags: $tags, sample: $sample, variety: $variety) {\n    ...Representation\n  }\n}"
+        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nmutation update_representation($id: ID!, $tags: [String], $sample: ID, $variety: RepresentationVarietyInput) {\n  updateRepresentation(rep: $id, tags: $tags, sample: $sample, variety: $variety) {\n    ...Representation\n  }\n}"
 
 
 class Create_metricMutation(BaseModel):
@@ -1607,6 +1879,34 @@ class Create_metricMutation(BaseModel):
         document = "fragment Metric on Metric {\n  id\n  representation {\n    id\n  }\n  key\n  value\n  creator {\n    id\n  }\n  createdAt\n}\n\nmutation create_metric($representation: ID, $sample: ID, $experiment: ID, $key: String!, $value: MetricValue!) {\n  createMetric(\n    representation: $representation\n    sample: $sample\n    experiment: $experiment\n    key: $key\n    value: $value\n  ) {\n    ...Metric\n  }\n}"
 
 
+class Create_positionMutation(BaseModel):
+    create_position: Optional[PositionFragment] = Field(alias="createPosition")
+    "Creates a Feature\n    \n    This mutation creates a Feature and returns the created Feature.\n    We require a reference to the label that the feature belongs to.\n    As well as the key and value of the feature.\n    \n    There can be multiple features with the same label, but only one feature per key\n    per label"
+
+    class Arguments(BaseModel):
+        stage: ID
+        x: float
+        y: float
+        z: float
+        tags: Optional[List[Optional[str]]] = None
+
+    class Meta:
+        document = 'fragment ListStage on Stage {\n  id\n  name\n  kind\n  physicalSize\n}\n\nfragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nmutation create_position($stage: ID!, $x: Float!, $y: Float!, $z: Float!, $tags: [String]) {\n  createPosition(stage: $stage, x: $x, y: $y, z: $z, tags: $tags) {\n    ...Position\n  }\n}'
+
+
+class Create_objectiveMutation(BaseModel):
+    create_objective: Optional[ObjectiveFragment] = Field(alias="createObjective")
+    "Creates an Instrument\n    \n    This mutation creates an Instrument and returns the created Instrument.\n    The serial number is required and the manufacturer is inferred from the serial number.\n    "
+
+    class Arguments(BaseModel):
+        serial_number: str
+        name: str
+        magnification: float
+
+    class Meta:
+        document = "fragment Objective on Objective {\n  id\n  name\n  magnification\n}\n\nmutation create_objective($serial_number: String!, $name: String!, $magnification: Float!) {\n  createObjective(\n    name: $name\n    serialNumber: $serial_number\n    magnification: $magnification\n  ) {\n    ...Objective\n  }\n}"
+
+
 class Upload_bioimageMutationUploadomerofile(BaseModel):
     typename: Optional[Literal["OmeroFile"]] = Field(alias="__typename")
     id: ID
@@ -1616,6 +1916,9 @@ class Upload_bioimageMutationUploadomerofile(BaseModel):
     "The type of the file"
     name: str
     "The name of the file"
+
+    class Config:
+        frozen = True
 
 
 class Upload_bioimageMutation(BaseModel):
@@ -1655,6 +1958,9 @@ class Get_labelQueryLabelforFeatures(BaseModel):
     value: Optional[FeatureValue]
     "Value"
 
+    class Config:
+        frozen = True
+
 
 class Get_labelQueryLabelfor(BaseModel):
     """A Label is a trough model for image and features.
@@ -1671,8 +1977,11 @@ class Get_labelQueryLabelfor(BaseModel):
 
     typename: Optional[Literal["Label"]] = Field(alias="__typename")
     id: ID
-    features: Optional[List[Optional[Get_labelQueryLabelforFeatures]]]
+    features: Optional[Tuple[Optional[Get_labelQueryLabelforFeatures], ...]]
     "Features attached to this Label"
+
+    class Config:
+        frozen = True
 
 
 class Get_labelQuery(BaseModel):
@@ -1720,7 +2029,7 @@ class Expand_thumbnailQuery(BaseModel):
         document = "fragment Thumbnail on Thumbnail {\n  id\n  image\n}\n\nquery expand_thumbnail($id: ID!) {\n  thumbnail(id: $id) {\n    ...Thumbnail\n  }\n}"
 
 
-class Search_thumbnailsQueryThumbnails(BaseModel):
+class Search_thumbnailsQueryOptions(BaseModel):
     """A Thumbnail is a render of a representation that is used to display the representation in the UI.
 
     Thumbnails can also store the major color of the representation. This is used to color the representation in the UI.
@@ -1730,16 +2039,19 @@ class Search_thumbnailsQueryThumbnails(BaseModel):
     value: ID
     label: Optional[str]
 
+    class Config:
+        frozen = True
+
 
 class Search_thumbnailsQuery(BaseModel):
-    thumbnails: Optional[List[Optional[Search_thumbnailsQueryThumbnails]]]
+    options: Optional[Tuple[Optional[Search_thumbnailsQueryOptions], ...]]
     "All Thumbnails\n    \n    This query returns all Thumbnails that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Thumbnails that the user has access to. If the user is an amdin\n    or superuser, all Thumbnails will be returned.\n    \n    "
 
     class Arguments(BaseModel):
         search: Optional[str] = None
 
     class Meta:
-        document = "query search_thumbnails($search: String) {\n  thumbnails(name: $search, limit: 20) {\n    value: id\n    label: image\n  }\n}"
+        document = "query search_thumbnails($search: String) {\n  options: thumbnails(name: $search, limit: 20) {\n    value: id\n    label: image\n  }\n}"
 
 
 class Image_for_thumbnailQueryImage(BaseModel):
@@ -1751,6 +2063,9 @@ class Image_for_thumbnailQueryImage(BaseModel):
     typename: Optional[Literal["Thumbnail"]] = Field(alias="__typename")
     path: Optional[str]
     label: Optional[str]
+
+    class Config:
+        frozen = True
 
 
 class Image_for_thumbnailQuery(BaseModel):
@@ -1804,9 +2119,12 @@ class Search_tablesQueryOptions(Table, BaseModel):
     value: ID
     label: str
 
+    class Config:
+        frozen = True
+
 
 class Search_tablesQuery(BaseModel):
-    options: Optional[List[Optional[Search_tablesQueryOptions]]]
+    options: Optional[Tuple[Optional[Search_tablesQueryOptions], ...]]
     "My samples return all of the users samples attached to the current user"
 
     class Arguments(BaseModel):
@@ -1814,6 +2132,55 @@ class Search_tablesQuery(BaseModel):
 
     class Meta:
         document = "query search_tables {\n  options: tables {\n    value: id\n    label: name\n  }\n}"
+
+
+class Get_stageQuery(BaseModel):
+    stage: Optional[StageFragment]
+    'Get a single experiment by ID"\n    \n    Returns a single experiment by ID. If the user does not have access\n    to the experiment, an error will be raised.\n    \n    '
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "fragment Stage on Stage {\n  id\n  kind\n  name\n  physicalSize\n}\n\nquery get_stage($id: ID!) {\n  stage(id: $id) {\n    ...Stage\n  }\n}"
+
+
+class Expand_stageQuery(BaseModel):
+    stage: Optional[StageFragment]
+    'Get a single experiment by ID"\n    \n    Returns a single experiment by ID. If the user does not have access\n    to the experiment, an error will be raised.\n    \n    '
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "fragment Stage on Stage {\n  id\n  kind\n  name\n  physicalSize\n}\n\nquery expand_stage($id: ID!) {\n  stage(id: $id) {\n    ...Stage\n  }\n}"
+
+
+class Search_stagesQueryOptions(Stage, BaseModel):
+    """An Stage is a set of positions that share a common space on a microscope and can
+    be use to translate.
+
+
+    """
+
+    typename: Optional[Literal["Stage"]] = Field(alias="__typename")
+    value: ID
+    label: str
+    "The name of the stage"
+
+    class Config:
+        frozen = True
+
+
+class Search_stagesQuery(BaseModel):
+    options: Optional[Tuple[Optional[Search_stagesQueryOptions], ...]]
+    "All Experiments\n    \n    This query returns all Experiments that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Experiments that the user has access to. If the user is an amdin\n    or superuser, all Experiments will be returned.\n\n    If you want to retrieve only the Experiments that you have created,\n    use the `myExperiments` query.\n    \n    "
+
+    class Arguments(BaseModel):
+        search: Optional[str] = None
+
+    class Meta:
+        document = "query search_stages($search: String) {\n  options: stages(name: $search, limit: 30) {\n    value: id\n    label: name\n  }\n}"
 
 
 class Get_sampleQuery(BaseModel):
@@ -1835,9 +2202,12 @@ class Search_sampleQueryOptions(BaseModel):
     label: str
     "The name of the sample"
 
+    class Config:
+        frozen = True
+
 
 class Search_sampleQuery(BaseModel):
-    options: Optional[List[Optional[Search_sampleQueryOptions]]]
+    options: Optional[Tuple[Optional[Search_sampleQueryOptions], ...]]
     "All Samples\n    \n    This query returns all Samples that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Samples that the user has access to. If the user is an amdin\n    or superuser, all Samples will be returned.\n    \n    "
 
     class Arguments(BaseModel):
@@ -1859,7 +2229,7 @@ class Expand_sampleQuery(BaseModel):
 
 
 class Get_roisQuery(BaseModel):
-    rois: Optional[List[Optional[ListROIFragment]]]
+    rois: Optional[Tuple[Optional[ListROIFragment], ...]]
     "All Rois\n    \n    This query returns all Rois that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Rois that the user has access to. If the user is an amdin\n    or superuser, all Rois will be returned."
 
     class Arguments(BaseModel):
@@ -1881,6 +2251,49 @@ class Expand_roiQuery(BaseModel):
         document = "fragment ROI on ROI {\n  id\n  label\n  vectors {\n    x\n    y\n    t\n    c\n    z\n  }\n  type\n  representation {\n    id\n  }\n  derivedRepresentations {\n    id\n  }\n  creator {\n    email\n    id\n    color\n  }\n}\n\nquery expand_roi($id: ID!) {\n  roi(id: $id) {\n    ...ROI\n  }\n}"
 
 
+class Get_roiQuery(BaseModel):
+    roi: Optional[ROIFragment]
+    'Get a single Roi by ID"\n    \n    Returns a single Roi by ID. If the user does not have access\n    to the Roi, an error will be raised.'
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "fragment ROI on ROI {\n  id\n  label\n  vectors {\n    x\n    y\n    t\n    c\n    z\n  }\n  type\n  representation {\n    id\n  }\n  derivedRepresentations {\n    id\n  }\n  creator {\n    email\n    id\n    color\n  }\n}\n\nquery get_roi($id: ID!) {\n  roi(id: $id) {\n    ...ROI\n  }\n}"
+
+
+class Search_roisQueryOptions(ROI, BaseModel):
+    """A ROI is a region of interest in a representation.
+
+    This region is to be regarded as a view on the representation. Depending
+    on the implementatoin (type) of the ROI, the view can be constructed
+    differently. For example, a rectangular ROI can be constructed by cropping
+    the representation according to its 2 vectors. while a polygonal ROI can be constructed by masking the
+    representation with the polygon.
+
+    The ROI can also store a name and a description. This is used to display the ROI in the UI.
+
+    """
+
+    typename: Optional[Literal["ROI"]] = Field(alias="__typename")
+    label: ID
+    value: ID
+
+    class Config:
+        frozen = True
+
+
+class Search_roisQuery(BaseModel):
+    options: Optional[Tuple[Optional[Search_roisQueryOptions], ...]]
+    "All Rois\n    \n    This query returns all Rois that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Rois that the user has access to. If the user is an amdin\n    or superuser, all Rois will be returned."
+
+    class Arguments(BaseModel):
+        search: Optional[str] = None
+
+    class Meta:
+        document = "query search_rois($search: String) {\n  options: rois(repname: $search) {\n    label: id\n    value: id\n  }\n}"
+
+
 class Expand_featureQuery(BaseModel):
     feature: Optional[FeatureFragment]
     "Get a single feature by ID\n    \n    Returns a single feature by ID. If the user does not have access\n    to the feature, an error will be raised.\n    "
@@ -1897,6 +2310,9 @@ class RequestQueryRequest(BaseModel):
     access_key: Optional[str] = Field(alias="accessKey")
     status: Optional[str]
     secret_key: Optional[str] = Field(alias="secretKey")
+
+    class Config:
+        frozen = True
 
 
 class RequestQuery(BaseModel):
@@ -1940,9 +2356,12 @@ class Search_instrumentsQueryOptions(BaseModel):
     value: ID
     label: str
 
+    class Config:
+        frozen = True
+
 
 class Search_instrumentsQuery(BaseModel):
-    options: Optional[List[Optional[Search_instrumentsQueryOptions]]]
+    options: Optional[Tuple[Optional[Search_instrumentsQueryOptions], ...]]
     "All Instruments\n    \n    This query returns all Instruments that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Instruments that the user has access to. If the user is an amdin\n    or superuser, all Instruments will be returned."
 
     class Arguments(BaseModel):
@@ -1994,9 +2413,12 @@ class Search_experimentQueryOptions(BaseModel):
     label: str
     "The name of the experiment"
 
+    class Config:
+        frozen = True
+
 
 class Search_experimentQuery(BaseModel):
-    options: Optional[List[Optional[Search_experimentQueryOptions]]]
+    options: Optional[Tuple[Optional[Search_experimentQueryOptions], ...]]
     "All Experiments\n    \n    This query returns all Experiments that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Experiments that the user has access to. If the user is an amdin\n    or superuser, all Experiments will be returned.\n\n    If you want to retrieve only the Experiments that you have created,\n    use the `myExperiments` query.\n    \n    "
 
     class Arguments(BaseModel):
@@ -2016,7 +2438,7 @@ class Expand_representationQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nquery expand_representation($id: ID!) {\n  representation(id: $id) {\n    ...Representation\n  }\n}"
+        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nquery expand_representation($id: ID!) {\n  representation(id: $id) {\n    ...Representation\n  }\n}"
 
 
 class Get_representationQuery(BaseModel):
@@ -2027,7 +2449,7 @@ class Get_representationQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nquery get_representation($id: ID!) {\n  representation(id: $id) {\n    ...Representation\n  }\n}"
+        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nquery get_representation($id: ID!) {\n  representation(id: $id) {\n    ...Representation\n  }\n}"
 
 
 class Search_representationQueryOptions(Representation, BaseModel):
@@ -2068,9 +2490,12 @@ class Search_representationQueryOptions(Representation, BaseModel):
     label: Optional[str]
     "Cleartext name"
 
+    class Config:
+        frozen = True
+
 
 class Search_representationQuery(BaseModel):
-    options: Optional[List[Optional[Search_representationQueryOptions]]]
+    options: Optional[Tuple[Optional[Search_representationQueryOptions], ...]]
     "All Representations\n    \n    This query returns all Representations that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Representations that the user has access to. If the user is an amdin\n    or superuser, all Representations will be returned."
 
     class Arguments(BaseModel):
@@ -2094,17 +2519,17 @@ class Get_random_repQuery(BaseModel):
         pass
 
     class Meta:
-        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nquery get_random_rep {\n  randomRepresentation {\n    ...Representation\n  }\n}"
+        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nquery get_random_rep {\n  randomRepresentation {\n    ...Representation\n  }\n}"
 
 
 class My_accessiblesQuery(BaseModel):
-    accessiblerepresentations: Optional[List[Optional[RepresentationFragment]]]
+    accessiblerepresentations: Optional[Tuple[Optional[RepresentationFragment], ...]]
 
     class Arguments(BaseModel):
         pass
 
     class Meta:
-        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nquery my_accessibles {\n  accessiblerepresentations {\n    ...Representation\n  }\n}"
+        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nquery my_accessibles {\n  accessiblerepresentations {\n    ...Representation\n  }\n}"
 
 
 class Search_tagsQueryOptions(BaseModel):
@@ -2112,9 +2537,12 @@ class Search_tagsQueryOptions(BaseModel):
     value: str
     label: str
 
+    class Config:
+        frozen = True
+
 
 class Search_tagsQuery(BaseModel):
-    options: Optional[List[Optional[Search_tagsQueryOptions]]]
+    options: Optional[Tuple[Optional[Search_tagsQueryOptions], ...]]
     "All Tags\n    \n    Returns all Tags that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Tags that the user has access to. If the user is an amdin\n    or superuser, all Tags will be returned.\n    "
 
     class Arguments(BaseModel):
@@ -2137,6 +2565,97 @@ class Expand_metricQuery(BaseModel):
         document = "fragment Metric on Metric {\n  id\n  representation {\n    id\n  }\n  key\n  value\n  creator {\n    id\n  }\n  createdAt\n}\n\nquery expand_metric($id: ID!) {\n  metric(id: $id) {\n    ...Metric\n  }\n}"
 
 
+class Get_positionQuery(BaseModel):
+    position: Optional[PositionFragment]
+    'Get a single experiment by ID"\n    \n    Returns a single experiment by ID. If the user does not have access\n    to the experiment, an error will be raised.\n    \n    '
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = 'fragment ListStage on Stage {\n  id\n  name\n  kind\n  physicalSize\n}\n\nfragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nquery get_position($id: ID!) {\n  position(id: $id) {\n    ...Position\n  }\n}'
+
+
+class Expand_positionQuery(BaseModel):
+    position: Optional[PositionFragment]
+    'Get a single experiment by ID"\n    \n    Returns a single experiment by ID. If the user does not have access\n    to the experiment, an error will be raised.\n    \n    '
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = 'fragment ListStage on Stage {\n  id\n  name\n  kind\n  physicalSize\n}\n\nfragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nquery expand_position($id: ID!) {\n  position(id: $id) {\n    ...Position\n  }\n}'
+
+
+class Search_positionsQueryOptions(BaseModel):
+    """The relative position of a sample on a microscope stage"""
+
+    typename: Optional[Literal["Position"]] = Field(alias="__typename")
+    value: ID
+    label: str
+    "The name of the possition"
+
+    class Config:
+        frozen = True
+
+
+class Search_positionsQuery(BaseModel):
+    options: Optional[Tuple[Optional[Search_positionsQueryOptions], ...]]
+    "All Experiments\n    \n    This query returns all Experiments that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Experiments that the user has access to. If the user is an amdin\n    or superuser, all Experiments will be returned.\n\n    If you want to retrieve only the Experiments that you have created,\n    use the `myExperiments` query.\n    \n    "
+
+    class Arguments(BaseModel):
+        search: Optional[str] = None
+        stage: Optional[ID] = None
+
+    class Meta:
+        document = "query search_positions($search: String, $stage: ID) {\n  options: positions(name: $search, limit: 30, stage: $stage) {\n    value: id\n    label: name\n  }\n}"
+
+
+class Get_objectiveQuery(BaseModel):
+    objective: Optional[ObjectiveFragment]
+    "Get a single instrumes by ID\n    \n    Returns a single instrument by ID. If the user does not have access\n    to the instrument, an error will be raised."
+
+    class Arguments(BaseModel):
+        id: Optional[ID] = None
+        name: Optional[str] = None
+
+    class Meta:
+        document = "fragment Objective on Objective {\n  id\n  name\n  magnification\n}\n\nquery get_objective($id: ID, $name: String) {\n  objective(id: $id, name: $name) {\n    ...Objective\n  }\n}"
+
+
+class Expand_objectiveQuery(BaseModel):
+    objective: Optional[ObjectiveFragment]
+    "Get a single instrumes by ID\n    \n    Returns a single instrument by ID. If the user does not have access\n    to the instrument, an error will be raised."
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "fragment Objective on Objective {\n  id\n  name\n  magnification\n}\n\nquery expand_objective($id: ID!) {\n  objective(id: $id) {\n    ...Objective\n  }\n}"
+
+
+class Search_objectivesQueryOptions(Objective, BaseModel):
+    """Objective(id, serial_number, name, magnification)"""
+
+    typename: Optional[Literal["Objective"]] = Field(alias="__typename")
+    value: ID
+    label: str
+
+    class Config:
+        frozen = True
+
+
+class Search_objectivesQuery(BaseModel):
+    options: Optional[Tuple[Optional[Search_objectivesQueryOptions], ...]]
+    "All Instruments\n    \n    This query returns all Instruments that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Instruments that the user has access to. If the user is an amdin\n    or superuser, all Instruments will be returned."
+
+    class Arguments(BaseModel):
+        search: Optional[str] = None
+
+    class Meta:
+        document = "query search_objectives($search: String) {\n  options: objectives(search: $search) {\n    value: id\n    label: name\n  }\n}"
+
+
 class Get_omero_fileQuery(BaseModel):
     omerofile: Optional[OmeroFileFragment]
     "Get a single Omero File by ID\n    \n    Returns a single Omero File by ID. If the user does not have access\n    to the Omero File, an error will be raised."
@@ -2145,7 +2664,7 @@ class Get_omero_fileQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment OmeroFile on OmeroFile {\n  id\n  name\n  file\n  type\n}\n\nquery get_omero_file($id: ID!) {\n  omerofile(id: $id) {\n    ...OmeroFile\n  }\n}"
+        document = "fragment OmeroFile on OmeroFile {\n  id\n  name\n  file\n  type\n  experiments {\n    id\n  }\n}\n\nquery get_omero_file($id: ID!) {\n  omerofile(id: $id) {\n    ...OmeroFile\n  }\n}"
 
 
 class Expand_omerofileQuery(BaseModel):
@@ -2156,7 +2675,7 @@ class Expand_omerofileQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment OmeroFile on OmeroFile {\n  id\n  name\n  file\n  type\n}\n\nquery expand_omerofile($id: ID!) {\n  omerofile(id: $id) {\n    ...OmeroFile\n  }\n}"
+        document = "fragment OmeroFile on OmeroFile {\n  id\n  name\n  file\n  type\n  experiments {\n    id\n  }\n}\n\nquery expand_omerofile($id: ID!) {\n  omerofile(id: $id) {\n    ...OmeroFile\n  }\n}"
 
 
 class Search_omerofileQueryOptions(BaseModel):
@@ -2165,9 +2684,12 @@ class Search_omerofileQueryOptions(BaseModel):
     label: str
     "The name of the file"
 
+    class Config:
+        frozen = True
+
 
 class Search_omerofileQuery(BaseModel):
-    options: Optional[List[Optional[Search_omerofileQueryOptions]]]
+    options: Optional[Tuple[Optional[Search_omerofileQueryOptions], ...]]
     "All OmeroFiles\n\n    This query returns all OmeroFiles that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all OmeroFiles that the user has access to. If the user is an amdin\n    or superuser, all OmeroFiles will be returned.\n    \n    "
 
     class Arguments(BaseModel):
@@ -2443,7 +2965,7 @@ def negotiate(rath: MikroRath = None) -> Optional[Dict]:
 
 
 async def afrom_df(
-    df: DataFrame, name: str, rath: MikroRath = None
+    df: ParquetInput, name: str, rath: MikroRath = None
 ) -> Optional[TableFragment]:
     """from_df
 
@@ -2463,7 +2985,7 @@ async def afrom_df(
 
 
     Arguments:
-        df (DataFrame): df
+        df (ParquetInput): df
         name (str): name
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
@@ -2475,7 +2997,7 @@ async def afrom_df(
 
 
 def from_df(
-    df: DataFrame, name: str, rath: MikroRath = None
+    df: ParquetInput, name: str, rath: MikroRath = None
 ) -> Optional[TableFragment]:
     """from_df
 
@@ -2495,13 +3017,91 @@ def from_df(
 
 
     Arguments:
-        df (DataFrame): df
+        df (ParquetInput): df
         name (str): name
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[TableFragment]"""
     return execute(From_dfMutation, {"df": df, "name": name}, rath=rath).from_df
+
+
+async def acreate_stage(
+    name: str,
+    physical_size: List[Optional[float]],
+    creator: Optional[ID] = None,
+    tags: Optional[List[Optional[str]]] = None,
+    rath: MikroRath = None,
+) -> Optional[StageFragment]:
+    """create_stage
+
+
+     createStage: An Stage is a set of positions that share a common space on a microscope and can
+        be use to translate.
+
+
+
+
+
+    Arguments:
+        name (str): name
+        physical_size (List[Optional[float]]): physical_size
+        creator (Optional[ID], optional): creator.
+        tags (Optional[List[Optional[str]]], optional): tags.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[StageFragment]"""
+    return (
+        await aexecute(
+            Create_stageMutation,
+            {
+                "name": name,
+                "creator": creator,
+                "tags": tags,
+                "physical_size": physical_size,
+            },
+            rath=rath,
+        )
+    ).create_stage
+
+
+def create_stage(
+    name: str,
+    physical_size: List[Optional[float]],
+    creator: Optional[ID] = None,
+    tags: Optional[List[Optional[str]]] = None,
+    rath: MikroRath = None,
+) -> Optional[StageFragment]:
+    """create_stage
+
+
+     createStage: An Stage is a set of positions that share a common space on a microscope and can
+        be use to translate.
+
+
+
+
+
+    Arguments:
+        name (str): name
+        physical_size (List[Optional[float]]): physical_size
+        creator (Optional[ID], optional): creator.
+        tags (Optional[List[Optional[str]]], optional): tags.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[StageFragment]"""
+    return execute(
+        Create_stageMutation,
+        {
+            "name": name,
+            "creator": creator,
+            "tags": tags,
+            "physical_size": physical_size,
+        },
+        rath=rath,
+    ).create_stage
 
 
 async def acreate_sample(
@@ -2682,114 +3282,6 @@ def create_roi(
     ).create_roi
 
 
-async def aget_roi(id: ID, rath: MikroRath = None) -> Optional[ROIFragment]:
-    """get_roi
-
-
-     roi: A ROI is a region of interest in a representation.
-
-        This region is to be regarded as a view on the representation. Depending
-        on the implementatoin (type) of the ROI, the view can be constructed
-        differently. For example, a rectangular ROI can be constructed by cropping
-        the representation according to its 2 vectors. while a polygonal ROI can be constructed by masking the
-        representation with the polygon.
-
-        The ROI can also store a name and a description. This is used to display the ROI in the UI.
-
-
-
-
-    Arguments:
-        id (ID): id
-        rath (mikro.rath.MikroRath, optional): The mikro rath client
-
-    Returns:
-        Optional[ROIFragment]"""
-    return (await aexecute(Get_roiQuery, {"id": id}, rath=rath)).roi
-
-
-def get_roi(id: ID, rath: MikroRath = None) -> Optional[ROIFragment]:
-    """get_roi
-
-
-     roi: A ROI is a region of interest in a representation.
-
-        This region is to be regarded as a view on the representation. Depending
-        on the implementatoin (type) of the ROI, the view can be constructed
-        differently. For example, a rectangular ROI can be constructed by cropping
-        the representation according to its 2 vectors. while a polygonal ROI can be constructed by masking the
-        representation with the polygon.
-
-        The ROI can also store a name and a description. This is used to display the ROI in the UI.
-
-
-
-
-    Arguments:
-        id (ID): id
-        rath (mikro.rath.MikroRath, optional): The mikro rath client
-
-    Returns:
-        Optional[ROIFragment]"""
-    return execute(Get_roiQuery, {"id": id}, rath=rath).roi
-
-
-async def asearch_rois(
-    search: str, rath: MikroRath = None
-) -> Optional[List[Optional[Search_roisQueryRois]]]:
-    """search_rois
-
-
-     rois: A ROI is a region of interest in a representation.
-
-        This region is to be regarded as a view on the representation. Depending
-        on the implementatoin (type) of the ROI, the view can be constructed
-        differently. For example, a rectangular ROI can be constructed by cropping
-        the representation according to its 2 vectors. while a polygonal ROI can be constructed by masking the
-        representation with the polygon.
-
-        The ROI can also store a name and a description. This is used to display the ROI in the UI.
-
-
-
-
-    Arguments:
-        search (str): search
-        rath (mikro.rath.MikroRath, optional): The mikro rath client
-
-    Returns:
-        Optional[List[Optional[Search_roisQueryRois]]]"""
-    return (await aexecute(Search_roisQuery, {"search": search}, rath=rath)).rois
-
-
-def search_rois(
-    search: str, rath: MikroRath = None
-) -> Optional[List[Optional[Search_roisQueryRois]]]:
-    """search_rois
-
-
-     rois: A ROI is a region of interest in a representation.
-
-        This region is to be regarded as a view on the representation. Depending
-        on the implementatoin (type) of the ROI, the view can be constructed
-        differently. For example, a rectangular ROI can be constructed by cropping
-        the representation according to its 2 vectors. while a polygonal ROI can be constructed by masking the
-        representation with the polygon.
-
-        The ROI can also store a name and a description. This is used to display the ROI in the UI.
-
-
-
-
-    Arguments:
-        search (str): search
-        rath (mikro.rath.MikroRath, optional): The mikro rath client
-
-    Returns:
-        Optional[List[Optional[Search_roisQueryRois]]]"""
-    return execute(Search_roisQuery, {"search": search}, rath=rath).rois
-
-
 async def acreate_feature(
     label: ID,
     value: FeatureValue,
@@ -2881,6 +3373,7 @@ async def acreate_instrument(
     detectors: Optional[List[Optional[Dict]]] = None,
     dichroics: Optional[List[Optional[Dict]]] = None,
     filters: Optional[List[Optional[Dict]]] = None,
+    objectives: Optional[List[Optional[ID]]] = None,
     lot_number: Optional[str] = None,
     serial_number: Optional[str] = None,
     model: Optional[str] = None,
@@ -2898,6 +3391,7 @@ async def acreate_instrument(
         detectors (Optional[List[Optional[Dict]]], optional): detectors.
         dichroics (Optional[List[Optional[Dict]]], optional): dichroics.
         filters (Optional[List[Optional[Dict]]], optional): filters.
+        objectives (Optional[List[Optional[ID]]], optional): objectives.
         lot_number (Optional[str], optional): lotNumber.
         serial_number (Optional[str], optional): serialNumber.
         model (Optional[str], optional): model.
@@ -2914,6 +3408,7 @@ async def acreate_instrument(
                 "dichroics": dichroics,
                 "filters": filters,
                 "name": name,
+                "objectives": objectives,
                 "lotNumber": lot_number,
                 "serialNumber": serial_number,
                 "model": model,
@@ -2929,6 +3424,7 @@ def create_instrument(
     detectors: Optional[List[Optional[Dict]]] = None,
     dichroics: Optional[List[Optional[Dict]]] = None,
     filters: Optional[List[Optional[Dict]]] = None,
+    objectives: Optional[List[Optional[ID]]] = None,
     lot_number: Optional[str] = None,
     serial_number: Optional[str] = None,
     model: Optional[str] = None,
@@ -2946,6 +3442,7 @@ def create_instrument(
         detectors (Optional[List[Optional[Dict]]], optional): detectors.
         dichroics (Optional[List[Optional[Dict]]], optional): dichroics.
         filters (Optional[List[Optional[Dict]]], optional): filters.
+        objectives (Optional[List[Optional[ID]]], optional): objectives.
         lot_number (Optional[str], optional): lotNumber.
         serial_number (Optional[str], optional): serialNumber.
         model (Optional[str], optional): model.
@@ -2961,6 +3458,7 @@ def create_instrument(
             "dichroics": dichroics,
             "filters": filters,
             "name": name,
+            "objectives": objectives,
             "lotNumber": lot_number,
             "serialNumber": serial_number,
             "model": model,
@@ -3060,7 +3558,7 @@ def create_experiment(
 
 
 async def afrom_xarray(
-    xarray: ArrayInput,
+    xarray: XArrayInput,
     name: Optional[str] = None,
     variety: Optional[RepresentationVarietyInput] = None,
     origins: Optional[List[Optional[ID]]] = None,
@@ -3076,7 +3574,7 @@ async def afrom_xarray(
      Creates a Representation from an xarray dataset.
 
     Arguments:
-        xarray (ArrayInput): xarray
+        xarray (XArrayInput): xarray
         name (Optional[str], optional): name.
         variety (Optional[RepresentationVarietyInput], optional): variety.
         origins (Optional[List[Optional[ID]]], optional): origins.
@@ -3109,7 +3607,7 @@ async def afrom_xarray(
 
 
 def from_xarray(
-    xarray: ArrayInput,
+    xarray: XArrayInput,
     name: Optional[str] = None,
     variety: Optional[RepresentationVarietyInput] = None,
     origins: Optional[List[Optional[ID]]] = None,
@@ -3125,7 +3623,7 @@ def from_xarray(
      Creates a Representation from an xarray dataset.
 
     Arguments:
-        xarray (ArrayInput): xarray
+        xarray (XArrayInput): xarray
         name (Optional[str], optional): name.
         variety (Optional[RepresentationVarietyInput], optional): variety.
         origins (Optional[List[Optional[ID]]], optional): origins.
@@ -3156,7 +3654,7 @@ def from_xarray(
 
 
 async def adouble_upload(
-    xarray: ArrayInput,
+    xarray: XArrayInput,
     name: Optional[str] = None,
     origins: Optional[List[Optional[ID]]] = None,
     tags: Optional[List[Optional[str]]] = None,
@@ -3233,7 +3731,7 @@ async def adouble_upload(
 
 
     Arguments:
-        xarray (ArrayInput): xarray
+        xarray (XArrayInput): xarray
         name (Optional[str], optional): name.
         origins (Optional[List[Optional[ID]]], optional): origins.
         tags (Optional[List[Optional[str]]], optional): tags.
@@ -3258,7 +3756,7 @@ async def adouble_upload(
 
 
 def double_upload(
-    xarray: ArrayInput,
+    xarray: XArrayInput,
     name: Optional[str] = None,
     origins: Optional[List[Optional[ID]]] = None,
     tags: Optional[List[Optional[str]]] = None,
@@ -3335,7 +3833,7 @@ def double_upload(
 
 
     Arguments:
-        xarray (ArrayInput): xarray
+        xarray (XArrayInput): xarray
         name (Optional[str], optional): name.
         origins (Optional[List[Optional[ID]]], optional): origins.
         tags (Optional[List[Optional[str]]], optional): tags.
@@ -3549,6 +4047,124 @@ def create_metric(
         },
         rath=rath,
     ).create_metric
+
+
+async def acreate_position(
+    stage: ID,
+    x: float,
+    y: float,
+    z: float,
+    tags: Optional[List[Optional[str]]] = None,
+    rath: MikroRath = None,
+) -> Optional[PositionFragment]:
+    """create_position
+
+
+     createPosition: The relative position of a sample on a microscope stage
+
+
+    Arguments:
+        stage (ID): stage
+        x (float): x
+        y (float): y
+        z (float): z
+        tags (Optional[List[Optional[str]]], optional): tags.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[PositionFragment]"""
+    return (
+        await aexecute(
+            Create_positionMutation,
+            {"stage": stage, "x": x, "y": y, "z": z, "tags": tags},
+            rath=rath,
+        )
+    ).create_position
+
+
+def create_position(
+    stage: ID,
+    x: float,
+    y: float,
+    z: float,
+    tags: Optional[List[Optional[str]]] = None,
+    rath: MikroRath = None,
+) -> Optional[PositionFragment]:
+    """create_position
+
+
+     createPosition: The relative position of a sample on a microscope stage
+
+
+    Arguments:
+        stage (ID): stage
+        x (float): x
+        y (float): y
+        z (float): z
+        tags (Optional[List[Optional[str]]], optional): tags.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[PositionFragment]"""
+    return execute(
+        Create_positionMutation,
+        {"stage": stage, "x": x, "y": y, "z": z, "tags": tags},
+        rath=rath,
+    ).create_position
+
+
+async def acreate_objective(
+    serial_number: str, name: str, magnification: float, rath: MikroRath = None
+) -> Optional[ObjectiveFragment]:
+    """create_objective
+
+
+     createObjective: Objective(id, serial_number, name, magnification)
+
+
+    Arguments:
+        serial_number (str): serial_number
+        name (str): name
+        magnification (float): magnification
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[ObjectiveFragment]"""
+    return (
+        await aexecute(
+            Create_objectiveMutation,
+            {
+                "serial_number": serial_number,
+                "name": name,
+                "magnification": magnification,
+            },
+            rath=rath,
+        )
+    ).create_objective
+
+
+def create_objective(
+    serial_number: str, name: str, magnification: float, rath: MikroRath = None
+) -> Optional[ObjectiveFragment]:
+    """create_objective
+
+
+     createObjective: Objective(id, serial_number, name, magnification)
+
+
+    Arguments:
+        serial_number (str): serial_number
+        name (str): name
+        magnification (float): magnification
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[ObjectiveFragment]"""
+    return execute(
+        Create_objectiveMutation,
+        {"serial_number": serial_number, "name": name, "magnification": magnification},
+        rath=rath,
+    ).create_objective
 
 
 async def aupload_bioimage(
@@ -3789,11 +4405,11 @@ def expand_thumbnail(id: ID, rath: MikroRath = None) -> Optional[ThumbnailFragme
 
 async def asearch_thumbnails(
     search: Optional[str] = None, rath: MikroRath = None
-) -> Optional[List[Optional[Search_thumbnailsQueryThumbnails]]]:
+) -> Optional[List[Optional[Search_thumbnailsQueryOptions]]]:
     """search_thumbnails
 
 
-     thumbnails: A Thumbnail is a render of a representation that is used to display the representation in the UI.
+     options: A Thumbnail is a render of a representation that is used to display the representation in the UI.
 
         Thumbnails can also store the major color of the representation. This is used to color the representation in the UI.
 
@@ -3812,11 +4428,11 @@ async def asearch_thumbnails(
 
 def search_thumbnails(
     search: Optional[str] = None, rath: MikroRath = None
-) -> Optional[List[Optional[Search_thumbnailsQueryThumbnails]]]:
+) -> Optional[List[Optional[Search_thumbnailsQueryOptions]]]:
     """search_thumbnails
 
 
-     thumbnails: A Thumbnail is a render of a representation that is used to display the representation in the UI.
+     options: A Thumbnail is a render of a representation that is used to display the representation in the UI.
 
         Thumbnails can also store the major color of the representation. This is used to color the representation in the UI.
 
@@ -4037,6 +4653,130 @@ def search_tables(
     return execute(Search_tablesQuery, {}, rath=rath).tables
 
 
+async def aget_stage(id: ID, rath: MikroRath = None) -> Optional[StageFragment]:
+    """get_stage
+
+
+     stage: An Stage is a set of positions that share a common space on a microscope and can
+        be use to translate.
+
+
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[StageFragment]"""
+    return (await aexecute(Get_stageQuery, {"id": id}, rath=rath)).stage
+
+
+def get_stage(id: ID, rath: MikroRath = None) -> Optional[StageFragment]:
+    """get_stage
+
+
+     stage: An Stage is a set of positions that share a common space on a microscope and can
+        be use to translate.
+
+
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[StageFragment]"""
+    return execute(Get_stageQuery, {"id": id}, rath=rath).stage
+
+
+async def aexpand_stage(id: ID, rath: MikroRath = None) -> Optional[StageFragment]:
+    """expand_stage
+
+
+     stage: An Stage is a set of positions that share a common space on a microscope and can
+        be use to translate.
+
+
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[StageFragment]"""
+    return (await aexecute(Expand_stageQuery, {"id": id}, rath=rath)).stage
+
+
+def expand_stage(id: ID, rath: MikroRath = None) -> Optional[StageFragment]:
+    """expand_stage
+
+
+     stage: An Stage is a set of positions that share a common space on a microscope and can
+        be use to translate.
+
+
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[StageFragment]"""
+    return execute(Expand_stageQuery, {"id": id}, rath=rath).stage
+
+
+async def asearch_stages(
+    search: Optional[str] = None, rath: MikroRath = None
+) -> Optional[List[Optional[Search_stagesQueryOptions]]]:
+    """search_stages
+
+
+     options: An Stage is a set of positions that share a common space on a microscope and can
+        be use to translate.
+
+
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[Search_stagesQueryStages]]]"""
+    return (await aexecute(Search_stagesQuery, {"search": search}, rath=rath)).stages
+
+
+def search_stages(
+    search: Optional[str] = None, rath: MikroRath = None
+) -> Optional[List[Optional[Search_stagesQueryOptions]]]:
+    """search_stages
+
+
+     options: An Stage is a set of positions that share a common space on a microscope and can
+        be use to translate.
+
+
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[Search_stagesQueryStages]]]"""
+    return execute(Search_stagesQuery, {"search": search}, rath=rath).stages
+
+
 async def aget_sample(id: ID, rath: MikroRath = None) -> Optional[SampleFragment]:
     """get_sample
 
@@ -4255,6 +4995,114 @@ def expand_roi(id: ID, rath: MikroRath = None) -> Optional[ROIFragment]:
     Returns:
         Optional[ROIFragment]"""
     return execute(Expand_roiQuery, {"id": id}, rath=rath).roi
+
+
+async def aget_roi(id: ID, rath: MikroRath = None) -> Optional[ROIFragment]:
+    """get_roi
+
+
+     roi: A ROI is a region of interest in a representation.
+
+        This region is to be regarded as a view on the representation. Depending
+        on the implementatoin (type) of the ROI, the view can be constructed
+        differently. For example, a rectangular ROI can be constructed by cropping
+        the representation according to its 2 vectors. while a polygonal ROI can be constructed by masking the
+        representation with the polygon.
+
+        The ROI can also store a name and a description. This is used to display the ROI in the UI.
+
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[ROIFragment]"""
+    return (await aexecute(Get_roiQuery, {"id": id}, rath=rath)).roi
+
+
+def get_roi(id: ID, rath: MikroRath = None) -> Optional[ROIFragment]:
+    """get_roi
+
+
+     roi: A ROI is a region of interest in a representation.
+
+        This region is to be regarded as a view on the representation. Depending
+        on the implementatoin (type) of the ROI, the view can be constructed
+        differently. For example, a rectangular ROI can be constructed by cropping
+        the representation according to its 2 vectors. while a polygonal ROI can be constructed by masking the
+        representation with the polygon.
+
+        The ROI can also store a name and a description. This is used to display the ROI in the UI.
+
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[ROIFragment]"""
+    return execute(Get_roiQuery, {"id": id}, rath=rath).roi
+
+
+async def asearch_rois(
+    search: Optional[str] = None, rath: MikroRath = None
+) -> Optional[List[Optional[Search_roisQueryOptions]]]:
+    """search_rois
+
+
+     options: A ROI is a region of interest in a representation.
+
+        This region is to be regarded as a view on the representation. Depending
+        on the implementatoin (type) of the ROI, the view can be constructed
+        differently. For example, a rectangular ROI can be constructed by cropping
+        the representation according to its 2 vectors. while a polygonal ROI can be constructed by masking the
+        representation with the polygon.
+
+        The ROI can also store a name and a description. This is used to display the ROI in the UI.
+
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[Search_roisQueryRois]]]"""
+    return (await aexecute(Search_roisQuery, {"search": search}, rath=rath)).rois
+
+
+def search_rois(
+    search: Optional[str] = None, rath: MikroRath = None
+) -> Optional[List[Optional[Search_roisQueryOptions]]]:
+    """search_rois
+
+
+     options: A ROI is a region of interest in a representation.
+
+        This region is to be regarded as a view on the representation. Depending
+        on the implementatoin (type) of the ROI, the view can be constructed
+        differently. For example, a rectangular ROI can be constructed by cropping
+        the representation according to its 2 vectors. while a polygonal ROI can be constructed by masking the
+        representation with the polygon.
+
+        The ROI can also store a name and a description. This is used to display the ROI in the UI.
+
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[Search_roisQueryRois]]]"""
+    return execute(Search_roisQuery, {"search": search}, rath=rath).rois
 
 
 async def aexpand_feature(id: ID, rath: MikroRath = None) -> Optional[FeatureFragment]:
@@ -5047,6 +5895,228 @@ def expand_metric(id: ID, rath: MikroRath = None) -> Optional[MetricFragment]:
     Returns:
         Optional[MetricFragment]"""
     return execute(Expand_metricQuery, {"id": id}, rath=rath).metric
+
+
+async def aget_position(id: ID, rath: MikroRath = None) -> Optional[PositionFragment]:
+    """get_position
+
+
+     position: The relative position of a sample on a microscope stage
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[PositionFragment]"""
+    return (await aexecute(Get_positionQuery, {"id": id}, rath=rath)).position
+
+
+def get_position(id: ID, rath: MikroRath = None) -> Optional[PositionFragment]:
+    """get_position
+
+
+     position: The relative position of a sample on a microscope stage
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[PositionFragment]"""
+    return execute(Get_positionQuery, {"id": id}, rath=rath).position
+
+
+async def aexpand_position(
+    id: ID, rath: MikroRath = None
+) -> Optional[PositionFragment]:
+    """expand_position
+
+
+     position: The relative position of a sample on a microscope stage
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[PositionFragment]"""
+    return (await aexecute(Expand_positionQuery, {"id": id}, rath=rath)).position
+
+
+def expand_position(id: ID, rath: MikroRath = None) -> Optional[PositionFragment]:
+    """expand_position
+
+
+     position: The relative position of a sample on a microscope stage
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[PositionFragment]"""
+    return execute(Expand_positionQuery, {"id": id}, rath=rath).position
+
+
+async def asearch_positions(
+    search: Optional[str] = None, stage: Optional[ID] = None, rath: MikroRath = None
+) -> Optional[List[Optional[Search_positionsQueryOptions]]]:
+    """search_positions
+
+
+     options: The relative position of a sample on a microscope stage
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        stage (Optional[ID], optional): stage.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[Search_positionsQueryPositions]]]"""
+    return (
+        await aexecute(
+            Search_positionsQuery, {"search": search, "stage": stage}, rath=rath
+        )
+    ).positions
+
+
+def search_positions(
+    search: Optional[str] = None, stage: Optional[ID] = None, rath: MikroRath = None
+) -> Optional[List[Optional[Search_positionsQueryOptions]]]:
+    """search_positions
+
+
+     options: The relative position of a sample on a microscope stage
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        stage (Optional[ID], optional): stage.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[Search_positionsQueryPositions]]]"""
+    return execute(
+        Search_positionsQuery, {"search": search, "stage": stage}, rath=rath
+    ).positions
+
+
+async def aget_objective(
+    id: Optional[ID] = None, name: Optional[str] = None, rath: MikroRath = None
+) -> Optional[ObjectiveFragment]:
+    """get_objective
+
+
+     objective: Objective(id, serial_number, name, magnification)
+
+
+    Arguments:
+        id (Optional[ID], optional): id.
+        name (Optional[str], optional): name.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[ObjectiveFragment]"""
+    return (
+        await aexecute(Get_objectiveQuery, {"id": id, "name": name}, rath=rath)
+    ).objective
+
+
+def get_objective(
+    id: Optional[ID] = None, name: Optional[str] = None, rath: MikroRath = None
+) -> Optional[ObjectiveFragment]:
+    """get_objective
+
+
+     objective: Objective(id, serial_number, name, magnification)
+
+
+    Arguments:
+        id (Optional[ID], optional): id.
+        name (Optional[str], optional): name.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[ObjectiveFragment]"""
+    return execute(Get_objectiveQuery, {"id": id, "name": name}, rath=rath).objective
+
+
+async def aexpand_objective(
+    id: ID, rath: MikroRath = None
+) -> Optional[ObjectiveFragment]:
+    """expand_objective
+
+
+     objective: Objective(id, serial_number, name, magnification)
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[ObjectiveFragment]"""
+    return (await aexecute(Expand_objectiveQuery, {"id": id}, rath=rath)).objective
+
+
+def expand_objective(id: ID, rath: MikroRath = None) -> Optional[ObjectiveFragment]:
+    """expand_objective
+
+
+     objective: Objective(id, serial_number, name, magnification)
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[ObjectiveFragment]"""
+    return execute(Expand_objectiveQuery, {"id": id}, rath=rath).objective
+
+
+async def asearch_objectives(
+    search: Optional[str] = None, rath: MikroRath = None
+) -> Optional[List[Optional[Search_objectivesQueryOptions]]]:
+    """search_objectives
+
+
+     options: Objective(id, serial_number, name, magnification)
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[Search_objectivesQueryObjectives]]]"""
+    return (
+        await aexecute(Search_objectivesQuery, {"search": search}, rath=rath)
+    ).objectives
+
+
+def search_objectives(
+    search: Optional[str] = None, rath: MikroRath = None
+) -> Optional[List[Optional[Search_objectivesQueryOptions]]]:
+    """search_objectives
+
+
+     options: Objective(id, serial_number, name, magnification)
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[Search_objectivesQueryObjectives]]]"""
+    return execute(Search_objectivesQuery, {"search": search}, rath=rath).objectives
 
 
 async def aget_omero_file(

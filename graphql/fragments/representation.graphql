@@ -3,6 +3,7 @@ fragment Representation on Representation {
     id
     name
   }
+  shape
   id
   store
   variety
@@ -22,4 +23,11 @@ fragment Representation on Representation {
     store
     variety
   }
+}
+
+fragment ListRepresentation on Representation {
+  id
+  shape
+  name
+  store
 }

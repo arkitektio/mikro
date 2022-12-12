@@ -12,7 +12,7 @@ If you want to add your own traits to the graphql type, you can do so by adding 
 """
 
 from asyncio import get_running_loop
-from typing import Awaitable, List, TypeVar
+from typing import Awaitable, List, TypeVar, Tuple
 import numpy as np
 from pydantic import BaseModel
 import xarray as xr
@@ -21,7 +21,7 @@ import pandas as pd
 from rath.links.shrink import ShrinkByID
 
 
-class Representation(BaseModel, ShrinkByID):
+class Representation(BaseModel):
     """Representation Trait
 
     Implements both identifier and shrinking methods.
@@ -61,8 +61,7 @@ class Representation(BaseModel, ShrinkByID):
             "This method is not available when running in an event loop . Please use adata to retreive a future to your data."
         )
 
-    @property
-    def adata(self) -> Awaitable[xr.DataArray]:
+    async def adata(self) -> Awaitable[xr.DataArray]:
         """The Data of the Representation as an xr.DataArray. Accessible from asyncio.
 
         Returns:
@@ -76,10 +75,44 @@ class Representation(BaseModel, ShrinkByID):
             pstore is not None
         ), "Please query 'store' in your request on 'Representation'. Data is not accessible otherwise"
 
-        return pstore.aopen()
+        return await pstore.aopen()
 
 
-class ROI(BaseModel, ShrinkByID):
+class Stage:
+    pass
+
+
+class Objective:
+    """Additional Methods for ROI"""
+
+    def calculate_physical(self, stage: Stage, t: int = 1, c: int = 1):
+        """Calculate the new physical values of the ROI
+
+        Args:
+            new_physical (dict): The new physical values of the ROI
+        """
+        from mikro.api.schema import PhysicalSizeInput
+
+        if not hasattr(self, "magnification"):
+            raise AttributeError(
+                "Objective has no magnification attribute. Please query 'magnification' in your request on 'Objective'."
+            )
+
+        if not hasattr(stage, "physical_size"):
+            raise AttributeError(
+                "Stage has no physical_size attribute. Please query 'physicalSize' in your request on 'Stage'"
+            )
+
+        return PhysicalSizeInput(
+            x=stage.physical_size[0] / self.magnification,
+            y=stage.physical_size[1] / self.magnification,
+            z=stage.physical_size[2] / self.magnification,
+            c=c,
+            t=t,
+        )
+
+
+class ROI(BaseModel):
     """Additional Methods for ROI"""
 
     @property
@@ -126,6 +159,10 @@ T = TypeVar("T", bound="BaseModel")
 
 
 class Vectorizable:
+    """Mixin for Vectorizable data
+    adds functionality to convert a numpy array to a list of vectors
+    """
+
     @classmethod
     def list_from_numpyarray(cls: T, x: np.ndarray, t=None, c=None, z=None) -> List[T]:
         """Creates a list of InputVector from a numpya array
@@ -137,7 +174,6 @@ class Vectorizable:
             List[Vectorizable]: A list of InputVector
         """
         assert x.ndim == 2, "Needs to be a List array of vectors"
-        print(x)
         if x.shape[1] == 4:
             return [cls(x=i[0], y=i[1], z=i[2], t=i[3], c=c) for i in x.tolist()]
         if x.shape[1] == 3:

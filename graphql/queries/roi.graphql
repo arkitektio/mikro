@@ -9,3 +9,16 @@ query expand_roi($id: ID!) {
     ...ROI
   }
 }
+
+query get_roi($id: ID!) {
+  roi(id: $id) {
+    ...ROI
+  }
+}
+
+query search_rois($search: String) {
+  options: rois(repname: $search) {
+    label: id
+    value: id
+  }
+}

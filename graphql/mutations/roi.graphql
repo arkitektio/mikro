@@ -17,16 +17,3 @@ mutation create_roi(
     ...ROI
   }
 }
-
-query get_roi($id: ID!) {
-  roi(id: $id) {
-    ...ROI
-  }
-}
-
-query search_rois($search: String!) {
-  rois(repname: $search) {
-    label: id
-    value: id
-  }
-}

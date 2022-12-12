@@ -8,7 +8,6 @@ You can of course overwrite this in your app if you need to expand to a more com
 """
 
 
-
 try:
     from rekuest.structures.default import get_default_structure_registry
     from rekuest.widgets import SearchWidget, ImageReturnWidget
@@ -92,5 +91,25 @@ try:
         expand=aexpand_label,
         default_widget=SearchWidget(query=Search_roisQuery.Meta.document, ward="mikro"),
     )
+    structure_reg.register_as_structure(
+        PositionFragment,
+        identifier="@mikro/position",
+        expand=aexpand_position,
+    )
+    structure_reg.register_as_structure(
+        StageFragment,
+        identifier="@mikro/stage",
+        expand=aexpand_stage,
+    )
+    structure_reg.register_as_structure(
+        ObjectiveFragment,
+        identifier="@mikro/objective",
+        expand=aexpand_objective,
+        default_widget=SearchWidget(
+            query=Search_objectivesQuery.Meta.document, ward="mikro"
+        ),
+    )
+
+
 except ImportError:
     structure_reg = None

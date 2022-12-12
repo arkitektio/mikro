@@ -8,14 +8,9 @@ import xarray as xr
 import os
 import subprocess
 from testcontainers.compose import DockerCompose
-from koil
-
-
-
 
 
 class DockerV2Compose(DockerCompose):
-
     @cached_property
     def docker_cmd_comment(self):
         """Returns the base docker command by testing the docker compose api
@@ -23,8 +18,16 @@ class DockerV2Compose(DockerCompose):
         Returns:
             list[ſt]: _description_
         """
-        return ["docker","compose"] if subprocess.run(["docker", "compose", "--help"], stdout=subprocess.DEVNULL,
-        stderr=subprocess.STDOUT).returncode == 0 else ["docker-compose"]
+        return (
+            ["docker", "compose"]
+            if subprocess.run(
+                ["docker", "compose", "--help"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.STDOUT,
+            ).returncode
+            == 0
+            else ["docker-compose"]
+        )
 
     def docker_compose_command(self):
         """
@@ -37,11 +40,10 @@ class DockerV2Compose(DockerCompose):
         """
         docker_compose_cmd = self.docker_cmd_comment
         for file in self.compose_file_names:
-            docker_compose_cmd += ['-f', file]
+            docker_compose_cmd += ["-f", file]
         if self.env_file:
-            docker_compose_cmd += ['--env-file', self.env_file]
+            docker_compose_cmd += ["--env-file", self.env_file]
         return docker_compose_cmd
-
 
 
 @pytest.mark.integration
@@ -65,7 +67,7 @@ def app():
     from fakts import Fakts
     from arkitekt.apps.mikro import MikroApp
     from herre.fakts import FaktsHerre
-    from fakts.grants.remote.claim import ClaimGrant
+    from fakts.grants.remote.static import ClaimGrant
     from fakts.grants.remote.base import StaticDiscovery
 
     return MikroApp(
@@ -92,7 +94,13 @@ def test_write_random(app, environment):
             name="test_random_write",
         )
         assert x.id, "Did not get a random rep"
-        assert x.data.shape == (1, 1, 10, 1000, 1000), "Did not write data according to schema ( T, C, Z, Y, X )"
+        assert x.data.shape == (
+            1,
+            1,
+            10,
+            1000,
+            1000,
+        ), "Did not write data according to schema ( T, C, Z, Y, X )"
 
 
 @pytest.mark.integration

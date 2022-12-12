@@ -3,4 +3,7 @@ fragment OmeroFile on OmeroFile {
   name
   file
   type
+  experiments {
+    id
+  }
 }

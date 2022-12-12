@@ -1,0 +1,13 @@
+mutation create_objective(
+  $serial_number: String!
+  $name: String!
+  $magnification: Float!
+) {
+  createObjective(
+    name: $name
+    serialNumber: $serial_number
+    magnification: $magnification
+  ) {
+    ...Objective
+  }
+}

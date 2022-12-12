@@ -1,0 +1,18 @@
+query get_objective($id: ID, $name: String) {
+  objective(id: $id, name: $name) {
+    ...Objective
+  }
+}
+
+query expand_objective($id: ID!) {
+  objective(id: $id) {
+    ...Objective
+  }
+}
+
+query search_objectives($search: String) {
+  options: objectives(search: $search) {
+    value: id
+    label: name
+  }
+}

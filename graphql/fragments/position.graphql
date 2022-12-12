@@ -1,0 +1,14 @@
+fragment Position on Position {
+  id
+  stage {
+    ...ListStage
+  }
+  x
+  y
+  z
+  omeros(order: "-acquired") {
+    representation {
+      ...ListRepresentation
+    }
+  }
+}

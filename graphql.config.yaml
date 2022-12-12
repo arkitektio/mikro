@@ -1,11 +1,10 @@
 projects:
   mikro:
     schema: http://localhost:8080/graphql
-    documents: graphql/*/**.graphql
+    documents: graphql/mikro/*/**.graphql
     extensions:
       turms:
         out_dir: mikro/api
-        freeze: True
         stylers:
           - type: turms.stylers.default.DefaultStyler
           - type: turms.stylers.appender.AppenderStyler
@@ -39,24 +38,22 @@ projects:
         processors:
           - type: turms.processors.black.BlackProcessor
         scalar_definitions:
-          XArray: mikro.scalars.XArray
+          XArrayInput: mikro.scalars.XArrayInput
           File: mikro.scalars.File
           ImageFile: mikro.scalars.File
           Upload: mikro.scalars.Upload
-          DataFrame: mikro.scalars.DataFrame
+          ParquetInput: mikro.scalars.ParquetInput
           Store: mikro.scalars.Store
+          Parquet: mikro.scalars.Parquet
+          ID: rath.scalars.ID
+          MetricValue: mikro.scalars.MetricValue
+          FeatureValue: mikro.scalars.FeatureValue
         additional_bases:
           Representation:
             - mikro.traits.Representation
-          Sample:
-            - mikro.traits.Sample
           Table:
             - mikro.traits.Table
-          OmeroFile:
-            - mikro.traits.OmeroFile
-          Thumbnail:
-            - mikro.traits.Thumbnail
-          Experiment:
-            - mikro.traits.Experiment
           ROI:
             - mikro.traits.ROI
+          InputVector:
+            - mikro.traits.Vectorizable

@@ -6,12 +6,22 @@ Custom scalars for Mikro.
 
 
 import os
-from typing import Any
-import uuid
+from typing import Any, Tuple, Annotated, List
 import xarray as xr
 import pyarrow.parquet as pq
 import pandas as pd
 import numpy as np
+from annotated_types import (
+    Gt,
+    Ge,
+    Le,
+    Lt,
+    Interval,
+    Predicate,
+    MinLen,
+    MaxLen,
+    Len,
+)
 
 
 class XArrayConversionException(Exception):
@@ -22,33 +32,24 @@ MetricValue = Any
 FeatureValue = Any
 
 
-class ArrayInput:
+AcquisitionShape = Annotated[List[int], Len(5)]
+
+
+class XArrayInput:
     """A custom scalar for wrapping of every supported array like structure on
-    the mikro platform. This will then be uploaded to the datalayer."""
+    the mikro platform. This scalar enables validation of various array formats
+    into a mikro api compliant xr.DataArray.."""
 
     def __init__(self, value: xr.DataArray) -> None:
         self.value = value
 
     @classmethod
     def __get_validators__(cls):
-        # one or more validators may be yielded which will be called in the
-        # order to validate the input, each validator will receive as an input
-        # the value returned from the previous validator
         yield cls.validate
 
     @classmethod
-    def __modify_schema__(cls, field_schema):
-        # __modify_schema__ should mutate the dict it receives in place,
-        # the returned value will be ignored
-        field_schema.update(
-            # simplified regex here for brevity, see the wikipedia link above
-            pattern="^[A-Z]{1,2}[0-9][A-Z0-9]? ?[0-9][A-Z]{2}$",
-            # some example postcodes
-            examples=["SP11 9DG", "w1j7bu"],
-        )
-
-    @classmethod
     def validate(cls, v):
+        """Validate the input array and convert it to a xr.DataArray."""
 
         if isinstance(v, np.ndarray):
             dims = ["c", "t", "z", "x", "y"]
@@ -91,8 +92,9 @@ class ArrayInput:
 
 
 class ParquetInput:
-    """A custom scalar for wrapping of every supported array like structure on
-    the mikro platform. This will then be uploaded to the datalayer."""
+    """A custom scalar for ensuring a common format to support write to the
+    parquet api supported by mikro. It converts the passed value into
+    a compliant format.."""
 
     def __init__(self, value: pd.DataFrame) -> None:
         self.value = value
@@ -103,17 +105,6 @@ class ParquetInput:
         # order to validate the input, each validator will receive as an input
         # the value returned from the previous validator
         yield cls.validate
-
-    @classmethod
-    def __modify_schema__(cls, field_schema):
-        # __modify_schema__ should mutate the dict it receives in place,
-        # the returned value will be ignored
-        field_schema.update(
-            # simplified regex here for brevity, see the wikipedia link above
-            pattern="^[A-Z]{1,2}[0-9][A-Z0-9]? ?[0-9][A-Z]{2}$",
-            # some example postcodes
-            examples=["SP11 9DG", "w1j7bu"],
-        )
 
     @classmethod
     def validate(cls, v):
@@ -128,6 +119,14 @@ class ParquetInput:
 
 
 class Store:
+    """A custom scalar for ensuring an interface to the datalayer api supported by mikro. It converts the graphql
+    value (a string pointed to a zarr store) into a zarr store object. This is used to access the data in the
+    datalayer. The store is opened on the first access and then cached for later use. This is done to avoid
+    opening the store on every access. The store is opened with the datalayer that is currently set in the
+    datalayer context. Credentials are being retrieved on first access to the datalayer and when a permission
+    denied error is raised. This is done to avoid unnecessary requests to the datalayer api.
+    """
+
     def __init__(self, value) -> None:
         self.value = value
         self._openstore = None
@@ -138,6 +137,18 @@ class Store:
         """
 
     def open(self, dl=None):
+        """Opens the store and returns the zarr store object.
+
+        The store is opened on the first access and then cached for later use. This is done to avoid
+        opening the store on every access.
+
+
+        Args:
+            dl (Datalayer, optional): The datalayer. Defaults to active datalayer.
+
+        Returns:
+            xr.DataArray: the data array
+        """
         from mikro.datalayer import current_datalayer
 
         dl = dl or current_datalayer.get()
@@ -153,6 +164,18 @@ class Store:
         return self._openstore
 
     def aopen(self, dl=None):
+        """Opens the store and returns the zarr store object.
+
+        The store is opened on the first access and then cached for later use. This is done to avoid
+        opening the store on every access.
+
+
+        Args:
+            dl (Datalayer, optional): The datalayer. Defaults to active datalayer.
+
+        Returns:
+            xr.DataArray: the data array
+        """
         from mikro.datalayer import current_datalayer
 
         dl = dl or current_datalayer.get()
@@ -173,17 +196,6 @@ class Store:
         # order to validate the input, each validator will receive as an input
         # the value returned from the previous validator
         yield cls.validate
-
-    @classmethod
-    def __modify_schema__(cls, field_schema):
-        # __modify_schema__ should mutate the dict it receives in place,
-        # the returned value will be ignored
-        field_schema.update(
-            # simplified regex here for brevity, see the wikipedia link above
-            pattern="^[A-Z]{1,2}[0-9][A-Z0-9]? ?[0-9][A-Z]{2}$",
-            # some example postcodes
-            examples=["SP11 9DG", "w1j7bu"],
-        )
 
     @classmethod
     def validate(cls, v):
@@ -200,6 +212,12 @@ class Store:
 
 
 class Parquet:
+    """A custom scalar for ensuring an interface to the datalayer api supported by mikro. It converts the graphql value
+    (a string pointed to a zarr store) into a parquet dataset and then a dataframe. This is used to access the data
+    in the datalayer. The store is opened on the first access and then cached for later use. This is done to avoid
+    opening the store on every access. This is done to avoid unnecessary requests to the datalayer api.
+    """
+
     def __init__(self, value) -> None:
         self.value = value
         self._openstore = None
@@ -235,6 +253,11 @@ class Parquet:
 
 
 class File:
+    """A custom scalar for ensuring an interface to files api supported by mikro. It converts the graphql value
+    (a string pointed to a zarr store) into a downloadable file. To access the file you need to call the download
+    method. This is done to avoid unnecessary requests to the datalayer api.
+    """
+
     __file__ = True
 
     def __init__(self, value) -> None:
@@ -269,88 +292,6 @@ class File:
 
     @classmethod
     def validate(cls, v):
-        # you could also return a string here which would mean model.post_code
-        # would be a string, pydantic won't care but you could end up with some
-        # confusion since the value's type won't match the type annotation
-        # exactly
-        return cls(v)
-
-    def __repr__(self):
-        return f"File({self.value})"
-
-
-class Upload:
-    def __init__(self, value) -> None:
-        self.value = value
-
-    def download(self, dl=None):
-        dl = dl or current_datalayer.get()
-        url = f"{dl.endpoint_url}{self.value}"
-        local_filename = "test.tif"
-        # with requests.get(url, stream=True) as r:
-        #    with open(local_filename, "wb") as f:
-        #       shutil.copyfileobj(r.raw, f)
-
-        return local_filename
-
-    @classmethod
-    def __get_validators__(cls):
-        # one or more validators may be yielded which will be called in the
-        # order to validate the input, each validator will receive as an input
-        # the value returned from the previous validator
-        yield cls.validate
-
-    @classmethod
-    def __modify_schema__(cls, field_schema):
-        # __modify_schema__ should mutate the dict it receives in place,
-        # the returned value will be ignored
-        field_schema.update(
-            # simplified regex here for brevity, see the wikipedia link above
-            pattern="^[A-Z]{1,2}[0-9][A-Z0-9]? ?[0-9][A-Z]{2}$",
-            # some example postcodes
-            examples=["SP11 9DG", "w1j7bu"],
-        )
-
-    @classmethod
-    def validate(cls, v):
-        if not isinstance(v, str):
-            raise TypeError("string required")
-        # you could also return a string here which would mean model.post_code
-        # would be a string, pydantic won't care but you could end up with some
-        # confusion since the value's type won't match the type annotation
-        # exactly
-        return cls(v)
-
-    def __repr__(self):
-        return f"File({self.value})"
-
-
-class DataFrame:
-    def __init__(self, value) -> None:
-        self.value = value
-
-    @classmethod
-    def __get_validators__(cls):
-        # one or more validators may be yielded which will be called in the
-        # order to validate the input, each validator will receive as an input
-        # the value returned from the previous validator
-        yield cls.validate
-
-    @classmethod
-    def __modify_schema__(cls, field_schema):
-        # __modify_schema__ should mutate the dict it receives in place,
-        # the returned value will be ignored
-        field_schema.update(
-            # simplified regex here for brevity, see the wikipedia link above
-            pattern="^[A-Z]{1,2}[0-9][A-Z0-9]? ?[0-9][A-Z]{2}$",
-            # some example postcodes
-            examples=["SP11 9DG", "w1j7bu"],
-        )
-
-    @classmethod
-    def validate(cls, v):
-        if not isinstance(v, pd.DataFrame):
-            raise TypeError("Dataframe required")
         # you could also return a string here which would mean model.post_code
         # would be a string, pydantic won't care but you could end up with some
         # confusion since the value's type won't match the type annotation

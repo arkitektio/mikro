@@ -1,0 +1,11 @@
+mutation create_position(
+  $stage: ID!
+  $x: Float!
+  $y: Float!
+  $z: Float!
+  $tags: [String]
+) {
+  createPosition(stage: $stage, x: $x, y: $y, z: $z, tags: $tags) {
+    ...Position
+  }
+}

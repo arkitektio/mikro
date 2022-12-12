@@ -3,6 +3,7 @@ mutation create_instrument(
   $dichroics: [GenericScalar]
   $filters: [GenericScalar]
   $name: String!
+  $objectives: [ID]
   $lotNumber: String
   $serialNumber: String
   $model: String
@@ -14,6 +15,7 @@ mutation create_instrument(
     filters: $filters
     name: $name
     lotNumber: $lotNumber
+    objectives: $objectives
     serialNumber: $serialNumber
     model: $model
     manufacturer: $manufacturer

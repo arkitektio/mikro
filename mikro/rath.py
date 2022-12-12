@@ -1,13 +1,11 @@
-from graphql import OperationType
 from pydantic import Field
 from mikro.links.datalayer import DataLayerUploadLink
 from rath import rath
 import contextvars
 from rath.links.auth import AuthTokenLink
-from rath.links.compose import TypedComposedLink, compose
+from rath.links.compose import TypedComposedLink
 from rath.links.dictinglink import DictingLink
 from rath.links.file import FileExtraction
-from rath.links.shrink import ShrinkingLink
 from rath.links.split import SplitLink
 
 
@@ -23,6 +21,15 @@ class MikroLinkComposition(TypedComposedLink):
 
 
 class MikroRath(rath.Rath):
+    """ Mikro Rath
+
+    Mikro Rath is the GraphQL client for Mikro. It is a thin wrapper around Rath
+    that provides some default links and a context manager to set the current
+    client. (This allows you to use the `mikro.rath.current` function to get the
+    current client, within the context of mikro app).
+    
+    This is a subclass of Rath that adds some default links to convert files and array to support
+    the graphql multipart request spec."""
     link: MikroLinkComposition
 
     async def __aenter__(self):

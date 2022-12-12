@@ -45,7 +45,7 @@ from pydantic import Field, SecretStr
 from koil.composition import KoiledModel
 import s3fs
 
-from mikro.scalars import ArrayInput, DataFrame, ParquetInput
+from mikro.scalars import XArrayInput,ParquetInput
 
 
 current_datalayer = contextvars.ContextVar("current_datalayer", default=None)
@@ -55,6 +55,8 @@ class DataLayer(KoiledModel):
     """Implements a S3 DataLayer
 
     This will be used to upload and download files from S3.
+
+    
     Make sure to set the access_key and secret_key and enter the context
     manager to connect to S3 (if authentication is required for the S3 instance
     and to ensure that the context is exited when the context manager is exited
@@ -80,7 +82,6 @@ class DataLayer(KoiledModel):
 
     def _storedataset(self, dataset: xr.Dataset, path):
         store = self.fs.get_mapper(path)
-        print(path)
         dataset.to_zarr(store=store, consolidated=True, compute=True)
         return path
 
@@ -88,7 +89,7 @@ class DataLayer(KoiledModel):
         pq.write_table(table, path, filesystem=self.fs)
         return path
 
-    async def astore_array_input(self, xarray: ArrayInput) -> None:
+    async def astore_array_input(self, xarray: XArrayInput) -> None:
         """Stores an xarray in the DataLayer"""
         if not self._connected:
             if self.auto_connect:
@@ -102,7 +103,7 @@ class DataLayer(KoiledModel):
 
         return await asyncio.wrap_future(co_future)
 
-    async def astore_parquet_input(self, pqinput: DataFrame) -> None:
+    async def astore_parquet_input(self, pqinput: ParquetInput) -> None:
         """Store a DataFrame in the DataLayer"""
         if not self._connected:
             if self.auto_connect:
@@ -128,15 +129,11 @@ class DataLayer(KoiledModel):
         c = await arequest()
         self.access_key = c.access_key
         self.secret_key = c.secret_key
-        print("okay")
 
     async def aconnect(self):
         """Connect to the S3 instance"""
         self._connected = True
-        print("Called")
         await self.aget_credentials()
-        print(self.access_key)
-        print(self.secret_key)
 
         self._s3fs = s3fs.S3FileSystem(
             secret=self.secret_key,

@@ -1,4 +1,4 @@
-mutation from_df($df: DataFrame!, $name: String!) {
+mutation from_df($df: ParquetInput!, $name: String!) {
   fromDf(df: $df, name: $name) {
     ...Table
   }
