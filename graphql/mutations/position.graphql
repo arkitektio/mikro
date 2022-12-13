@@ -3,9 +3,10 @@ mutation create_position(
   $x: Float!
   $y: Float!
   $z: Float!
+  $name: String
   $tags: [String]
 ) {
-  createPosition(stage: $stage, x: $x, y: $y, z: $z, tags: $tags) {
+  createPosition(stage: $stage, x: $x, y: $y, z: $z, tags: $tags, name: $name) {
     ...Position
   }
 }

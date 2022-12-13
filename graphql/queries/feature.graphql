@@ -3,3 +3,10 @@ query expand_feature($id: ID!) {
     ...Feature
   }
 }
+
+query search_features($search: String) {
+  options: features(substring: $search, limit: 20) {
+    label: key
+    value: id
+  }
+}

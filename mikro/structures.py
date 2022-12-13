@@ -83,23 +83,33 @@ try:
         FeatureFragment,
         identifier="@mikro/feature",
         expand=aexpand_feature,
-        default_widget=SearchWidget(query=Search_roisQuery.Meta.document, ward="mikro"),
+        default_widget=SearchWidget(
+            query=Search_featuresQuery.Meta.document, ward="mikro"
+        ),
     )
     structure_reg.register_as_structure(
         LabelFragment,
         identifier="@mikro/label",
         expand=aexpand_label,
-        default_widget=SearchWidget(query=Search_roisQuery.Meta.document, ward="mikro"),
+        default_widget=SearchWidget(
+            query=Search_labelsQuery.Meta.document, ward="mikro"
+        ),
     )
     structure_reg.register_as_structure(
         PositionFragment,
         identifier="@mikro/position",
         expand=aexpand_position,
+        default_widget=SearchWidget(
+            query=Search_positionsQuery.Meta.document, ward="mikro"
+        ),
     )
     structure_reg.register_as_structure(
         StageFragment,
         identifier="@mikro/stage",
         expand=aexpand_stage,
+        default_widget=SearchWidget(
+            query=Search_stagesQuery.Meta.document, ward="mikro"
+        ),
     )
     structure_reg.register_as_structure(
         ObjectiveFragment,

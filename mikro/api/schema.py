@@ -1,20 +1,20 @@
+from mikro.rath import MikroRath
+from pydantic import BaseModel, Field
+from enum import Enum
+from typing import Dict, AsyncIterator, List, Tuple, Optional, Iterator, Literal
 from mikro.scalars import (
-    Store,
-    ParquetInput,
-    MetricValue,
     FeatureValue,
+    Store,
     XArrayInput,
+    ParquetInput,
     Parquet,
     File,
+    MetricValue,
 )
-from mikro.rath import MikroRath
-from typing import Iterator, AsyncIterator, List, Dict, Tuple, Literal, Optional
-from mikro.funcs import asubscribe, subscribe, execute, aexecute
-from pydantic import BaseModel, Field
-from mikro.traits import Objective, Representation, Table, Vectorizable, ROI, Stage
-from datetime import datetime
+from mikro.traits import Objective, ROI, Table, Representation, Stage, Vectorizable
+from mikro.funcs import asubscribe, execute, aexecute, subscribe
 from rath.scalars import ID
-from enum import Enum
+from datetime import datetime
 
 
 class CommentableModels(str, Enum):
@@ -61,6 +61,29 @@ class SharableModels(str, Enum):
     GRUNNLAG_LABEL = "GRUNNLAG_LABEL"
     GRUNNLAG_FEATURE = "GRUNNLAG_FEATURE"
     BORD_TABLE = "BORD_TABLE"
+
+
+class LokClientGrantType(str, Enum):
+    """An enumeration."""
+
+    CLIENT_CREDENTIALS = "CLIENT_CREDENTIALS"
+    "Backend (Client Credentials)"
+    IMPLICIT = "IMPLICIT"
+    "Implicit Grant"
+    AUTHORIZATION_CODE = "AUTHORIZATION_CODE"
+    "Authorization Code"
+    PASSWORD = "PASSWORD"
+    "Password"
+    SESSION = "SESSION"
+    "Django Session"
+
+
+class AcquisitionKind(str, Enum):
+    """What do the multiple positions in this acquistion represent?"""
+
+    POSTION_IS_SAMPLE = "POSTION_IS_SAMPLE"
+    POSITION_IS_ROI = "POSITION_IS_ROI"
+    UNKNOWN = "UNKNOWN"
 
 
 class OmeroFileType(str, Enum):
@@ -138,26 +161,6 @@ class RepresentationVariety(str, Enum):
     "Unknown"
 
 
-class AcquisitionKind(str, Enum):
-    """What do the multiple positions in this acquistion represent?"""
-
-    POSTION_IS_SAMPLE = "POSTION_IS_SAMPLE"
-    POSITION_IS_ROI = "POSITION_IS_ROI"
-    UNKNOWN = "UNKNOWN"
-
-
-class Medium(str, Enum):
-    """The medium of the imaging environment
-
-    Important for the objective settings"""
-
-    AIR = "AIR"
-    GLYCEROL = "GLYCEROL"
-    OIL = "OIL"
-    OTHER = "OTHER"
-    WATER = "WATER"
-
-
 class RoiTypeInput(str, Enum):
     """An enumeration."""
 
@@ -179,6 +182,18 @@ class RoiTypeInput(str, Enum):
     "Slice"
     POINT = "POINT"
     "Point"
+
+
+class Medium(str, Enum):
+    """The medium of the imaging environment
+
+    Important for the objective settings"""
+
+    AIR = "AIR"
+    GLYCEROL = "GLYCEROL"
+    OIL = "OIL"
+    OTHER = "OTHER"
+    WATER = "WATER"
 
 
 class DescendendInput(BaseModel):
@@ -1888,10 +1903,11 @@ class Create_positionMutation(BaseModel):
         x: float
         y: float
         z: float
+        name: Optional[str] = None
         tags: Optional[List[Optional[str]]] = None
 
     class Meta:
-        document = 'fragment ListStage on Stage {\n  id\n  name\n  kind\n  physicalSize\n}\n\nfragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nmutation create_position($stage: ID!, $x: Float!, $y: Float!, $z: Float!, $tags: [String]) {\n  createPosition(stage: $stage, x: $x, y: $y, z: $z, tags: $tags) {\n    ...Position\n  }\n}'
+        document = 'fragment ListStage on Stage {\n  id\n  name\n  kind\n  physicalSize\n}\n\nfragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nmutation create_position($stage: ID!, $x: Float!, $y: Float!, $z: Float!, $name: String, $tags: [String]) {\n  createPosition(stage: $stage, x: $x, y: $y, z: $z, tags: $tags, name: $name) {\n    ...Position\n  }\n}'
 
 
 class Create_objectiveMutation(BaseModel):
@@ -2005,6 +2021,39 @@ class Expand_labelQuery(BaseModel):
 
     class Meta:
         document = "fragment Label on Label {\n  instance\n  id\n  representation {\n    id\n    name\n  }\n}\n\nquery expand_label($id: ID!) {\n  label(id: $id) {\n    ...Label\n  }\n}"
+
+
+class Search_labelsQueryOptions(BaseModel):
+    """A Label is a trough model for image and features.
+
+    Its map an instance value of a representation
+    (e.g. a pixel value of a segmentation mask) to a set of corresponding features of the segmented
+    class instance.
+
+    There can only be one label per representation and class instance. You can then attach
+    features to the label.
+
+
+    """
+
+    typename: Optional[Literal["Label"]] = Field(alias="__typename")
+    label: Optional[str]
+    "The name of the instance"
+    value: ID
+
+    class Config:
+        frozen = True
+
+
+class Search_labelsQuery(BaseModel):
+    options: Optional[Tuple[Optional[Search_labelsQueryOptions], ...]]
+    "All Labels\n    \n    This query returns all Labels that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Labels that the user has access to. If the user is an amdin\n    or superuser, all Labels will be returned.\n    "
+
+    class Arguments(BaseModel):
+        search: Optional[str] = None
+
+    class Meta:
+        document = "query search_labels($search: String) {\n  options: labels(name: $search, limit: 20) {\n    label: name\n    value: id\n  }\n}"
 
 
 class ThumbnailQuery(BaseModel):
@@ -2305,6 +2354,42 @@ class Expand_featureQuery(BaseModel):
         document = "fragment Feature on Feature {\n  label {\n    instance\n    representation {\n      id\n    }\n  }\n  id\n  key\n  value\n}\n\nquery expand_feature($id: ID!) {\n  feature(id: $id) {\n    ...Feature\n  }\n}"
 
 
+class Search_featuresQueryOptions(BaseModel):
+    """A Feature is a numerical key value pair that is attached to a Label.
+
+    You can model it for example as a key value pair of a class instance of a segmentation mask.
+    Representation -> Label0 -> Feature0
+                             -> Feature1
+                   -> Label1 -> Feature0
+
+    Features can be used to store any numerical value that is attached to a class instance.
+    THere can only ever be one key per label. If you want to store multiple values for a key, you can
+    store them as a list in the value field.
+
+    Feature are analogous to metrics on a representation, but for a specific class instance (Label)
+
+    """
+
+    typename: Optional[Literal["Feature"]] = Field(alias="__typename")
+    label: str
+    "The key of the feature"
+    value: ID
+
+    class Config:
+        frozen = True
+
+
+class Search_featuresQuery(BaseModel):
+    options: Optional[Tuple[Optional[Search_featuresQueryOptions], ...]]
+    "All features\n    \n    This query returns all features that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all features that the user has access to. If the user is an amdin\n    or superuser, all features will be returned.\n    "
+
+    class Arguments(BaseModel):
+        search: Optional[str] = None
+
+    class Meta:
+        document = "query search_features($search: String) {\n  options: features(substring: $search, limit: 20) {\n    label: key\n    value: id\n  }\n}"
+
+
 class RequestQueryRequest(BaseModel):
     typename: Optional[Literal["Credentials"]] = Field(alias="__typename")
     access_key: Optional[str] = Field(alias="accessKey")
@@ -2350,7 +2435,7 @@ class Expand_instrumentQuery(BaseModel):
 
 
 class Search_instrumentsQueryOptions(BaseModel):
-    """Instrument(id, name, detectors, dichroics, filters, lot_number, manufacturer, model, serial_number)"""
+    """Instrument(id, created_by, created_through, name, detectors, dichroics, filters, lot_number, manufacturer, model, serial_number)"""
 
     typename: Optional[Literal["Instrument"]] = Field(alias="__typename")
     value: ID
@@ -2635,7 +2720,7 @@ class Expand_objectiveQuery(BaseModel):
 
 
 class Search_objectivesQueryOptions(Objective, BaseModel):
-    """Objective(id, serial_number, name, magnification)"""
+    """Objective(id, created_by, created_through, serial_number, name, magnification)"""
 
     typename: Optional[Literal["Objective"]] = Field(alias="__typename")
     value: ID
@@ -3383,7 +3468,7 @@ async def acreate_instrument(
     """create_instrument
 
 
-     createInstrument: Instrument(id, name, detectors, dichroics, filters, lot_number, manufacturer, model, serial_number)
+     createInstrument: Instrument(id, created_by, created_through, name, detectors, dichroics, filters, lot_number, manufacturer, model, serial_number)
 
 
     Arguments:
@@ -3434,7 +3519,7 @@ def create_instrument(
     """create_instrument
 
 
-     createInstrument: Instrument(id, name, detectors, dichroics, filters, lot_number, manufacturer, model, serial_number)
+     createInstrument: Instrument(id, created_by, created_through, name, detectors, dichroics, filters, lot_number, manufacturer, model, serial_number)
 
 
     Arguments:
@@ -4054,6 +4139,7 @@ async def acreate_position(
     x: float,
     y: float,
     z: float,
+    name: Optional[str] = None,
     tags: Optional[List[Optional[str]]] = None,
     rath: MikroRath = None,
 ) -> Optional[PositionFragment]:
@@ -4068,6 +4154,7 @@ async def acreate_position(
         x (float): x
         y (float): y
         z (float): z
+        name (Optional[str], optional): name.
         tags (Optional[List[Optional[str]]], optional): tags.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
@@ -4076,7 +4163,7 @@ async def acreate_position(
     return (
         await aexecute(
             Create_positionMutation,
-            {"stage": stage, "x": x, "y": y, "z": z, "tags": tags},
+            {"stage": stage, "x": x, "y": y, "z": z, "name": name, "tags": tags},
             rath=rath,
         )
     ).create_position
@@ -4087,6 +4174,7 @@ def create_position(
     x: float,
     y: float,
     z: float,
+    name: Optional[str] = None,
     tags: Optional[List[Optional[str]]] = None,
     rath: MikroRath = None,
 ) -> Optional[PositionFragment]:
@@ -4101,6 +4189,7 @@ def create_position(
         x (float): x
         y (float): y
         z (float): z
+        name (Optional[str], optional): name.
         tags (Optional[List[Optional[str]]], optional): tags.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
@@ -4108,7 +4197,7 @@ def create_position(
         Optional[PositionFragment]"""
     return execute(
         Create_positionMutation,
-        {"stage": stage, "x": x, "y": y, "z": z, "tags": tags},
+        {"stage": stage, "x": x, "y": y, "z": z, "name": name, "tags": tags},
         rath=rath,
     ).create_position
 
@@ -4119,7 +4208,7 @@ async def acreate_objective(
     """create_objective
 
 
-     createObjective: Objective(id, serial_number, name, magnification)
+     createObjective: Objective(id, created_by, created_through, serial_number, name, magnification)
 
 
     Arguments:
@@ -4149,7 +4238,7 @@ def create_objective(
     """create_objective
 
 
-     createObjective: Objective(id, serial_number, name, magnification)
+     createObjective: Objective(id, created_by, created_through, serial_number, name, magnification)
 
 
     Arguments:
@@ -4323,6 +4412,62 @@ def expand_label(id: ID, rath: MikroRath = None) -> Optional[LabelFragment]:
     Returns:
         Optional[LabelFragment]"""
     return execute(Expand_labelQuery, {"id": id}, rath=rath).label
+
+
+async def asearch_labels(
+    search: Optional[str] = None, rath: MikroRath = None
+) -> Optional[List[Optional[Search_labelsQueryOptions]]]:
+    """search_labels
+
+
+     options: A Label is a trough model for image and features.
+
+        Its map an instance value of a representation
+        (e.g. a pixel value of a segmentation mask) to a set of corresponding features of the segmented
+        class instance.
+
+        There can only be one label per representation and class instance. You can then attach
+        features to the label.
+
+
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[Search_labelsQueryLabels]]]"""
+    return (await aexecute(Search_labelsQuery, {"search": search}, rath=rath)).labels
+
+
+def search_labels(
+    search: Optional[str] = None, rath: MikroRath = None
+) -> Optional[List[Optional[Search_labelsQueryOptions]]]:
+    """search_labels
+
+
+     options: A Label is a trough model for image and features.
+
+        Its map an instance value of a representation
+        (e.g. a pixel value of a segmentation mask) to a set of corresponding features of the segmented
+        class instance.
+
+        There can only be one label per representation and class instance. You can then attach
+        features to the label.
+
+
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[Search_labelsQueryLabels]]]"""
+    return execute(Search_labelsQuery, {"search": search}, rath=rath).labels
 
 
 async def athumbnail(id: ID, rath: MikroRath = None) -> Optional[ThumbnailFragment]:
@@ -5163,6 +5308,70 @@ def expand_feature(id: ID, rath: MikroRath = None) -> Optional[FeatureFragment]:
     return execute(Expand_featureQuery, {"id": id}, rath=rath).feature
 
 
+async def asearch_features(
+    search: Optional[str] = None, rath: MikroRath = None
+) -> Optional[List[Optional[Search_featuresQueryOptions]]]:
+    """search_features
+
+
+     options: A Feature is a numerical key value pair that is attached to a Label.
+
+        You can model it for example as a key value pair of a class instance of a segmentation mask.
+        Representation -> Label0 -> Feature0
+                                 -> Feature1
+                       -> Label1 -> Feature0
+
+        Features can be used to store any numerical value that is attached to a class instance.
+        THere can only ever be one key per label. If you want to store multiple values for a key, you can
+        store them as a list in the value field.
+
+        Feature are analogous to metrics on a representation, but for a specific class instance (Label)
+
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[Search_featuresQueryFeatures]]]"""
+    return (
+        await aexecute(Search_featuresQuery, {"search": search}, rath=rath)
+    ).features
+
+
+def search_features(
+    search: Optional[str] = None, rath: MikroRath = None
+) -> Optional[List[Optional[Search_featuresQueryOptions]]]:
+    """search_features
+
+
+     options: A Feature is a numerical key value pair that is attached to a Label.
+
+        You can model it for example as a key value pair of a class instance of a segmentation mask.
+        Representation -> Label0 -> Feature0
+                                 -> Feature1
+                       -> Label1 -> Feature0
+
+        Features can be used to store any numerical value that is attached to a class instance.
+        THere can only ever be one key per label. If you want to store multiple values for a key, you can
+        store them as a list in the value field.
+
+        Feature are analogous to metrics on a representation, but for a specific class instance (Label)
+
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[Search_featuresQueryFeatures]]]"""
+    return execute(Search_featuresQuery, {"search": search}, rath=rath).features
+
+
 async def arequest(rath: MikroRath = None) -> Optional[RequestQueryRequest]:
     """Request
 
@@ -5195,7 +5404,7 @@ async def aget_instrument(
     """get_instrument
 
 
-     instrument: Instrument(id, name, detectors, dichroics, filters, lot_number, manufacturer, model, serial_number)
+     instrument: Instrument(id, created_by, created_through, name, detectors, dichroics, filters, lot_number, manufacturer, model, serial_number)
 
 
     Arguments:
@@ -5216,7 +5425,7 @@ def get_instrument(
     """get_instrument
 
 
-     instrument: Instrument(id, name, detectors, dichroics, filters, lot_number, manufacturer, model, serial_number)
+     instrument: Instrument(id, created_by, created_through, name, detectors, dichroics, filters, lot_number, manufacturer, model, serial_number)
 
 
     Arguments:
@@ -5235,7 +5444,7 @@ async def aexpand_instrument(
     """expand_instrument
 
 
-     instrument: Instrument(id, name, detectors, dichroics, filters, lot_number, manufacturer, model, serial_number)
+     instrument: Instrument(id, created_by, created_through, name, detectors, dichroics, filters, lot_number, manufacturer, model, serial_number)
 
 
     Arguments:
@@ -5251,7 +5460,7 @@ def expand_instrument(id: ID, rath: MikroRath = None) -> Optional[InstrumentFrag
     """expand_instrument
 
 
-     instrument: Instrument(id, name, detectors, dichroics, filters, lot_number, manufacturer, model, serial_number)
+     instrument: Instrument(id, created_by, created_through, name, detectors, dichroics, filters, lot_number, manufacturer, model, serial_number)
 
 
     Arguments:
@@ -5269,7 +5478,7 @@ async def asearch_instruments(
     """search_instruments
 
 
-     options: Instrument(id, name, detectors, dichroics, filters, lot_number, manufacturer, model, serial_number)
+     options: Instrument(id, created_by, created_through, name, detectors, dichroics, filters, lot_number, manufacturer, model, serial_number)
 
 
     Arguments:
@@ -5289,7 +5498,7 @@ def search_instruments(
     """search_instruments
 
 
-     options: Instrument(id, name, detectors, dichroics, filters, lot_number, manufacturer, model, serial_number)
+     options: Instrument(id, created_by, created_through, name, detectors, dichroics, filters, lot_number, manufacturer, model, serial_number)
 
 
     Arguments:
@@ -6013,7 +6222,7 @@ async def aget_objective(
     """get_objective
 
 
-     objective: Objective(id, serial_number, name, magnification)
+     objective: Objective(id, created_by, created_through, serial_number, name, magnification)
 
 
     Arguments:
@@ -6034,7 +6243,7 @@ def get_objective(
     """get_objective
 
 
-     objective: Objective(id, serial_number, name, magnification)
+     objective: Objective(id, created_by, created_through, serial_number, name, magnification)
 
 
     Arguments:
@@ -6053,7 +6262,7 @@ async def aexpand_objective(
     """expand_objective
 
 
-     objective: Objective(id, serial_number, name, magnification)
+     objective: Objective(id, created_by, created_through, serial_number, name, magnification)
 
 
     Arguments:
@@ -6069,7 +6278,7 @@ def expand_objective(id: ID, rath: MikroRath = None) -> Optional[ObjectiveFragme
     """expand_objective
 
 
-     objective: Objective(id, serial_number, name, magnification)
+     objective: Objective(id, created_by, created_through, serial_number, name, magnification)
 
 
     Arguments:
@@ -6087,7 +6296,7 @@ async def asearch_objectives(
     """search_objectives
 
 
-     options: Objective(id, serial_number, name, magnification)
+     options: Objective(id, created_by, created_through, serial_number, name, magnification)
 
 
     Arguments:
@@ -6107,7 +6316,7 @@ def search_objectives(
     """search_objectives
 
 
-     options: Objective(id, serial_number, name, magnification)
+     options: Objective(id, created_by, created_through, serial_number, name, magnification)
 
 
     Arguments:
