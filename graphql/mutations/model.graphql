@@ -1,0 +1,17 @@
+mutation create_model(
+  $data: ModelFile!
+  $kind: ModelKind!
+  $name: String!
+  $contexts: [ID]
+  $experiments: [ID]
+) {
+  createModel(
+    data: $data
+    kind: $kind
+    name: $name
+    contexts: $contexts
+    experiments: $experiments
+  ) {
+    ...Model
+  }
+}

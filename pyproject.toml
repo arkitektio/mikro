@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "mikro"
-version = "0.3.6"
+version = "0.3.16"
 description = "images for arkitekt"
 authors = ["jhnnsrs <jhnnsrs@gmail.com>"]
 license = "CC BY-NC 3.0"

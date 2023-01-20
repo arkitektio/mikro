@@ -6,22 +6,11 @@ Custom scalars for Mikro.
 
 
 import os
-from typing import Any, Tuple, Annotated, List
+from typing import Any
 import xarray as xr
 import pyarrow.parquet as pq
 import pandas as pd
 import numpy as np
-from annotated_types import (
-    Gt,
-    Ge,
-    Le,
-    Lt,
-    Interval,
-    Predicate,
-    MinLen,
-    MaxLen,
-    Len,
-)
 
 
 class XArrayConversionException(Exception):
@@ -31,8 +20,6 @@ class XArrayConversionException(Exception):
 MetricValue = Any
 FeatureValue = Any
 
-
-AcquisitionShape = Annotated[List[int], Len(5)]
 
 
 class XArrayInput:
@@ -73,9 +60,9 @@ class XArrayInput:
 
         chunks = {
             "t": 1,
-            "x": v.sizes["x"],
-            "y": v.sizes["y"],
-            "z": 1,
+            "x": 1024 if v.sizes["x"] > 1024 else v.sizes["x"],
+            "y": 1024 if v.sizes["y"] > 1024 else v.sizes["y"],
+            "z": 40 if v.sizes["z"] > 40 else 1,
             "c": 1,
         }
 
@@ -300,3 +287,94 @@ class File:
 
     def __repr__(self):
         return f"File({self.value})"
+
+
+
+class ModelFile:
+    """A custom scalar to enable uploading files to the datalayer
+    it enables serialization of everythign
+    """
+
+    __file__ = True
+
+    def __init__(self, value) -> None:
+        self.value = value
+
+
+    @classmethod
+    def __get_validators__(cls):
+        # one or more validators may be yielded which will be called in the
+        # order to validate the input, each validator will receive as an input
+        # the value returned from the previous validator
+
+
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, v):
+        # you could also return a string here which would mean model.post_code
+        # would be a string, pydantic won't care but you could end up with some
+        # confusion since the value's type won't match the type annotation
+        # exactly
+        if isinstance(v, str):
+            return cls(open(v, "rb"))
+        
+
+        return cls(v)
+
+    def __repr__(self):
+        return f"ModelFile({self.value})"
+
+
+
+
+class ModelData:
+    """A custom scalar for ensuring an interface to files api supported by mikro. It converts the graphql value
+    (a string pointed to a zarr store) into a downloadable file. To access the file you need to call the download
+    method. This is done to avoid unnecessary requests to the datalayer api.
+    """
+
+    __file__ = True
+
+    def __init__(self, value) -> None:
+        self.value = value
+
+    def download(self, dl=None):
+        from mikro.datalayer import current_datalayer
+        import requests
+        import shutil
+
+        dl = dl or current_datalayer.get()
+        url = f"{dl.endpoint_url}{self.value}"
+        local_filename = self.value.split("/")[-1].split("?")[0]
+        with requests.get(url, stream=True) as r:
+            with open(local_filename, "wb") as f:
+                shutil.copyfileobj(r.raw, f)
+                return local_filename
+
+    def __enter__(self):
+        self.local_file = self.download()
+        return self.local_file
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        os.remove(self.local_file)
+
+    @classmethod
+    def __get_validators__(cls):
+        # one or more validators may be yielded which will be called in the
+        # order to validate the input, each validator will receive as an input
+        # the value returned from the previous validator
+
+
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, v):
+        # you could also return a string here which would mean model.post_code
+        # would be a string, pydantic won't care but you could end up with some
+        # confusion since the value's type won't match the type annotation
+        # exactly
+        return cls(v)
+
+    def __repr__(self):
+        return f"Model({self.value})"

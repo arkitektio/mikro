@@ -1,0 +1,18 @@
+query get_model($id: ID!) {
+  model(id: $id) {
+    ...Model
+  }
+}
+
+query expand_model($id: ID!) {
+  model(id: $id) {
+    ...Model
+  }
+}
+
+query search_models($search: String) {
+  options: models(name: $search, limit: 20) {
+    label: name
+    value: id
+  }
+}

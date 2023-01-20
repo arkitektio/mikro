@@ -1,0 +1,24 @@
+query get_context($id: ID!) {
+  context(id: $id) {
+    ...Context
+  }
+}
+
+query get_mycontexts($limit: Int, $offset: Int) {
+  mycontexts(limit: $limit, offset: $offset) {
+    ...ListContext
+  }
+}
+
+query expand_context($id: ID!) {
+  context(id: $id) {
+    ...Context
+  }
+}
+
+query search_contexts($search: String) {
+  options: mycontexts(name: $search, limit: 30) {
+    value: id
+    label: name
+  }
+}

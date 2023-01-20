@@ -17,6 +17,15 @@ fragment Representation on Representation {
       t
       c
     }
+    position {
+      id
+      x
+      y
+    }
+    channels {
+      name
+      color
+    }
   }
   origins {
     id

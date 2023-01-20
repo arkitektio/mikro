@@ -39,7 +39,12 @@ class Representation(BaseModel):
 
     @property
     def data(self) -> xr.DataArray:
-        """The Data of the Representation as an xr.DataArray. Not accessible from asyncio
+        """The Data of the Representation as an xr.DataArray
+        
+        Will be of shape [c,t,z,y,x]
+        
+        
+        Attention: Not accessible from asyncio
 
         Returns:
             xr.DataArray: The associated object.
@@ -47,19 +52,12 @@ class Representation(BaseModel):
         Raises:
             AssertionError: If the representation has no store attribute quries
         """
-        try:
-            get_running_loop()
-        except RuntimeError:
-            pstore = getattr(self, "store", None)
-            assert (
-                pstore is not None
-            ), "Please query 'store' in your request on 'Representation'. Data is not accessible otherwise"
+        pstore = getattr(self, "store", None)
+        assert (
+            pstore is not None
+        ), "Please query 'store' in your request on 'Representation'. Data is not accessible otherwise"
 
-            return pstore.open()
-
-        raise RuntimeError(
-            "This method is not available when running in an event loop . Please use adata to retreive a future to your data."
-        )
+        return pstore.open()
 
     async def adata(self) -> Awaitable[xr.DataArray]:
         """The Data of the Representation as an xr.DataArray. Accessible from asyncio.
@@ -77,6 +75,42 @@ class Representation(BaseModel):
 
         return await pstore.aopen()
 
+
+    def _repr_html_(self):
+        return f'<h3>{getattr(self, "name", "No name queried")}</h3>' + (self.omero._repr_html_() if hasattr(self, "omero") else  "No metadata<br/>") + (self.data._repr_html_() if hasattr(self, "store") else "No data queried")
+
+
+class Omero(BaseModel):
+
+
+    def _repr_html_(self):
+        return f'''<div>
+        OMERO
+        <table>
+            {f'<tr><td>Position</td><td>{self.position._repr_html_inline_()}</tr>' if getattr(self, "position", None) else  ''}
+            {f'<tr><td>PhysicalSize</td><td>{self.physical_size.id}</tr>' if getattr(self, "physical_size", None) else ''}
+            {f'<tr><td>Objective</td><td>{self.objective.id}</tr>' if getattr(self, "objective", None) else ''}
+        </table>
+         </div>'''
+
+class Objective:
+
+    def _repr_html_(self):
+        return "<h4>Objective</h4>"
+
+class Position:
+    pass
+
+    def _repr_html_inline_(self):
+        return f'''X={getattr(self, "x", "No x queried")} Y={getattr(self, "y", "No y queried")} Z={getattr(self, "z", "No z queried")}'''
+
+    def _repr_html_(self):
+        return f'''<div>
+        <h4>Position</h4>
+        <table>
+            {f'<tr><td>Stage</td><td>{self.stage.id}</tr>' if getattr(self, "stage", None) else  ''}
+        </table>
+            </div>'''
 
 class Stage:
     pass

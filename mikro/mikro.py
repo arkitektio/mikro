@@ -32,3 +32,6 @@ class Mikro(Composition):
 
     datalayer: DataLayer
     rath: MikroRath = Field(default_factory=MikroRath)
+
+    def _repr_html_inline_(self):
+        return f"<table><tr><td>datalayer</td><td>{self.datalayer._repr_html_inline_()}</td></tr><tr><td>rath</td><td>{self.rath._repr_html_inline_()}</td></tr></table>"

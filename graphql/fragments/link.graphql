@@ -1,0 +1,13 @@
+fragment ListLink on DataLink {
+  relation
+  id
+}
+
+fragment Link on DataLink {
+  relation
+  id
+  xId
+  yId
+  leftType
+  rightType
+}

@@ -6,6 +6,7 @@ mutation from_xarray(
   $file_origins: [ID]
   $roi_origins: [ID]
   $tags: [String]
+  $experiments: [ID]
   $sample: ID
   $omero: OmeroRepresentationInput
 ) {
@@ -19,6 +20,7 @@ mutation from_xarray(
     omero: $omero
     fileOrigins: $file_origins
     roiOrigins: $roi_origins
+    experiments: $experiments
     variety: $variety
   ) {
     ...Representation

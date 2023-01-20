@@ -1,0 +1,5 @@
+mutation create_context($name: String!, $experiment: ID) {
+  createContext(name: $name, experiment: $experiment) {
+    ...Context
+  }
+}

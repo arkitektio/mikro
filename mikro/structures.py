@@ -119,6 +119,30 @@ try:
             query=Search_objectivesQuery.Meta.document, ward="mikro"
         ),
     )
+    structure_reg.register_as_structure(
+        ModelFragment,
+        identifier="@mikro/model",
+        expand=aexpand_model,
+        default_widget=SearchWidget(
+            query=Search_modelsQuery.Meta.document, ward="mikro"
+        ),
+    )
+    structure_reg.register_as_structure(
+        ContextFragment,
+        identifier="@mikro/context",
+        expand=aexpand_context,
+        default_widget=SearchWidget(
+            query=Search_contextsQuery.Meta.document, ward="mikro"
+        ),
+    )
+    structure_reg.register_as_structure(
+        LinkFragment,
+        identifier="@mikro/link",
+        expand=aexpand_link,
+        default_widget=SearchWidget(
+            query=Search_linksQuery.Meta.document, ward="mikro"
+        ),
+    )
 
 
 except ImportError:

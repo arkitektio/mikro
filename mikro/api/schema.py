@@ -1,19 +1,30 @@
-from mikro.rath import MikroRath
-from pydantic import BaseModel, Field
-from enum import Enum
-from typing import Dict, AsyncIterator, List, Tuple, Optional, Iterator, Literal
 from mikro.scalars import (
     FeatureValue,
+    File,
+    Parquet,
     Store,
+    ModelFile,
+    MetricValue,
+    ModelData,
     XArrayInput,
     ParquetInput,
-    Parquet,
-    File,
-    MetricValue,
 )
-from mikro.traits import Objective, ROI, Table, Representation, Stage, Vectorizable
-from mikro.funcs import asubscribe, execute, aexecute, subscribe
+from mikro.traits import (
+    ROI,
+    Omero,
+    Objective,
+    Table,
+    Vectorizable,
+    Representation,
+    Position,
+    Stage,
+)
+from mikro.funcs import aexecute, asubscribe, execute, subscribe
+from mikro.rath import MikroRath
+from enum import Enum
+from typing import Dict, Literal, Iterator, AsyncIterator, List, Tuple, Optional
 from rath.scalars import ID
+from pydantic import Field, BaseModel
 from datetime import datetime
 
 
@@ -23,9 +34,12 @@ class CommentableModels(str, Enum):
     GRUNNLAG_OBJECTIVE = "GRUNNLAG_OBJECTIVE"
     GRUNNLAG_INSTRUMENT = "GRUNNLAG_INSTRUMENT"
     GRUNNLAG_EXPERIMENT = "GRUNNLAG_EXPERIMENT"
+    GRUNNLAG_CONTEXT = "GRUNNLAG_CONTEXT"
+    GRUNNLAG_DATALINK = "GRUNNLAG_DATALINK"
     GRUNNLAG_EXPERIMENTALGROUP = "GRUNNLAG_EXPERIMENTALGROUP"
     GRUNNLAG_ANIMAL = "GRUNNLAG_ANIMAL"
     GRUNNLAG_OMEROFILE = "GRUNNLAG_OMEROFILE"
+    GRUNNLAG_MODEL = "GRUNNLAG_MODEL"
     GRUNNLAG_SAMPLE = "GRUNNLAG_SAMPLE"
     GRUNNLAG_STAGE = "GRUNNLAG_STAGE"
     GRUNNLAG_POSITION = "GRUNNLAG_POSITION"
@@ -47,9 +61,12 @@ class SharableModels(str, Enum):
     GRUNNLAG_OBJECTIVE = "GRUNNLAG_OBJECTIVE"
     GRUNNLAG_INSTRUMENT = "GRUNNLAG_INSTRUMENT"
     GRUNNLAG_EXPERIMENT = "GRUNNLAG_EXPERIMENT"
+    GRUNNLAG_CONTEXT = "GRUNNLAG_CONTEXT"
+    GRUNNLAG_DATALINK = "GRUNNLAG_DATALINK"
     GRUNNLAG_EXPERIMENTALGROUP = "GRUNNLAG_EXPERIMENTALGROUP"
     GRUNNLAG_ANIMAL = "GRUNNLAG_ANIMAL"
     GRUNNLAG_OMEROFILE = "GRUNNLAG_OMEROFILE"
+    GRUNNLAG_MODEL = "GRUNNLAG_MODEL"
     GRUNNLAG_SAMPLE = "GRUNNLAG_SAMPLE"
     GRUNNLAG_STAGE = "GRUNNLAG_STAGE"
     GRUNNLAG_POSITION = "GRUNNLAG_POSITION"
@@ -194,6 +211,57 @@ class Medium(str, Enum):
     OIL = "OIL"
     OTHER = "OTHER"
     WATER = "WATER"
+
+
+class LinkableModels(str, Enum):
+    """LinkableModels Models are models that can be shared amongst users and groups. They representent the models of the DB"""
+
+    ADMIN_LOGENTRY = "ADMIN_LOGENTRY"
+    AUTH_PERMISSION = "AUTH_PERMISSION"
+    AUTH_GROUP = "AUTH_GROUP"
+    CONTENTTYPES_CONTENTTYPE = "CONTENTTYPES_CONTENTTYPE"
+    SESSIONS_SESSION = "SESSIONS_SESSION"
+    TAGGIT_TAG = "TAGGIT_TAG"
+    TAGGIT_TAGGEDITEM = "TAGGIT_TAGGEDITEM"
+    KOMMENT_COMMENT = "KOMMENT_COMMENT"
+    DB_TESTMODEL = "DB_TESTMODEL"
+    LOK_LOKUSER = "LOK_LOKUSER"
+    LOK_LOKAPP = "LOK_LOKAPP"
+    LOK_LOKCLIENT = "LOK_LOKCLIENT"
+    GUARDIAN_USEROBJECTPERMISSION = "GUARDIAN_USEROBJECTPERMISSION"
+    GUARDIAN_GROUPOBJECTPERMISSION = "GUARDIAN_GROUPOBJECTPERMISSION"
+    GRUNNLAG_USERMETA = "GRUNNLAG_USERMETA"
+    GRUNNLAG_ANTIBODY = "GRUNNLAG_ANTIBODY"
+    GRUNNLAG_OBJECTIVE = "GRUNNLAG_OBJECTIVE"
+    GRUNNLAG_INSTRUMENT = "GRUNNLAG_INSTRUMENT"
+    GRUNNLAG_EXPERIMENT = "GRUNNLAG_EXPERIMENT"
+    GRUNNLAG_CONTEXT = "GRUNNLAG_CONTEXT"
+    GRUNNLAG_DATALINK = "GRUNNLAG_DATALINK"
+    GRUNNLAG_EXPERIMENTALGROUP = "GRUNNLAG_EXPERIMENTALGROUP"
+    GRUNNLAG_ANIMAL = "GRUNNLAG_ANIMAL"
+    GRUNNLAG_OMEROFILE = "GRUNNLAG_OMEROFILE"
+    GRUNNLAG_MODEL = "GRUNNLAG_MODEL"
+    GRUNNLAG_SAMPLE = "GRUNNLAG_SAMPLE"
+    GRUNNLAG_STAGE = "GRUNNLAG_STAGE"
+    GRUNNLAG_POSITION = "GRUNNLAG_POSITION"
+    GRUNNLAG_REPRESENTATION = "GRUNNLAG_REPRESENTATION"
+    GRUNNLAG_OMERO = "GRUNNLAG_OMERO"
+    GRUNNLAG_METRIC = "GRUNNLAG_METRIC"
+    GRUNNLAG_THUMBNAIL = "GRUNNLAG_THUMBNAIL"
+    GRUNNLAG_ROI = "GRUNNLAG_ROI"
+    GRUNNLAG_LABEL = "GRUNNLAG_LABEL"
+    GRUNNLAG_FEATURE = "GRUNNLAG_FEATURE"
+    BORD_TABLE = "BORD_TABLE"
+    PLOTQL_PLOT = "PLOTQL_PLOT"
+
+
+class ModelKind(str, Enum):
+    """What format is the model in?"""
+
+    ONNX = "ONNX"
+    TENSORFLOW = "TENSORFLOW"
+    PYTORCH = "PYTORCH"
+    UNKNOWN = "UNKNOWN"
 
 
 class DescendendInput(BaseModel):
@@ -451,6 +519,42 @@ class LabelFragment(BaseModel):
         frozen = True
 
 
+class ContextFragmentLinks(BaseModel):
+    """DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)"""
+
+    typename: Optional[Literal["DataLink"]] = Field(alias="__typename")
+    x_id: int = Field(alias="xId")
+    y_id: int = Field(alias="yId")
+    left_type: Optional[LinkableModels] = Field(alias="leftType")
+    "Left Type"
+    right_type: Optional[LinkableModels] = Field(alias="rightType")
+    "Left Type"
+
+    class Config:
+        frozen = True
+
+
+class ContextFragment(BaseModel):
+    typename: Optional[Literal["Context"]] = Field(alias="__typename")
+    id: ID
+    name: str
+    "The name of the context"
+    links: Tuple[ContextFragmentLinks, ...]
+
+    class Config:
+        frozen = True
+
+
+class ListContextFragment(BaseModel):
+    typename: Optional[Literal["Context"]] = Field(alias="__typename")
+    id: ID
+    name: str
+    "The name of the context"
+
+    class Config:
+        frozen = True
+
+
 class ThumbnailFragment(BaseModel):
     typename: Optional[Literal["Thumbnail"]] = Field(alias="__typename")
     id: ID
@@ -492,7 +596,7 @@ class TableFragmentSample(BaseModel):
         frozen = True
 
 
-class TableFragmentRepresentation(Representation, BaseModel):
+class TableFragmentReporigins(Representation, BaseModel):
     """A Representation is 5-dimensional representation of an image
 
     Mikro stores each image as a 5-dimensional representation. The dimensions are:
@@ -566,10 +670,36 @@ class TableFragment(Table, BaseModel):
     "The creator of the Table"
     sample: Optional[TableFragmentSample]
     "Sample this table belongs to"
-    representation: Optional[TableFragmentRepresentation]
+    rep_origins: Tuple[TableFragmentReporigins, ...] = Field(alias="repOrigins")
     "The Representation this Table belongs to"
     experiment: Optional[TableFragmentExperiment]
     "The Experiment this Table belongs to."
+
+    class Config:
+        frozen = True
+
+
+class ListLinkFragment(BaseModel):
+    typename: Optional[Literal["DataLink"]] = Field(alias="__typename")
+    relation: Optional[str]
+    "Relation"
+    id: ID
+
+    class Config:
+        frozen = True
+
+
+class LinkFragment(BaseModel):
+    typename: Optional[Literal["DataLink"]] = Field(alias="__typename")
+    relation: Optional[str]
+    "Relation"
+    id: ID
+    x_id: int = Field(alias="xId")
+    y_id: int = Field(alias="yId")
+    left_type: Optional[LinkableModels] = Field(alias="leftType")
+    "Left Type"
+    right_type: Optional[LinkableModels] = Field(alias="rightType")
+    "Left Type"
 
     class Config:
         frozen = True
@@ -1090,7 +1220,35 @@ class RepresentationFragmentOmeroPhysicalsize(BaseModel):
         frozen = True
 
 
-class RepresentationFragmentOmero(BaseModel):
+class RepresentationFragmentOmeroPosition(Position, BaseModel):
+    """The relative position of a sample on a microscope stage"""
+
+    typename: Optional[Literal["Position"]] = Field(alias="__typename")
+    id: ID
+    x: Optional[float]
+    y: Optional[float]
+
+    class Config:
+        frozen = True
+
+
+class RepresentationFragmentOmeroChannels(BaseModel):
+    """A channel in an image
+
+    Channels can be highly variable in their properties. This class is a
+    representation of the most common properties of a channel."""
+
+    typename: Optional[Literal["Channel"]] = Field(alias="__typename")
+    name: Optional[str]
+    "The name of the channel"
+    color: Optional[str]
+    "The default color for the channel (might be ommited by the rendered)"
+
+    class Config:
+        frozen = True
+
+
+class RepresentationFragmentOmero(Omero, BaseModel):
     """Omero is a through model that stores the real world context of an image
 
     This means that it stores the position (corresponding to the relative displacement to
@@ -1103,6 +1261,8 @@ class RepresentationFragmentOmero(BaseModel):
     physical_size: Optional[RepresentationFragmentOmeroPhysicalsize] = Field(
         alias="physicalSize"
     )
+    position: Optional[RepresentationFragmentOmeroPosition]
+    channels: Optional[Tuple[Optional[RepresentationFragmentOmeroChannels], ...]]
 
     class Config:
         frozen = True
@@ -1178,6 +1338,34 @@ class ListRepresentationFragment(Representation, BaseModel):
     name: Optional[str]
     "Cleartext name"
     store: Optional[Store]
+
+    class Config:
+        frozen = True
+
+
+class ModelFragmentContexts(BaseModel):
+    """Context(id, created_by, created_through, name, created_at, experiment, creator)"""
+
+    typename: Optional[Literal["Context"]] = Field(alias="__typename")
+    id: ID
+    name: str
+    "The name of the context"
+
+    class Config:
+        frozen = True
+
+
+class ModelFragment(BaseModel):
+    typename: Optional[Literal["Model"]] = Field(alias="__typename")
+    id: ID
+    data: Optional[ModelData]
+    "The model data"
+    kind: Optional[ModelKind]
+    "The kind of model"
+    name: str
+    "The name of the model"
+    contexts: Tuple[ModelFragmentContexts, ...]
+    "The contexts this model is valid for"
 
     class Config:
         frozen = True
@@ -1299,7 +1487,7 @@ class OmeroFileFragment(BaseModel):
         frozen = True
 
 
-class PositionFragmentOmeros(BaseModel):
+class PositionFragmentOmeros(Omero, BaseModel):
     """Omero is a through model that stores the real world context of an image
 
     This means that it stores the position (corresponding to the relative displacement to
@@ -1314,7 +1502,7 @@ class PositionFragmentOmeros(BaseModel):
         frozen = True
 
 
-class PositionFragment(BaseModel):
+class PositionFragment(Position, BaseModel):
     typename: Optional[Literal["Position"]] = Field(alias="__typename")
     id: ID
     stage: ListStageFragment
@@ -1486,6 +1674,18 @@ class Create_labelMutation(BaseModel):
         document = "mutation create_label($instance: Int!, $representation: ID!, $creator: ID, $name: String) {\n  createLabel(\n    instance: $instance\n    representation: $representation\n    creator: $creator\n    name: $name\n  ) {\n    id\n    instance\n  }\n}"
 
 
+class Create_contextMutation(BaseModel):
+    create_context: Optional[ContextFragment] = Field(alias="createContext")
+    "Create an Experiment\n    \n    This mutation creates an Experiment and returns the created Experiment.\n    "
+
+    class Arguments(BaseModel):
+        name: str
+        experiment: Optional[ID] = None
+
+    class Meta:
+        document = "fragment Context on Context {\n  id\n  name\n  links {\n    xId\n    yId\n    leftType\n    rightType\n  }\n}\n\nmutation create_context($name: String!, $experiment: ID) {\n  createContext(name: $name, experiment: $experiment) {\n    ...Context\n  }\n}"
+
+
 class Create_thumbnailMutation(BaseModel):
     upload_thumbnail: Optional[ThumbnailFragment] = Field(alias="uploadThumbnail")
 
@@ -1516,9 +1716,40 @@ class From_dfMutation(BaseModel):
     class Arguments(BaseModel):
         df: ParquetInput
         name: str
+        rep_origins: Optional[List[Optional[ID]]] = None
 
     class Meta:
-        document = "fragment Table on Table {\n  id\n  name\n  tags\n  store\n  creator {\n    email\n  }\n  sample {\n    id\n  }\n  representation {\n    id\n  }\n  experiment {\n    id\n  }\n}\n\nmutation from_df($df: ParquetInput!, $name: String!) {\n  fromDf(df: $df, name: $name) {\n    ...Table\n  }\n}"
+        document = "fragment Table on Table {\n  id\n  name\n  tags\n  store\n  creator {\n    email\n  }\n  sample {\n    id\n  }\n  repOrigins {\n    id\n  }\n  experiment {\n    id\n  }\n}\n\nmutation from_df($df: ParquetInput!, $name: String!, $rep_origins: [ID]) {\n  fromDf(df: $df, name: $name, repOrigins: $rep_origins) {\n    ...Table\n  }\n}"
+
+
+class LinkMutation(BaseModel):
+    link: Optional[ListLinkFragment]
+    "Create an Comment \n    \n    This mutation creates a comment. It takes a commentable_id and a commentable_type.\n    If this is the first comment on the commentable, it will create a new comment thread.\n    If there is already a comment thread, it will add the comment to the thread (by setting\n    it's parent to the last parent comment in the thread).\n\n    CreateComment takes a list of Descendents, which are the comment tree. The Descendents\n    are a recursive structure, where each Descendent can have a list of Descendents as children.\n    The Descendents are either a Leaf, which is a text node, or a MentionDescendent, which is a\n    reference to another user on the platform.\n\n    Please convert your comment tree to a list of Descendents before sending it to the server.\n    TODO: Add a converter from a comment tree to a list of Descendents.\n\n    \n    (only signed in users)"
+
+    class Arguments(BaseModel):
+        relation: str
+        x_type: LinkableModels
+        x_id: ID
+        y_type: LinkableModels
+        y_id: ID
+        context: Optional[ID] = None
+
+    class Meta:
+        document = "fragment ListLink on DataLink {\n  relation\n  id\n}\n\nmutation link($relation: String!, $x_type: LinkableModels!, $x_id: ID!, $y_type: LinkableModels!, $y_id: ID!, $context: ID) {\n  link(\n    relation: $relation\n    xType: $x_type\n    xId: $x_id\n    yType: $y_type\n    yId: $y_id\n    context: $context\n  ) {\n    ...ListLink\n  }\n}"
+
+
+class Link_rep_to_repMutation(BaseModel):
+    link: Optional[ListLinkFragment]
+    "Create an Comment \n    \n    This mutation creates a comment. It takes a commentable_id and a commentable_type.\n    If this is the first comment on the commentable, it will create a new comment thread.\n    If there is already a comment thread, it will add the comment to the thread (by setting\n    it's parent to the last parent comment in the thread).\n\n    CreateComment takes a list of Descendents, which are the comment tree. The Descendents\n    are a recursive structure, where each Descendent can have a list of Descendents as children.\n    The Descendents are either a Leaf, which is a text node, or a MentionDescendent, which is a\n    reference to another user on the platform.\n\n    Please convert your comment tree to a list of Descendents before sending it to the server.\n    TODO: Add a converter from a comment tree to a list of Descendents.\n\n    \n    (only signed in users)"
+
+    class Arguments(BaseModel):
+        relation: str
+        left_rep: ID
+        right_rep: ID
+        context: Optional[ID] = None
+
+    class Meta:
+        document = "fragment ListLink on DataLink {\n  relation\n  id\n}\n\nmutation link_rep_to_rep($relation: String!, $left_rep: ID!, $right_rep: ID!, $context: ID) {\n  link(\n    relation: $relation\n    xType: GRUNNLAG_REPRESENTATION\n    xId: $left_rep\n    yType: GRUNNLAG_REPRESENTATION\n    yId: $right_rep\n    context: $context\n  ) {\n    ...ListLink\n  }\n}"
 
 
 class Create_stageMutation(BaseModel):
@@ -1756,11 +1987,12 @@ class From_xarrayMutation(BaseModel):
         file_origins: Optional[List[Optional[ID]]] = None
         roi_origins: Optional[List[Optional[ID]]] = None
         tags: Optional[List[Optional[str]]] = None
+        experiments: Optional[List[Optional[ID]]] = None
         sample: Optional[ID] = None
         omero: Optional[OmeroRepresentationInput] = None
 
     class Meta:
-        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nmutation from_xarray($xarray: XArrayInput!, $name: String, $variety: RepresentationVarietyInput, $origins: [ID], $file_origins: [ID], $roi_origins: [ID], $tags: [String], $sample: ID, $omero: OmeroRepresentationInput) {\n  fromXArray(\n    xarray: $xarray\n    name: $name\n    origins: $origins\n    tags: $tags\n    sample: $sample\n    omero: $omero\n    fileOrigins: $file_origins\n    roiOrigins: $roi_origins\n    variety: $variety\n  ) {\n    ...Representation\n  }\n}"
+        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n    position {\n      id\n      x\n      y\n    }\n    channels {\n      name\n      color\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nmutation from_xarray($xarray: XArrayInput!, $name: String, $variety: RepresentationVarietyInput, $origins: [ID], $file_origins: [ID], $roi_origins: [ID], $tags: [String], $experiments: [ID], $sample: ID, $omero: OmeroRepresentationInput) {\n  fromXArray(\n    xarray: $xarray\n    name: $name\n    origins: $origins\n    tags: $tags\n    sample: $sample\n    omero: $omero\n    fileOrigins: $file_origins\n    roiOrigins: $roi_origins\n    experiments: $experiments\n    variety: $variety\n  ) {\n    ...Representation\n  }\n}"
 
 
 class Double_uploadMutationX(Representation, BaseModel):
@@ -1876,7 +2108,22 @@ class Update_representationMutation(BaseModel):
         variety: Optional[RepresentationVarietyInput] = None
 
     class Meta:
-        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nmutation update_representation($id: ID!, $tags: [String], $sample: ID, $variety: RepresentationVarietyInput) {\n  updateRepresentation(rep: $id, tags: $tags, sample: $sample, variety: $variety) {\n    ...Representation\n  }\n}"
+        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n    position {\n      id\n      x\n      y\n    }\n    channels {\n      name\n      color\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nmutation update_representation($id: ID!, $tags: [String], $sample: ID, $variety: RepresentationVarietyInput) {\n  updateRepresentation(rep: $id, tags: $tags, sample: $sample, variety: $variety) {\n    ...Representation\n  }\n}"
+
+
+class Create_modelMutation(BaseModel):
+    create_model: Optional[ModelFragment] = Field(alias="createModel")
+    "Creates an Instrument\n    \n    This mutation creates an Instrument and returns the created Instrument.\n    The serial number is required and the manufacturer is inferred from the serial number.\n    "
+
+    class Arguments(BaseModel):
+        data: ModelFile
+        kind: ModelKind
+        name: str
+        contexts: Optional[List[Optional[ID]]] = None
+        experiments: Optional[List[Optional[ID]]] = None
+
+    class Meta:
+        document = "fragment Model on Model {\n  id\n  data\n  kind\n  name\n  contexts {\n    id\n    name\n  }\n}\n\nmutation create_model($data: ModelFile!, $kind: ModelKind!, $name: String!, $contexts: [ID], $experiments: [ID]) {\n  createModel(\n    data: $data\n    kind: $kind\n    name: $name\n    contexts: $contexts\n    experiments: $experiments\n  ) {\n    ...Model\n  }\n}"
 
 
 class Create_metricMutation(BaseModel):
@@ -1907,7 +2154,7 @@ class Create_positionMutation(BaseModel):
         tags: Optional[List[Optional[str]]] = None
 
     class Meta:
-        document = 'fragment ListStage on Stage {\n  id\n  name\n  kind\n  physicalSize\n}\n\nfragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nmutation create_position($stage: ID!, $x: Float!, $y: Float!, $z: Float!, $name: String, $tags: [String]) {\n  createPosition(stage: $stage, x: $x, y: $y, z: $z, tags: $tags, name: $name) {\n    ...Position\n  }\n}'
+        document = 'fragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment ListStage on Stage {\n  id\n  name\n  kind\n  physicalSize\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nmutation create_position($stage: ID!, $x: Float!, $y: Float!, $z: Float!, $name: String, $tags: [String]) {\n  createPosition(stage: $stage, x: $x, y: $y, z: $z, tags: $tags, name: $name) {\n    ...Position\n  }\n}'
 
 
 class Create_objectiveMutation(BaseModel):
@@ -2056,6 +2303,63 @@ class Search_labelsQuery(BaseModel):
         document = "query search_labels($search: String) {\n  options: labels(name: $search, limit: 20) {\n    label: name\n    value: id\n  }\n}"
 
 
+class Get_contextQuery(BaseModel):
+    context: Optional[ContextFragment]
+    'Get a single experiment by ID"\n    \n    Returns a single experiment by ID. If the user does not have access\n    to the experiment, an error will be raised.\n    \n    '
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "fragment Context on Context {\n  id\n  name\n  links {\n    xId\n    yId\n    leftType\n    rightType\n  }\n}\n\nquery get_context($id: ID!) {\n  context(id: $id) {\n    ...Context\n  }\n}"
+
+
+class Get_mycontextsQuery(BaseModel):
+    mycontexts: Optional[Tuple[Optional[ListContextFragment], ...]]
+    "My Experiments runs a fast query on the database to return all\n    Experiments that the user has created. This query is faster than\n    the `experiments` query, but it does not return all Experiments that\n    the user has access to."
+
+    class Arguments(BaseModel):
+        limit: Optional[int] = None
+        offset: Optional[int] = None
+
+    class Meta:
+        document = "fragment ListContext on Context {\n  id\n  name\n}\n\nquery get_mycontexts($limit: Int, $offset: Int) {\n  mycontexts(limit: $limit, offset: $offset) {\n    ...ListContext\n  }\n}"
+
+
+class Expand_contextQuery(BaseModel):
+    context: Optional[ContextFragment]
+    'Get a single experiment by ID"\n    \n    Returns a single experiment by ID. If the user does not have access\n    to the experiment, an error will be raised.\n    \n    '
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "fragment Context on Context {\n  id\n  name\n  links {\n    xId\n    yId\n    leftType\n    rightType\n  }\n}\n\nquery expand_context($id: ID!) {\n  context(id: $id) {\n    ...Context\n  }\n}"
+
+
+class Search_contextsQueryOptions(BaseModel):
+    """Context(id, created_by, created_through, name, created_at, experiment, creator)"""
+
+    typename: Optional[Literal["Context"]] = Field(alias="__typename")
+    value: ID
+    label: str
+    "The name of the context"
+
+    class Config:
+        frozen = True
+
+
+class Search_contextsQuery(BaseModel):
+    options: Optional[Tuple[Optional[Search_contextsQueryOptions], ...]]
+    "My Experiments runs a fast query on the database to return all\n    Experiments that the user has created. This query is faster than\n    the `experiments` query, but it does not return all Experiments that\n    the user has access to."
+
+    class Arguments(BaseModel):
+        search: Optional[str] = None
+
+    class Meta:
+        document = "query search_contexts($search: String) {\n  options: mycontexts(name: $search, limit: 30) {\n    value: id\n    label: name\n  }\n}"
+
+
 class ThumbnailQuery(BaseModel):
     thumbnail: Optional[ThumbnailFragment]
     "Get a single Thumbnail by ID\n    \n    Get a single Thumbnail by ID. If the user does not have access\n    to the Thumbnail, an error will be raised.\n    "
@@ -2136,7 +2440,7 @@ class Get_tableQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Table on Table {\n  id\n  name\n  tags\n  store\n  creator {\n    email\n  }\n  sample {\n    id\n  }\n  representation {\n    id\n  }\n  experiment {\n    id\n  }\n}\n\nquery get_table($id: ID!) {\n  table(id: $id) {\n    ...Table\n  }\n}"
+        document = "fragment Table on Table {\n  id\n  name\n  tags\n  store\n  creator {\n    email\n  }\n  sample {\n    id\n  }\n  repOrigins {\n    id\n  }\n  experiment {\n    id\n  }\n}\n\nquery get_table($id: ID!) {\n  table(id: $id) {\n    ...Table\n  }\n}"
 
 
 class Expand_tableQuery(BaseModel):
@@ -2147,7 +2451,7 @@ class Expand_tableQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Table on Table {\n  id\n  name\n  tags\n  store\n  creator {\n    email\n  }\n  sample {\n    id\n  }\n  representation {\n    id\n  }\n  experiment {\n    id\n  }\n}\n\nquery expand_table($id: ID!) {\n  table(id: $id) {\n    ...Table\n  }\n}"
+        document = "fragment Table on Table {\n  id\n  name\n  tags\n  store\n  creator {\n    email\n  }\n  sample {\n    id\n  }\n  repOrigins {\n    id\n  }\n  experiment {\n    id\n  }\n}\n\nquery expand_table($id: ID!) {\n  table(id: $id) {\n    ...Table\n  }\n}"
 
 
 class Search_tablesQueryOptions(Table, BaseModel):
@@ -2181,6 +2485,99 @@ class Search_tablesQuery(BaseModel):
 
     class Meta:
         document = "query search_tables {\n  options: tables {\n    value: id\n    label: name\n  }\n}"
+
+
+class LinksQueryLinksRepresentationInlineFragment(Representation):
+    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
+    id: ID
+    store: Optional[Store]
+
+    class Config:
+        frozen = True
+
+
+class LinksQueryLinksRepresentationInlineFragment(Representation):
+    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
+    id: ID
+    store: Optional[Store]
+
+    class Config:
+        frozen = True
+
+
+class LinksQueryLinks(BaseModel):
+    """DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)"""
+
+    typename: Optional[Literal["DataLink"]] = Field(alias="__typename")
+    relation: Optional[str]
+    "Relation"
+    x: LinksQueryLinksRepresentationInlineFragment
+    "X"
+    y: LinksQueryLinksRepresentationInlineFragment
+    "Y"
+
+    class Config:
+        frozen = True
+
+
+class LinksQuery(BaseModel):
+    links: Optional[Tuple[Optional[LinksQueryLinks], ...]]
+    "All Experiments\n    \n    This query returns all Experiments that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Experiments that the user has access to. If the user is an amdin\n    or superuser, all Experiments will be returned.\n\n    If you want to retrieve only the Experiments that you have created,\n    use the `myExperiments` query.\n    \n    "
+
+    class Arguments(BaseModel):
+        x_type: LinkableModels
+        y_type: LinkableModels
+        relation: str
+        context: Optional[ID] = None
+        limit: Optional[int] = 10
+
+    class Meta:
+        document = "query Links($x_type: LinkableModels!, $y_type: LinkableModels!, $relation: String!, $context: ID, $limit: Int = 10) {\n  links(\n    xType: $x_type\n    yType: $y_type\n    relation: $relation\n    context: $context\n    limit: $limit\n  ) {\n    relation\n    x {\n      ... on Representation {\n        id\n        store\n      }\n    }\n    y {\n      ... on Representation {\n        id\n        store\n      }\n    }\n  }\n}"
+
+
+class Get_linkQuery(BaseModel):
+    link: Optional[LinkFragment]
+    'Get a single experiment by ID"\n    \n    Returns a single experiment by ID. If the user does not have access\n    to the experiment, an error will be raised.\n    \n    '
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "fragment Link on DataLink {\n  relation\n  id\n  xId\n  yId\n  leftType\n  rightType\n}\n\nquery get_link($id: ID!) {\n  link(id: $id) {\n    ...Link\n  }\n}"
+
+
+class Expand_linkQuery(BaseModel):
+    link: Optional[LinkFragment]
+    'Get a single experiment by ID"\n    \n    Returns a single experiment by ID. If the user does not have access\n    to the experiment, an error will be raised.\n    \n    '
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "fragment Link on DataLink {\n  relation\n  id\n  xId\n  yId\n  leftType\n  rightType\n}\n\nquery expand_link($id: ID!) {\n  link(id: $id) {\n    ...Link\n  }\n}"
+
+
+class Search_linksQueryOptions(BaseModel):
+    """DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)"""
+
+    typename: Optional[Literal["DataLink"]] = Field(alias="__typename")
+    value: ID
+    label: Optional[str]
+    "Relation"
+
+    class Config:
+        frozen = True
+
+
+class Search_linksQuery(BaseModel):
+    options: Optional[Tuple[Optional[Search_linksQueryOptions], ...]]
+    "All Experiments\n    \n    This query returns all Experiments that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Experiments that the user has access to. If the user is an amdin\n    or superuser, all Experiments will be returned.\n\n    If you want to retrieve only the Experiments that you have created,\n    use the `myExperiments` query.\n    \n    "
+
+    class Arguments(BaseModel):
+        search: Optional[str] = None
+
+    class Meta:
+        document = "query search_links($search: String) {\n  options: links(relation: $search, limit: 30) {\n    value: id\n    label: relation\n  }\n}"
 
 
 class Get_stageQuery(BaseModel):
@@ -2523,7 +2920,7 @@ class Expand_representationQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nquery expand_representation($id: ID!) {\n  representation(id: $id) {\n    ...Representation\n  }\n}"
+        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n    position {\n      id\n      x\n      y\n    }\n    channels {\n      name\n      color\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nquery expand_representation($id: ID!) {\n  representation(id: $id) {\n    ...Representation\n  }\n}"
 
 
 class Get_representationQuery(BaseModel):
@@ -2534,7 +2931,7 @@ class Get_representationQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nquery get_representation($id: ID!) {\n  representation(id: $id) {\n    ...Representation\n  }\n}"
+        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n    position {\n      id\n      x\n      y\n    }\n    channels {\n      name\n      color\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nquery get_representation($id: ID!) {\n  representation(id: $id) {\n    ...Representation\n  }\n}"
 
 
 class Search_representationQueryOptions(Representation, BaseModel):
@@ -2604,7 +3001,7 @@ class Get_random_repQuery(BaseModel):
         pass
 
     class Meta:
-        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nquery get_random_rep {\n  randomRepresentation {\n    ...Representation\n  }\n}"
+        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n    position {\n      id\n      x\n      y\n    }\n    channels {\n      name\n      color\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nquery get_random_rep {\n  randomRepresentation {\n    ...Representation\n  }\n}"
 
 
 class My_accessiblesQuery(BaseModel):
@@ -2614,7 +3011,7 @@ class My_accessiblesQuery(BaseModel):
         pass
 
     class Meta:
-        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nquery my_accessibles {\n  accessiblerepresentations {\n    ...Representation\n  }\n}"
+        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n    position {\n      id\n      x\n      y\n    }\n    channels {\n      name\n      color\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nquery my_accessibles {\n  accessiblerepresentations {\n    ...Representation\n  }\n}"
 
 
 class Search_tagsQueryOptions(BaseModel):
@@ -2635,6 +3032,53 @@ class Search_tagsQuery(BaseModel):
 
     class Meta:
         document = "query search_tags($search: String) {\n  options: tags(name: $search) {\n    value: slug\n    label: name\n  }\n}"
+
+
+class Get_modelQuery(BaseModel):
+    model: Optional[ModelFragment]
+    "Get a single label by ID\n    \n    Returns a single label by ID. If the user does not have access\n    to the label, an error will be raised."
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "fragment Model on Model {\n  id\n  data\n  kind\n  name\n  contexts {\n    id\n    name\n  }\n}\n\nquery get_model($id: ID!) {\n  model(id: $id) {\n    ...Model\n  }\n}"
+
+
+class Expand_modelQuery(BaseModel):
+    model: Optional[ModelFragment]
+    "Get a single label by ID\n    \n    Returns a single label by ID. If the user does not have access\n    to the label, an error will be raised."
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "fragment Model on Model {\n  id\n  data\n  kind\n  name\n  contexts {\n    id\n    name\n  }\n}\n\nquery expand_model($id: ID!) {\n  model(id: $id) {\n    ...Model\n  }\n}"
+
+
+class Search_modelsQueryOptions(BaseModel):
+    """A
+
+    Mikro uses the omero-meta data to create representations of the file. See Representation for more information."""
+
+    typename: Optional[Literal["Model"]] = Field(alias="__typename")
+    label: str
+    "The name of the model"
+    value: ID
+
+    class Config:
+        frozen = True
+
+
+class Search_modelsQuery(BaseModel):
+    options: Optional[Tuple[Optional[Search_modelsQueryOptions], ...]]
+    "All Labels\n    \n    This query returns all Labels that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Labels that the user has access to. If the user is an amdin\n    or superuser, all Labels will be returned.\n    "
+
+    class Arguments(BaseModel):
+        search: Optional[str] = None
+
+    class Meta:
+        document = "query search_models($search: String) {\n  options: models(name: $search, limit: 20) {\n    label: name\n    value: id\n  }\n}"
 
 
 class Expand_metricQuery(BaseModel):
@@ -2658,7 +3102,7 @@ class Get_positionQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = 'fragment ListStage on Stage {\n  id\n  name\n  kind\n  physicalSize\n}\n\nfragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nquery get_position($id: ID!) {\n  position(id: $id) {\n    ...Position\n  }\n}'
+        document = 'fragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment ListStage on Stage {\n  id\n  name\n  kind\n  physicalSize\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nquery get_position($id: ID!) {\n  position(id: $id) {\n    ...Position\n  }\n}'
 
 
 class Expand_positionQuery(BaseModel):
@@ -2669,10 +3113,10 @@ class Expand_positionQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = 'fragment ListStage on Stage {\n  id\n  name\n  kind\n  physicalSize\n}\n\nfragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nquery expand_position($id: ID!) {\n  position(id: $id) {\n    ...Position\n  }\n}'
+        document = 'fragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment ListStage on Stage {\n  id\n  name\n  kind\n  physicalSize\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nquery expand_position($id: ID!) {\n  position(id: $id) {\n    ...Position\n  }\n}'
 
 
-class Search_positionsQueryOptions(BaseModel):
+class Search_positionsQueryOptions(Position, BaseModel):
     """The relative position of a sample on a microscope stage"""
 
     typename: Optional[Literal["Position"]] = Field(alias="__typename")
@@ -2944,6 +3388,50 @@ def create_label(
     ).create_label
 
 
+async def acreate_context(
+    name: str, experiment: Optional[ID] = None, rath: MikroRath = None
+) -> Optional[ContextFragment]:
+    """create_context
+
+
+     createContext: Context(id, created_by, created_through, name, created_at, experiment, creator)
+
+
+    Arguments:
+        name (str): name
+        experiment (Optional[ID], optional): experiment.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[ContextFragment]"""
+    return (
+        await aexecute(
+            Create_contextMutation, {"name": name, "experiment": experiment}, rath=rath
+        )
+    ).create_context
+
+
+def create_context(
+    name: str, experiment: Optional[ID] = None, rath: MikroRath = None
+) -> Optional[ContextFragment]:
+    """create_context
+
+
+     createContext: Context(id, created_by, created_through, name, created_at, experiment, creator)
+
+
+    Arguments:
+        name (str): name
+        experiment (Optional[ID], optional): experiment.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[ContextFragment]"""
+    return execute(
+        Create_contextMutation, {"name": name, "experiment": experiment}, rath=rath
+    ).create_context
+
+
 async def acreate_thumbnail(
     rep: ID,
     file: File,
@@ -3050,7 +3538,10 @@ def negotiate(rath: MikroRath = None) -> Optional[Dict]:
 
 
 async def afrom_df(
-    df: ParquetInput, name: str, rath: MikroRath = None
+    df: ParquetInput,
+    name: str,
+    rep_origins: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
 ) -> Optional[TableFragment]:
     """from_df
 
@@ -3072,17 +3563,25 @@ async def afrom_df(
     Arguments:
         df (ParquetInput): df
         name (str): name
+        rep_origins (Optional[List[Optional[ID]]], optional): rep_origins.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[TableFragment]"""
     return (
-        await aexecute(From_dfMutation, {"df": df, "name": name}, rath=rath)
+        await aexecute(
+            From_dfMutation,
+            {"df": df, "name": name, "rep_origins": rep_origins},
+            rath=rath,
+        )
     ).from_df
 
 
 def from_df(
-    df: ParquetInput, name: str, rath: MikroRath = None
+    df: ParquetInput,
+    name: str,
+    rep_origins: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
 ) -> Optional[TableFragment]:
     """from_df
 
@@ -3104,11 +3603,166 @@ def from_df(
     Arguments:
         df (ParquetInput): df
         name (str): name
+        rep_origins (Optional[List[Optional[ID]]], optional): rep_origins.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[TableFragment]"""
-    return execute(From_dfMutation, {"df": df, "name": name}, rath=rath).from_df
+    return execute(
+        From_dfMutation, {"df": df, "name": name, "rep_origins": rep_origins}, rath=rath
+    ).from_df
+
+
+async def alink(
+    relation: str,
+    x_type: LinkableModels,
+    x_id: ID,
+    y_type: LinkableModels,
+    y_id: ID,
+    context: Optional[ID] = None,
+    rath: MikroRath = None,
+) -> Optional[ListLinkFragment]:
+    """link
+
+
+     link: DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
+
+
+    Arguments:
+        relation (str): relation
+        x_type (LinkableModels): x_type
+        x_id (ID): x_id
+        y_type (LinkableModels): y_type
+        y_id (ID): y_id
+        context (Optional[ID], optional): context.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[ListLinkFragment]"""
+    return (
+        await aexecute(
+            LinkMutation,
+            {
+                "relation": relation,
+                "x_type": x_type,
+                "x_id": x_id,
+                "y_type": y_type,
+                "y_id": y_id,
+                "context": context,
+            },
+            rath=rath,
+        )
+    ).link
+
+
+def link(
+    relation: str,
+    x_type: LinkableModels,
+    x_id: ID,
+    y_type: LinkableModels,
+    y_id: ID,
+    context: Optional[ID] = None,
+    rath: MikroRath = None,
+) -> Optional[ListLinkFragment]:
+    """link
+
+
+     link: DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
+
+
+    Arguments:
+        relation (str): relation
+        x_type (LinkableModels): x_type
+        x_id (ID): x_id
+        y_type (LinkableModels): y_type
+        y_id (ID): y_id
+        context (Optional[ID], optional): context.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[ListLinkFragment]"""
+    return execute(
+        LinkMutation,
+        {
+            "relation": relation,
+            "x_type": x_type,
+            "x_id": x_id,
+            "y_type": y_type,
+            "y_id": y_id,
+            "context": context,
+        },
+        rath=rath,
+    ).link
+
+
+async def alink_rep_to_rep(
+    relation: str,
+    left_rep: ID,
+    right_rep: ID,
+    context: Optional[ID] = None,
+    rath: MikroRath = None,
+) -> Optional[ListLinkFragment]:
+    """link_rep_to_rep
+
+
+     link: DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
+
+
+    Arguments:
+        relation (str): relation
+        left_rep (ID): left_rep
+        right_rep (ID): right_rep
+        context (Optional[ID], optional): context.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[ListLinkFragment]"""
+    return (
+        await aexecute(
+            Link_rep_to_repMutation,
+            {
+                "relation": relation,
+                "left_rep": left_rep,
+                "right_rep": right_rep,
+                "context": context,
+            },
+            rath=rath,
+        )
+    ).link
+
+
+def link_rep_to_rep(
+    relation: str,
+    left_rep: ID,
+    right_rep: ID,
+    context: Optional[ID] = None,
+    rath: MikroRath = None,
+) -> Optional[ListLinkFragment]:
+    """link_rep_to_rep
+
+
+     link: DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
+
+
+    Arguments:
+        relation (str): relation
+        left_rep (ID): left_rep
+        right_rep (ID): right_rep
+        context (Optional[ID], optional): context.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[ListLinkFragment]"""
+    return execute(
+        Link_rep_to_repMutation,
+        {
+            "relation": relation,
+            "left_rep": left_rep,
+            "right_rep": right_rep,
+            "context": context,
+        },
+        rath=rath,
+    ).link
 
 
 async def acreate_stage(
@@ -3650,6 +4304,7 @@ async def afrom_xarray(
     file_origins: Optional[List[Optional[ID]]] = None,
     roi_origins: Optional[List[Optional[ID]]] = None,
     tags: Optional[List[Optional[str]]] = None,
+    experiments: Optional[List[Optional[ID]]] = None,
     sample: Optional[ID] = None,
     omero: Optional[OmeroRepresentationInput] = None,
     rath: MikroRath = None,
@@ -3666,6 +4321,7 @@ async def afrom_xarray(
         file_origins (Optional[List[Optional[ID]]], optional): file_origins.
         roi_origins (Optional[List[Optional[ID]]], optional): roi_origins.
         tags (Optional[List[Optional[str]]], optional): tags.
+        experiments (Optional[List[Optional[ID]]], optional): experiments.
         sample (Optional[ID], optional): sample.
         omero (Optional[OmeroRepresentationInput], optional): omero.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
@@ -3683,6 +4339,7 @@ async def afrom_xarray(
                 "file_origins": file_origins,
                 "roi_origins": roi_origins,
                 "tags": tags,
+                "experiments": experiments,
                 "sample": sample,
                 "omero": omero,
             },
@@ -3699,6 +4356,7 @@ def from_xarray(
     file_origins: Optional[List[Optional[ID]]] = None,
     roi_origins: Optional[List[Optional[ID]]] = None,
     tags: Optional[List[Optional[str]]] = None,
+    experiments: Optional[List[Optional[ID]]] = None,
     sample: Optional[ID] = None,
     omero: Optional[OmeroRepresentationInput] = None,
     rath: MikroRath = None,
@@ -3715,6 +4373,7 @@ def from_xarray(
         file_origins (Optional[List[Optional[ID]]], optional): file_origins.
         roi_origins (Optional[List[Optional[ID]]], optional): roi_origins.
         tags (Optional[List[Optional[str]]], optional): tags.
+        experiments (Optional[List[Optional[ID]]], optional): experiments.
         sample (Optional[ID], optional): sample.
         omero (Optional[OmeroRepresentationInput], optional): omero.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
@@ -3731,6 +4390,7 @@ def from_xarray(
             "file_origins": file_origins,
             "roi_origins": roi_origins,
             "tags": tags,
+            "experiments": experiments,
             "sample": sample,
             "omero": omero,
         },
@@ -4060,6 +4720,86 @@ def update_representation(
         {"id": id, "tags": tags, "sample": sample, "variety": variety},
         rath=rath,
     ).update_representation
+
+
+async def acreate_model(
+    data: ModelFile,
+    kind: ModelKind,
+    name: str,
+    contexts: Optional[List[Optional[ID]]] = None,
+    experiments: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
+) -> Optional[ModelFragment]:
+    """create_model
+
+
+     createModel: A
+
+        Mikro uses the omero-meta data to create representations of the file. See Representation for more information.
+
+
+    Arguments:
+        data (ModelFile): data
+        kind (ModelKind): kind
+        name (str): name
+        contexts (Optional[List[Optional[ID]]], optional): contexts.
+        experiments (Optional[List[Optional[ID]]], optional): experiments.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[ModelFragment]"""
+    return (
+        await aexecute(
+            Create_modelMutation,
+            {
+                "data": data,
+                "kind": kind,
+                "name": name,
+                "contexts": contexts,
+                "experiments": experiments,
+            },
+            rath=rath,
+        )
+    ).create_model
+
+
+def create_model(
+    data: ModelFile,
+    kind: ModelKind,
+    name: str,
+    contexts: Optional[List[Optional[ID]]] = None,
+    experiments: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
+) -> Optional[ModelFragment]:
+    """create_model
+
+
+     createModel: A
+
+        Mikro uses the omero-meta data to create representations of the file. See Representation for more information.
+
+
+    Arguments:
+        data (ModelFile): data
+        kind (ModelKind): kind
+        name (str): name
+        contexts (Optional[List[Optional[ID]]], optional): contexts.
+        experiments (Optional[List[Optional[ID]]], optional): experiments.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[ModelFragment]"""
+    return execute(
+        Create_modelMutation,
+        {
+            "data": data,
+            "kind": kind,
+            "name": name,
+            "contexts": contexts,
+            "experiments": experiments,
+        },
+        rath=rath,
+    ).create_model
 
 
 async def acreate_metric(
@@ -4470,6 +5210,152 @@ def search_labels(
     return execute(Search_labelsQuery, {"search": search}, rath=rath).labels
 
 
+async def aget_context(id: ID, rath: MikroRath = None) -> Optional[ContextFragment]:
+    """get_context
+
+
+     context: Context(id, created_by, created_through, name, created_at, experiment, creator)
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[ContextFragment]"""
+    return (await aexecute(Get_contextQuery, {"id": id}, rath=rath)).context
+
+
+def get_context(id: ID, rath: MikroRath = None) -> Optional[ContextFragment]:
+    """get_context
+
+
+     context: Context(id, created_by, created_through, name, created_at, experiment, creator)
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[ContextFragment]"""
+    return execute(Get_contextQuery, {"id": id}, rath=rath).context
+
+
+async def aget_mycontexts(
+    limit: Optional[int] = None, offset: Optional[int] = None, rath: MikroRath = None
+) -> Optional[List[Optional[ListContextFragment]]]:
+    """get_mycontexts
+
+
+     mycontexts: Context(id, created_by, created_through, name, created_at, experiment, creator)
+
+
+    Arguments:
+        limit (Optional[int], optional): limit.
+        offset (Optional[int], optional): offset.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[ListContextFragment]]]"""
+    return (
+        await aexecute(
+            Get_mycontextsQuery, {"limit": limit, "offset": offset}, rath=rath
+        )
+    ).mycontexts
+
+
+def get_mycontexts(
+    limit: Optional[int] = None, offset: Optional[int] = None, rath: MikroRath = None
+) -> Optional[List[Optional[ListContextFragment]]]:
+    """get_mycontexts
+
+
+     mycontexts: Context(id, created_by, created_through, name, created_at, experiment, creator)
+
+
+    Arguments:
+        limit (Optional[int], optional): limit.
+        offset (Optional[int], optional): offset.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[ListContextFragment]]]"""
+    return execute(
+        Get_mycontextsQuery, {"limit": limit, "offset": offset}, rath=rath
+    ).mycontexts
+
+
+async def aexpand_context(id: ID, rath: MikroRath = None) -> Optional[ContextFragment]:
+    """expand_context
+
+
+     context: Context(id, created_by, created_through, name, created_at, experiment, creator)
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[ContextFragment]"""
+    return (await aexecute(Expand_contextQuery, {"id": id}, rath=rath)).context
+
+
+def expand_context(id: ID, rath: MikroRath = None) -> Optional[ContextFragment]:
+    """expand_context
+
+
+     context: Context(id, created_by, created_through, name, created_at, experiment, creator)
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[ContextFragment]"""
+    return execute(Expand_contextQuery, {"id": id}, rath=rath).context
+
+
+async def asearch_contexts(
+    search: Optional[str] = None, rath: MikroRath = None
+) -> Optional[List[Optional[Search_contextsQueryOptions]]]:
+    """search_contexts
+
+
+     options: Context(id, created_by, created_through, name, created_at, experiment, creator)
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[Search_contextsQueryMycontexts]]]"""
+    return (
+        await aexecute(Search_contextsQuery, {"search": search}, rath=rath)
+    ).mycontexts
+
+
+def search_contexts(
+    search: Optional[str] = None, rath: MikroRath = None
+) -> Optional[List[Optional[Search_contextsQueryOptions]]]:
+    """search_contexts
+
+
+     options: Context(id, created_by, created_through, name, created_at, experiment, creator)
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[Search_contextsQueryMycontexts]]]"""
+    return execute(Search_contextsQuery, {"search": search}, rath=rath).mycontexts
+
+
 async def athumbnail(id: ID, rath: MikroRath = None) -> Optional[ThumbnailFragment]:
     """Thumbnail
 
@@ -4796,6 +5682,182 @@ def search_tables(
     Returns:
         Optional[List[Optional[Search_tablesQueryTables]]]"""
     return execute(Search_tablesQuery, {}, rath=rath).tables
+
+
+async def alinks(
+    x_type: LinkableModels,
+    y_type: LinkableModels,
+    relation: str,
+    context: Optional[ID] = None,
+    limit: Optional[int] = 10,
+    rath: MikroRath = None,
+) -> Optional[List[Optional[LinksQueryLinks]]]:
+    """Links
+
+
+     links: DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
+
+
+    Arguments:
+        x_type (LinkableModels): x_type
+        y_type (LinkableModels): y_type
+        relation (str): relation
+        context (Optional[ID], optional): context.
+        limit (Optional[int], optional): limit. Defaults to 10
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[LinksQueryLinks]]]"""
+    return (
+        await aexecute(
+            LinksQuery,
+            {
+                "x_type": x_type,
+                "y_type": y_type,
+                "relation": relation,
+                "context": context,
+                "limit": limit,
+            },
+            rath=rath,
+        )
+    ).links
+
+
+def links(
+    x_type: LinkableModels,
+    y_type: LinkableModels,
+    relation: str,
+    context: Optional[ID] = None,
+    limit: Optional[int] = 10,
+    rath: MikroRath = None,
+) -> Optional[List[Optional[LinksQueryLinks]]]:
+    """Links
+
+
+     links: DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
+
+
+    Arguments:
+        x_type (LinkableModels): x_type
+        y_type (LinkableModels): y_type
+        relation (str): relation
+        context (Optional[ID], optional): context.
+        limit (Optional[int], optional): limit. Defaults to 10
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[LinksQueryLinks]]]"""
+    return execute(
+        LinksQuery,
+        {
+            "x_type": x_type,
+            "y_type": y_type,
+            "relation": relation,
+            "context": context,
+            "limit": limit,
+        },
+        rath=rath,
+    ).links
+
+
+async def aget_link(id: ID, rath: MikroRath = None) -> Optional[LinkFragment]:
+    """get_link
+
+
+     link: DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[LinkFragment]"""
+    return (await aexecute(Get_linkQuery, {"id": id}, rath=rath)).link
+
+
+def get_link(id: ID, rath: MikroRath = None) -> Optional[LinkFragment]:
+    """get_link
+
+
+     link: DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[LinkFragment]"""
+    return execute(Get_linkQuery, {"id": id}, rath=rath).link
+
+
+async def aexpand_link(id: ID, rath: MikroRath = None) -> Optional[LinkFragment]:
+    """expand_link
+
+
+     link: DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[LinkFragment]"""
+    return (await aexecute(Expand_linkQuery, {"id": id}, rath=rath)).link
+
+
+def expand_link(id: ID, rath: MikroRath = None) -> Optional[LinkFragment]:
+    """expand_link
+
+
+     link: DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[LinkFragment]"""
+    return execute(Expand_linkQuery, {"id": id}, rath=rath).link
+
+
+async def asearch_links(
+    search: Optional[str] = None, rath: MikroRath = None
+) -> Optional[List[Optional[Search_linksQueryOptions]]]:
+    """search_links
+
+
+     options: DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[Search_linksQueryLinks]]]"""
+    return (await aexecute(Search_linksQuery, {"search": search}, rath=rath)).links
+
+
+def search_links(
+    search: Optional[str] = None, rath: MikroRath = None
+) -> Optional[List[Optional[Search_linksQueryOptions]]]:
+    """search_links
+
+
+     options: DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[Search_linksQueryLinks]]]"""
+    return execute(Search_linksQuery, {"search": search}, rath=rath).links
 
 
 async def aget_stage(id: ID, rath: MikroRath = None) -> Optional[StageFragment]:
@@ -6076,6 +7138,118 @@ def search_tags(
     Returns:
         Optional[List[Optional[Search_tagsQueryTags]]]"""
     return execute(Search_tagsQuery, {"search": search}, rath=rath).tags
+
+
+async def aget_model(id: ID, rath: MikroRath = None) -> Optional[ModelFragment]:
+    """get_model
+
+
+     model: A
+
+        Mikro uses the omero-meta data to create representations of the file. See Representation for more information.
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[ModelFragment]"""
+    return (await aexecute(Get_modelQuery, {"id": id}, rath=rath)).model
+
+
+def get_model(id: ID, rath: MikroRath = None) -> Optional[ModelFragment]:
+    """get_model
+
+
+     model: A
+
+        Mikro uses the omero-meta data to create representations of the file. See Representation for more information.
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[ModelFragment]"""
+    return execute(Get_modelQuery, {"id": id}, rath=rath).model
+
+
+async def aexpand_model(id: ID, rath: MikroRath = None) -> Optional[ModelFragment]:
+    """expand_model
+
+
+     model: A
+
+        Mikro uses the omero-meta data to create representations of the file. See Representation for more information.
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[ModelFragment]"""
+    return (await aexecute(Expand_modelQuery, {"id": id}, rath=rath)).model
+
+
+def expand_model(id: ID, rath: MikroRath = None) -> Optional[ModelFragment]:
+    """expand_model
+
+
+     model: A
+
+        Mikro uses the omero-meta data to create representations of the file. See Representation for more information.
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[ModelFragment]"""
+    return execute(Expand_modelQuery, {"id": id}, rath=rath).model
+
+
+async def asearch_models(
+    search: Optional[str] = None, rath: MikroRath = None
+) -> Optional[List[Optional[Search_modelsQueryOptions]]]:
+    """search_models
+
+
+     options: A
+
+        Mikro uses the omero-meta data to create representations of the file. See Representation for more information.
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[Search_modelsQueryModels]]]"""
+    return (await aexecute(Search_modelsQuery, {"search": search}, rath=rath)).models
+
+
+def search_models(
+    search: Optional[str] = None, rath: MikroRath = None
+) -> Optional[List[Optional[Search_modelsQueryOptions]]]:
+    """search_models
+
+
+     options: A
+
+        Mikro uses the omero-meta data to create representations of the file. See Representation for more information.
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[Search_modelsQueryModels]]]"""
+    return execute(Search_modelsQuery, {"search": search}, rath=rath).models
 
 
 async def aexpand_metric(id: ID, rath: MikroRath = None) -> Optional[MetricFragment]:

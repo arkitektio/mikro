@@ -1,0 +1,10 @@
+fragment Model on Model {
+  id
+  data
+  kind
+  name
+  contexts {
+    id
+    name
+  }
+}

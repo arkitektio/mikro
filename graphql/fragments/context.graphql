@@ -1,0 +1,15 @@
+fragment Context on Context {
+  id
+  name
+  links {
+    xId
+    yId
+    leftType
+    rightType
+  }
+}
+
+fragment ListContext on Context {
+  id
+  name
+}

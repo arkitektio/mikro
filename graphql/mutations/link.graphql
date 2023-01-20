@@ -1,0 +1,37 @@
+mutation link(
+  $relation: String!
+  $x_type: LinkableModels!
+  $x_id: ID!
+  $y_type: LinkableModels!
+  $y_id: ID!
+  $context: ID
+) {
+  link(
+    relation: $relation
+    xType: $x_type
+    xId: $x_id
+    yType: $y_type
+    yId: $y_id
+    context: $context
+  ) {
+    ...ListLink
+  }
+}
+
+mutation link_rep_to_rep(
+  $relation: String!
+  $left_rep: ID!
+  $right_rep: ID!
+  $context: ID
+) {
+  link(
+    relation: $relation
+    xType: GRUNNLAG_REPRESENTATION
+    xId: $left_rep
+    yType: GRUNNLAG_REPRESENTATION
+    yId: $right_rep
+    context: $context
+  ) {
+    ...ListLink
+  }
+}

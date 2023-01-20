@@ -142,6 +142,10 @@ class DataLayer(KoiledModel):
         )
         return self
 
+    def _repr_html_inline_(self):
+        return f"<table><tr><td>auto_connect</td><td>{self.auto_connect}</td></tr></table>"
+
+
     async def adisconnect(self):
         """Disconnect from the S3 instance"""
         self._connected = False

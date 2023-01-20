@@ -32,6 +32,9 @@ class MikroRath(rath.Rath):
     the graphql multipart request spec."""
     link: MikroLinkComposition
 
+    def _repr_html_inline_(self):
+        return f"<table><tr><td>auto_connect</td><td>{self.auto_connect}</td></tr></table>"
+
     async def __aenter__(self):
         await super().__aenter__()
         current_mikro_rath.set(self)
