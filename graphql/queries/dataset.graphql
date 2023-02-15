@@ -1,0 +1,24 @@
+query get_dataset($id: ID!) {
+  dataset(id: $id) {
+    ...Dataset
+  }
+}
+
+query expand_dataset($id: ID!) {
+  dataset(id: $id) {
+    ...Dataset
+  }
+}
+
+query get_datasets {
+  datasets {
+    ...ListDataset
+  }
+}
+
+query search_datasets($search: String) {
+  options: datasets(name: $search, limit: 30) {
+    value: id
+    label: name
+  }
+}

@@ -1,31 +1,32 @@
+from typing import Iterator, Optional, List, Dict, Literal, AsyncIterator, Tuple
+from mikro.funcs import subscribe, execute, asubscribe, aexecute
 from mikro.scalars import (
-    FeatureValue,
-    File,
-    Parquet,
-    Store,
-    ModelFile,
-    MetricValue,
-    ModelData,
     XArrayInput,
+    AffineMatrix,
+    File,
     ParquetInput,
+    Store,
+    MetricValue,
+    ModelFile,
+    Parquet,
+    FeatureValue,
+    ModelData,
 )
 from mikro.traits import (
-    ROI,
-    Omero,
-    Objective,
-    Table,
-    Vectorizable,
-    Representation,
-    Position,
     Stage,
+    Table,
+    Representation,
+    Vectorizable,
+    Position,
+    Omero,
+    ROI,
+    Objective,
 )
-from mikro.funcs import aexecute, asubscribe, execute, subscribe
+from pydantic import Field, BaseModel
 from mikro.rath import MikroRath
 from enum import Enum
-from typing import Dict, Literal, Iterator, AsyncIterator, List, Tuple, Optional
-from rath.scalars import ID
-from pydantic import Field, BaseModel
 from datetime import datetime
+from rath.scalars import ID
 
 
 class CommentableModels(str, Enum):
@@ -33,6 +34,7 @@ class CommentableModels(str, Enum):
     GRUNNLAG_ANTIBODY = "GRUNNLAG_ANTIBODY"
     GRUNNLAG_OBJECTIVE = "GRUNNLAG_OBJECTIVE"
     GRUNNLAG_INSTRUMENT = "GRUNNLAG_INSTRUMENT"
+    GRUNNLAG_DATASET = "GRUNNLAG_DATASET"
     GRUNNLAG_EXPERIMENT = "GRUNNLAG_EXPERIMENT"
     GRUNNLAG_CONTEXT = "GRUNNLAG_CONTEXT"
     GRUNNLAG_DATALINK = "GRUNNLAG_DATALINK"
@@ -60,6 +62,7 @@ class SharableModels(str, Enum):
     GRUNNLAG_ANTIBODY = "GRUNNLAG_ANTIBODY"
     GRUNNLAG_OBJECTIVE = "GRUNNLAG_OBJECTIVE"
     GRUNNLAG_INSTRUMENT = "GRUNNLAG_INSTRUMENT"
+    GRUNNLAG_DATASET = "GRUNNLAG_DATASET"
     GRUNNLAG_EXPERIMENT = "GRUNNLAG_EXPERIMENT"
     GRUNNLAG_CONTEXT = "GRUNNLAG_CONTEXT"
     GRUNNLAG_DATALINK = "GRUNNLAG_DATALINK"
@@ -95,12 +98,47 @@ class LokClientGrantType(str, Enum):
     "Django Session"
 
 
-class AcquisitionKind(str, Enum):
-    """What do the multiple positions in this acquistion represent?"""
+class LinkableModels(str, Enum):
+    """LinkableModels Models are models that can be shared amongst users and groups. They representent the models of the DB"""
 
-    POSTION_IS_SAMPLE = "POSTION_IS_SAMPLE"
-    POSITION_IS_ROI = "POSITION_IS_ROI"
-    UNKNOWN = "UNKNOWN"
+    ADMIN_LOGENTRY = "ADMIN_LOGENTRY"
+    AUTH_PERMISSION = "AUTH_PERMISSION"
+    AUTH_GROUP = "AUTH_GROUP"
+    CONTENTTYPES_CONTENTTYPE = "CONTENTTYPES_CONTENTTYPE"
+    SESSIONS_SESSION = "SESSIONS_SESSION"
+    TAGGIT_TAG = "TAGGIT_TAG"
+    TAGGIT_TAGGEDITEM = "TAGGIT_TAGGEDITEM"
+    KOMMENT_COMMENT = "KOMMENT_COMMENT"
+    DB_TESTMODEL = "DB_TESTMODEL"
+    LOK_LOKUSER = "LOK_LOKUSER"
+    LOK_LOKAPP = "LOK_LOKAPP"
+    LOK_LOKCLIENT = "LOK_LOKCLIENT"
+    GUARDIAN_USEROBJECTPERMISSION = "GUARDIAN_USEROBJECTPERMISSION"
+    GUARDIAN_GROUPOBJECTPERMISSION = "GUARDIAN_GROUPOBJECTPERMISSION"
+    GRUNNLAG_USERMETA = "GRUNNLAG_USERMETA"
+    GRUNNLAG_ANTIBODY = "GRUNNLAG_ANTIBODY"
+    GRUNNLAG_OBJECTIVE = "GRUNNLAG_OBJECTIVE"
+    GRUNNLAG_INSTRUMENT = "GRUNNLAG_INSTRUMENT"
+    GRUNNLAG_DATASET = "GRUNNLAG_DATASET"
+    GRUNNLAG_EXPERIMENT = "GRUNNLAG_EXPERIMENT"
+    GRUNNLAG_CONTEXT = "GRUNNLAG_CONTEXT"
+    GRUNNLAG_DATALINK = "GRUNNLAG_DATALINK"
+    GRUNNLAG_EXPERIMENTALGROUP = "GRUNNLAG_EXPERIMENTALGROUP"
+    GRUNNLAG_ANIMAL = "GRUNNLAG_ANIMAL"
+    GRUNNLAG_OMEROFILE = "GRUNNLAG_OMEROFILE"
+    GRUNNLAG_MODEL = "GRUNNLAG_MODEL"
+    GRUNNLAG_SAMPLE = "GRUNNLAG_SAMPLE"
+    GRUNNLAG_STAGE = "GRUNNLAG_STAGE"
+    GRUNNLAG_POSITION = "GRUNNLAG_POSITION"
+    GRUNNLAG_REPRESENTATION = "GRUNNLAG_REPRESENTATION"
+    GRUNNLAG_OMERO = "GRUNNLAG_OMERO"
+    GRUNNLAG_METRIC = "GRUNNLAG_METRIC"
+    GRUNNLAG_THUMBNAIL = "GRUNNLAG_THUMBNAIL"
+    GRUNNLAG_ROI = "GRUNNLAG_ROI"
+    GRUNNLAG_LABEL = "GRUNNLAG_LABEL"
+    GRUNNLAG_FEATURE = "GRUNNLAG_FEATURE"
+    BORD_TABLE = "BORD_TABLE"
+    PLOTQL_PLOT = "PLOTQL_PLOT"
 
 
 class OmeroFileType(str, Enum):
@@ -178,6 +216,18 @@ class RepresentationVariety(str, Enum):
     "Unknown"
 
 
+class Medium(str, Enum):
+    """The medium of the imaging environment
+
+    Important for the objective settings"""
+
+    AIR = "AIR"
+    GLYCEROL = "GLYCEROL"
+    OIL = "OIL"
+    OTHER = "OTHER"
+    WATER = "WATER"
+
+
 class RoiTypeInput(str, Enum):
     """An enumeration."""
 
@@ -201,66 +251,20 @@ class RoiTypeInput(str, Enum):
     "Point"
 
 
-class Medium(str, Enum):
-    """The medium of the imaging environment
-
-    Important for the objective settings"""
-
-    AIR = "AIR"
-    GLYCEROL = "GLYCEROL"
-    OIL = "OIL"
-    OTHER = "OTHER"
-    WATER = "WATER"
-
-
-class LinkableModels(str, Enum):
-    """LinkableModels Models are models that can be shared amongst users and groups. They representent the models of the DB"""
-
-    ADMIN_LOGENTRY = "ADMIN_LOGENTRY"
-    AUTH_PERMISSION = "AUTH_PERMISSION"
-    AUTH_GROUP = "AUTH_GROUP"
-    CONTENTTYPES_CONTENTTYPE = "CONTENTTYPES_CONTENTTYPE"
-    SESSIONS_SESSION = "SESSIONS_SESSION"
-    TAGGIT_TAG = "TAGGIT_TAG"
-    TAGGIT_TAGGEDITEM = "TAGGIT_TAGGEDITEM"
-    KOMMENT_COMMENT = "KOMMENT_COMMENT"
-    DB_TESTMODEL = "DB_TESTMODEL"
-    LOK_LOKUSER = "LOK_LOKUSER"
-    LOK_LOKAPP = "LOK_LOKAPP"
-    LOK_LOKCLIENT = "LOK_LOKCLIENT"
-    GUARDIAN_USEROBJECTPERMISSION = "GUARDIAN_USEROBJECTPERMISSION"
-    GUARDIAN_GROUPOBJECTPERMISSION = "GUARDIAN_GROUPOBJECTPERMISSION"
-    GRUNNLAG_USERMETA = "GRUNNLAG_USERMETA"
-    GRUNNLAG_ANTIBODY = "GRUNNLAG_ANTIBODY"
-    GRUNNLAG_OBJECTIVE = "GRUNNLAG_OBJECTIVE"
-    GRUNNLAG_INSTRUMENT = "GRUNNLAG_INSTRUMENT"
-    GRUNNLAG_EXPERIMENT = "GRUNNLAG_EXPERIMENT"
-    GRUNNLAG_CONTEXT = "GRUNNLAG_CONTEXT"
-    GRUNNLAG_DATALINK = "GRUNNLAG_DATALINK"
-    GRUNNLAG_EXPERIMENTALGROUP = "GRUNNLAG_EXPERIMENTALGROUP"
-    GRUNNLAG_ANIMAL = "GRUNNLAG_ANIMAL"
-    GRUNNLAG_OMEROFILE = "GRUNNLAG_OMEROFILE"
-    GRUNNLAG_MODEL = "GRUNNLAG_MODEL"
-    GRUNNLAG_SAMPLE = "GRUNNLAG_SAMPLE"
-    GRUNNLAG_STAGE = "GRUNNLAG_STAGE"
-    GRUNNLAG_POSITION = "GRUNNLAG_POSITION"
-    GRUNNLAG_REPRESENTATION = "GRUNNLAG_REPRESENTATION"
-    GRUNNLAG_OMERO = "GRUNNLAG_OMERO"
-    GRUNNLAG_METRIC = "GRUNNLAG_METRIC"
-    GRUNNLAG_THUMBNAIL = "GRUNNLAG_THUMBNAIL"
-    GRUNNLAG_ROI = "GRUNNLAG_ROI"
-    GRUNNLAG_LABEL = "GRUNNLAG_LABEL"
-    GRUNNLAG_FEATURE = "GRUNNLAG_FEATURE"
-    BORD_TABLE = "BORD_TABLE"
-    PLOTQL_PLOT = "PLOTQL_PLOT"
-
-
 class ModelKind(str, Enum):
     """What format is the model in?"""
 
     ONNX = "ONNX"
     TENSORFLOW = "TENSORFLOW"
     PYTORCH = "PYTORCH"
+    UNKNOWN = "UNKNOWN"
+
+
+class AcquisitionKind(str, Enum):
+    """What do the multiple positions in this acquistion represent?"""
+
+    POSTION_IS_SAMPLE = "POSTION_IS_SAMPLE"
+    POSITION_IS_ROI = "POSITION_IS_ROI"
     UNKNOWN = "UNKNOWN"
 
 
@@ -311,6 +315,7 @@ class OmeroRepresentationInput(BaseModel):
     planes: Optional[Tuple[Optional["PlaneInput"], ...]]
     channels: Optional[Tuple[Optional["ChannelInput"], ...]]
     physical_size: Optional["PhysicalSizeInput"] = Field(alias="physicalSize")
+    affine_transformation: Optional[AffineMatrix] = Field(alias="affineTransformation")
     scale: Optional[Tuple[Optional[float], ...]]
     position: Optional[ID]
     acquisition_date: Optional[datetime] = Field(alias="acquisitionDate")
@@ -644,11 +649,6 @@ class TableFragmentExperiment(BaseModel):
 
     You can use the experiment to group samples and representations likewise
     to how you would group files into folders in a file system.
-
-
-
-
-
     """
 
     typename: Optional[Literal["Experiment"]] = Field(alias="__typename")
@@ -712,8 +712,6 @@ class StageFragment(Stage, BaseModel):
     "The kind of acquisition"
     name: str
     "The name of the stage"
-    physical_size: Optional[Tuple[Optional[float], ...]] = Field(alias="physicalSize")
-    "The physical size of the stage"
 
     class Config:
         frozen = True
@@ -726,8 +724,6 @@ class ListStageFragment(Stage, BaseModel):
     "The name of the stage"
     kind: Optional[AcquisitionKind]
     "The kind of acquisition"
-    physical_size: Optional[Tuple[Optional[float], ...]] = Field(alias="physicalSize")
-    "The physical size of the stage"
 
     class Config:
         frozen = True
@@ -781,11 +777,6 @@ class SampleFragmentExperiments(BaseModel):
 
     You can use the experiment to group samples and representations likewise
     to how you would group files into folders in a file system.
-
-
-
-
-
     """
 
     typename: Optional[Literal["Experiment"]] = Field(alias="__typename")
@@ -861,6 +852,8 @@ class ROIFragmentRepresentation(Representation, BaseModel):
 
     typename: Optional[Literal["Representation"]] = Field(alias="__typename")
     id: ID
+    shape: Optional[Tuple[int, ...]]
+    "The arrays shape format [c,t,z,y,x]"
 
     class Config:
         frozen = True
@@ -1179,6 +1172,16 @@ class ExperimentFragment(BaseModel):
         frozen = True
 
 
+class ListExperimentFragment(BaseModel):
+    typename: Optional[Literal["Experiment"]] = Field(alias="__typename")
+    id: ID
+    name: str
+    "The name of the experiment"
+
+    class Config:
+        frozen = True
+
+
 class RepresentationFragmentSample(BaseModel):
     """Samples are storage containers for representations. A Sample is to be understood analogous to a Biological Sample. It existed in Time (the time of acquisiton and experimental procedure), was measured in space (x,y,z) and in different modalities (c). Sample therefore provide a datacontainer where each Representation of the data shares the same dimensions. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample"""
 
@@ -1220,13 +1223,32 @@ class RepresentationFragmentOmeroPhysicalsize(BaseModel):
         frozen = True
 
 
+class RepresentationFragmentOmeroPositionStage(Stage, BaseModel):
+    """An Stage is a set of positions that share a common space on a microscope and can
+    be use to translate.
+
+
+    """
+
+    typename: Optional[Literal["Stage"]] = Field(alias="__typename")
+    id: ID
+
+    class Config:
+        frozen = True
+
+
 class RepresentationFragmentOmeroPosition(Position, BaseModel):
     """The relative position of a sample on a microscope stage"""
 
     typename: Optional[Literal["Position"]] = Field(alias="__typename")
     id: ID
-    x: Optional[float]
-    y: Optional[float]
+    x: float
+    "pixelSize for x in microns"
+    y: float
+    "pixelSize for y in microns"
+    z: float
+    "pixelSize for z in microns"
+    stage: RepresentationFragmentOmeroPositionStage
 
     class Config:
         frozen = True
@@ -1262,6 +1284,7 @@ class RepresentationFragmentOmero(Omero, BaseModel):
         alias="physicalSize"
     )
     position: Optional[RepresentationFragmentOmeroPosition]
+    affine_transformation: Optional[AffineMatrix] = Field(alias="affineTransformation")
     channels: Optional[Tuple[Optional[RepresentationFragmentOmeroChannels], ...]]
 
     class Config:
@@ -1316,7 +1339,7 @@ class RepresentationFragment(Representation, BaseModel):
     sample: Optional[RepresentationFragmentSample]
     "The Sample this representation belosngs to"
     shape: Optional[Tuple[int, ...]]
-    "The arrays shape"
+    "The arrays shape format [c,t,z,y,x]"
     id: ID
     store: Optional[Store]
     variety: RepresentationVariety
@@ -1334,7 +1357,7 @@ class ListRepresentationFragment(Representation, BaseModel):
     typename: Optional[Literal["Representation"]] = Field(alias="__typename")
     id: ID
     shape: Optional[Tuple[int, ...]]
-    "The arrays shape"
+    "The arrays shape format [c,t,z,y,x]"
     name: Optional[str]
     "Cleartext name"
     store: Optional[Store]
@@ -1449,6 +1472,111 @@ class MetricFragment(BaseModel):
         frozen = True
 
 
+class DatasetFragmentParent(BaseModel):
+    """
+    A dataset is a collection of data files and metadata files.
+    It mimics the concept of a folder in a file system and is the top level
+    object in the data model.
+
+    """
+
+    typename: Optional[Literal["Dataset"]] = Field(alias="__typename")
+    id: ID
+
+    class Config:
+        frozen = True
+
+
+class DatasetFragmentRepresentations(Representation, BaseModel):
+    """A Representation is 5-dimensional representation of an image
+
+    Mikro stores each image as a 5-dimensional representation. The dimensions are:
+    - t: time
+    - c: channel
+    - z: z-stack
+    - x: x-dimension
+    - y: y-dimension
+
+    This ensures a unified api for all images, regardless of their original dimensions. Another main
+    determining factor for a representation is its variety:
+    A representation can be a raw image representating voxels (VOXEL)
+    or a segmentation mask representing instances of a class. (MASK)
+    It can also representate a human perception of the image (RGB) or a human perception of the mask (RGBMASK)
+
+    # Meta
+
+    Meta information is stored in the omero field which gives access to the omero-meta data. Refer to the omero documentation for more information.
+
+
+    #Origins and Derivations
+
+    Images can be filtered, which means that a new representation is created from the other (original) representations. This new representation is then linked to the original representations. This way, we can always trace back to the original representation.
+    Both are encapsulaed in the origins and derived fields.
+
+    Representations belong to *one* sample. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample
+    Each iamge has also a name, which is used to identify the image. The name is unique within a sample.
+    File and Rois that are used to create images are saved in the file origins and roi origins repectively.
+
+
+    """
+
+    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
+    id: ID
+    name: Optional[str]
+    "Cleartext name"
+
+    class Config:
+        frozen = True
+
+
+class DatasetFragmentOmerofiles(BaseModel):
+    typename: Optional[Literal["OmeroFile"]] = Field(alias="__typename")
+    id: ID
+    name: str
+    "The name of the file"
+
+    class Config:
+        frozen = True
+
+
+class DatasetFragment(BaseModel):
+    typename: Optional[Literal["Dataset"]] = Field(alias="__typename")
+    id: ID
+    name: str
+    "The name of the experiment"
+    parent: Optional[DatasetFragmentParent]
+    representations: Tuple[DatasetFragmentRepresentations, ...]
+    omerofiles: Tuple[DatasetFragmentOmerofiles, ...]
+
+    class Config:
+        frozen = True
+
+
+class ListDatasetFragment(BaseModel):
+    typename: Optional[Literal["Dataset"]] = Field(alias="__typename")
+    id: ID
+    name: str
+    "The name of the experiment"
+
+    class Config:
+        frozen = True
+
+
+class OmeroFileFragmentDatasets(BaseModel):
+    """
+    A dataset is a collection of data files and metadata files.
+    It mimics the concept of a folder in a file system and is the top level
+    object in the data model.
+
+    """
+
+    typename: Optional[Literal["Dataset"]] = Field(alias="__typename")
+    id: ID
+
+    class Config:
+        frozen = True
+
+
 class OmeroFileFragmentExperiments(BaseModel):
     """
     An experiment is a collection of samples and their representations.
@@ -1457,11 +1585,6 @@ class OmeroFileFragmentExperiments(BaseModel):
 
     You can use the experiment to group samples and representations likewise
     to how you would group files into folders in a file system.
-
-
-
-
-
     """
 
     typename: Optional[Literal["Experiment"]] = Field(alias="__typename")
@@ -1473,6 +1596,7 @@ class OmeroFileFragmentExperiments(BaseModel):
 
 class OmeroFileFragment(BaseModel):
     typename: Optional[Literal["OmeroFile"]] = Field(alias="__typename")
+    datasets: Tuple[OmeroFileFragmentDatasets, ...]
     id: ID
     name: str
     "The name of the file"
@@ -1506,9 +1630,12 @@ class PositionFragment(Position, BaseModel):
     typename: Optional[Literal["Position"]] = Field(alias="__typename")
     id: ID
     stage: ListStageFragment
-    x: Optional[float]
-    y: Optional[float]
-    z: Optional[float]
+    x: float
+    "pixelSize for x in microns"
+    y: float
+    "pixelSize for y in microns"
+    z: float
+    "pixelSize for z in microns"
     omeros: Optional[Tuple[Optional[PositionFragmentOmeros], ...]]
     "Associated images through Omero"
 
@@ -1520,7 +1647,7 @@ class ObjectiveFragment(Objective, BaseModel):
     typename: Optional[Literal["Objective"]] = Field(alias="__typename")
     id: ID
     name: str
-    magnification: float
+    magnification: Optional[float]
 
     class Config:
         frozen = True
@@ -1534,11 +1661,6 @@ class Watch_samplesSubscriptionMysamplesUpdateExperiments(BaseModel):
 
     You can use the experiment to group samples and representations likewise
     to how you would group files into folders in a file system.
-
-
-
-
-
     """
 
     typename: Optional[Literal["Experiment"]] = Field(alias="__typename")
@@ -1571,11 +1693,6 @@ class Watch_samplesSubscriptionMysamplesCreateExperiments(BaseModel):
 
     You can use the experiment to group samples and representations likewise
     to how you would group files into folders in a file system.
-
-
-
-
-
     """
 
     typename: Optional[Literal["Experiment"]] = Field(alias="__typename")
@@ -1759,11 +1876,11 @@ class Create_stageMutation(BaseModel):
     class Arguments(BaseModel):
         name: str
         creator: Optional[ID] = None
+        instrument: Optional[ID] = None
         tags: Optional[List[Optional[str]]] = None
-        physical_size: List[Optional[float]]
 
     class Meta:
-        document = "fragment Stage on Stage {\n  id\n  kind\n  name\n  physicalSize\n}\n\nmutation create_stage($name: String!, $creator: ID, $tags: [String], $physical_size: [Float]!) {\n  createStage(\n    name: $name\n    creator: $creator\n    tags: $tags\n    physicalSize: $physical_size\n  ) {\n    ...Stage\n  }\n}"
+        document = "fragment Stage on Stage {\n  id\n  kind\n  name\n}\n\nmutation create_stage($name: String!, $creator: ID, $instrument: ID, $tags: [String]) {\n  createStage(\n    name: $name\n    creator: $creator\n    instrument: $instrument\n    tags: $tags\n  ) {\n    ...Stage\n  }\n}"
 
 
 class Create_sampleMutationCreatesampleCreator(BaseModel):
@@ -1832,7 +1949,63 @@ class Create_roiMutation(BaseModel):
         tags: Optional[List[Optional[str]]] = None
 
     class Meta:
-        document = "fragment ROI on ROI {\n  id\n  label\n  vectors {\n    x\n    y\n    t\n    c\n    z\n  }\n  type\n  representation {\n    id\n  }\n  derivedRepresentations {\n    id\n  }\n  creator {\n    email\n    id\n    color\n  }\n}\n\nmutation create_roi($representation: ID!, $vectors: [InputVector]!, $creator: ID, $type: RoiTypeInput!, $label: String, $tags: [String]) {\n  createROI(\n    representation: $representation\n    vectors: $vectors\n    type: $type\n    creator: $creator\n    label: $label\n    tags: $tags\n  ) {\n    ...ROI\n  }\n}"
+        document = "fragment ROI on ROI {\n  id\n  label\n  vectors {\n    x\n    y\n    t\n    c\n    z\n  }\n  type\n  representation {\n    id\n    shape\n  }\n  derivedRepresentations {\n    id\n  }\n  creator {\n    email\n    id\n    color\n  }\n}\n\nmutation create_roi($representation: ID!, $vectors: [InputVector]!, $creator: ID, $type: RoiTypeInput!, $label: String, $tags: [String]) {\n  createROI(\n    representation: $representation\n    vectors: $vectors\n    type: $type\n    creator: $creator\n    label: $label\n    tags: $tags\n  ) {\n    ...ROI\n  }\n}"
+
+
+class Create_roisMutationCreaterois(Representation, BaseModel):
+    """A Representation is 5-dimensional representation of an image
+
+    Mikro stores each image as a 5-dimensional representation. The dimensions are:
+    - t: time
+    - c: channel
+    - z: z-stack
+    - x: x-dimension
+    - y: y-dimension
+
+    This ensures a unified api for all images, regardless of their original dimensions. Another main
+    determining factor for a representation is its variety:
+    A representation can be a raw image representating voxels (VOXEL)
+    or a segmentation mask representing instances of a class. (MASK)
+    It can also representate a human perception of the image (RGB) or a human perception of the mask (RGBMASK)
+
+    # Meta
+
+    Meta information is stored in the omero field which gives access to the omero-meta data. Refer to the omero documentation for more information.
+
+
+    #Origins and Derivations
+
+    Images can be filtered, which means that a new representation is created from the other (original) representations. This new representation is then linked to the original representations. This way, we can always trace back to the original representation.
+    Both are encapsulaed in the origins and derived fields.
+
+    Representations belong to *one* sample. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample
+    Each iamge has also a name, which is used to identify the image. The name is unique within a sample.
+    File and Rois that are used to create images are saved in the file origins and roi origins repectively.
+
+
+    """
+
+    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
+    id: ID
+
+    class Config:
+        frozen = True
+
+
+class Create_roisMutation(BaseModel):
+    create_rois: Optional[Create_roisMutationCreaterois] = Field(alias="createROIS")
+    "Creates a Sample"
+
+    class Arguments(BaseModel):
+        representation: ID
+        vectors_list: List[Optional[List[Optional[InputVector]]]]
+        creator: Optional[ID] = None
+        type: RoiTypeInput
+        labels: Optional[List[Optional[str]]] = None
+        tags: Optional[List[Optional[str]]] = None
+
+    class Meta:
+        document = "mutation create_rois($representation: ID!, $vectors_list: [[InputVector]]!, $creator: ID, $type: RoiTypeInput!, $labels: [String], $tags: [String]) {\n  createROIS(\n    representation: $representation\n    vectorsList: $vectors_list\n    type: $type\n    creator: $creator\n    labels: $labels\n    tags: $tags\n  ) {\n    id\n  }\n}"
 
 
 class Create_featureMutationCreatefeatureLabelRepresentation(Representation, BaseModel):
@@ -1988,111 +2161,12 @@ class From_xarrayMutation(BaseModel):
         roi_origins: Optional[List[Optional[ID]]] = None
         tags: Optional[List[Optional[str]]] = None
         experiments: Optional[List[Optional[ID]]] = None
+        datasets: Optional[List[Optional[ID]]] = None
         sample: Optional[ID] = None
         omero: Optional[OmeroRepresentationInput] = None
 
     class Meta:
-        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n    position {\n      id\n      x\n      y\n    }\n    channels {\n      name\n      color\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nmutation from_xarray($xarray: XArrayInput!, $name: String, $variety: RepresentationVarietyInput, $origins: [ID], $file_origins: [ID], $roi_origins: [ID], $tags: [String], $experiments: [ID], $sample: ID, $omero: OmeroRepresentationInput) {\n  fromXArray(\n    xarray: $xarray\n    name: $name\n    origins: $origins\n    tags: $tags\n    sample: $sample\n    omero: $omero\n    fileOrigins: $file_origins\n    roiOrigins: $roi_origins\n    experiments: $experiments\n    variety: $variety\n  ) {\n    ...Representation\n  }\n}"
-
-
-class Double_uploadMutationX(Representation, BaseModel):
-    """A Representation is 5-dimensional representation of an image
-
-    Mikro stores each image as a 5-dimensional representation. The dimensions are:
-    - t: time
-    - c: channel
-    - z: z-stack
-    - x: x-dimension
-    - y: y-dimension
-
-    This ensures a unified api for all images, regardless of their original dimensions. Another main
-    determining factor for a representation is its variety:
-    A representation can be a raw image representating voxels (VOXEL)
-    or a segmentation mask representing instances of a class. (MASK)
-    It can also representate a human perception of the image (RGB) or a human perception of the mask (RGBMASK)
-
-    # Meta
-
-    Meta information is stored in the omero field which gives access to the omero-meta data. Refer to the omero documentation for more information.
-
-
-    #Origins and Derivations
-
-    Images can be filtered, which means that a new representation is created from the other (original) representations. This new representation is then linked to the original representations. This way, we can always trace back to the original representation.
-    Both are encapsulaed in the origins and derived fields.
-
-    Representations belong to *one* sample. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample
-    Each iamge has also a name, which is used to identify the image. The name is unique within a sample.
-    File and Rois that are used to create images are saved in the file origins and roi origins repectively.
-
-
-    """
-
-    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
-    id: ID
-    store: Optional[Store]
-
-    class Config:
-        frozen = True
-
-
-class Double_uploadMutationY(Representation, BaseModel):
-    """A Representation is 5-dimensional representation of an image
-
-    Mikro stores each image as a 5-dimensional representation. The dimensions are:
-    - t: time
-    - c: channel
-    - z: z-stack
-    - x: x-dimension
-    - y: y-dimension
-
-    This ensures a unified api for all images, regardless of their original dimensions. Another main
-    determining factor for a representation is its variety:
-    A representation can be a raw image representating voxels (VOXEL)
-    or a segmentation mask representing instances of a class. (MASK)
-    It can also representate a human perception of the image (RGB) or a human perception of the mask (RGBMASK)
-
-    # Meta
-
-    Meta information is stored in the omero field which gives access to the omero-meta data. Refer to the omero documentation for more information.
-
-
-    #Origins and Derivations
-
-    Images can be filtered, which means that a new representation is created from the other (original) representations. This new representation is then linked to the original representations. This way, we can always trace back to the original representation.
-    Both are encapsulaed in the origins and derived fields.
-
-    Representations belong to *one* sample. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample
-    Each iamge has also a name, which is used to identify the image. The name is unique within a sample.
-    File and Rois that are used to create images are saved in the file origins and roi origins repectively.
-
-
-    """
-
-    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
-    id: ID
-    store: Optional[Store]
-
-    class Config:
-        frozen = True
-
-
-class Double_uploadMutation(BaseModel):
-    x: Optional[Double_uploadMutationX]
-    "Creates a Representation"
-    y: Optional[Double_uploadMutationY]
-    "Creates a Representation"
-
-    class Arguments(BaseModel):
-        xarray: XArrayInput
-        name: Optional[str] = None
-        origins: Optional[List[Optional[ID]]] = None
-        tags: Optional[List[Optional[str]]] = None
-        sample: Optional[ID] = None
-        omero: Optional[OmeroRepresentationInput] = None
-
-    class Meta:
-        document = "mutation double_upload($xarray: XArrayInput!, $name: String, $origins: [ID], $tags: [String], $sample: ID, $omero: OmeroRepresentationInput) {\n  x: fromXArray(\n    xarray: $xarray\n    name: $name\n    origins: $origins\n    tags: $tags\n    sample: $sample\n    omero: $omero\n  ) {\n    id\n    store\n  }\n  y: fromXArray(\n    xarray: $xarray\n    name: $name\n    origins: $origins\n    tags: $tags\n    sample: $sample\n    omero: $omero\n  ) {\n    id\n    store\n  }\n}"
+        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n    position {\n      id\n      x\n      y\n      z\n      stage {\n        id\n      }\n    }\n    affineTransformation\n    channels {\n      name\n      color\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nmutation from_xarray($xarray: XArrayInput!, $name: String, $variety: RepresentationVarietyInput, $origins: [ID], $file_origins: [ID], $roi_origins: [ID], $tags: [String], $experiments: [ID], $datasets: [ID], $sample: ID, $omero: OmeroRepresentationInput) {\n  fromXArray(\n    xarray: $xarray\n    name: $name\n    origins: $origins\n    tags: $tags\n    sample: $sample\n    omero: $omero\n    fileOrigins: $file_origins\n    roiOrigins: $roi_origins\n    experiments: $experiments\n    datasets: $datasets\n    variety: $variety\n  ) {\n    ...Representation\n  }\n}"
 
 
 class Update_representationMutation(BaseModel):
@@ -2108,7 +2182,7 @@ class Update_representationMutation(BaseModel):
         variety: Optional[RepresentationVarietyInput] = None
 
     class Meta:
-        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n    position {\n      id\n      x\n      y\n    }\n    channels {\n      name\n      color\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nmutation update_representation($id: ID!, $tags: [String], $sample: ID, $variety: RepresentationVarietyInput) {\n  updateRepresentation(rep: $id, tags: $tags, sample: $sample, variety: $variety) {\n    ...Representation\n  }\n}"
+        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n    position {\n      id\n      x\n      y\n      z\n      stage {\n        id\n      }\n    }\n    affineTransformation\n    channels {\n      name\n      color\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nmutation update_representation($id: ID!, $tags: [String], $sample: ID, $variety: RepresentationVarietyInput) {\n  updateRepresentation(rep: $id, tags: $tags, sample: $sample, variety: $variety) {\n    ...Representation\n  }\n}"
 
 
 class Create_modelMutation(BaseModel):
@@ -2141,6 +2215,18 @@ class Create_metricMutation(BaseModel):
         document = "fragment Metric on Metric {\n  id\n  representation {\n    id\n  }\n  key\n  value\n  creator {\n    id\n  }\n  createdAt\n}\n\nmutation create_metric($representation: ID, $sample: ID, $experiment: ID, $key: String!, $value: MetricValue!) {\n  createMetric(\n    representation: $representation\n    sample: $sample\n    experiment: $experiment\n    key: $key\n    value: $value\n  ) {\n    ...Metric\n  }\n}"
 
 
+class Create_datasetMutation(BaseModel):
+    create_dataset: Optional[DatasetFragment] = Field(alias="createDataset")
+    "Create an Experiment\n    \n    This mutation creates an Experiment and returns the created Experiment.\n    "
+
+    class Arguments(BaseModel):
+        name: str
+        parent: Optional[ID] = None
+
+    class Meta:
+        document = "fragment Dataset on Dataset {\n  id\n  name\n  parent {\n    id\n  }\n  representations {\n    id\n    name\n  }\n  omerofiles {\n    id\n    name\n  }\n}\n\nmutation create_dataset($name: String!, $parent: ID) {\n  createDataset(name: $name, parent: $parent) {\n    ...Dataset\n  }\n}"
+
+
 class Create_positionMutation(BaseModel):
     create_position: Optional[PositionFragment] = Field(alias="createPosition")
     "Creates a Feature\n    \n    This mutation creates a Feature and returns the created Feature.\n    We require a reference to the label that the feature belongs to.\n    As well as the key and value of the feature.\n    \n    There can be multiple features with the same label, but only one feature per key\n    per label"
@@ -2150,11 +2236,12 @@ class Create_positionMutation(BaseModel):
         x: float
         y: float
         z: float
+        tolerance: Optional[float] = None
         name: Optional[str] = None
         tags: Optional[List[Optional[str]]] = None
 
     class Meta:
-        document = 'fragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment ListStage on Stage {\n  id\n  name\n  kind\n  physicalSize\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nmutation create_position($stage: ID!, $x: Float!, $y: Float!, $z: Float!, $name: String, $tags: [String]) {\n  createPosition(stage: $stage, x: $x, y: $y, z: $z, tags: $tags, name: $name) {\n    ...Position\n  }\n}'
+        document = 'fragment ListStage on Stage {\n  id\n  name\n  kind\n}\n\nfragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nmutation create_position($stage: ID!, $x: Float!, $y: Float!, $z: Float!, $tolerance: Float, $name: String, $tags: [String]) {\n  createPosition(\n    stage: $stage\n    x: $x\n    y: $y\n    z: $z\n    tags: $tags\n    name: $name\n    tolerance: $tolerance\n  ) {\n    ...Position\n  }\n}'
 
 
 class Create_objectiveMutation(BaseModel):
@@ -2165,9 +2252,11 @@ class Create_objectiveMutation(BaseModel):
         serial_number: str
         name: str
         magnification: float
+        na: Optional[float] = None
+        immersion: Optional[str] = None
 
     class Meta:
-        document = "fragment Objective on Objective {\n  id\n  name\n  magnification\n}\n\nmutation create_objective($serial_number: String!, $name: String!, $magnification: Float!) {\n  createObjective(\n    name: $name\n    serialNumber: $serial_number\n    magnification: $magnification\n  ) {\n    ...Objective\n  }\n}"
+        document = "fragment Objective on Objective {\n  id\n  name\n  magnification\n}\n\nmutation create_objective($serial_number: String!, $name: String!, $magnification: Float!, $na: Float, $immersion: String) {\n  createObjective(\n    name: $name\n    serialNumber: $serial_number\n    magnification: $magnification\n    na: $na\n    immersion: $immersion\n  ) {\n    ...Objective\n  }\n}"
 
 
 class Upload_bioimageMutationUploadomerofile(BaseModel):
@@ -2535,6 +2624,56 @@ class LinksQuery(BaseModel):
         document = "query Links($x_type: LinkableModels!, $y_type: LinkableModels!, $relation: String!, $context: ID, $limit: Int = 10) {\n  links(\n    xType: $x_type\n    yType: $y_type\n    relation: $relation\n    context: $context\n    limit: $limit\n  ) {\n    relation\n    x {\n      ... on Representation {\n        id\n        store\n      }\n    }\n    y {\n      ... on Representation {\n        id\n        store\n      }\n    }\n  }\n}"
 
 
+class Get_image_image_linksQueryLinksRepresentationInlineFragment(Representation):
+    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
+    id: ID
+    store: Optional[Store]
+    variety: RepresentationVariety
+    "The Representation can have vasrying types, consult your API"
+
+    class Config:
+        frozen = True
+
+
+class Get_image_image_linksQueryLinksRepresentationInlineFragment(Representation):
+    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
+    id: ID
+    store: Optional[Store]
+    variety: RepresentationVariety
+    "The Representation can have vasrying types, consult your API"
+
+    class Config:
+        frozen = True
+
+
+class Get_image_image_linksQueryLinks(BaseModel):
+    """DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)"""
+
+    typename: Optional[Literal["DataLink"]] = Field(alias="__typename")
+    relation: Optional[str]
+    "Relation"
+    x: Get_image_image_linksQueryLinksRepresentationInlineFragment
+    "X"
+    y: Get_image_image_linksQueryLinksRepresentationInlineFragment
+    "Y"
+
+    class Config:
+        frozen = True
+
+
+class Get_image_image_linksQuery(BaseModel):
+    links: Optional[Tuple[Optional[Get_image_image_linksQueryLinks], ...]]
+    "All Experiments\n    \n    This query returns all Experiments that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Experiments that the user has access to. If the user is an amdin\n    or superuser, all Experiments will be returned.\n\n    If you want to retrieve only the Experiments that you have created,\n    use the `myExperiments` query.\n    \n    "
+
+    class Arguments(BaseModel):
+        relation: str
+        context: Optional[ID] = None
+        limit: Optional[int] = 10
+
+    class Meta:
+        document = "query get_image_image_links($relation: String!, $context: ID, $limit: Int = 10) {\n  links(\n    xType: GRUNNLAG_REPRESENTATION\n    yType: GRUNNLAG_REPRESENTATION\n    relation: $relation\n    context: $context\n    limit: $limit\n  ) {\n    relation\n    x {\n      ... on Representation {\n        id\n        store\n        variety\n      }\n    }\n    y {\n      ... on Representation {\n        id\n        store\n        variety\n      }\n    }\n  }\n}"
+
+
 class Get_linkQuery(BaseModel):
     link: Optional[LinkFragment]
     'Get a single experiment by ID"\n    \n    Returns a single experiment by ID. If the user does not have access\n    to the experiment, an error will be raised.\n    \n    '
@@ -2588,7 +2727,7 @@ class Get_stageQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Stage on Stage {\n  id\n  kind\n  name\n  physicalSize\n}\n\nquery get_stage($id: ID!) {\n  stage(id: $id) {\n    ...Stage\n  }\n}"
+        document = "fragment Stage on Stage {\n  id\n  kind\n  name\n}\n\nquery get_stage($id: ID!) {\n  stage(id: $id) {\n    ...Stage\n  }\n}"
 
 
 class Expand_stageQuery(BaseModel):
@@ -2599,7 +2738,7 @@ class Expand_stageQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Stage on Stage {\n  id\n  kind\n  name\n  physicalSize\n}\n\nquery expand_stage($id: ID!) {\n  stage(id: $id) {\n    ...Stage\n  }\n}"
+        document = "fragment Stage on Stage {\n  id\n  kind\n  name\n}\n\nquery expand_stage($id: ID!) {\n  stage(id: $id) {\n    ...Stage\n  }\n}"
 
 
 class Search_stagesQueryOptions(Stage, BaseModel):
@@ -2627,6 +2766,137 @@ class Search_stagesQuery(BaseModel):
 
     class Meta:
         document = "query search_stages($search: String) {\n  options: stages(name: $search, limit: 30) {\n    value: id\n    label: name\n  }\n}"
+
+
+class Get_display_stageQueryStagePositionsOmerosPhysicalsize(BaseModel):
+    """Physical size of the image
+
+    Each dimensions of the image has a physical size. This is the size of the
+    pixel in the image. The physical size is given in micrometers on a PIXEL
+    basis. This means that the physical size of the image is the size of the
+    pixel in the image * the number of pixels in the image. For example, if
+    the image is 1000x1000 pixels and the physical size of the image is 3 (x params) x 3 (y params),
+    micrometer, the physical size of the image is 3000x3000 micrometer. If the image
+
+    The t dimension is given in ms, since the time is given in ms.
+    The C dimension is given in nm, since the wavelength is given in nm."""
+
+    typename: Optional[Literal["PhysicalSize"]] = Field(alias="__typename")
+    x: Optional[float]
+    "Physical size of *one* Pixel in the x dimension (in µm)"
+    y: Optional[float]
+    "Physical size of *one* Pixel in the t dimension (in µm)"
+    z: Optional[float]
+    "Physical size of *one* Pixel in the z dimension (in µm)"
+    t: Optional[float]
+    "Physical size of *one* Pixel in the t dimension (in ms)"
+
+    class Config:
+        frozen = True
+
+
+class Get_display_stageQueryStagePositionsOmerosRepresentation(
+    Representation, BaseModel
+):
+    """A Representation is 5-dimensional representation of an image
+
+    Mikro stores each image as a 5-dimensional representation. The dimensions are:
+    - t: time
+    - c: channel
+    - z: z-stack
+    - x: x-dimension
+    - y: y-dimension
+
+    This ensures a unified api for all images, regardless of their original dimensions. Another main
+    determining factor for a representation is its variety:
+    A representation can be a raw image representating voxels (VOXEL)
+    or a segmentation mask representing instances of a class. (MASK)
+    It can also representate a human perception of the image (RGB) or a human perception of the mask (RGBMASK)
+
+    # Meta
+
+    Meta information is stored in the omero field which gives access to the omero-meta data. Refer to the omero documentation for more information.
+
+
+    #Origins and Derivations
+
+    Images can be filtered, which means that a new representation is created from the other (original) representations. This new representation is then linked to the original representations. This way, we can always trace back to the original representation.
+    Both are encapsulaed in the origins and derived fields.
+
+    Representations belong to *one* sample. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample
+    Each iamge has also a name, which is used to identify the image. The name is unique within a sample.
+    File and Rois that are used to create images are saved in the file origins and roi origins repectively.
+
+
+    """
+
+    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
+    store: Optional[Store]
+    id: ID
+
+    class Config:
+        frozen = True
+
+
+class Get_display_stageQueryStagePositionsOmeros(Omero, BaseModel):
+    """Omero is a through model that stores the real world context of an image
+
+    This means that it stores the position (corresponding to the relative displacement to
+    a stage (Both are models)), objective and other meta data of the image.
+
+    """
+
+    typename: Optional[Literal["Omero"]] = Field(alias="__typename")
+    physical_size: Optional[
+        Get_display_stageQueryStagePositionsOmerosPhysicalsize
+    ] = Field(alias="physicalSize")
+    representation: Get_display_stageQueryStagePositionsOmerosRepresentation
+
+    class Config:
+        frozen = True
+
+
+class Get_display_stageQueryStagePositions(Position, BaseModel):
+    """The relative position of a sample on a microscope stage"""
+
+    typename: Optional[Literal["Position"]] = Field(alias="__typename")
+    x: float
+    "pixelSize for x in microns"
+    y: float
+    "pixelSize for y in microns"
+    z: float
+    "pixelSize for z in microns"
+    omeros: Optional[Tuple[Optional[Get_display_stageQueryStagePositionsOmeros], ...]]
+    "Associated images through Omero"
+
+    class Config:
+        frozen = True
+
+
+class Get_display_stageQueryStage(Stage, BaseModel):
+    """An Stage is a set of positions that share a common space on a microscope and can
+    be use to translate.
+
+
+    """
+
+    typename: Optional[Literal["Stage"]] = Field(alias="__typename")
+    id: ID
+    positions: Tuple[Get_display_stageQueryStagePositions, ...]
+
+    class Config:
+        frozen = True
+
+
+class Get_display_stageQuery(BaseModel):
+    stage: Optional[Get_display_stageQueryStage]
+    'Get a single experiment by ID"\n    \n    Returns a single experiment by ID. If the user does not have access\n    to the experiment, an error will be raised.\n    \n    '
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "query get_display_stage($id: ID!) {\n  stage(id: $id) {\n    id\n    positions {\n      x\n      y\n      z\n      omeros {\n        physicalSize {\n          x\n          y\n          z\n          t\n        }\n        representation {\n          store\n          id\n        }\n      }\n    }\n  }\n}"
 
 
 class Get_sampleQuery(BaseModel):
@@ -2694,7 +2964,7 @@ class Expand_roiQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment ROI on ROI {\n  id\n  label\n  vectors {\n    x\n    y\n    t\n    c\n    z\n  }\n  type\n  representation {\n    id\n  }\n  derivedRepresentations {\n    id\n  }\n  creator {\n    email\n    id\n    color\n  }\n}\n\nquery expand_roi($id: ID!) {\n  roi(id: $id) {\n    ...ROI\n  }\n}"
+        document = "fragment ROI on ROI {\n  id\n  label\n  vectors {\n    x\n    y\n    t\n    c\n    z\n  }\n  type\n  representation {\n    id\n    shape\n  }\n  derivedRepresentations {\n    id\n  }\n  creator {\n    email\n    id\n    color\n  }\n}\n\nquery expand_roi($id: ID!) {\n  roi(id: $id) {\n    ...ROI\n  }\n}"
 
 
 class Get_roiQuery(BaseModel):
@@ -2705,7 +2975,7 @@ class Get_roiQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment ROI on ROI {\n  id\n  label\n  vectors {\n    x\n    y\n    t\n    c\n    z\n  }\n  type\n  representation {\n    id\n  }\n  derivedRepresentations {\n    id\n  }\n  creator {\n    email\n    id\n    color\n  }\n}\n\nquery get_roi($id: ID!) {\n  roi(id: $id) {\n    ...ROI\n  }\n}"
+        document = "fragment ROI on ROI {\n  id\n  label\n  vectors {\n    x\n    y\n    t\n    c\n    z\n  }\n  type\n  representation {\n    id\n    shape\n  }\n  derivedRepresentations {\n    id\n  }\n  creator {\n    email\n    id\n    color\n  }\n}\n\nquery get_roi($id: ID!) {\n  roi(id: $id) {\n    ...ROI\n  }\n}"
 
 
 class Search_roisQueryOptions(ROI, BaseModel):
@@ -2792,6 +3062,7 @@ class RequestQueryRequest(BaseModel):
     access_key: Optional[str] = Field(alias="accessKey")
     status: Optional[str]
     secret_key: Optional[str] = Field(alias="secretKey")
+    session_token: Optional[str] = Field(alias="sessionToken")
 
     class Config:
         frozen = True
@@ -2805,7 +3076,7 @@ class RequestQuery(BaseModel):
         pass
 
     class Meta:
-        document = "query Request {\n  request {\n    accessKey\n    status\n    secretKey\n  }\n}"
+        document = "query Request {\n  request {\n    accessKey\n    status\n    secretKey\n    sessionToken\n  }\n}"
 
 
 class Get_instrumentQuery(BaseModel):
@@ -2875,6 +3146,17 @@ class Expand_experimentQuery(BaseModel):
         document = "fragment Experiment on Experiment {\n  id\n  name\n  creator {\n    email\n  }\n}\n\nquery expand_experiment($id: ID!) {\n  experiment(id: $id) {\n    ...Experiment\n  }\n}"
 
 
+class Eget_experimentsQuery(BaseModel):
+    experiments: Optional[Tuple[Optional[ListExperimentFragment], ...]]
+    "All Experiments \n ![Image](/static/img/data.png) \n This query returns all Experiments that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Experiments that the user has access to. If the user is an amdin\n    or superuser, all Experiments will be returned. \n If you want to retrieve only the Experiments that you have created,\n    use the `myExperiments` query. \n \n    \n    "
+
+    class Arguments(BaseModel):
+        pass
+
+    class Meta:
+        document = "fragment ListExperiment on Experiment {\n  id\n  name\n}\n\nquery eget_experiments {\n  experiments {\n    ...ListExperiment\n  }\n}"
+
+
 class Search_experimentQueryOptions(BaseModel):
     """
     An experiment is a collection of samples and their representations.
@@ -2883,11 +3165,6 @@ class Search_experimentQueryOptions(BaseModel):
 
     You can use the experiment to group samples and representations likewise
     to how you would group files into folders in a file system.
-
-
-
-
-
     """
 
     typename: Optional[Literal["Experiment"]] = Field(alias="__typename")
@@ -2901,7 +3178,7 @@ class Search_experimentQueryOptions(BaseModel):
 
 class Search_experimentQuery(BaseModel):
     options: Optional[Tuple[Optional[Search_experimentQueryOptions], ...]]
-    "All Experiments\n    \n    This query returns all Experiments that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Experiments that the user has access to. If the user is an amdin\n    or superuser, all Experiments will be returned.\n\n    If you want to retrieve only the Experiments that you have created,\n    use the `myExperiments` query.\n    \n    "
+    "All Experiments \n ![Image](/static/img/data.png) \n This query returns all Experiments that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Experiments that the user has access to. If the user is an amdin\n    or superuser, all Experiments will be returned. \n If you want to retrieve only the Experiments that you have created,\n    use the `myExperiments` query. \n \n    \n    "
 
     class Arguments(BaseModel):
         search: Optional[str] = None
@@ -2920,7 +3197,7 @@ class Expand_representationQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n    position {\n      id\n      x\n      y\n    }\n    channels {\n      name\n      color\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nquery expand_representation($id: ID!) {\n  representation(id: $id) {\n    ...Representation\n  }\n}"
+        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n    position {\n      id\n      x\n      y\n      z\n      stage {\n        id\n      }\n    }\n    affineTransformation\n    channels {\n      name\n      color\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nquery expand_representation($id: ID!) {\n  representation(id: $id) {\n    ...Representation\n  }\n}"
 
 
 class Get_representationQuery(BaseModel):
@@ -2931,7 +3208,7 @@ class Get_representationQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n    position {\n      id\n      x\n      y\n    }\n    channels {\n      name\n      color\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nquery get_representation($id: ID!) {\n  representation(id: $id) {\n    ...Representation\n  }\n}"
+        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n    position {\n      id\n      x\n      y\n      z\n      stage {\n        id\n      }\n    }\n    affineTransformation\n    channels {\n      name\n      color\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nquery get_representation($id: ID!) {\n  representation(id: $id) {\n    ...Representation\n  }\n}"
 
 
 class Search_representationQueryOptions(Representation, BaseModel):
@@ -3001,7 +3278,7 @@ class Get_random_repQuery(BaseModel):
         pass
 
     class Meta:
-        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n    position {\n      id\n      x\n      y\n    }\n    channels {\n      name\n      color\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nquery get_random_rep {\n  randomRepresentation {\n    ...Representation\n  }\n}"
+        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n    position {\n      id\n      x\n      y\n      z\n      stage {\n        id\n      }\n    }\n    affineTransformation\n    channels {\n      name\n      color\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nquery get_random_rep {\n  randomRepresentation {\n    ...Representation\n  }\n}"
 
 
 class My_accessiblesQuery(BaseModel):
@@ -3011,7 +3288,7 @@ class My_accessiblesQuery(BaseModel):
         pass
 
     class Meta:
-        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n    position {\n      id\n      x\n      y\n    }\n    channels {\n      name\n      color\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nquery my_accessibles {\n  accessiblerepresentations {\n    ...Representation\n  }\n}"
+        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n    position {\n      id\n      x\n      y\n      z\n      stage {\n        id\n      }\n    }\n    affineTransformation\n    channels {\n      name\n      color\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nquery my_accessibles {\n  accessiblerepresentations {\n    ...Representation\n  }\n}"
 
 
 class Search_tagsQueryOptions(BaseModel):
@@ -3094,6 +3371,158 @@ class Expand_metricQuery(BaseModel):
         document = "fragment Metric on Metric {\n  id\n  representation {\n    id\n  }\n  key\n  value\n  creator {\n    id\n  }\n  createdAt\n}\n\nquery expand_metric($id: ID!) {\n  metric(id: $id) {\n    ...Metric\n  }\n}"
 
 
+class Get_datasetQuery(BaseModel):
+    dataset: Optional[DatasetFragment]
+    'Get a single experiment by ID"\n    \n    Returns a single experiment by ID. If the user does not have access\n    to the experiment, an error will be raised.\n    \n    '
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "fragment Dataset on Dataset {\n  id\n  name\n  parent {\n    id\n  }\n  representations {\n    id\n    name\n  }\n  omerofiles {\n    id\n    name\n  }\n}\n\nquery get_dataset($id: ID!) {\n  dataset(id: $id) {\n    ...Dataset\n  }\n}"
+
+
+class Expand_datasetQuery(BaseModel):
+    dataset: Optional[DatasetFragment]
+    'Get a single experiment by ID"\n    \n    Returns a single experiment by ID. If the user does not have access\n    to the experiment, an error will be raised.\n    \n    '
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "fragment Dataset on Dataset {\n  id\n  name\n  parent {\n    id\n  }\n  representations {\n    id\n    name\n  }\n  omerofiles {\n    id\n    name\n  }\n}\n\nquery expand_dataset($id: ID!) {\n  dataset(id: $id) {\n    ...Dataset\n  }\n}"
+
+
+class Get_datasetsQuery(BaseModel):
+    datasets: Optional[Tuple[Optional[ListDatasetFragment], ...]]
+    "All Experiments \n ![Image](/static/img/data.png) \n This query returns all Experiments that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Experiments that the user has access to. If the user is an amdin\n    or superuser, all Experiments will be returned. \n If you want to retrieve only the Experiments that you have created,\n    use the `myExperiments` query. \n \n    \n    "
+
+    class Arguments(BaseModel):
+        pass
+
+    class Meta:
+        document = "fragment ListDataset on Dataset {\n  id\n  name\n}\n\nquery get_datasets {\n  datasets {\n    ...ListDataset\n  }\n}"
+
+
+class Search_datasetsQueryOptions(BaseModel):
+    """
+    A dataset is a collection of data files and metadata files.
+    It mimics the concept of a folder in a file system and is the top level
+    object in the data model.
+
+    """
+
+    typename: Optional[Literal["Dataset"]] = Field(alias="__typename")
+    value: ID
+    label: str
+    "The name of the experiment"
+
+    class Config:
+        frozen = True
+
+
+class Search_datasetsQuery(BaseModel):
+    options: Optional[Tuple[Optional[Search_datasetsQueryOptions], ...]]
+    "All Experiments \n ![Image](/static/img/data.png) \n This query returns all Experiments that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Experiments that the user has access to. If the user is an amdin\n    or superuser, all Experiments will be returned. \n If you want to retrieve only the Experiments that you have created,\n    use the `myExperiments` query. \n \n    \n    "
+
+    class Arguments(BaseModel):
+        search: Optional[str] = None
+
+    class Meta:
+        document = "query search_datasets($search: String) {\n  options: datasets(name: $search, limit: 30) {\n    value: id\n    label: name\n  }\n}"
+
+
+class ThiernoQueryRepresentationsSamplePinnedby(BaseModel):
+    """User
+
+    This object represents a user in the system. Users are used to
+    control access to different parts of the system. Users are assigned
+    to groups. A user has access to a part of the system if the user is
+    a member of a group that has the permission assigned to it.
+
+    Users can be be "creator" of objects. This means that the user has
+    created the object. This is used to control access to objects. A user
+    can only access objects that they have created, or objects that they
+    have access to through a group that they are a member of.
+
+    See the documentation for "Object Level Permissions" for more information."""
+
+    typename: Optional[Literal["User"]] = Field(alias="__typename")
+    name: str
+    "The name of the user"
+
+    class Config:
+        frozen = True
+
+
+class ThiernoQueryRepresentationsSample(BaseModel):
+    """Samples are storage containers for representations. A Sample is to be understood analogous to a Biological Sample. It existed in Time (the time of acquisiton and experimental procedure), was measured in space (x,y,z) and in different modalities (c). Sample therefore provide a datacontainer where each Representation of the data shares the same dimensions. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample"""
+
+    typename: Optional[Literal["Sample"]] = Field(alias="__typename")
+    id: ID
+    pinned_by: Tuple[ThiernoQueryRepresentationsSamplePinnedby, ...] = Field(
+        alias="pinnedBy"
+    )
+    "The users that have pinned the sample"
+
+    class Config:
+        frozen = True
+
+
+class ThiernoQueryRepresentations(Representation, BaseModel):
+    """A Representation is 5-dimensional representation of an image
+
+    Mikro stores each image as a 5-dimensional representation. The dimensions are:
+    - t: time
+    - c: channel
+    - z: z-stack
+    - x: x-dimension
+    - y: y-dimension
+
+    This ensures a unified api for all images, regardless of their original dimensions. Another main
+    determining factor for a representation is its variety:
+    A representation can be a raw image representating voxels (VOXEL)
+    or a segmentation mask representing instances of a class. (MASK)
+    It can also representate a human perception of the image (RGB) or a human perception of the mask (RGBMASK)
+
+    # Meta
+
+    Meta information is stored in the omero field which gives access to the omero-meta data. Refer to the omero documentation for more information.
+
+
+    #Origins and Derivations
+
+    Images can be filtered, which means that a new representation is created from the other (original) representations. This new representation is then linked to the original representations. This way, we can always trace back to the original representation.
+    Both are encapsulaed in the origins and derived fields.
+
+    Representations belong to *one* sample. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample
+    Each iamge has also a name, which is used to identify the image. The name is unique within a sample.
+    File and Rois that are used to create images are saved in the file origins and roi origins repectively.
+
+
+    """
+
+    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
+    created_at: datetime = Field(alias="createdAt")
+    store: Optional[Store]
+    sample: Optional[ThiernoQueryRepresentationsSample]
+    "The Sample this representation belosngs to"
+
+    class Config:
+        frozen = True
+
+
+class ThiernoQuery(BaseModel):
+    representations: Optional[Tuple[Optional[ThiernoQueryRepresentations], ...]]
+    "All Representations\n    \n    This query returns all Representations that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Representations that the user has access to. If the user is an amdin\n    or superuser, all Representations will be returned."
+
+    class Arguments(BaseModel):
+        pass
+
+    class Meta:
+        document = "query Thierno {\n  representations(limit: 10) {\n    createdAt\n    store\n    sample {\n      id\n      pinnedBy {\n        name\n      }\n    }\n  }\n}"
+
+
 class Get_positionQuery(BaseModel):
     position: Optional[PositionFragment]
     'Get a single experiment by ID"\n    \n    Returns a single experiment by ID. If the user does not have access\n    to the experiment, an error will be raised.\n    \n    '
@@ -3102,7 +3531,7 @@ class Get_positionQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = 'fragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment ListStage on Stage {\n  id\n  name\n  kind\n  physicalSize\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nquery get_position($id: ID!) {\n  position(id: $id) {\n    ...Position\n  }\n}'
+        document = 'fragment ListStage on Stage {\n  id\n  name\n  kind\n}\n\nfragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nquery get_position($id: ID!) {\n  position(id: $id) {\n    ...Position\n  }\n}'
 
 
 class Expand_positionQuery(BaseModel):
@@ -3113,7 +3542,7 @@ class Expand_positionQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = 'fragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment ListStage on Stage {\n  id\n  name\n  kind\n  physicalSize\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nquery expand_position($id: ID!) {\n  position(id: $id) {\n    ...Position\n  }\n}'
+        document = 'fragment ListStage on Stage {\n  id\n  name\n  kind\n}\n\nfragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nquery expand_position($id: ID!) {\n  position(id: $id) {\n    ...Position\n  }\n}'
 
 
 class Search_positionsQueryOptions(Position, BaseModel):
@@ -3164,7 +3593,7 @@ class Expand_objectiveQuery(BaseModel):
 
 
 class Search_objectivesQueryOptions(Objective, BaseModel):
-    """Objective(id, created_by, created_through, serial_number, name, magnification)"""
+    """Objective(id, created_by, created_through, serial_number, name, magnification, na, immersion)"""
 
     typename: Optional[Literal["Objective"]] = Field(alias="__typename")
     value: ID
@@ -3193,7 +3622,7 @@ class Get_omero_fileQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment OmeroFile on OmeroFile {\n  id\n  name\n  file\n  type\n  experiments {\n    id\n  }\n}\n\nquery get_omero_file($id: ID!) {\n  omerofile(id: $id) {\n    ...OmeroFile\n  }\n}"
+        document = "fragment OmeroFile on OmeroFile {\n  datasets {\n    id\n  }\n  id\n  name\n  file\n  type\n  experiments {\n    id\n  }\n}\n\nquery get_omero_file($id: ID!) {\n  omerofile(id: $id) {\n    ...OmeroFile\n  }\n}"
 
 
 class Expand_omerofileQuery(BaseModel):
@@ -3204,7 +3633,7 @@ class Expand_omerofileQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment OmeroFile on OmeroFile {\n  id\n  name\n  file\n  type\n  experiments {\n    id\n  }\n}\n\nquery expand_omerofile($id: ID!) {\n  omerofile(id: $id) {\n    ...OmeroFile\n  }\n}"
+        document = "fragment OmeroFile on OmeroFile {\n  datasets {\n    id\n  }\n  id\n  name\n  file\n  type\n  experiments {\n    id\n  }\n}\n\nquery expand_omerofile($id: ID!) {\n  omerofile(id: $id) {\n    ...OmeroFile\n  }\n}"
 
 
 class Search_omerofileQueryOptions(BaseModel):
@@ -3767,8 +4196,8 @@ def link_rep_to_rep(
 
 async def acreate_stage(
     name: str,
-    physical_size: List[Optional[float]],
     creator: Optional[ID] = None,
+    instrument: Optional[ID] = None,
     tags: Optional[List[Optional[str]]] = None,
     rath: MikroRath = None,
 ) -> Optional[StageFragment]:
@@ -3784,8 +4213,8 @@ async def acreate_stage(
 
     Arguments:
         name (str): name
-        physical_size (List[Optional[float]]): physical_size
         creator (Optional[ID], optional): creator.
+        instrument (Optional[ID], optional): instrument.
         tags (Optional[List[Optional[str]]], optional): tags.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
@@ -3794,12 +4223,7 @@ async def acreate_stage(
     return (
         await aexecute(
             Create_stageMutation,
-            {
-                "name": name,
-                "creator": creator,
-                "tags": tags,
-                "physical_size": physical_size,
-            },
+            {"name": name, "creator": creator, "instrument": instrument, "tags": tags},
             rath=rath,
         )
     ).create_stage
@@ -3807,8 +4231,8 @@ async def acreate_stage(
 
 def create_stage(
     name: str,
-    physical_size: List[Optional[float]],
     creator: Optional[ID] = None,
+    instrument: Optional[ID] = None,
     tags: Optional[List[Optional[str]]] = None,
     rath: MikroRath = None,
 ) -> Optional[StageFragment]:
@@ -3824,8 +4248,8 @@ def create_stage(
 
     Arguments:
         name (str): name
-        physical_size (List[Optional[float]]): physical_size
         creator (Optional[ID], optional): creator.
+        instrument (Optional[ID], optional): instrument.
         tags (Optional[List[Optional[str]]], optional): tags.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
@@ -3833,12 +4257,7 @@ def create_stage(
         Optional[StageFragment]"""
     return execute(
         Create_stageMutation,
-        {
-            "name": name,
-            "creator": creator,
-            "tags": tags,
-            "physical_size": physical_size,
-        },
+        {"name": name, "creator": creator, "instrument": instrument, "tags": tags},
         rath=rath,
     ).create_stage
 
@@ -4019,6 +4438,148 @@ def create_roi(
         },
         rath=rath,
     ).create_roi
+
+
+async def acreate_rois(
+    representation: ID,
+    vectors_list: List[Optional[List[Optional[InputVector]]]],
+    type: RoiTypeInput,
+    creator: Optional[ID] = None,
+    labels: Optional[List[Optional[str]]] = None,
+    tags: Optional[List[Optional[str]]] = None,
+    rath: MikroRath = None,
+) -> Optional[Create_roisMutationCreaterois]:
+    """create_rois
+
+
+     createROIS: A Representation is 5-dimensional representation of an image
+
+        Mikro stores each image as a 5-dimensional representation. The dimensions are:
+        - t: time
+        - c: channel
+        - z: z-stack
+        - x: x-dimension
+        - y: y-dimension
+
+        This ensures a unified api for all images, regardless of their original dimensions. Another main
+        determining factor for a representation is its variety:
+        A representation can be a raw image representating voxels (VOXEL)
+        or a segmentation mask representing instances of a class. (MASK)
+        It can also representate a human perception of the image (RGB) or a human perception of the mask (RGBMASK)
+
+        # Meta
+
+        Meta information is stored in the omero field which gives access to the omero-meta data. Refer to the omero documentation for more information.
+
+
+        #Origins and Derivations
+
+        Images can be filtered, which means that a new representation is created from the other (original) representations. This new representation is then linked to the original representations. This way, we can always trace back to the original representation.
+        Both are encapsulaed in the origins and derived fields.
+
+        Representations belong to *one* sample. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample
+        Each iamge has also a name, which is used to identify the image. The name is unique within a sample.
+        File and Rois that are used to create images are saved in the file origins and roi origins repectively.
+
+
+
+
+
+    Arguments:
+        representation (ID): representation
+        vectors_list (List[Optional[List[Optional[InputVector]]]]): vectors_list
+        type (RoiTypeInput): type
+        creator (Optional[ID], optional): creator.
+        labels (Optional[List[Optional[str]]], optional): labels.
+        tags (Optional[List[Optional[str]]], optional): tags.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[Create_roisMutationCreaterois]"""
+    return (
+        await aexecute(
+            Create_roisMutation,
+            {
+                "representation": representation,
+                "vectors_list": vectors_list,
+                "creator": creator,
+                "type": type,
+                "labels": labels,
+                "tags": tags,
+            },
+            rath=rath,
+        )
+    ).create_rois
+
+
+def create_rois(
+    representation: ID,
+    vectors_list: List[Optional[List[Optional[InputVector]]]],
+    type: RoiTypeInput,
+    creator: Optional[ID] = None,
+    labels: Optional[List[Optional[str]]] = None,
+    tags: Optional[List[Optional[str]]] = None,
+    rath: MikroRath = None,
+) -> Optional[Create_roisMutationCreaterois]:
+    """create_rois
+
+
+     createROIS: A Representation is 5-dimensional representation of an image
+
+        Mikro stores each image as a 5-dimensional representation. The dimensions are:
+        - t: time
+        - c: channel
+        - z: z-stack
+        - x: x-dimension
+        - y: y-dimension
+
+        This ensures a unified api for all images, regardless of their original dimensions. Another main
+        determining factor for a representation is its variety:
+        A representation can be a raw image representating voxels (VOXEL)
+        or a segmentation mask representing instances of a class. (MASK)
+        It can also representate a human perception of the image (RGB) or a human perception of the mask (RGBMASK)
+
+        # Meta
+
+        Meta information is stored in the omero field which gives access to the omero-meta data. Refer to the omero documentation for more information.
+
+
+        #Origins and Derivations
+
+        Images can be filtered, which means that a new representation is created from the other (original) representations. This new representation is then linked to the original representations. This way, we can always trace back to the original representation.
+        Both are encapsulaed in the origins and derived fields.
+
+        Representations belong to *one* sample. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample
+        Each iamge has also a name, which is used to identify the image. The name is unique within a sample.
+        File and Rois that are used to create images are saved in the file origins and roi origins repectively.
+
+
+
+
+
+    Arguments:
+        representation (ID): representation
+        vectors_list (List[Optional[List[Optional[InputVector]]]]): vectors_list
+        type (RoiTypeInput): type
+        creator (Optional[ID], optional): creator.
+        labels (Optional[List[Optional[str]]], optional): labels.
+        tags (Optional[List[Optional[str]]], optional): tags.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[Create_roisMutationCreaterois]"""
+    return execute(
+        Create_roisMutation,
+        {
+            "representation": representation,
+            "vectors_list": vectors_list,
+            "creator": creator,
+            "type": type,
+            "labels": labels,
+            "tags": tags,
+        },
+        rath=rath,
+    ).create_rois
 
 
 async def acreate_feature(
@@ -4227,11 +4788,6 @@ async def acreate_experiment(
 
 
 
-
-
-
-
-
     Arguments:
         name (str): name
         creator (Optional[str], optional): creator.
@@ -4275,11 +4831,6 @@ def create_experiment(
 
 
 
-
-
-
-
-
     Arguments:
         name (str): name
         creator (Optional[str], optional): creator.
@@ -4305,6 +4856,7 @@ async def afrom_xarray(
     roi_origins: Optional[List[Optional[ID]]] = None,
     tags: Optional[List[Optional[str]]] = None,
     experiments: Optional[List[Optional[ID]]] = None,
+    datasets: Optional[List[Optional[ID]]] = None,
     sample: Optional[ID] = None,
     omero: Optional[OmeroRepresentationInput] = None,
     rath: MikroRath = None,
@@ -4322,6 +4874,7 @@ async def afrom_xarray(
         roi_origins (Optional[List[Optional[ID]]], optional): roi_origins.
         tags (Optional[List[Optional[str]]], optional): tags.
         experiments (Optional[List[Optional[ID]]], optional): experiments.
+        datasets (Optional[List[Optional[ID]]], optional): datasets.
         sample (Optional[ID], optional): sample.
         omero (Optional[OmeroRepresentationInput], optional): omero.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
@@ -4340,6 +4893,7 @@ async def afrom_xarray(
                 "roi_origins": roi_origins,
                 "tags": tags,
                 "experiments": experiments,
+                "datasets": datasets,
                 "sample": sample,
                 "omero": omero,
             },
@@ -4357,6 +4911,7 @@ def from_xarray(
     roi_origins: Optional[List[Optional[ID]]] = None,
     tags: Optional[List[Optional[str]]] = None,
     experiments: Optional[List[Optional[ID]]] = None,
+    datasets: Optional[List[Optional[ID]]] = None,
     sample: Optional[ID] = None,
     omero: Optional[OmeroRepresentationInput] = None,
     rath: MikroRath = None,
@@ -4374,6 +4929,7 @@ def from_xarray(
         roi_origins (Optional[List[Optional[ID]]], optional): roi_origins.
         tags (Optional[List[Optional[str]]], optional): tags.
         experiments (Optional[List[Optional[ID]]], optional): experiments.
+        datasets (Optional[List[Optional[ID]]], optional): datasets.
         sample (Optional[ID], optional): sample.
         omero (Optional[OmeroRepresentationInput], optional): omero.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
@@ -4391,215 +4947,12 @@ def from_xarray(
             "roi_origins": roi_origins,
             "tags": tags,
             "experiments": experiments,
+            "datasets": datasets,
             "sample": sample,
             "omero": omero,
         },
         rath=rath,
     ).from_x_array
-
-
-async def adouble_upload(
-    xarray: XArrayInput,
-    name: Optional[str] = None,
-    origins: Optional[List[Optional[ID]]] = None,
-    tags: Optional[List[Optional[str]]] = None,
-    sample: Optional[ID] = None,
-    omero: Optional[OmeroRepresentationInput] = None,
-    rath: MikroRath = None,
-) -> Double_uploadMutation:
-    """double_upload
-
-
-     x: A Representation is 5-dimensional representation of an image
-
-        Mikro stores each image as a 5-dimensional representation. The dimensions are:
-        - t: time
-        - c: channel
-        - z: z-stack
-        - x: x-dimension
-        - y: y-dimension
-
-        This ensures a unified api for all images, regardless of their original dimensions. Another main
-        determining factor for a representation is its variety:
-        A representation can be a raw image representating voxels (VOXEL)
-        or a segmentation mask representing instances of a class. (MASK)
-        It can also representate a human perception of the image (RGB) or a human perception of the mask (RGBMASK)
-
-        # Meta
-
-        Meta information is stored in the omero field which gives access to the omero-meta data. Refer to the omero documentation for more information.
-
-
-        #Origins and Derivations
-
-        Images can be filtered, which means that a new representation is created from the other (original) representations. This new representation is then linked to the original representations. This way, we can always trace back to the original representation.
-        Both are encapsulaed in the origins and derived fields.
-
-        Representations belong to *one* sample. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample
-        Each iamge has also a name, which is used to identify the image. The name is unique within a sample.
-        File and Rois that are used to create images are saved in the file origins and roi origins repectively.
-
-
-
-
-     y: A Representation is 5-dimensional representation of an image
-
-        Mikro stores each image as a 5-dimensional representation. The dimensions are:
-        - t: time
-        - c: channel
-        - z: z-stack
-        - x: x-dimension
-        - y: y-dimension
-
-        This ensures a unified api for all images, regardless of their original dimensions. Another main
-        determining factor for a representation is its variety:
-        A representation can be a raw image representating voxels (VOXEL)
-        or a segmentation mask representing instances of a class. (MASK)
-        It can also representate a human perception of the image (RGB) or a human perception of the mask (RGBMASK)
-
-        # Meta
-
-        Meta information is stored in the omero field which gives access to the omero-meta data. Refer to the omero documentation for more information.
-
-
-        #Origins and Derivations
-
-        Images can be filtered, which means that a new representation is created from the other (original) representations. This new representation is then linked to the original representations. This way, we can always trace back to the original representation.
-        Both are encapsulaed in the origins and derived fields.
-
-        Representations belong to *one* sample. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample
-        Each iamge has also a name, which is used to identify the image. The name is unique within a sample.
-        File and Rois that are used to create images are saved in the file origins and roi origins repectively.
-
-
-
-
-
-    Arguments:
-        xarray (XArrayInput): xarray
-        name (Optional[str], optional): name.
-        origins (Optional[List[Optional[ID]]], optional): origins.
-        tags (Optional[List[Optional[str]]], optional): tags.
-        sample (Optional[ID], optional): sample.
-        omero (Optional[OmeroRepresentationInput], optional): omero.
-        rath (mikro.rath.MikroRath, optional): The mikro rath client
-
-    Returns:
-        Double_uploadMutation"""
-    return await aexecute(
-        Double_uploadMutation,
-        {
-            "xarray": xarray,
-            "name": name,
-            "origins": origins,
-            "tags": tags,
-            "sample": sample,
-            "omero": omero,
-        },
-        rath=rath,
-    )
-
-
-def double_upload(
-    xarray: XArrayInput,
-    name: Optional[str] = None,
-    origins: Optional[List[Optional[ID]]] = None,
-    tags: Optional[List[Optional[str]]] = None,
-    sample: Optional[ID] = None,
-    omero: Optional[OmeroRepresentationInput] = None,
-    rath: MikroRath = None,
-) -> Double_uploadMutation:
-    """double_upload
-
-
-     x: A Representation is 5-dimensional representation of an image
-
-        Mikro stores each image as a 5-dimensional representation. The dimensions are:
-        - t: time
-        - c: channel
-        - z: z-stack
-        - x: x-dimension
-        - y: y-dimension
-
-        This ensures a unified api for all images, regardless of their original dimensions. Another main
-        determining factor for a representation is its variety:
-        A representation can be a raw image representating voxels (VOXEL)
-        or a segmentation mask representing instances of a class. (MASK)
-        It can also representate a human perception of the image (RGB) or a human perception of the mask (RGBMASK)
-
-        # Meta
-
-        Meta information is stored in the omero field which gives access to the omero-meta data. Refer to the omero documentation for more information.
-
-
-        #Origins and Derivations
-
-        Images can be filtered, which means that a new representation is created from the other (original) representations. This new representation is then linked to the original representations. This way, we can always trace back to the original representation.
-        Both are encapsulaed in the origins and derived fields.
-
-        Representations belong to *one* sample. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample
-        Each iamge has also a name, which is used to identify the image. The name is unique within a sample.
-        File and Rois that are used to create images are saved in the file origins and roi origins repectively.
-
-
-
-
-     y: A Representation is 5-dimensional representation of an image
-
-        Mikro stores each image as a 5-dimensional representation. The dimensions are:
-        - t: time
-        - c: channel
-        - z: z-stack
-        - x: x-dimension
-        - y: y-dimension
-
-        This ensures a unified api for all images, regardless of their original dimensions. Another main
-        determining factor for a representation is its variety:
-        A representation can be a raw image representating voxels (VOXEL)
-        or a segmentation mask representing instances of a class. (MASK)
-        It can also representate a human perception of the image (RGB) or a human perception of the mask (RGBMASK)
-
-        # Meta
-
-        Meta information is stored in the omero field which gives access to the omero-meta data. Refer to the omero documentation for more information.
-
-
-        #Origins and Derivations
-
-        Images can be filtered, which means that a new representation is created from the other (original) representations. This new representation is then linked to the original representations. This way, we can always trace back to the original representation.
-        Both are encapsulaed in the origins and derived fields.
-
-        Representations belong to *one* sample. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample
-        Each iamge has also a name, which is used to identify the image. The name is unique within a sample.
-        File and Rois that are used to create images are saved in the file origins and roi origins repectively.
-
-
-
-
-
-    Arguments:
-        xarray (XArrayInput): xarray
-        name (Optional[str], optional): name.
-        origins (Optional[List[Optional[ID]]], optional): origins.
-        tags (Optional[List[Optional[str]]], optional): tags.
-        sample (Optional[ID], optional): sample.
-        omero (Optional[OmeroRepresentationInput], optional): omero.
-        rath (mikro.rath.MikroRath, optional): The mikro rath client
-
-    Returns:
-        Double_uploadMutation"""
-    return execute(
-        Double_uploadMutation,
-        {
-            "xarray": xarray,
-            "name": name,
-            "origins": origins,
-            "tags": tags,
-            "sample": sample,
-            "omero": omero,
-        },
-        rath=rath,
-    )
 
 
 async def aupdate_representation(
@@ -4874,11 +5227,66 @@ def create_metric(
     ).create_metric
 
 
+async def acreate_dataset(
+    name: str, parent: Optional[ID] = None, rath: MikroRath = None
+) -> Optional[DatasetFragment]:
+    """create_dataset
+
+
+     createDataset:
+        A dataset is a collection of data files and metadata files.
+        It mimics the concept of a folder in a file system and is the top level
+        object in the data model.
+
+
+
+
+    Arguments:
+        name (str): name
+        parent (Optional[ID], optional): parent.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[DatasetFragment]"""
+    return (
+        await aexecute(
+            Create_datasetMutation, {"name": name, "parent": parent}, rath=rath
+        )
+    ).create_dataset
+
+
+def create_dataset(
+    name: str, parent: Optional[ID] = None, rath: MikroRath = None
+) -> Optional[DatasetFragment]:
+    """create_dataset
+
+
+     createDataset:
+        A dataset is a collection of data files and metadata files.
+        It mimics the concept of a folder in a file system and is the top level
+        object in the data model.
+
+
+
+
+    Arguments:
+        name (str): name
+        parent (Optional[ID], optional): parent.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[DatasetFragment]"""
+    return execute(
+        Create_datasetMutation, {"name": name, "parent": parent}, rath=rath
+    ).create_dataset
+
+
 async def acreate_position(
     stage: ID,
     x: float,
     y: float,
     z: float,
+    tolerance: Optional[float] = None,
     name: Optional[str] = None,
     tags: Optional[List[Optional[str]]] = None,
     rath: MikroRath = None,
@@ -4894,6 +5302,7 @@ async def acreate_position(
         x (float): x
         y (float): y
         z (float): z
+        tolerance (Optional[float], optional): tolerance.
         name (Optional[str], optional): name.
         tags (Optional[List[Optional[str]]], optional): tags.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
@@ -4903,7 +5312,15 @@ async def acreate_position(
     return (
         await aexecute(
             Create_positionMutation,
-            {"stage": stage, "x": x, "y": y, "z": z, "name": name, "tags": tags},
+            {
+                "stage": stage,
+                "x": x,
+                "y": y,
+                "z": z,
+                "tolerance": tolerance,
+                "name": name,
+                "tags": tags,
+            },
             rath=rath,
         )
     ).create_position
@@ -4914,6 +5331,7 @@ def create_position(
     x: float,
     y: float,
     z: float,
+    tolerance: Optional[float] = None,
     name: Optional[str] = None,
     tags: Optional[List[Optional[str]]] = None,
     rath: MikroRath = None,
@@ -4929,6 +5347,7 @@ def create_position(
         x (float): x
         y (float): y
         z (float): z
+        tolerance (Optional[float], optional): tolerance.
         name (Optional[str], optional): name.
         tags (Optional[List[Optional[str]]], optional): tags.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
@@ -4937,24 +5356,39 @@ def create_position(
         Optional[PositionFragment]"""
     return execute(
         Create_positionMutation,
-        {"stage": stage, "x": x, "y": y, "z": z, "name": name, "tags": tags},
+        {
+            "stage": stage,
+            "x": x,
+            "y": y,
+            "z": z,
+            "tolerance": tolerance,
+            "name": name,
+            "tags": tags,
+        },
         rath=rath,
     ).create_position
 
 
 async def acreate_objective(
-    serial_number: str, name: str, magnification: float, rath: MikroRath = None
+    serial_number: str,
+    name: str,
+    magnification: float,
+    na: Optional[float] = None,
+    immersion: Optional[str] = None,
+    rath: MikroRath = None,
 ) -> Optional[ObjectiveFragment]:
     """create_objective
 
 
-     createObjective: Objective(id, created_by, created_through, serial_number, name, magnification)
+     createObjective: Objective(id, created_by, created_through, serial_number, name, magnification, na, immersion)
 
 
     Arguments:
         serial_number (str): serial_number
         name (str): name
         magnification (float): magnification
+        na (Optional[float], optional): na.
+        immersion (Optional[str], optional): immersion.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
@@ -4966,6 +5400,8 @@ async def acreate_objective(
                 "serial_number": serial_number,
                 "name": name,
                 "magnification": magnification,
+                "na": na,
+                "immersion": immersion,
             },
             rath=rath,
         )
@@ -4973,25 +5409,38 @@ async def acreate_objective(
 
 
 def create_objective(
-    serial_number: str, name: str, magnification: float, rath: MikroRath = None
+    serial_number: str,
+    name: str,
+    magnification: float,
+    na: Optional[float] = None,
+    immersion: Optional[str] = None,
+    rath: MikroRath = None,
 ) -> Optional[ObjectiveFragment]:
     """create_objective
 
 
-     createObjective: Objective(id, created_by, created_through, serial_number, name, magnification)
+     createObjective: Objective(id, created_by, created_through, serial_number, name, magnification, na, immersion)
 
 
     Arguments:
         serial_number (str): serial_number
         name (str): name
         magnification (float): magnification
+        na (Optional[float], optional): na.
+        immersion (Optional[str], optional): immersion.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[ObjectiveFragment]"""
     return execute(
         Create_objectiveMutation,
-        {"serial_number": serial_number, "name": name, "magnification": magnification},
+        {
+            "serial_number": serial_number,
+            "name": name,
+            "magnification": magnification,
+            "na": na,
+            "immersion": immersion,
+        },
         rath=rath,
     ).create_objective
 
@@ -5760,6 +6209,62 @@ def links(
     ).links
 
 
+async def aget_image_image_links(
+    relation: str,
+    context: Optional[ID] = None,
+    limit: Optional[int] = 10,
+    rath: MikroRath = None,
+) -> Optional[List[Optional[Get_image_image_linksQueryLinks]]]:
+    """get_image_image_links
+
+
+     links: DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
+
+
+    Arguments:
+        relation (str): relation
+        context (Optional[ID], optional): context.
+        limit (Optional[int], optional): limit. Defaults to 10
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[Get_image_image_linksQueryLinks]]]"""
+    return (
+        await aexecute(
+            Get_image_image_linksQuery,
+            {"relation": relation, "context": context, "limit": limit},
+            rath=rath,
+        )
+    ).links
+
+
+def get_image_image_links(
+    relation: str,
+    context: Optional[ID] = None,
+    limit: Optional[int] = 10,
+    rath: MikroRath = None,
+) -> Optional[List[Optional[Get_image_image_linksQueryLinks]]]:
+    """get_image_image_links
+
+
+     links: DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
+
+
+    Arguments:
+        relation (str): relation
+        context (Optional[ID], optional): context.
+        limit (Optional[int], optional): limit. Defaults to 10
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[Get_image_image_linksQueryLinks]]]"""
+    return execute(
+        Get_image_image_linksQuery,
+        {"relation": relation, "context": context, "limit": limit},
+        rath=rath,
+    ).links
+
+
 async def aget_link(id: ID, rath: MikroRath = None) -> Optional[LinkFragment]:
     """get_link
 
@@ -5982,6 +6487,50 @@ def search_stages(
     Returns:
         Optional[List[Optional[Search_stagesQueryStages]]]"""
     return execute(Search_stagesQuery, {"search": search}, rath=rath).stages
+
+
+async def aget_display_stage(
+    id: ID, rath: MikroRath = None
+) -> Optional[Get_display_stageQueryStage]:
+    """get_display_stage
+
+
+     stage: An Stage is a set of positions that share a common space on a microscope and can
+        be use to translate.
+
+
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[Get_display_stageQueryStage]"""
+    return (await aexecute(Get_display_stageQuery, {"id": id}, rath=rath)).stage
+
+
+def get_display_stage(
+    id: ID, rath: MikroRath = None
+) -> Optional[Get_display_stageQueryStage]:
+    """get_display_stage
+
+
+     stage: An Stage is a set of positions that share a common space on a microscope and can
+        be use to translate.
+
+
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[Get_display_stageQueryStage]"""
+    return execute(Get_display_stageQuery, {"id": id}, rath=rath).stage
 
 
 async def aget_sample(id: ID, rath: MikroRath = None) -> Optional[SampleFragment]:
@@ -6588,11 +7137,6 @@ async def aget_experiment(
 
 
 
-
-
-
-
-
     Arguments:
         id (ID): id
         rath (mikro.rath.MikroRath, optional): The mikro rath client
@@ -6613,11 +7157,6 @@ def get_experiment(id: ID, rath: MikroRath = None) -> Optional[ExperimentFragmen
 
         You can use the experiment to group samples and representations likewise
         to how you would group files into folders in a file system.
-
-
-
-
-
 
 
 
@@ -6646,11 +7185,6 @@ async def aexpand_experiment(
 
 
 
-
-
-
-
-
     Arguments:
         id (ID): id
         rath (mikro.rath.MikroRath, optional): The mikro rath client
@@ -6674,11 +7208,6 @@ def expand_experiment(id: ID, rath: MikroRath = None) -> Optional[ExperimentFrag
 
 
 
-
-
-
-
-
     Arguments:
         id (ID): id
         rath (mikro.rath.MikroRath, optional): The mikro rath client
@@ -6686,6 +7215,54 @@ def expand_experiment(id: ID, rath: MikroRath = None) -> Optional[ExperimentFrag
     Returns:
         Optional[ExperimentFragment]"""
     return execute(Expand_experimentQuery, {"id": id}, rath=rath).experiment
+
+
+async def aeget_experiments(
+    rath: MikroRath = None,
+) -> Optional[List[Optional[ListExperimentFragment]]]:
+    """eget_experiments
+
+
+     experiments:
+        An experiment is a collection of samples and their representations.
+        It mimics the concept of an experiment in the lab and is the top level
+        object in the data model.
+
+        You can use the experiment to group samples and representations likewise
+        to how you would group files into folders in a file system.
+
+
+
+    Arguments:
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[ListExperimentFragment]]]"""
+    return (await aexecute(Eget_experimentsQuery, {}, rath=rath)).experiments
+
+
+def eget_experiments(
+    rath: MikroRath = None,
+) -> Optional[List[Optional[ListExperimentFragment]]]:
+    """eget_experiments
+
+
+     experiments:
+        An experiment is a collection of samples and their representations.
+        It mimics the concept of an experiment in the lab and is the top level
+        object in the data model.
+
+        You can use the experiment to group samples and representations likewise
+        to how you would group files into folders in a file system.
+
+
+
+    Arguments:
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[ListExperimentFragment]]]"""
+    return execute(Eget_experimentsQuery, {}, rath=rath).experiments
 
 
 async def asearch_experiment(
@@ -6701,11 +7278,6 @@ async def asearch_experiment(
 
         You can use the experiment to group samples and representations likewise
         to how you would group files into folders in a file system.
-
-
-
-
-
 
 
 
@@ -6733,11 +7305,6 @@ def search_experiment(
 
         You can use the experiment to group samples and representations likewise
         to how you would group files into folders in a file system.
-
-
-
-
-
 
 
 
@@ -7280,6 +7847,276 @@ def expand_metric(id: ID, rath: MikroRath = None) -> Optional[MetricFragment]:
     return execute(Expand_metricQuery, {"id": id}, rath=rath).metric
 
 
+async def aget_dataset(id: ID, rath: MikroRath = None) -> Optional[DatasetFragment]:
+    """get_dataset
+
+
+     dataset:
+        A dataset is a collection of data files and metadata files.
+        It mimics the concept of a folder in a file system and is the top level
+        object in the data model.
+
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[DatasetFragment]"""
+    return (await aexecute(Get_datasetQuery, {"id": id}, rath=rath)).dataset
+
+
+def get_dataset(id: ID, rath: MikroRath = None) -> Optional[DatasetFragment]:
+    """get_dataset
+
+
+     dataset:
+        A dataset is a collection of data files and metadata files.
+        It mimics the concept of a folder in a file system and is the top level
+        object in the data model.
+
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[DatasetFragment]"""
+    return execute(Get_datasetQuery, {"id": id}, rath=rath).dataset
+
+
+async def aexpand_dataset(id: ID, rath: MikroRath = None) -> Optional[DatasetFragment]:
+    """expand_dataset
+
+
+     dataset:
+        A dataset is a collection of data files and metadata files.
+        It mimics the concept of a folder in a file system and is the top level
+        object in the data model.
+
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[DatasetFragment]"""
+    return (await aexecute(Expand_datasetQuery, {"id": id}, rath=rath)).dataset
+
+
+def expand_dataset(id: ID, rath: MikroRath = None) -> Optional[DatasetFragment]:
+    """expand_dataset
+
+
+     dataset:
+        A dataset is a collection of data files and metadata files.
+        It mimics the concept of a folder in a file system and is the top level
+        object in the data model.
+
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[DatasetFragment]"""
+    return execute(Expand_datasetQuery, {"id": id}, rath=rath).dataset
+
+
+async def aget_datasets(
+    rath: MikroRath = None,
+) -> Optional[List[Optional[ListDatasetFragment]]]:
+    """get_datasets
+
+
+     datasets:
+        A dataset is a collection of data files and metadata files.
+        It mimics the concept of a folder in a file system and is the top level
+        object in the data model.
+
+
+
+
+    Arguments:
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[ListDatasetFragment]]]"""
+    return (await aexecute(Get_datasetsQuery, {}, rath=rath)).datasets
+
+
+def get_datasets(
+    rath: MikroRath = None,
+) -> Optional[List[Optional[ListDatasetFragment]]]:
+    """get_datasets
+
+
+     datasets:
+        A dataset is a collection of data files and metadata files.
+        It mimics the concept of a folder in a file system and is the top level
+        object in the data model.
+
+
+
+
+    Arguments:
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[ListDatasetFragment]]]"""
+    return execute(Get_datasetsQuery, {}, rath=rath).datasets
+
+
+async def asearch_datasets(
+    search: Optional[str] = None, rath: MikroRath = None
+) -> Optional[List[Optional[Search_datasetsQueryOptions]]]:
+    """search_datasets
+
+
+     options:
+        A dataset is a collection of data files and metadata files.
+        It mimics the concept of a folder in a file system and is the top level
+        object in the data model.
+
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[Search_datasetsQueryDatasets]]]"""
+    return (
+        await aexecute(Search_datasetsQuery, {"search": search}, rath=rath)
+    ).datasets
+
+
+def search_datasets(
+    search: Optional[str] = None, rath: MikroRath = None
+) -> Optional[List[Optional[Search_datasetsQueryOptions]]]:
+    """search_datasets
+
+
+     options:
+        A dataset is a collection of data files and metadata files.
+        It mimics the concept of a folder in a file system and is the top level
+        object in the data model.
+
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[Search_datasetsQueryDatasets]]]"""
+    return execute(Search_datasetsQuery, {"search": search}, rath=rath).datasets
+
+
+async def athierno(
+    rath: MikroRath = None,
+) -> Optional[List[Optional[ThiernoQueryRepresentations]]]:
+    """Thierno
+
+
+     representations: A Representation is 5-dimensional representation of an image
+
+        Mikro stores each image as a 5-dimensional representation. The dimensions are:
+        - t: time
+        - c: channel
+        - z: z-stack
+        - x: x-dimension
+        - y: y-dimension
+
+        This ensures a unified api for all images, regardless of their original dimensions. Another main
+        determining factor for a representation is its variety:
+        A representation can be a raw image representating voxels (VOXEL)
+        or a segmentation mask representing instances of a class. (MASK)
+        It can also representate a human perception of the image (RGB) or a human perception of the mask (RGBMASK)
+
+        # Meta
+
+        Meta information is stored in the omero field which gives access to the omero-meta data. Refer to the omero documentation for more information.
+
+
+        #Origins and Derivations
+
+        Images can be filtered, which means that a new representation is created from the other (original) representations. This new representation is then linked to the original representations. This way, we can always trace back to the original representation.
+        Both are encapsulaed in the origins and derived fields.
+
+        Representations belong to *one* sample. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample
+        Each iamge has also a name, which is used to identify the image. The name is unique within a sample.
+        File and Rois that are used to create images are saved in the file origins and roi origins repectively.
+
+
+
+
+
+    Arguments:
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[ThiernoQueryRepresentations]]]"""
+    return (await aexecute(ThiernoQuery, {}, rath=rath)).representations
+
+
+def thierno(
+    rath: MikroRath = None,
+) -> Optional[List[Optional[ThiernoQueryRepresentations]]]:
+    """Thierno
+
+
+     representations: A Representation is 5-dimensional representation of an image
+
+        Mikro stores each image as a 5-dimensional representation. The dimensions are:
+        - t: time
+        - c: channel
+        - z: z-stack
+        - x: x-dimension
+        - y: y-dimension
+
+        This ensures a unified api for all images, regardless of their original dimensions. Another main
+        determining factor for a representation is its variety:
+        A representation can be a raw image representating voxels (VOXEL)
+        or a segmentation mask representing instances of a class. (MASK)
+        It can also representate a human perception of the image (RGB) or a human perception of the mask (RGBMASK)
+
+        # Meta
+
+        Meta information is stored in the omero field which gives access to the omero-meta data. Refer to the omero documentation for more information.
+
+
+        #Origins and Derivations
+
+        Images can be filtered, which means that a new representation is created from the other (original) representations. This new representation is then linked to the original representations. This way, we can always trace back to the original representation.
+        Both are encapsulaed in the origins and derived fields.
+
+        Representations belong to *one* sample. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample
+        Each iamge has also a name, which is used to identify the image. The name is unique within a sample.
+        File and Rois that are used to create images are saved in the file origins and roi origins repectively.
+
+
+
+
+
+    Arguments:
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[ThiernoQueryRepresentations]]]"""
+    return execute(ThiernoQuery, {}, rath=rath).representations
+
+
 async def aget_position(id: ID, rath: MikroRath = None) -> Optional[PositionFragment]:
     """get_position
 
@@ -7396,7 +8233,7 @@ async def aget_objective(
     """get_objective
 
 
-     objective: Objective(id, created_by, created_through, serial_number, name, magnification)
+     objective: Objective(id, created_by, created_through, serial_number, name, magnification, na, immersion)
 
 
     Arguments:
@@ -7417,7 +8254,7 @@ def get_objective(
     """get_objective
 
 
-     objective: Objective(id, created_by, created_through, serial_number, name, magnification)
+     objective: Objective(id, created_by, created_through, serial_number, name, magnification, na, immersion)
 
 
     Arguments:
@@ -7436,7 +8273,7 @@ async def aexpand_objective(
     """expand_objective
 
 
-     objective: Objective(id, created_by, created_through, serial_number, name, magnification)
+     objective: Objective(id, created_by, created_through, serial_number, name, magnification, na, immersion)
 
 
     Arguments:
@@ -7452,7 +8289,7 @@ def expand_objective(id: ID, rath: MikroRath = None) -> Optional[ObjectiveFragme
     """expand_objective
 
 
-     objective: Objective(id, created_by, created_through, serial_number, name, magnification)
+     objective: Objective(id, created_by, created_through, serial_number, name, magnification, na, immersion)
 
 
     Arguments:
@@ -7470,7 +8307,7 @@ async def asearch_objectives(
     """search_objectives
 
 
-     options: Objective(id, created_by, created_through, serial_number, name, magnification)
+     options: Objective(id, created_by, created_through, serial_number, name, magnification, na, immersion)
 
 
     Arguments:
@@ -7490,7 +8327,7 @@ def search_objectives(
     """search_objectives
 
 
-     options: Objective(id, created_by, created_through, serial_number, name, magnification)
+     options: Objective(id, created_by, created_through, serial_number, name, magnification, na, immersion)
 
 
     Arguments:

@@ -17,3 +17,23 @@ mutation create_roi(
     ...ROI
   }
 }
+
+mutation create_rois(
+  $representation: ID!
+  $vectors_list: [[InputVector]]!
+  $creator: ID
+  $type: RoiTypeInput!
+  $labels: [String]
+  $tags: [String]
+) {
+  createROIS(
+    representation: $representation
+    vectorsList: $vectors_list
+    type: $type
+    creator: $creator
+    labels: $labels
+    tags: $tags
+  ) {
+    id
+  }
+}

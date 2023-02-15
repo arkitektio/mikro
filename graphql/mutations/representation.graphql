@@ -7,6 +7,7 @@ mutation from_xarray(
   $roi_origins: [ID]
   $tags: [String]
   $experiments: [ID]
+  $datasets: [ID]
   $sample: ID
   $omero: OmeroRepresentationInput
 ) {
@@ -21,41 +22,10 @@ mutation from_xarray(
     fileOrigins: $file_origins
     roiOrigins: $roi_origins
     experiments: $experiments
+    datasets: $datasets
     variety: $variety
   ) {
     ...Representation
-  }
-}
-
-mutation double_upload(
-  $xarray: XArrayInput!
-  $name: String
-  $origins: [ID]
-  $tags: [String]
-  $sample: ID
-  $omero: OmeroRepresentationInput
-) {
-  x: fromXArray(
-    xarray: $xarray
-    name: $name
-    origins: $origins
-    tags: $tags
-    sample: $sample
-    omero: $omero
-  ) {
-    id
-    store
-  }
-  y: fromXArray(
-    xarray: $xarray
-    name: $name
-    origins: $origins
-    tags: $tags
-    sample: $sample
-    omero: $omero
-  ) {
-    id
-    store
   }
 }
 

@@ -6,9 +6,8 @@ Custom scalars for Mikro.
 
 
 import os
-from typing import Any
+from typing import Any, List
 import xarray as xr
-import pyarrow.parquet as pq
 import pandas as pd
 import numpy as np
 
@@ -20,6 +19,26 @@ class XArrayConversionException(Exception):
 MetricValue = Any
 FeatureValue = Any
 
+
+
+class AffineMatrix(list):
+
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, v):
+        """Validate the input array and convert it to a xr.DataArray."""
+        if isinstance(v, np.ndarray):
+            assert v.ndim == 2
+            assert v.shape[0] == v.shape[1]
+            assert v.shape == (3,3)
+            v = v.tolist()
+
+
+        assert isinstance(v, list)
+        return cls(v)
 
 
 class XArrayInput:
@@ -39,7 +58,7 @@ class XArrayInput:
         """Validate the input array and convert it to a xr.DataArray."""
 
         if isinstance(v, np.ndarray):
-            dims = ["c", "t", "z", "x", "y"]
+            dims = ["c", "t", "z", "y", "x"]
             v = xr.DataArray(v, dims=dims[5 - v.ndim :])
 
         if not isinstance(v, xr.DataArray):
@@ -211,6 +230,7 @@ class Parquet:
 
     def open(self, dl=None):
         from mikro.datalayer import current_datalayer
+        import pyarrow.parquet as pq
 
         dl = dl or current_datalayer.get()
 

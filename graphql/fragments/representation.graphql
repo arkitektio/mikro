@@ -21,7 +21,12 @@ fragment Representation on Representation {
       id
       x
       y
+      z
+      stage {
+        id
+      }
     }
+    affineTransformation
     channels {
       name
       color

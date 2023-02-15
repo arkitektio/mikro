@@ -2,11 +2,15 @@ mutation create_objective(
   $serial_number: String!
   $name: String!
   $magnification: Float!
+  $na: Float
+  $immersion: String
 ) {
   createObjective(
     name: $name
     serialNumber: $serial_number
     magnification: $magnification
+    na: $na
+    immersion: $immersion
   ) {
     ...Objective
   }

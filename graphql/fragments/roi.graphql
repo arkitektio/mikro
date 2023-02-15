@@ -11,6 +11,7 @@ fragment ROI on ROI {
   type
   representation {
     id
+    shape
   }
   derivedRepresentations {
     id

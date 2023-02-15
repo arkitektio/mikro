@@ -17,8 +17,11 @@ import numpy as np
 from pydantic import BaseModel
 import xarray as xr
 import pandas as pd
-
 from rath.links.shrink import ShrinkByID
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mikro.api.schema import InputVector
 
 
 class Representation(BaseModel):
@@ -31,8 +34,6 @@ class Representation(BaseModel):
         data (xarray.Dataset): The data of the representation.
 
     """
-
-    id: str
 
     def get_identifier():
         return "@mikro/representation"
@@ -88,7 +89,7 @@ class Omero(BaseModel):
         OMERO
         <table>
             {f'<tr><td>Position</td><td>{self.position._repr_html_inline_()}</tr>' if getattr(self, "position", None) else  ''}
-            {f'<tr><td>PhysicalSize</td><td>{self.physical_size.id}</tr>' if getattr(self, "physical_size", None) else ''}
+            {f'<tr><td>PhysicalSize</td><td>{self.physical_size}</tr>' if getattr(self, "physical_size", None) else ''}
             {f'<tr><td>Objective</td><td>{self.objective.id}</tr>' if getattr(self, "objective", None) else ''}
         </table>
          </div>'''
@@ -132,15 +133,15 @@ class Objective:
                 "Objective has no magnification attribute. Please query 'magnification' in your request on 'Objective'."
             )
 
-        if not hasattr(stage, "physical_size"):
+        if not hasattr(stage, "stage_size"):
             raise AttributeError(
-                "Stage has no physical_size attribute. Please query 'physicalSize' in your request on 'Stage'"
+                "Stage has no stage_size attribute. Please query 'stageSize' in your request on 'Stage'"
             )
 
         return PhysicalSizeInput(
-            x=stage.physical_size[0] / self.magnification,
-            y=stage.physical_size[1] / self.magnification,
-            z=stage.physical_size[2] / self.magnification,
+            x=stage.stage_size.x / self.magnification,
+            y=stage.stage_size.y / self.magnification,
+            z=stage.stage_size.z / self.magnification,
             c=c,
             t=t,
         )
@@ -156,12 +157,50 @@ class ROI(BaseModel):
         Returns:
             np.ndarray: _description_
         """
+        return self.get_vector_data(dims="yx")
+
+    def get_vector_data(self, dims="yx") -> np.ndarray:
         vector_list = getattr(self, "vectors", None)
         assert (
             vector_list
         ), "Please query 'vectors' in your request on 'ROI'. Data is not accessible otherwise"
         vector_list: list
-        return np.array([[v.x, v.y] for v in vector_list])
+        accesors = list(dims)
+        return np.array([[getattr(v, ac) for ac in accesors] for v in vector_list])
+
+
+    def center(self) -> "InputVector":
+        """The center of the ROI
+
+        Caluclates the geometrical center of the ROI according to its type
+        and the vectors of the ROI.
+
+        Returns:
+            InputVector: The center of the ROI
+        """
+        from mikro.api.schema import RoiTypeInput, InputVector
+        assert hasattr(self, "type"), "Please query 'type' in your request on 'ROI'. Center is not accessible otherwise"
+        if self.type == RoiTypeInput.RECTANGLE:
+            return InputVector.from_array(self.get_vector_data(dims="ctzyx").mean(axis=0))
+
+        raise NotImplementedError(f"Center calculation not implemented for this ROI type {self.type}")
+
+    def center_as_array(self) -> np.ndarray:
+        """The center of the ROI
+
+        Caluclates the geometrical center of the ROI according to its type
+        and the vectors of the ROI.
+
+        Returns:
+            InputVector: The center of the ROI
+        """
+        from mikro.api.schema import RoiTypeInput, InputVector
+        assert hasattr(self, "type"), "Please query 'type' in your request on 'ROI'. Center is not accessible otherwise"
+        if self.type == RoiTypeInput.RECTANGLE:
+            return self.get_vector_data(dims="ctzyx").mean(axis=0)
+
+        raise NotImplementedError(f"Center calculation not implemented for this ROI type {self.type}")
+
 
 
 class Table(BaseModel, ShrinkByID):
@@ -207,14 +246,20 @@ class Vectorizable:
         Returns:
             List[Vectorizable]: A list of InputVector
         """
+        print(x)
         assert x.ndim == 2, "Needs to be a List array of vectors"
         if x.shape[1] == 4:
-            return [cls(x=i[0], y=i[1], z=i[2], t=i[3], c=c) for i in x.tolist()]
+            return [cls(x=i[1], y=i[0], z=i[2], t=i[3], c=c) for i in x.tolist()]
         if x.shape[1] == 3:
-            return [cls(x=i[0], y=i[1], z=i[2], t=t, c=c) for i in x.tolist()]
+            return [cls(x=i[1], y=i[0], z=i[2], t=t, c=c) for i in x.tolist()]
         elif x.shape[1] == 2:
-            return [cls(x=i[0], y=i[1], t=t, c=c, z=z) for i in x.tolist()]
+            return [cls(x=i[1], y=i[0], t=t, c=c, z=z) for i in x.tolist()]
         else:
             raise NotImplementedError(
                 f"Incompatible shape {x.shape} of {x}. List dimension needs to either be of size 2 or 3"
             )
+
+
+    @classmethod
+    def from_array(cls: T, x: np.ndarray,) -> T:
+        return cls(x=x[4], y=x[3], z=x[2], t=x[1], c=x[0])

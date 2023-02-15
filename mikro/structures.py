@@ -112,6 +112,14 @@ try:
         ),
     )
     structure_reg.register_as_structure(
+        DatasetFragment,
+        identifier="@mikro/dataset",
+        expand=aexpand_dataset,
+        default_widget=SearchWidget(
+            query=Search_datasetsQuery.Meta.document, ward="mikro"
+        ),
+    )
+    structure_reg.register_as_structure(
         ObjectiveFragment,
         identifier="@mikro/objective",
         expand=aexpand_objective,

@@ -6,12 +6,14 @@ from rich import get_console
 
 directory = os.getcwd()
 
+file_path = os.path.dirname(__file__)
+
 
 class MikroOptions(str, Enum):
     GEN = "gen"
 
 
-default_settings = """
+v1_file= """
 projects:
   mikro:
     schema: http://localhost:8080/graphql
@@ -58,6 +60,8 @@ projects:
           File: mikro.scalars.File
           ImageFile: mikro.scalars.File
           Upload: mikro.scalars.Upload
+          ModelData: mikro.scalars.ModelData
+          ModelFile: mikro.scalars.ModelFile
           ParquetInput: mikro.scalars.ParquetInput
           Store: mikro.scalars.Store
           Parquet: mikro.scalars.Parquet
@@ -69,6 +73,14 @@ projects:
             - mikro.traits.Representation
           Table:
             - mikro.traits.Table
+          Omero:
+            - mikro.traits.Omero
+          Objective:
+            - mikro.traits.Objective
+          Position:
+            - mikro.traits.Position
+          Stage:
+            - mikro.traits.Stage
           ROI:
             - mikro.traits.ROI
           InputVector:
@@ -89,23 +101,47 @@ def main(script: MikroOptions, documents: str, codefile: str):
                 load_projects_from_configpath,
                 generate,
                 write_code_to_file,
+                GraphQLProject,
+                GeneratorConfig,
             )
+            from turms.config import Extensions, GeneratorConfig, FreezeConfig
+            from turms.plugins.enums import EnumsPlugin
+            from turms.plugins.inputs import InputsPlugin
+            from turms.plugins.fragments import FragmentsPlugin
+            from turms.plugins.operations import OperationsPlugin
+            from turms.plugins.funcs import FuncsPlugin
         except ImportError:
             raise ImportError(
                 "Please install turms to use the gen command. `pip install turms`"
             )
 
-        config = os.path.join(app_directory, "graphql.config.yaml")
-        if not os.path.exists(os.path.join(app_directory, "graphql.config.yaml")):
-            with open(config, "w") as f:
-                f.write(default_settings)
+        
+        project = GraphQLProject(
+          schema= os.path.join(file_path, "schemas/v1.graphql"),
+          documents= documents,
+          extensions=Extensions(
+            turms=GeneratorConfig(
+              out_dir=app_directory,
+              generated_name=codefile,
+              freeze=FreezeConfig(
+                enabled=True
+              ),
+              plugins=[
+                {"type": "turms.plugins.enums.EnumsPlugin"},
+                {"type": "turms.plugins.inputs.InputsPlugin"},
+                {"type": "turms.plugins.fragments.FragmentsPlugin"},
+                {"type": "turms.plugins.operations.OperationsPlugin"},
+                {"type": "turms.plugins.funcs.FuncsPlugin"},
+              ]
 
-        projects = load_projects_from_configpath(config, "mikro")
-        mikro_project = projects["mikro"]
-        mikro_project.documents = documents
-        mikro_project.extensions.turms.out_dir = app_directory
-        mikro_project.extensions.turms.generated_name = codefile
-        generated_code = generate(mikro_project)
+  
+          )
+          )
+
+        )
+
+
+        generated_code = generate(project)
 
         get_console().print(f"-------------- Generating project: mikro --------------")
 
@@ -126,7 +162,7 @@ def entrypoint():
         type=str,
         help="The gloab to documents",
         nargs="?",
-        default="mikrogql/**.graphql",
+        default="*.graphql",
     )
     parser.add_argument(
         "codefile",

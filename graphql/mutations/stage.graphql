@@ -1,14 +1,14 @@
 mutation create_stage(
   $name: String!
   $creator: ID
+  $instrument: ID
   $tags: [String]
-  $physical_size: [Float]!
 ) {
   createStage(
     name: $name
     creator: $creator
+    instrument: $instrument
     tags: $tags
-    physicalSize: $physical_size
   ) {
     ...Stage
   }

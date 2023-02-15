@@ -5,3 +5,8 @@ fragment Experiment on Experiment {
     email
   }
 }
+
+fragment ListExperiment on Experiment {
+  id
+  name
+}

@@ -38,8 +38,6 @@ import contextvars
 from typing import Optional
 import uuid
 
-from pyarrow import Table
-import pyarrow.parquet as pq
 import xarray as xr
 from pydantic import Field, SecretStr
 from koil.composition import KoiledModel
@@ -74,6 +72,7 @@ class DataLayer(KoiledModel):
 
     access_key: SecretStr = ""
     secret_key: SecretStr = ""
+    session_token: SecretStr = ""
     endpoint_url: str = ""
 
     _s3fs: Optional[s3fs.S3FileSystem] = None
@@ -85,7 +84,8 @@ class DataLayer(KoiledModel):
         dataset.to_zarr(store=store, consolidated=True, compute=True)
         return path
 
-    def _storetable(self, table: Table, path):
+    def _storetable(self, table, path):
+        import pyarrow.parquet as pq
         pq.write_table(table, path, filesystem=self.fs)
         return path
 
@@ -99,12 +99,18 @@ class DataLayer(KoiledModel):
         s3_path = f"zarr/{random_uuid}.zarr"
         dataset = xarray.value.to_dataset(name="data")
         dataset.attrs["fileversion"] = "v1"
-        co_future = self._executor_session.submit(self._storedataset, dataset, s3_path)
-
-        return await asyncio.wrap_future(co_future)
+        try:
+                co_future = self._executor_session.submit(self._storedataset, dataset, s3_path)
+                return await asyncio.wrap_future(co_future)
+        except PermissionError as e:
+            print(e)
+            await self.aconnect()
+            co_future = self._executor_session.submit(self._storedataset, dataset, s3_path)
+            return await asyncio.wrap_future(co_future)
 
     async def astore_parquet_input(self, pqinput: ParquetInput) -> None:
         """Store a DataFrame in the DataLayer"""
+        from pyarrow import Table
         if not self._connected:
             if self.auto_connect:
                 await self.aconnect()
@@ -129,6 +135,7 @@ class DataLayer(KoiledModel):
         c = await arequest()
         self.access_key = c.access_key
         self.secret_key = c.secret_key
+        self.session_token = c.session_token
 
     async def aconnect(self):
         """Connect to the S3 instance"""
@@ -138,7 +145,7 @@ class DataLayer(KoiledModel):
         self._s3fs = s3fs.S3FileSystem(
             secret=self.secret_key,
             key=self.access_key,
-            client_kwargs={"endpoint_url": self.endpoint_url},
+            client_kwargs={"endpoint_url": self.endpoint_url, "aws_session_token": self.session_token},
         )
         return self
 

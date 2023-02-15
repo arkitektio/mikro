@@ -10,7 +10,7 @@ class Mikro(Composition):
     """ The Mikro Composition
     
     This composition provides a datalayer and a rath for interacting with the
-    mikro api.
+    mikro api and beyond
 
     You shouldn't need to create this directly, instead use the builder functions
     to generate a new instance of this composition.

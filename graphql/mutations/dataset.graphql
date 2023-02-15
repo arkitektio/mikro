@@ -1,0 +1,5 @@
+mutation create_dataset($name: String!, $parent: ID) {
+  createDataset(name: $name, parent: $parent) {
+    ...Dataset
+  }
+}

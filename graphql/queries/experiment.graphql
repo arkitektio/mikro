@@ -10,6 +10,12 @@ query expand_experiment($id: ID!) {
   }
 }
 
+query eget_experiments {
+  experiments {
+    ...ListExperiment
+  }
+}
+
 query search_experiment($search: String) {
   options: experiments(name: $search, limit: 30) {
     value: id

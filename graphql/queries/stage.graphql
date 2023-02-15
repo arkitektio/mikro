@@ -16,3 +16,26 @@ query search_stages($search: String) {
     label: name
   }
 }
+
+query get_display_stage($id: ID!) {
+  stage(id: $id) {
+    id
+    positions {
+      x
+      y
+      z
+      omeros {
+        physicalSize {
+          x
+          y
+          z
+          t
+        }
+        representation {
+          store
+          id
+        }
+      }
+    }
+  }
+}

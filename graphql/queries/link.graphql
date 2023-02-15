@@ -28,6 +28,36 @@ query Links(
   }
 }
 
+query get_image_image_links(
+  $relation: String!
+  $context: ID
+  $limit: Int = 10
+) {
+  links(
+    xType: GRUNNLAG_REPRESENTATION
+    yType: GRUNNLAG_REPRESENTATION
+    relation: $relation
+    context: $context
+    limit: $limit
+  ) {
+    relation
+    x {
+      ... on Representation {
+        id
+        store
+        variety
+      }
+    }
+    y {
+      ... on Representation {
+        id
+        store
+        variety
+      }
+    }
+  }
+}
+
 query get_link($id: ID!) {
   link(id: $id) {
     ...Link
