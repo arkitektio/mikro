@@ -5,10 +5,9 @@ from mikro.datalayer import DataLayer
 from mikro.rath import MikroRath
 
 
-@koilable(add_connectors=True)
 class Mikro(Composition):
-    """ The Mikro Composition
-    
+    """The Mikro Composition
+
     This composition provides a datalayer and a rath for interacting with the
     mikro api and beyond
 
@@ -28,7 +27,6 @@ class Mikro(Composition):
     )
     ```
     """
-
 
     datalayer: DataLayer
     rath: MikroRath = Field(default_factory=MikroRath)

@@ -10,8 +10,8 @@ query expand_model($id: ID!) {
   }
 }
 
-query search_models($search: String) {
-  options: models(name: $search, limit: 20) {
+query search_models($search: String, $values: [ID]) {
+  options: models(name: $search, limit: 20, ids: $values) {
     label: name
     value: id
   }

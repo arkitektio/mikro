@@ -6,13 +6,20 @@ Custom scalars for Mikro.
 
 
 import os
-from typing import Any, List
+from typing import Any, List, IO, Optional
 import xarray as xr
 import pandas as pd
 import numpy as np
+import io
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mikro.datalayer import DataLayer
 
 
 class XArrayConversionException(Exception):
+    """An exception that is raised when a conversion to xarray fails."""
+
     pass
 
 
@@ -20,8 +27,8 @@ MetricValue = Any
 FeatureValue = Any
 
 
-
 class AffineMatrix(list):
+    """A custom scalar to represent an affine matrix."""
 
     @classmethod
     def __get_validators__(cls):
@@ -33,9 +40,8 @@ class AffineMatrix(list):
         if isinstance(v, np.ndarray):
             assert v.ndim == 2
             assert v.shape[0] == v.shape[1]
-            assert v.shape == (3,3)
+            assert v.shape == (3, 3)
             v = v.tolist()
-
 
         assert isinstance(v, list)
         return cls(v)
@@ -54,7 +60,7 @@ class XArrayInput:
         yield cls.validate
 
     @classmethod
-    def validate(cls, v):
+    def validate(cls, v: Any):
         """Validate the input array and convert it to a xr.DataArray."""
 
         if isinstance(v, np.ndarray):
@@ -97,6 +103,34 @@ class XArrayInput:
         return f"InputArray({self.value})"
 
 
+class BigFile:
+    """A custom scalar for wrapping of every supported array like structure on
+    the mikro platform. This scalar enables validation of various array formats
+    into a mikro api compliant xr.DataArray.."""
+
+    def __init__(self, value: IO) -> None:
+        self.value = value
+
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, v):
+        """Validate the input array and convert it to a xr.DataArray."""
+
+        if isinstance(v, str):
+            v = open(v, "rb")
+
+        if not isinstance(v, io.IOBase):
+            raise ValueError("This needs to be a instance of a file")
+
+        return cls(v)
+
+    def __repr__(self):
+        return f"BigFile({self.value})"
+
+
 class ParquetInput:
     """A custom scalar for ensuring a common format to support write to the
     parquet api supported by mikro. It converts the passed value into
@@ -114,7 +148,6 @@ class ParquetInput:
 
     @classmethod
     def validate(cls, v):
-
         if not isinstance(v, pd.DataFrame):
             raise ValueError("This needs to be a instance of pandas DataFrame")
 
@@ -142,7 +175,7 @@ class Store:
         and then we can access the data
         """
 
-    def open(self, dl=None):
+    def open(self, dl: Optional["DataLayer"] = None):
         """Opens the store and returns the zarr store object.
 
         The store is opened on the first access and then cached for later use. This is done to avoid
@@ -163,13 +196,19 @@ class Store:
             dl
         ), "No datalayer set. This probably happened because you never connected the datalayer. Please connect (either with async or sync) and try again."
         if self._openstore is None:
-            self._openstore = xr.open_zarr(
-                store=dl.fs.get_mapper(self.value), consolidated=True
-            )["data"]
+            try:
+                self._openstore = xr.open_zarr(
+                    store=dl.open_store(self.value), consolidated=True
+                )["data"]
+            except PermissionError as e:
+                dl.reconnect()
+                self._openstore = xr.open_zarr(
+                    store=dl.open_store(self.value), consolidated=True
+                )["data"]
 
         return self._openstore
 
-    def aopen(self, dl=None):
+    async def aopen(self, dl=None):
         """Opens the store and returns the zarr store object.
 
         The store is opened on the first access and then cached for later use. This is done to avoid
@@ -190,9 +229,15 @@ class Store:
             dl
         ), "No datalayer set. This probably happened because you never connected the datalayer. Please connect (either with async or sync) and try again."
         if self._openstore is None:
-            self._openstore = xr.open_zarr(
-                store=dl.fs.get_mapper(self.value), consolidated=True
-            )["data"]
+            try:
+                self._openstore = xr.open_zarr(
+                    store=dl.open_store(self.value), consolidated=True
+                )["data"]
+            except PermissionError as e:
+                await dl.areconnect()
+                self._openstore = xr.open_zarr(
+                    store=dl.open_store(self.value), consolidated=True
+                )["data"]
 
         return self._openstore
 
@@ -224,11 +269,11 @@ class Parquet:
     opening the store on every access. This is done to avoid unnecessary requests to the datalayer api.
     """
 
-    def __init__(self, value) -> None:
+    def __init__(self, value: str) -> None:
         self.value = value
         self._openstore = None
 
-    def open(self, dl=None):
+    def open(self, dl: Optional["DataLayer"] = None):
         from mikro.datalayer import current_datalayer
         import pyarrow.parquet as pq
 
@@ -270,14 +315,28 @@ class File:
     def __init__(self, value) -> None:
         self.value = value
 
-    def download(self, dl=None):
+    def download(
+        self, dl: Optional["DataLayer"] = None, filename: Optional[str] = None
+    ) -> str:
+        """Downloads the file to the current working directory.
+
+        Args:
+            dl (DataLayer, optional): The datalayer. Defaults to active datalayer.
+            filename (str, optional): The filename to save the file as. Defaults to the original filename.
+
+        Returns:
+            str: The filename of the downloaded file.
+        """
         from mikro.datalayer import current_datalayer
         import requests
         import shutil
 
         dl = dl or current_datalayer.get()
+        assert (
+            dl
+        ), "No datalayer set. This probably happened because you never connected the datalayer. Please connect (either with async or sync) and try again."
         url = f"{dl.endpoint_url}{self.value}"
-        local_filename = self.value.split("/")[-1].split("?")[0]
+        local_filename = filename or self.value.split("/")[-1].split("?")[0]
         with requests.get(url, stream=True) as r:
             with open(local_filename, "wb") as f:
                 shutil.copyfileobj(r.raw, f)
@@ -309,7 +368,6 @@ class File:
         return f"File({self.value})"
 
 
-
 class ModelFile:
     """A custom scalar to enable uploading files to the datalayer
     it enables serialization of everythign
@@ -320,13 +378,11 @@ class ModelFile:
     def __init__(self, value) -> None:
         self.value = value
 
-
     @classmethod
     def __get_validators__(cls):
         # one or more validators may be yielded which will be called in the
         # order to validate the input, each validator will receive as an input
         # the value returned from the previous validator
-
 
         yield cls.validate
 
@@ -338,14 +394,11 @@ class ModelFile:
         # exactly
         if isinstance(v, str):
             return cls(open(v, "rb"))
-        
 
         return cls(v)
 
     def __repr__(self):
         return f"ModelFile({self.value})"
-
-
 
 
 class ModelData:
@@ -384,7 +437,6 @@ class ModelData:
         # one or more validators may be yielded which will be called in the
         # order to validate the input, each validator will receive as an input
         # the value returned from the previous validator
-
 
         yield cls.validate
 

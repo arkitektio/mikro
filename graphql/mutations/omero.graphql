@@ -6,3 +6,12 @@ mutation upload_bioimage($file: ImageFile!, $name: String) {
     name
   }
 }
+
+mutation upload_bigfile($file: BigFile!, $datasets: [ID]) {
+  uploadBigFile(file: $file, datasets: $datasets) {
+    id
+    file
+    type
+    name
+  }
+}

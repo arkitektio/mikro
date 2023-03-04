@@ -16,8 +16,8 @@ query expand_context($id: ID!) {
   }
 }
 
-query search_contexts($search: String) {
-  options: mycontexts(name: $search, limit: 30) {
+query search_contexts($search: String, $values: [ID]) {
+  options: mycontexts(name: $search, limit: 30, ids: $values) {
     value: id
     label: name
   }

@@ -1,13 +1,23 @@
 fragment ListLink on DataLink {
-  relation
+  relation {
+    id
+    name
+  }
   id
+  leftId
+  rightId
+  leftType
+  rightType
 }
 
 fragment Link on DataLink {
-  relation
+  relation {
+    id
+    name
+  }
   id
-  xId
-  yId
+  leftId
+  rightId
   leftType
   rightType
 }

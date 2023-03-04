@@ -10,8 +10,8 @@ query expand_thumbnail($id: ID!) {
   }
 }
 
-query search_thumbnails($search: String) {
-  options: thumbnails(name: $search, limit: 20) {
+query search_thumbnails($search: String, $values: [ID]) {
+  options: thumbnails(name: $search, limit: 20, ids: $values) {
     value: id
     label: image
   }

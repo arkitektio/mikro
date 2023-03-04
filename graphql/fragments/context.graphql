@@ -2,8 +2,8 @@ fragment Context on Context {
   id
   name
   links {
-    xId
-    yId
+    leftId
+    rightId
     leftType
     rightType
   }

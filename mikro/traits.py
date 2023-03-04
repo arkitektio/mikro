@@ -12,7 +12,7 @@ If you want to add your own traits to the graphql type, you can do so by adding 
 """
 
 from asyncio import get_running_loop
-from typing import Awaitable, List, TypeVar, Tuple
+from typing import Awaitable, List, TypeVar, Tuple, Protocol, Optional
 import numpy as np
 from pydantic import BaseModel
 import xarray as xr
@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from mikro.api.schema import InputVector
+    from mikro.api.schema import PhysicalSizeInput
 
 
 class Representation(BaseModel):
@@ -35,16 +36,17 @@ class Representation(BaseModel):
 
     """
 
-    def get_identifier():
+    @classmethod
+    def get_identifier(cls) -> str:
         return "@mikro/representation"
 
     @property
     def data(self) -> xr.DataArray:
         """The Data of the Representation as an xr.DataArray
-        
+
         Will be of shape [c,t,z,y,x]
-        
-        
+
+
         Attention: Not accessible from asyncio
 
         Returns:
@@ -76,42 +78,44 @@ class Representation(BaseModel):
 
         return await pstore.aopen()
 
-
     def _repr_html_(self):
-        return f'<h3>{getattr(self, "name", "No name queried")}</h3>' + (self.omero._repr_html_() if hasattr(self, "omero") else  "No metadata<br/>") + (self.data._repr_html_() if hasattr(self, "store") else "No data queried")
+        return (
+            f'<h3>{getattr(self, "name", "No name queried")}</h3>'
+            + (
+                self.omero._repr_html_()
+                if hasattr(self, "omero")
+                else "No metadata<br/>"
+            )
+            + (self.data._repr_html_() if hasattr(self, "store") else "No data queried")
+        )
 
 
 class Omero(BaseModel):
-
-
     def _repr_html_(self):
-        return f'''<div>
+        return f"""<div>
         OMERO
         <table>
             {f'<tr><td>Position</td><td>{self.position._repr_html_inline_()}</tr>' if getattr(self, "position", None) else  ''}
             {f'<tr><td>PhysicalSize</td><td>{self.physical_size}</tr>' if getattr(self, "physical_size", None) else ''}
             {f'<tr><td>Objective</td><td>{self.objective.id}</tr>' if getattr(self, "objective", None) else ''}
         </table>
-         </div>'''
+         </div>"""
 
-class Objective:
-
-    def _repr_html_(self):
-        return "<h4>Objective</h4>"
 
 class Position:
     pass
 
     def _repr_html_inline_(self):
-        return f'''X={getattr(self, "x", "No x queried")} Y={getattr(self, "y", "No y queried")} Z={getattr(self, "z", "No z queried")}'''
+        return f"""X={getattr(self, "x", "No x queried")} Y={getattr(self, "y", "No y queried")} Z={getattr(self, "z", "No z queried")}"""
 
     def _repr_html_(self):
-        return f'''<div>
+        return f"""<div>
         <h4>Position</h4>
         <table>
             {f'<tr><td>Stage</td><td>{self.stage.id}</tr>' if getattr(self, "stage", None) else  ''}
         </table>
-            </div>'''
+            </div>"""
+
 
 class Stage:
     pass
@@ -120,7 +124,9 @@ class Stage:
 class Objective:
     """Additional Methods for ROI"""
 
-    def calculate_physical(self, stage: Stage, t: int = 1, c: int = 1):
+    def calculate_physical(
+        self, stage: Stage, t: int = 1, c: int = 1
+    ) -> "PhysicalSizeInput":
         """Calculate the new physical values of the ROI
 
         Args:
@@ -168,7 +174,6 @@ class ROI(BaseModel):
         accesors = list(dims)
         return np.array([[getattr(v, ac) for ac in accesors] for v in vector_list])
 
-
     def center(self) -> "InputVector":
         """The center of the ROI
 
@@ -179,11 +184,18 @@ class ROI(BaseModel):
             InputVector: The center of the ROI
         """
         from mikro.api.schema import RoiTypeInput, InputVector
-        assert hasattr(self, "type"), "Please query 'type' in your request on 'ROI'. Center is not accessible otherwise"
-        if self.type == RoiTypeInput.RECTANGLE:
-            return InputVector.from_array(self.get_vector_data(dims="ctzyx").mean(axis=0))
 
-        raise NotImplementedError(f"Center calculation not implemented for this ROI type {self.type}")
+        assert hasattr(
+            self, "type"
+        ), "Please query 'type' in your request on 'ROI'. Center is not accessible otherwise"
+        if self.type == RoiTypeInput.RECTANGLE:
+            return InputVector.from_array(
+                self.get_vector_data(dims="ctzyx").mean(axis=0)
+            )
+
+        raise NotImplementedError(
+            f"Center calculation not implemented for this ROI type {self.type}"
+        )
 
     def center_as_array(self) -> np.ndarray:
         """The center of the ROI
@@ -195,12 +207,16 @@ class ROI(BaseModel):
             InputVector: The center of the ROI
         """
         from mikro.api.schema import RoiTypeInput, InputVector
-        assert hasattr(self, "type"), "Please query 'type' in your request on 'ROI'. Center is not accessible otherwise"
+
+        assert hasattr(
+            self, "type"
+        ), "Please query 'type' in your request on 'ROI'. Center is not accessible otherwise"
         if self.type == RoiTypeInput.RECTANGLE:
             return self.get_vector_data(dims="ctzyx").mean(axis=0)
 
-        raise NotImplementedError(f"Center calculation not implemented for this ROI type {self.type}")
-
+        raise NotImplementedError(
+            f"Center calculation not implemented for this ROI type {self.type}"
+        )
 
 
 class Table(BaseModel, ShrinkByID):
@@ -228,7 +244,38 @@ class Table(BaseModel, ShrinkByID):
         return pstore.open()
 
 
-T = TypeVar("T", bound="BaseModel")
+V = TypeVar("V")
+
+
+class Vector(Protocol):
+    """A Protocol for Vectorizable data
+
+    Attributes:
+        x (float): The x value
+        y (float): The y value
+        z (float): The z value
+        t (float): The t value
+        c (float): The c value
+    """
+
+    x: float
+    y: float
+    z: float
+    t: float
+    c: float
+
+    def __call__(
+        self: V,
+        x: Optional[int] = None,
+        y: Optional[int] = None,
+        z: Optional[int] = None,
+        t: Optional[int] = None,
+        c: Optional[int] = None,
+    ) -> V:
+        ...
+
+
+T = TypeVar("T", bound=Vector)
 
 
 class Vectorizable:
@@ -237,7 +284,13 @@ class Vectorizable:
     """
 
     @classmethod
-    def list_from_numpyarray(cls: T, x: np.ndarray, t=None, c=None, z=None) -> List[T]:
+    def list_from_numpyarray(
+        cls: T,
+        x: np.ndarray,
+        t: Optional[int] = None,
+        c: Optional[int] = None,
+        z: Optional[int] = None,
+    ) -> List[T]:
         """Creates a list of InputVector from a numpya array
 
         Args:
@@ -259,7 +312,9 @@ class Vectorizable:
                 f"Incompatible shape {x.shape} of {x}. List dimension needs to either be of size 2 or 3"
             )
 
-
     @classmethod
-    def from_array(cls: T, x: np.ndarray,) -> T:
+    def from_array(
+        cls: T,
+        x: np.ndarray,
+    ) -> T:
         return cls(x=x[4], y=x[3], z=x[2], t=x[1], c=x[0])

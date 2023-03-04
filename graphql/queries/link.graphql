@@ -12,14 +12,17 @@ query Links(
     context: $context
     limit: $limit
   ) {
-    relation
-    x {
+    relation {
+      id
+      name
+    }
+    left {
       ... on Representation {
         id
         store
       }
     }
-    y {
+    right {
       ... on Representation {
         id
         store
@@ -40,15 +43,18 @@ query get_image_image_links(
     context: $context
     limit: $limit
   ) {
-    relation
-    x {
+    relation {
+      id
+      name
+    }
+    left {
       ... on Representation {
         id
         store
         variety
       }
     }
-    y {
+    right {
       ... on Representation {
         id
         store
@@ -70,9 +76,9 @@ query expand_link($id: ID!) {
   }
 }
 
-query search_links($search: String) {
-  options: links(relation: $search, limit: 30) {
+query search_links($search: String, $values: [ID]) {
+  options: links(relation: $search, limit: 30, ids: $values) {
     value: id
-    label: relation
+    label: id
   }
 }

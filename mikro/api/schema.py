@@ -1,32 +1,33 @@
-from typing import Iterator, Optional, List, Dict, Literal, AsyncIterator, Tuple
-from mikro.funcs import subscribe, execute, asubscribe, aexecute
+from typing import Optional, Iterator, AsyncIterator, Literal, List, Tuple, Dict
+from mikro.funcs import execute, asubscribe, aexecute, subscribe
 from mikro.scalars import (
-    XArrayInput,
-    AffineMatrix,
-    File,
     ParquetInput,
-    Store,
-    MetricValue,
-    ModelFile,
-    Parquet,
     FeatureValue,
+    Store,
+    ModelFile,
+    XArrayInput,
+    BigFile,
+    Parquet,
+    AffineMatrix,
+    MetricValue,
+    File,
     ModelData,
 )
 from mikro.traits import (
-    Stage,
-    Table,
-    Representation,
-    Vectorizable,
-    Position,
     Omero,
-    ROI,
+    Stage,
+    Vectorizable,
     Objective,
+    Position,
+    Representation,
+    ROI,
+    Table,
 )
-from pydantic import Field, BaseModel
 from mikro.rath import MikroRath
-from enum import Enum
-from datetime import datetime
+from pydantic import BaseModel, Field
 from rath.scalars import ID
+from datetime import datetime
+from enum import Enum
 
 
 class CommentableModels(str, Enum):
@@ -37,6 +38,7 @@ class CommentableModels(str, Enum):
     GRUNNLAG_DATASET = "GRUNNLAG_DATASET"
     GRUNNLAG_EXPERIMENT = "GRUNNLAG_EXPERIMENT"
     GRUNNLAG_CONTEXT = "GRUNNLAG_CONTEXT"
+    GRUNNLAG_RELATION = "GRUNNLAG_RELATION"
     GRUNNLAG_DATALINK = "GRUNNLAG_DATALINK"
     GRUNNLAG_EXPERIMENTALGROUP = "GRUNNLAG_EXPERIMENTALGROUP"
     GRUNNLAG_ANIMAL = "GRUNNLAG_ANIMAL"
@@ -65,6 +67,7 @@ class SharableModels(str, Enum):
     GRUNNLAG_DATASET = "GRUNNLAG_DATASET"
     GRUNNLAG_EXPERIMENT = "GRUNNLAG_EXPERIMENT"
     GRUNNLAG_CONTEXT = "GRUNNLAG_CONTEXT"
+    GRUNNLAG_RELATION = "GRUNNLAG_RELATION"
     GRUNNLAG_DATALINK = "GRUNNLAG_DATALINK"
     GRUNNLAG_EXPERIMENTALGROUP = "GRUNNLAG_EXPERIMENTALGROUP"
     GRUNNLAG_ANIMAL = "GRUNNLAG_ANIMAL"
@@ -122,6 +125,7 @@ class LinkableModels(str, Enum):
     GRUNNLAG_DATASET = "GRUNNLAG_DATASET"
     GRUNNLAG_EXPERIMENT = "GRUNNLAG_EXPERIMENT"
     GRUNNLAG_CONTEXT = "GRUNNLAG_CONTEXT"
+    GRUNNLAG_RELATION = "GRUNNLAG_RELATION"
     GRUNNLAG_DATALINK = "GRUNNLAG_DATALINK"
     GRUNNLAG_EXPERIMENTALGROUP = "GRUNNLAG_EXPERIMENTALGROUP"
     GRUNNLAG_ANIMAL = "GRUNNLAG_ANIMAL"
@@ -285,6 +289,8 @@ class DescendendInput(BaseModel):
 
     class Config:
         frozen = True
+        extra = "forbid"
+        use_enum_values = True
 
 
 class GroupAssignmentInput(BaseModel):
@@ -293,6 +299,8 @@ class GroupAssignmentInput(BaseModel):
 
     class Config:
         frozen = True
+        extra = "forbid"
+        use_enum_values = True
 
 
 class UserAssignmentInput(BaseModel):
@@ -302,6 +310,8 @@ class UserAssignmentInput(BaseModel):
 
     class Config:
         frozen = True
+        extra = "forbid"
+        use_enum_values = True
 
 
 class OmeroRepresentationInput(BaseModel):
@@ -330,6 +340,8 @@ class OmeroRepresentationInput(BaseModel):
 
     class Config:
         frozen = True
+        extra = "forbid"
+        use_enum_values = True
 
 
 class PlaneInput(BaseModel):
@@ -365,6 +377,8 @@ class PlaneInput(BaseModel):
 
     class Config:
         frozen = True
+        extra = "forbid"
+        use_enum_values = True
 
 
 class ChannelInput(BaseModel):
@@ -386,6 +400,8 @@ class ChannelInput(BaseModel):
 
     class Config:
         frozen = True
+        extra = "forbid"
+        use_enum_values = True
 
 
 class PhysicalSizeInput(BaseModel):
@@ -414,6 +430,8 @@ class PhysicalSizeInput(BaseModel):
 
     class Config:
         frozen = True
+        extra = "forbid"
+        use_enum_values = True
 
 
 class ObjectiveSettingsInput(BaseModel):
@@ -432,6 +450,8 @@ class ObjectiveSettingsInput(BaseModel):
 
     class Config:
         frozen = True
+        extra = "forbid"
+        use_enum_values = True
 
 
 class ImagingEnvironmentInput(BaseModel):
@@ -452,6 +472,8 @@ class ImagingEnvironmentInput(BaseModel):
 
     class Config:
         frozen = True
+        extra = "forbid"
+        use_enum_values = True
 
 
 class InputVector(Vectorizable, BaseModel):
@@ -468,12 +490,14 @@ class InputVector(Vectorizable, BaseModel):
 
     class Config:
         frozen = True
+        extra = "forbid"
+        use_enum_values = True
 
 
 class LabelFragmentRepresentation(Representation, BaseModel):
     """A Representation is 5-dimensional representation of an image
 
-    Mikro stores each image as a 5-dimensional representation. The dimensions are:
+    Mikro stores each image as sa 5-dimensional representation. The dimensions are:
     - t: time
     - c: channel
     - z: z-stack
@@ -503,7 +527,9 @@ class LabelFragmentRepresentation(Representation, BaseModel):
 
     """
 
-    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
+    typename: Optional[Literal["Representation"]] = Field(
+        alias="__typename", exclude=True
+    )
     id: ID
     name: Optional[str]
     "Cleartext name"
@@ -513,7 +539,7 @@ class LabelFragmentRepresentation(Representation, BaseModel):
 
 
 class LabelFragment(BaseModel):
-    typename: Optional[Literal["Label"]] = Field(alias="__typename")
+    typename: Optional[Literal["Label"]] = Field(alias="__typename", exclude=True)
     instance: int
     "The instance value of the representation (pixel value). Must be a value of the image array"
     id: ID
@@ -527,9 +553,11 @@ class LabelFragment(BaseModel):
 class ContextFragmentLinks(BaseModel):
     """DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)"""
 
-    typename: Optional[Literal["DataLink"]] = Field(alias="__typename")
-    x_id: int = Field(alias="xId")
-    y_id: int = Field(alias="yId")
+    typename: Optional[Literal["DataLink"]] = Field(alias="__typename", exclude=True)
+    left_id: ID = Field(alias="leftId")
+    "X"
+    right_id: ID = Field(alias="rightId")
+    "Y"
     left_type: Optional[LinkableModels] = Field(alias="leftType")
     "Left Type"
     right_type: Optional[LinkableModels] = Field(alias="rightType")
@@ -540,7 +568,7 @@ class ContextFragmentLinks(BaseModel):
 
 
 class ContextFragment(BaseModel):
-    typename: Optional[Literal["Context"]] = Field(alias="__typename")
+    typename: Optional[Literal["Context"]] = Field(alias="__typename", exclude=True)
     id: ID
     name: str
     "The name of the context"
@@ -551,7 +579,7 @@ class ContextFragment(BaseModel):
 
 
 class ListContextFragment(BaseModel):
-    typename: Optional[Literal["Context"]] = Field(alias="__typename")
+    typename: Optional[Literal["Context"]] = Field(alias="__typename", exclude=True)
     id: ID
     name: str
     "The name of the context"
@@ -561,7 +589,7 @@ class ListContextFragment(BaseModel):
 
 
 class ThumbnailFragment(BaseModel):
-    typename: Optional[Literal["Thumbnail"]] = Field(alias="__typename")
+    typename: Optional[Literal["Thumbnail"]] = Field(alias="__typename", exclude=True)
     id: ID
     image: Optional[str]
 
@@ -584,7 +612,7 @@ class TableFragmentCreator(BaseModel):
 
     See the documentation for "Object Level Permissions" for more information."""
 
-    typename: Optional[Literal["User"]] = Field(alias="__typename")
+    typename: Optional[Literal["User"]] = Field(alias="__typename", exclude=True)
     email: str
 
     class Config:
@@ -594,7 +622,7 @@ class TableFragmentCreator(BaseModel):
 class TableFragmentSample(BaseModel):
     """Samples are storage containers for representations. A Sample is to be understood analogous to a Biological Sample. It existed in Time (the time of acquisiton and experimental procedure), was measured in space (x,y,z) and in different modalities (c). Sample therefore provide a datacontainer where each Representation of the data shares the same dimensions. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample"""
 
-    typename: Optional[Literal["Sample"]] = Field(alias="__typename")
+    typename: Optional[Literal["Sample"]] = Field(alias="__typename", exclude=True)
     id: ID
 
     class Config:
@@ -604,7 +632,7 @@ class TableFragmentSample(BaseModel):
 class TableFragmentReporigins(Representation, BaseModel):
     """A Representation is 5-dimensional representation of an image
 
-    Mikro stores each image as a 5-dimensional representation. The dimensions are:
+    Mikro stores each image as sa 5-dimensional representation. The dimensions are:
     - t: time
     - c: channel
     - z: z-stack
@@ -634,7 +662,9 @@ class TableFragmentReporigins(Representation, BaseModel):
 
     """
 
-    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
+    typename: Optional[Literal["Representation"]] = Field(
+        alias="__typename", exclude=True
+    )
     id: ID
 
     class Config:
@@ -651,7 +681,7 @@ class TableFragmentExperiment(BaseModel):
     to how you would group files into folders in a file system.
     """
 
-    typename: Optional[Literal["Experiment"]] = Field(alias="__typename")
+    typename: Optional[Literal["Experiment"]] = Field(alias="__typename", exclude=True)
     id: ID
 
     class Config:
@@ -659,7 +689,7 @@ class TableFragmentExperiment(BaseModel):
 
 
 class TableFragment(Table, BaseModel):
-    typename: Optional[Literal["Table"]] = Field(alias="__typename")
+    typename: Optional[Literal["Table"]] = Field(alias="__typename", exclude=True)
     id: ID
     name: str
     tags: Optional[Tuple[Optional[str], ...]]
@@ -679,23 +709,57 @@ class TableFragment(Table, BaseModel):
         frozen = True
 
 
-class ListLinkFragment(BaseModel):
-    typename: Optional[Literal["DataLink"]] = Field(alias="__typename")
-    relation: Optional[str]
-    "Relation"
+class ListLinkFragmentRelation(BaseModel):
+    """Relation(id, name, description)"""
+
+    typename: Optional[Literal["Relation"]] = Field(alias="__typename", exclude=True)
     id: ID
+    name: str
+    "The name of the relation"
+
+    class Config:
+        frozen = True
+
+
+class ListLinkFragment(BaseModel):
+    typename: Optional[Literal["DataLink"]] = Field(alias="__typename", exclude=True)
+    relation: ListLinkFragmentRelation
+    "The relation between the two objects"
+    id: ID
+    left_id: ID = Field(alias="leftId")
+    "X"
+    right_id: ID = Field(alias="rightId")
+    "Y"
+    left_type: Optional[LinkableModels] = Field(alias="leftType")
+    "Left Type"
+    right_type: Optional[LinkableModels] = Field(alias="rightType")
+    "Left Type"
+
+    class Config:
+        frozen = True
+
+
+class LinkFragmentRelation(BaseModel):
+    """Relation(id, name, description)"""
+
+    typename: Optional[Literal["Relation"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    name: str
+    "The name of the relation"
 
     class Config:
         frozen = True
 
 
 class LinkFragment(BaseModel):
-    typename: Optional[Literal["DataLink"]] = Field(alias="__typename")
-    relation: Optional[str]
-    "Relation"
+    typename: Optional[Literal["DataLink"]] = Field(alias="__typename", exclude=True)
+    relation: LinkFragmentRelation
+    "The relation between the two objects"
     id: ID
-    x_id: int = Field(alias="xId")
-    y_id: int = Field(alias="yId")
+    left_id: ID = Field(alias="leftId")
+    "X"
+    right_id: ID = Field(alias="rightId")
+    "Y"
     left_type: Optional[LinkableModels] = Field(alias="leftType")
     "Left Type"
     right_type: Optional[LinkableModels] = Field(alias="rightType")
@@ -706,7 +770,7 @@ class LinkFragment(BaseModel):
 
 
 class StageFragment(Stage, BaseModel):
-    typename: Optional[Literal["Stage"]] = Field(alias="__typename")
+    typename: Optional[Literal["Stage"]] = Field(alias="__typename", exclude=True)
     id: ID
     kind: Optional[AcquisitionKind]
     "The kind of acquisition"
@@ -718,7 +782,7 @@ class StageFragment(Stage, BaseModel):
 
 
 class ListStageFragment(Stage, BaseModel):
-    typename: Optional[Literal["Stage"]] = Field(alias="__typename")
+    typename: Optional[Literal["Stage"]] = Field(alias="__typename", exclude=True)
     id: ID
     name: str
     "The name of the stage"
@@ -732,7 +796,7 @@ class ListStageFragment(Stage, BaseModel):
 class SampleFragmentRepresentations(Representation, BaseModel):
     """A Representation is 5-dimensional representation of an image
 
-    Mikro stores each image as a 5-dimensional representation. The dimensions are:
+    Mikro stores each image as sa 5-dimensional representation. The dimensions are:
     - t: time
     - c: channel
     - z: z-stack
@@ -762,7 +826,9 @@ class SampleFragmentRepresentations(Representation, BaseModel):
 
     """
 
-    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
+    typename: Optional[Literal["Representation"]] = Field(
+        alias="__typename", exclude=True
+    )
     id: ID
 
     class Config:
@@ -779,7 +845,7 @@ class SampleFragmentExperiments(BaseModel):
     to how you would group files into folders in a file system.
     """
 
-    typename: Optional[Literal["Experiment"]] = Field(alias="__typename")
+    typename: Optional[Literal["Experiment"]] = Field(alias="__typename", exclude=True)
     id: ID
 
     class Config:
@@ -787,7 +853,7 @@ class SampleFragmentExperiments(BaseModel):
 
 
 class SampleFragment(BaseModel):
-    typename: Optional[Literal["Sample"]] = Field(alias="__typename")
+    typename: Optional[Literal["Sample"]] = Field(alias="__typename", exclude=True)
     name: str
     "The name of the sample"
     id: ID
@@ -801,7 +867,7 @@ class SampleFragment(BaseModel):
 
 
 class ROIFragmentVectors(BaseModel):
-    typename: Optional[Literal["Vector"]] = Field(alias="__typename")
+    typename: Optional[Literal["Vector"]] = Field(alias="__typename", exclude=True)
     x: Optional[float]
     "X-coordinate"
     y: Optional[float]
@@ -820,7 +886,7 @@ class ROIFragmentVectors(BaseModel):
 class ROIFragmentRepresentation(Representation, BaseModel):
     """A Representation is 5-dimensional representation of an image
 
-    Mikro stores each image as a 5-dimensional representation. The dimensions are:
+    Mikro stores each image as sa 5-dimensional representation. The dimensions are:
     - t: time
     - c: channel
     - z: z-stack
@@ -850,7 +916,9 @@ class ROIFragmentRepresentation(Representation, BaseModel):
 
     """
 
-    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
+    typename: Optional[Literal["Representation"]] = Field(
+        alias="__typename", exclude=True
+    )
     id: ID
     shape: Optional[Tuple[int, ...]]
     "The arrays shape format [c,t,z,y,x]"
@@ -862,7 +930,7 @@ class ROIFragmentRepresentation(Representation, BaseModel):
 class ROIFragmentDerivedrepresentations(Representation, BaseModel):
     """A Representation is 5-dimensional representation of an image
 
-    Mikro stores each image as a 5-dimensional representation. The dimensions are:
+    Mikro stores each image as sa 5-dimensional representation. The dimensions are:
     - t: time
     - c: channel
     - z: z-stack
@@ -892,7 +960,9 @@ class ROIFragmentDerivedrepresentations(Representation, BaseModel):
 
     """
 
-    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
+    typename: Optional[Literal["Representation"]] = Field(
+        alias="__typename", exclude=True
+    )
     id: ID
 
     class Config:
@@ -914,7 +984,7 @@ class ROIFragmentCreator(BaseModel):
 
     See the documentation for "Object Level Permissions" for more information."""
 
-    typename: Optional[Literal["User"]] = Field(alias="__typename")
+    typename: Optional[Literal["User"]] = Field(alias="__typename", exclude=True)
     email: str
     id: ID
     color: str
@@ -925,7 +995,7 @@ class ROIFragmentCreator(BaseModel):
 
 
 class ROIFragment(ROI, BaseModel):
-    typename: Optional[Literal["ROI"]] = Field(alias="__typename")
+    typename: Optional[Literal["ROI"]] = Field(alias="__typename", exclude=True)
     id: ID
     label: Optional[str]
     "The label of the ROI (for UI)"
@@ -946,7 +1016,7 @@ class ROIFragment(ROI, BaseModel):
 
 
 class ListROIFragmentVectors(BaseModel):
-    typename: Optional[Literal["Vector"]] = Field(alias="__typename")
+    typename: Optional[Literal["Vector"]] = Field(alias="__typename", exclude=True)
     x: Optional[float]
     "X-coordinate"
     y: Optional[float]
@@ -965,7 +1035,7 @@ class ListROIFragmentVectors(BaseModel):
 class ListROIFragmentRepresentation(Representation, BaseModel):
     """A Representation is 5-dimensional representation of an image
 
-    Mikro stores each image as a 5-dimensional representation. The dimensions are:
+    Mikro stores each image as sa 5-dimensional representation. The dimensions are:
     - t: time
     - c: channel
     - z: z-stack
@@ -995,7 +1065,9 @@ class ListROIFragmentRepresentation(Representation, BaseModel):
 
     """
 
-    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
+    typename: Optional[Literal["Representation"]] = Field(
+        alias="__typename", exclude=True
+    )
     id: ID
 
     class Config:
@@ -1017,7 +1089,7 @@ class ListROIFragmentCreator(BaseModel):
 
     See the documentation for "Object Level Permissions" for more information."""
 
-    typename: Optional[Literal["User"]] = Field(alias="__typename")
+    typename: Optional[Literal["User"]] = Field(alias="__typename", exclude=True)
     email: str
     id: ID
     color: str
@@ -1028,7 +1100,7 @@ class ListROIFragmentCreator(BaseModel):
 
 
 class ListROIFragment(ROI, BaseModel):
-    typename: Optional[Literal["ROI"]] = Field(alias="__typename")
+    typename: Optional[Literal["ROI"]] = Field(alias="__typename", exclude=True)
     id: ID
     label: Optional[str]
     "The label of the ROI (for UI)"
@@ -1048,7 +1120,7 @@ class ListROIFragment(ROI, BaseModel):
 class FeatureFragmentLabelRepresentation(Representation, BaseModel):
     """A Representation is 5-dimensional representation of an image
 
-    Mikro stores each image as a 5-dimensional representation. The dimensions are:
+    Mikro stores each image as sa 5-dimensional representation. The dimensions are:
     - t: time
     - c: channel
     - z: z-stack
@@ -1078,7 +1150,9 @@ class FeatureFragmentLabelRepresentation(Representation, BaseModel):
 
     """
 
-    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
+    typename: Optional[Literal["Representation"]] = Field(
+        alias="__typename", exclude=True
+    )
     id: ID
 
     class Config:
@@ -1098,7 +1172,7 @@ class FeatureFragmentLabel(BaseModel):
 
     """
 
-    typename: Optional[Literal["Label"]] = Field(alias="__typename")
+    typename: Optional[Literal["Label"]] = Field(alias="__typename", exclude=True)
     instance: int
     "The instance value of the representation (pixel value). Must be a value of the image array"
     representation: Optional[FeatureFragmentLabelRepresentation]
@@ -1109,7 +1183,7 @@ class FeatureFragmentLabel(BaseModel):
 
 
 class FeatureFragment(BaseModel):
-    typename: Optional[Literal["Feature"]] = Field(alias="__typename")
+    typename: Optional[Literal["Feature"]] = Field(alias="__typename", exclude=True)
     label: Optional[FeatureFragmentLabel]
     "The Label this Feature belongs to"
     id: ID
@@ -1123,7 +1197,7 @@ class FeatureFragment(BaseModel):
 
 
 class InstrumentFragment(BaseModel):
-    typename: Optional[Literal["Instrument"]] = Field(alias="__typename")
+    typename: Optional[Literal["Instrument"]] = Field(alias="__typename", exclude=True)
     id: ID
     dichroics: Optional[Dict]
     detectors: Optional[Dict]
@@ -1153,7 +1227,7 @@ class ExperimentFragmentCreator(BaseModel):
 
     See the documentation for "Object Level Permissions" for more information."""
 
-    typename: Optional[Literal["User"]] = Field(alias="__typename")
+    typename: Optional[Literal["User"]] = Field(alias="__typename", exclude=True)
     email: str
 
     class Config:
@@ -1161,7 +1235,7 @@ class ExperimentFragmentCreator(BaseModel):
 
 
 class ExperimentFragment(BaseModel):
-    typename: Optional[Literal["Experiment"]] = Field(alias="__typename")
+    typename: Optional[Literal["Experiment"]] = Field(alias="__typename", exclude=True)
     id: ID
     name: str
     "The name of the experiment"
@@ -1173,7 +1247,7 @@ class ExperimentFragment(BaseModel):
 
 
 class ListExperimentFragment(BaseModel):
-    typename: Optional[Literal["Experiment"]] = Field(alias="__typename")
+    typename: Optional[Literal["Experiment"]] = Field(alias="__typename", exclude=True)
     id: ID
     name: str
     "The name of the experiment"
@@ -1185,7 +1259,7 @@ class ListExperimentFragment(BaseModel):
 class RepresentationFragmentSample(BaseModel):
     """Samples are storage containers for representations. A Sample is to be understood analogous to a Biological Sample. It existed in Time (the time of acquisiton and experimental procedure), was measured in space (x,y,z) and in different modalities (c). Sample therefore provide a datacontainer where each Representation of the data shares the same dimensions. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample"""
 
-    typename: Optional[Literal["Sample"]] = Field(alias="__typename")
+    typename: Optional[Literal["Sample"]] = Field(alias="__typename", exclude=True)
     id: ID
     name: str
     "The name of the sample"
@@ -1207,7 +1281,9 @@ class RepresentationFragmentOmeroPhysicalsize(BaseModel):
     The t dimension is given in ms, since the time is given in ms.
     The C dimension is given in nm, since the wavelength is given in nm."""
 
-    typename: Optional[Literal["PhysicalSize"]] = Field(alias="__typename")
+    typename: Optional[Literal["PhysicalSize"]] = Field(
+        alias="__typename", exclude=True
+    )
     x: Optional[float]
     "Physical size of *one* Pixel in the x dimension (in µm)"
     y: Optional[float]
@@ -1230,7 +1306,7 @@ class RepresentationFragmentOmeroPositionStage(Stage, BaseModel):
 
     """
 
-    typename: Optional[Literal["Stage"]] = Field(alias="__typename")
+    typename: Optional[Literal["Stage"]] = Field(alias="__typename", exclude=True)
     id: ID
 
     class Config:
@@ -1240,7 +1316,7 @@ class RepresentationFragmentOmeroPositionStage(Stage, BaseModel):
 class RepresentationFragmentOmeroPosition(Position, BaseModel):
     """The relative position of a sample on a microscope stage"""
 
-    typename: Optional[Literal["Position"]] = Field(alias="__typename")
+    typename: Optional[Literal["Position"]] = Field(alias="__typename", exclude=True)
     id: ID
     x: float
     "pixelSize for x in microns"
@@ -1260,7 +1336,7 @@ class RepresentationFragmentOmeroChannels(BaseModel):
     Channels can be highly variable in their properties. This class is a
     representation of the most common properties of a channel."""
 
-    typename: Optional[Literal["Channel"]] = Field(alias="__typename")
+    typename: Optional[Literal["Channel"]] = Field(alias="__typename", exclude=True)
     name: Optional[str]
     "The name of the channel"
     color: Optional[str]
@@ -1278,7 +1354,7 @@ class RepresentationFragmentOmero(Omero, BaseModel):
 
     """
 
-    typename: Optional[Literal["Omero"]] = Field(alias="__typename")
+    typename: Optional[Literal["Omero"]] = Field(alias="__typename", exclude=True)
     scale: Optional[Tuple[Optional[float], ...]]
     physical_size: Optional[RepresentationFragmentOmeroPhysicalsize] = Field(
         alias="physicalSize"
@@ -1294,7 +1370,7 @@ class RepresentationFragmentOmero(Omero, BaseModel):
 class RepresentationFragmentOrigins(Representation, BaseModel):
     """A Representation is 5-dimensional representation of an image
 
-    Mikro stores each image as a 5-dimensional representation. The dimensions are:
+    Mikro stores each image as sa 5-dimensional representation. The dimensions are:
     - t: time
     - c: channel
     - z: z-stack
@@ -1324,7 +1400,9 @@ class RepresentationFragmentOrigins(Representation, BaseModel):
 
     """
 
-    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
+    typename: Optional[Literal["Representation"]] = Field(
+        alias="__typename", exclude=True
+    )
     id: ID
     store: Optional[Store]
     variety: RepresentationVariety
@@ -1335,7 +1413,9 @@ class RepresentationFragmentOrigins(Representation, BaseModel):
 
 
 class RepresentationFragment(Representation, BaseModel):
-    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
+    typename: Optional[Literal["Representation"]] = Field(
+        alias="__typename", exclude=True
+    )
     sample: Optional[RepresentationFragmentSample]
     "The Sample this representation belosngs to"
     shape: Optional[Tuple[int, ...]]
@@ -1354,7 +1434,9 @@ class RepresentationFragment(Representation, BaseModel):
 
 
 class ListRepresentationFragment(Representation, BaseModel):
-    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
+    typename: Optional[Literal["Representation"]] = Field(
+        alias="__typename", exclude=True
+    )
     id: ID
     shape: Optional[Tuple[int, ...]]
     "The arrays shape format [c,t,z,y,x]"
@@ -1369,7 +1451,7 @@ class ListRepresentationFragment(Representation, BaseModel):
 class ModelFragmentContexts(BaseModel):
     """Context(id, created_by, created_through, name, created_at, experiment, creator)"""
 
-    typename: Optional[Literal["Context"]] = Field(alias="__typename")
+    typename: Optional[Literal["Context"]] = Field(alias="__typename", exclude=True)
     id: ID
     name: str
     "The name of the context"
@@ -1379,7 +1461,7 @@ class ModelFragmentContexts(BaseModel):
 
 
 class ModelFragment(BaseModel):
-    typename: Optional[Literal["Model"]] = Field(alias="__typename")
+    typename: Optional[Literal["Model"]] = Field(alias="__typename", exclude=True)
     id: ID
     data: Optional[ModelData]
     "The model data"
@@ -1397,7 +1479,7 @@ class ModelFragment(BaseModel):
 class MetricFragmentRepresentation(Representation, BaseModel):
     """A Representation is 5-dimensional representation of an image
 
-    Mikro stores each image as a 5-dimensional representation. The dimensions are:
+    Mikro stores each image as sa 5-dimensional representation. The dimensions are:
     - t: time
     - c: channel
     - z: z-stack
@@ -1427,7 +1509,9 @@ class MetricFragmentRepresentation(Representation, BaseModel):
 
     """
 
-    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
+    typename: Optional[Literal["Representation"]] = Field(
+        alias="__typename", exclude=True
+    )
     id: ID
 
     class Config:
@@ -1449,7 +1533,7 @@ class MetricFragmentCreator(BaseModel):
 
     See the documentation for "Object Level Permissions" for more information."""
 
-    typename: Optional[Literal["User"]] = Field(alias="__typename")
+    typename: Optional[Literal["User"]] = Field(alias="__typename", exclude=True)
     id: ID
 
     class Config:
@@ -1457,7 +1541,7 @@ class MetricFragmentCreator(BaseModel):
 
 
 class MetricFragment(BaseModel):
-    typename: Optional[Literal["Metric"]] = Field(alias="__typename")
+    typename: Optional[Literal["Metric"]] = Field(alias="__typename", exclude=True)
     id: ID
     representation: Optional[MetricFragmentRepresentation]
     "The Representatoin this Metric belongs to"
@@ -1480,7 +1564,7 @@ class DatasetFragmentParent(BaseModel):
 
     """
 
-    typename: Optional[Literal["Dataset"]] = Field(alias="__typename")
+    typename: Optional[Literal["Dataset"]] = Field(alias="__typename", exclude=True)
     id: ID
 
     class Config:
@@ -1490,7 +1574,7 @@ class DatasetFragmentParent(BaseModel):
 class DatasetFragmentRepresentations(Representation, BaseModel):
     """A Representation is 5-dimensional representation of an image
 
-    Mikro stores each image as a 5-dimensional representation. The dimensions are:
+    Mikro stores each image as sa 5-dimensional representation. The dimensions are:
     - t: time
     - c: channel
     - z: z-stack
@@ -1520,7 +1604,9 @@ class DatasetFragmentRepresentations(Representation, BaseModel):
 
     """
 
-    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
+    typename: Optional[Literal["Representation"]] = Field(
+        alias="__typename", exclude=True
+    )
     id: ID
     name: Optional[str]
     "Cleartext name"
@@ -1530,7 +1616,7 @@ class DatasetFragmentRepresentations(Representation, BaseModel):
 
 
 class DatasetFragmentOmerofiles(BaseModel):
-    typename: Optional[Literal["OmeroFile"]] = Field(alias="__typename")
+    typename: Optional[Literal["OmeroFile"]] = Field(alias="__typename", exclude=True)
     id: ID
     name: str
     "The name of the file"
@@ -1540,7 +1626,7 @@ class DatasetFragmentOmerofiles(BaseModel):
 
 
 class DatasetFragment(BaseModel):
-    typename: Optional[Literal["Dataset"]] = Field(alias="__typename")
+    typename: Optional[Literal["Dataset"]] = Field(alias="__typename", exclude=True)
     id: ID
     name: str
     "The name of the experiment"
@@ -1553,7 +1639,7 @@ class DatasetFragment(BaseModel):
 
 
 class ListDatasetFragment(BaseModel):
-    typename: Optional[Literal["Dataset"]] = Field(alias="__typename")
+    typename: Optional[Literal["Dataset"]] = Field(alias="__typename", exclude=True)
     id: ID
     name: str
     "The name of the experiment"
@@ -1570,7 +1656,7 @@ class OmeroFileFragmentDatasets(BaseModel):
 
     """
 
-    typename: Optional[Literal["Dataset"]] = Field(alias="__typename")
+    typename: Optional[Literal["Dataset"]] = Field(alias="__typename", exclude=True)
     id: ID
 
     class Config:
@@ -1587,7 +1673,7 @@ class OmeroFileFragmentExperiments(BaseModel):
     to how you would group files into folders in a file system.
     """
 
-    typename: Optional[Literal["Experiment"]] = Field(alias="__typename")
+    typename: Optional[Literal["Experiment"]] = Field(alias="__typename", exclude=True)
     id: ID
 
     class Config:
@@ -1595,7 +1681,7 @@ class OmeroFileFragmentExperiments(BaseModel):
 
 
 class OmeroFileFragment(BaseModel):
-    typename: Optional[Literal["OmeroFile"]] = Field(alias="__typename")
+    typename: Optional[Literal["OmeroFile"]] = Field(alias="__typename", exclude=True)
     datasets: Tuple[OmeroFileFragmentDatasets, ...]
     id: ID
     name: str
@@ -1619,7 +1705,7 @@ class PositionFragmentOmeros(Omero, BaseModel):
 
     """
 
-    typename: Optional[Literal["Omero"]] = Field(alias="__typename")
+    typename: Optional[Literal["Omero"]] = Field(alias="__typename", exclude=True)
     representation: ListRepresentationFragment
 
     class Config:
@@ -1627,7 +1713,7 @@ class PositionFragmentOmeros(Omero, BaseModel):
 
 
 class PositionFragment(Position, BaseModel):
-    typename: Optional[Literal["Position"]] = Field(alias="__typename")
+    typename: Optional[Literal["Position"]] = Field(alias="__typename", exclude=True)
     id: ID
     stage: ListStageFragment
     x: float
@@ -1644,7 +1730,7 @@ class PositionFragment(Position, BaseModel):
 
 
 class ObjectiveFragment(Objective, BaseModel):
-    typename: Optional[Literal["Objective"]] = Field(alias="__typename")
+    typename: Optional[Literal["Objective"]] = Field(alias="__typename", exclude=True)
     id: ID
     name: str
     magnification: Optional[float]
@@ -1663,7 +1749,7 @@ class Watch_samplesSubscriptionMysamplesUpdateExperiments(BaseModel):
     to how you would group files into folders in a file system.
     """
 
-    typename: Optional[Literal["Experiment"]] = Field(alias="__typename")
+    typename: Optional[Literal["Experiment"]] = Field(alias="__typename", exclude=True)
     name: str
     "The name of the experiment"
 
@@ -1674,7 +1760,7 @@ class Watch_samplesSubscriptionMysamplesUpdateExperiments(BaseModel):
 class Watch_samplesSubscriptionMysamplesUpdate(BaseModel):
     """Samples are storage containers for representations. A Sample is to be understood analogous to a Biological Sample. It existed in Time (the time of acquisiton and experimental procedure), was measured in space (x,y,z) and in different modalities (c). Sample therefore provide a datacontainer where each Representation of the data shares the same dimensions. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample"""
 
-    typename: Optional[Literal["Sample"]] = Field(alias="__typename")
+    typename: Optional[Literal["Sample"]] = Field(alias="__typename", exclude=True)
     id: ID
     name: str
     "The name of the sample"
@@ -1695,7 +1781,7 @@ class Watch_samplesSubscriptionMysamplesCreateExperiments(BaseModel):
     to how you would group files into folders in a file system.
     """
 
-    typename: Optional[Literal["Experiment"]] = Field(alias="__typename")
+    typename: Optional[Literal["Experiment"]] = Field(alias="__typename", exclude=True)
     name: str
     "The name of the experiment"
 
@@ -1706,7 +1792,7 @@ class Watch_samplesSubscriptionMysamplesCreateExperiments(BaseModel):
 class Watch_samplesSubscriptionMysamplesCreate(BaseModel):
     """Samples are storage containers for representations. A Sample is to be understood analogous to a Biological Sample. It existed in Time (the time of acquisiton and experimental procedure), was measured in space (x,y,z) and in different modalities (c). Sample therefore provide a datacontainer where each Representation of the data shares the same dimensions. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample"""
 
-    typename: Optional[Literal["Sample"]] = Field(alias="__typename")
+    typename: Optional[Literal["Sample"]] = Field(alias="__typename", exclude=True)
     name: str
     "The name of the sample"
     experiments: Tuple[Watch_samplesSubscriptionMysamplesCreateExperiments, ...]
@@ -1717,7 +1803,9 @@ class Watch_samplesSubscriptionMysamplesCreate(BaseModel):
 
 
 class Watch_samplesSubscriptionMysamples(BaseModel):
-    typename: Optional[Literal["SamplesEvent"]] = Field(alias="__typename")
+    typename: Optional[Literal["SamplesEvent"]] = Field(
+        alias="__typename", exclude=True
+    )
     update: Optional[Watch_samplesSubscriptionMysamplesUpdate]
     create: Optional[Watch_samplesSubscriptionMysamplesCreate]
 
@@ -1736,7 +1824,7 @@ class Watch_samplesSubscription(BaseModel):
 
 
 class Watch_roisSubscriptionRois(BaseModel):
-    typename: Optional[Literal["RoiEvent"]] = Field(alias="__typename")
+    typename: Optional[Literal["RoiEvent"]] = Field(alias="__typename", exclude=True)
     update: Optional[ListROIFragment]
     delete: Optional[ID]
     create: Optional[ListROIFragment]
@@ -1768,7 +1856,7 @@ class Create_labelMutationCreatelabel(BaseModel):
 
     """
 
-    typename: Optional[Literal["Label"]] = Field(alias="__typename")
+    typename: Optional[Literal["Label"]] = Field(alias="__typename", exclude=True)
     id: ID
     instance: int
     "The instance value of the representation (pixel value). Must be a value of the image array"
@@ -1800,7 +1888,7 @@ class Create_contextMutation(BaseModel):
         experiment: Optional[ID] = None
 
     class Meta:
-        document = "fragment Context on Context {\n  id\n  name\n  links {\n    xId\n    yId\n    leftType\n    rightType\n  }\n}\n\nmutation create_context($name: String!, $experiment: ID) {\n  createContext(name: $name, experiment: $experiment) {\n    ...Context\n  }\n}"
+        document = "fragment Context on Context {\n  id\n  name\n  links {\n    leftId\n    rightId\n    leftType\n    rightType\n  }\n}\n\nmutation create_context($name: String!, $experiment: ID) {\n  createContext(name: $name, experiment: $experiment) {\n    ...Context\n  }\n}"
 
 
 class Create_thumbnailMutation(BaseModel):
@@ -1844,7 +1932,7 @@ class LinkMutation(BaseModel):
     "Create an Comment \n    \n    This mutation creates a comment. It takes a commentable_id and a commentable_type.\n    If this is the first comment on the commentable, it will create a new comment thread.\n    If there is already a comment thread, it will add the comment to the thread (by setting\n    it's parent to the last parent comment in the thread).\n\n    CreateComment takes a list of Descendents, which are the comment tree. The Descendents\n    are a recursive structure, where each Descendent can have a list of Descendents as children.\n    The Descendents are either a Leaf, which is a text node, or a MentionDescendent, which is a\n    reference to another user on the platform.\n\n    Please convert your comment tree to a list of Descendents before sending it to the server.\n    TODO: Add a converter from a comment tree to a list of Descendents.\n\n    \n    (only signed in users)"
 
     class Arguments(BaseModel):
-        relation: str
+        relation: ID
         x_type: LinkableModels
         x_id: ID
         y_type: LinkableModels
@@ -1852,7 +1940,7 @@ class LinkMutation(BaseModel):
         context: Optional[ID] = None
 
     class Meta:
-        document = "fragment ListLink on DataLink {\n  relation\n  id\n}\n\nmutation link($relation: String!, $x_type: LinkableModels!, $x_id: ID!, $y_type: LinkableModels!, $y_id: ID!, $context: ID) {\n  link(\n    relation: $relation\n    xType: $x_type\n    xId: $x_id\n    yType: $y_type\n    yId: $y_id\n    context: $context\n  ) {\n    ...ListLink\n  }\n}"
+        document = "fragment ListLink on DataLink {\n  relation {\n    id\n    name\n  }\n  id\n  leftId\n  rightId\n  leftType\n  rightType\n}\n\nmutation link($relation: ID!, $x_type: LinkableModels!, $x_id: ID!, $y_type: LinkableModels!, $y_id: ID!, $context: ID) {\n  link(\n    relation: $relation\n    xType: $x_type\n    xId: $x_id\n    yType: $y_type\n    yId: $y_id\n    context: $context\n  ) {\n    ...ListLink\n  }\n}"
 
 
 class Link_rep_to_repMutation(BaseModel):
@@ -1860,13 +1948,13 @@ class Link_rep_to_repMutation(BaseModel):
     "Create an Comment \n    \n    This mutation creates a comment. It takes a commentable_id and a commentable_type.\n    If this is the first comment on the commentable, it will create a new comment thread.\n    If there is already a comment thread, it will add the comment to the thread (by setting\n    it's parent to the last parent comment in the thread).\n\n    CreateComment takes a list of Descendents, which are the comment tree. The Descendents\n    are a recursive structure, where each Descendent can have a list of Descendents as children.\n    The Descendents are either a Leaf, which is a text node, or a MentionDescendent, which is a\n    reference to another user on the platform.\n\n    Please convert your comment tree to a list of Descendents before sending it to the server.\n    TODO: Add a converter from a comment tree to a list of Descendents.\n\n    \n    (only signed in users)"
 
     class Arguments(BaseModel):
-        relation: str
+        relation: ID
         left_rep: ID
         right_rep: ID
         context: Optional[ID] = None
 
     class Meta:
-        document = "fragment ListLink on DataLink {\n  relation\n  id\n}\n\nmutation link_rep_to_rep($relation: String!, $left_rep: ID!, $right_rep: ID!, $context: ID) {\n  link(\n    relation: $relation\n    xType: GRUNNLAG_REPRESENTATION\n    xId: $left_rep\n    yType: GRUNNLAG_REPRESENTATION\n    yId: $right_rep\n    context: $context\n  ) {\n    ...ListLink\n  }\n}"
+        document = "fragment ListLink on DataLink {\n  relation {\n    id\n    name\n  }\n  id\n  leftId\n  rightId\n  leftType\n  rightType\n}\n\nmutation link_rep_to_rep($relation: ID!, $left_rep: ID!, $right_rep: ID!, $context: ID) {\n  link(\n    relation: $relation\n    xType: GRUNNLAG_REPRESENTATION\n    xId: $left_rep\n    yType: GRUNNLAG_REPRESENTATION\n    yId: $right_rep\n    context: $context\n  ) {\n    ...ListLink\n  }\n}"
 
 
 class Create_stageMutation(BaseModel):
@@ -1898,7 +1986,7 @@ class Create_sampleMutationCreatesampleCreator(BaseModel):
 
     See the documentation for "Object Level Permissions" for more information."""
 
-    typename: Optional[Literal["User"]] = Field(alias="__typename")
+    typename: Optional[Literal["User"]] = Field(alias="__typename", exclude=True)
     email: str
 
     class Config:
@@ -1908,7 +1996,7 @@ class Create_sampleMutationCreatesampleCreator(BaseModel):
 class Create_sampleMutationCreatesample(BaseModel):
     """Samples are storage containers for representations. A Sample is to be understood analogous to a Biological Sample. It existed in Time (the time of acquisiton and experimental procedure), was measured in space (x,y,z) and in different modalities (c). Sample therefore provide a datacontainer where each Representation of the data shares the same dimensions. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample"""
 
-    typename: Optional[Literal["Sample"]] = Field(alias="__typename")
+    typename: Optional[Literal["Sample"]] = Field(alias="__typename", exclude=True)
     id: ID
     name: str
     "The name of the sample"
@@ -1955,7 +2043,7 @@ class Create_roiMutation(BaseModel):
 class Create_roisMutationCreaterois(Representation, BaseModel):
     """A Representation is 5-dimensional representation of an image
 
-    Mikro stores each image as a 5-dimensional representation. The dimensions are:
+    Mikro stores each image as sa 5-dimensional representation. The dimensions are:
     - t: time
     - c: channel
     - z: z-stack
@@ -1985,7 +2073,9 @@ class Create_roisMutationCreaterois(Representation, BaseModel):
 
     """
 
-    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
+    typename: Optional[Literal["Representation"]] = Field(
+        alias="__typename", exclude=True
+    )
     id: ID
 
     class Config:
@@ -2011,7 +2101,7 @@ class Create_roisMutation(BaseModel):
 class Create_featureMutationCreatefeatureLabelRepresentation(Representation, BaseModel):
     """A Representation is 5-dimensional representation of an image
 
-    Mikro stores each image as a 5-dimensional representation. The dimensions are:
+    Mikro stores each image as sa 5-dimensional representation. The dimensions are:
     - t: time
     - c: channel
     - z: z-stack
@@ -2041,7 +2131,9 @@ class Create_featureMutationCreatefeatureLabelRepresentation(Representation, Bas
 
     """
 
-    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
+    typename: Optional[Literal["Representation"]] = Field(
+        alias="__typename", exclude=True
+    )
     id: ID
 
     class Config:
@@ -2061,7 +2153,7 @@ class Create_featureMutationCreatefeatureLabel(BaseModel):
 
     """
 
-    typename: Optional[Literal["Label"]] = Field(alias="__typename")
+    typename: Optional[Literal["Label"]] = Field(alias="__typename", exclude=True)
     id: ID
     representation: Optional[Create_featureMutationCreatefeatureLabelRepresentation]
     "The Representation this Label instance belongs to"
@@ -2086,7 +2178,7 @@ class Create_featureMutationCreatefeature(BaseModel):
 
     """
 
-    typename: Optional[Literal["Feature"]] = Field(alias="__typename")
+    typename: Optional[Literal["Feature"]] = Field(alias="__typename", exclude=True)
     id: ID
     key: str
     "The key of the feature"
@@ -2130,6 +2222,41 @@ class Create_instrumentMutation(BaseModel):
 
     class Meta:
         document = "fragment Instrument on Instrument {\n  id\n  dichroics\n  detectors\n  filters\n  name\n  lotNumber\n  serialNumber\n  manufacturer\n  model\n}\n\nmutation create_instrument($detectors: [GenericScalar], $dichroics: [GenericScalar], $filters: [GenericScalar], $name: String!, $objectives: [ID], $lotNumber: String, $serialNumber: String, $model: String, $manufacturer: String) {\n  createInstrument(\n    detectors: $detectors\n    dichroics: $dichroics\n    filters: $filters\n    name: $name\n    lotNumber: $lotNumber\n    objectives: $objectives\n    serialNumber: $serialNumber\n    model: $model\n    manufacturer: $manufacturer\n  ) {\n    ...Instrument\n  }\n}"
+
+
+class PresignMutationPresignFields(BaseModel):
+    typename: Optional[Literal["PresignedFields"]] = Field(
+        alias="__typename", exclude=True
+    )
+    key: str
+    policy: str
+    x_amz_algorithm: str = Field(alias="xAmzAlgorithm")
+    x_amz_credential: str = Field(alias="xAmzCredential")
+    x_amz_date: str = Field(alias="xAmzDate")
+    x_amz_signature: str = Field(alias="xAmzSignature")
+
+    class Config:
+        frozen = True
+
+
+class PresignMutationPresign(BaseModel):
+    typename: Optional[Literal["Presigned"]] = Field(alias="__typename", exclude=True)
+    bucket: str
+    fields: PresignMutationPresignFields
+
+    class Config:
+        frozen = True
+
+
+class PresignMutation(BaseModel):
+    presign: Optional[PresignMutationPresign]
+    "Presign a file for upload"
+
+    class Arguments(BaseModel):
+        file_name: str
+
+    class Meta:
+        document = "mutation presign($file_name: String!) {\n  presign(file: $file_name) {\n    bucket\n    fields {\n      key\n      policy\n      xAmzAlgorithm\n      xAmzCredential\n      xAmzDate\n      xAmzSignature\n    }\n  }\n}"
 
 
 class Create_experimentMutation(BaseModel):
@@ -2241,7 +2368,7 @@ class Create_positionMutation(BaseModel):
         tags: Optional[List[Optional[str]]] = None
 
     class Meta:
-        document = 'fragment ListStage on Stage {\n  id\n  name\n  kind\n}\n\nfragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nmutation create_position($stage: ID!, $x: Float!, $y: Float!, $z: Float!, $tolerance: Float, $name: String, $tags: [String]) {\n  createPosition(\n    stage: $stage\n    x: $x\n    y: $y\n    z: $z\n    tags: $tags\n    name: $name\n    tolerance: $tolerance\n  ) {\n    ...Position\n  }\n}'
+        document = 'fragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment ListStage on Stage {\n  id\n  name\n  kind\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nmutation create_position($stage: ID!, $x: Float!, $y: Float!, $z: Float!, $tolerance: Float, $name: String, $tags: [String]) {\n  createPosition(\n    stage: $stage\n    x: $x\n    y: $y\n    z: $z\n    tags: $tags\n    name: $name\n    tolerance: $tolerance\n  ) {\n    ...Position\n  }\n}'
 
 
 class Create_objectiveMutation(BaseModel):
@@ -2260,7 +2387,7 @@ class Create_objectiveMutation(BaseModel):
 
 
 class Upload_bioimageMutationUploadomerofile(BaseModel):
-    typename: Optional[Literal["OmeroFile"]] = Field(alias="__typename")
+    typename: Optional[Literal["OmeroFile"]] = Field(alias="__typename", exclude=True)
     id: ID
     file: Optional[File]
     "The file"
@@ -2287,6 +2414,34 @@ class Upload_bioimageMutation(BaseModel):
         document = "mutation upload_bioimage($file: ImageFile!, $name: String) {\n  uploadOmeroFile(file: $file, name: $name) {\n    id\n    file\n    type\n    name\n  }\n}"
 
 
+class Upload_bigfileMutationUploadbigfile(BaseModel):
+    typename: Optional[Literal["OmeroFile"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    file: Optional[File]
+    "The file"
+    type: OmeroFileType
+    "The type of the file"
+    name: str
+    "The name of the file"
+
+    class Config:
+        frozen = True
+
+
+class Upload_bigfileMutation(BaseModel):
+    upload_big_file: Optional[Upload_bigfileMutationUploadbigfile] = Field(
+        alias="uploadBigFile"
+    )
+    "Upload a file to Mikro\n\n    This mutation uploads a file to Omero and returns the created OmeroFile.\n    "
+
+    class Arguments(BaseModel):
+        file: BigFile
+        datasets: Optional[List[Optional[ID]]] = None
+
+    class Meta:
+        document = "mutation upload_bigfile($file: BigFile!, $datasets: [ID]) {\n  uploadBigFile(file: $file, datasets: $datasets) {\n    id\n    file\n    type\n    name\n  }\n}"
+
+
 class Get_labelQueryLabelforFeatures(BaseModel):
     """A Feature is a numerical key value pair that is attached to a Label.
 
@@ -2303,7 +2458,7 @@ class Get_labelQueryLabelforFeatures(BaseModel):
 
     """
 
-    typename: Optional[Literal["Feature"]] = Field(alias="__typename")
+    typename: Optional[Literal["Feature"]] = Field(alias="__typename", exclude=True)
     id: ID
     key: str
     "The key of the feature"
@@ -2327,7 +2482,7 @@ class Get_labelQueryLabelfor(BaseModel):
 
     """
 
-    typename: Optional[Literal["Label"]] = Field(alias="__typename")
+    typename: Optional[Literal["Label"]] = Field(alias="__typename", exclude=True)
     id: ID
     features: Optional[Tuple[Optional[Get_labelQueryLabelforFeatures], ...]]
     "Features attached to this Label"
@@ -2372,7 +2527,7 @@ class Search_labelsQueryOptions(BaseModel):
 
     """
 
-    typename: Optional[Literal["Label"]] = Field(alias="__typename")
+    typename: Optional[Literal["Label"]] = Field(alias="__typename", exclude=True)
     label: Optional[str]
     "The name of the instance"
     value: ID
@@ -2387,9 +2542,10 @@ class Search_labelsQuery(BaseModel):
 
     class Arguments(BaseModel):
         search: Optional[str] = None
+        values: Optional[List[Optional[ID]]] = None
 
     class Meta:
-        document = "query search_labels($search: String) {\n  options: labels(name: $search, limit: 20) {\n    label: name\n    value: id\n  }\n}"
+        document = "query search_labels($search: String, $values: [ID]) {\n  options: labels(name: $search, limit: 20, ids: $values) {\n    label: name\n    value: id\n  }\n}"
 
 
 class Get_contextQuery(BaseModel):
@@ -2400,7 +2556,7 @@ class Get_contextQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Context on Context {\n  id\n  name\n  links {\n    xId\n    yId\n    leftType\n    rightType\n  }\n}\n\nquery get_context($id: ID!) {\n  context(id: $id) {\n    ...Context\n  }\n}"
+        document = "fragment Context on Context {\n  id\n  name\n  links {\n    leftId\n    rightId\n    leftType\n    rightType\n  }\n}\n\nquery get_context($id: ID!) {\n  context(id: $id) {\n    ...Context\n  }\n}"
 
 
 class Get_mycontextsQuery(BaseModel):
@@ -2423,13 +2579,13 @@ class Expand_contextQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Context on Context {\n  id\n  name\n  links {\n    xId\n    yId\n    leftType\n    rightType\n  }\n}\n\nquery expand_context($id: ID!) {\n  context(id: $id) {\n    ...Context\n  }\n}"
+        document = "fragment Context on Context {\n  id\n  name\n  links {\n    leftId\n    rightId\n    leftType\n    rightType\n  }\n}\n\nquery expand_context($id: ID!) {\n  context(id: $id) {\n    ...Context\n  }\n}"
 
 
 class Search_contextsQueryOptions(BaseModel):
     """Context(id, created_by, created_through, name, created_at, experiment, creator)"""
 
-    typename: Optional[Literal["Context"]] = Field(alias="__typename")
+    typename: Optional[Literal["Context"]] = Field(alias="__typename", exclude=True)
     value: ID
     label: str
     "The name of the context"
@@ -2444,9 +2600,10 @@ class Search_contextsQuery(BaseModel):
 
     class Arguments(BaseModel):
         search: Optional[str] = None
+        values: Optional[List[Optional[ID]]] = None
 
     class Meta:
-        document = "query search_contexts($search: String) {\n  options: mycontexts(name: $search, limit: 30) {\n    value: id\n    label: name\n  }\n}"
+        document = "query search_contexts($search: String, $values: [ID]) {\n  options: mycontexts(name: $search, limit: 30, ids: $values) {\n    value: id\n    label: name\n  }\n}"
 
 
 class ThumbnailQuery(BaseModel):
@@ -2477,7 +2634,7 @@ class Search_thumbnailsQueryOptions(BaseModel):
     Thumbnails can also store the major color of the representation. This is used to color the representation in the UI.
     """
 
-    typename: Optional[Literal["Thumbnail"]] = Field(alias="__typename")
+    typename: Optional[Literal["Thumbnail"]] = Field(alias="__typename", exclude=True)
     value: ID
     label: Optional[str]
 
@@ -2491,9 +2648,10 @@ class Search_thumbnailsQuery(BaseModel):
 
     class Arguments(BaseModel):
         search: Optional[str] = None
+        values: Optional[List[Optional[ID]]] = None
 
     class Meta:
-        document = "query search_thumbnails($search: String) {\n  options: thumbnails(name: $search, limit: 20) {\n    value: id\n    label: image\n  }\n}"
+        document = "query search_thumbnails($search: String, $values: [ID]) {\n  options: thumbnails(name: $search, limit: 20, ids: $values) {\n    value: id\n    label: image\n  }\n}"
 
 
 class Image_for_thumbnailQueryImage(BaseModel):
@@ -2502,7 +2660,7 @@ class Image_for_thumbnailQueryImage(BaseModel):
     Thumbnails can also store the major color of the representation. This is used to color the representation in the UI.
     """
 
-    typename: Optional[Literal["Thumbnail"]] = Field(alias="__typename")
+    typename: Optional[Literal["Thumbnail"]] = Field(alias="__typename", exclude=True)
     path: Optional[str]
     label: Optional[str]
 
@@ -2557,7 +2715,7 @@ class Search_tablesQueryOptions(Table, BaseModel):
 
     """
 
-    typename: Optional[Literal["Table"]] = Field(alias="__typename")
+    typename: Optional[Literal["Table"]] = Field(alias="__typename", exclude=True)
     value: ID
     label: str
 
@@ -2570,14 +2728,29 @@ class Search_tablesQuery(BaseModel):
     "My samples return all of the users samples attached to the current user"
 
     class Arguments(BaseModel):
-        pass
+        search: Optional[str] = None
+        values: Optional[List[Optional[ID]]] = None
 
     class Meta:
-        document = "query search_tables {\n  options: tables {\n    value: id\n    label: name\n  }\n}"
+        document = "query search_tables($search: String, $values: [ID]) {\n  options: tables(name: $search, limit: 30, ids: $values) {\n    value: id\n    label: name\n  }\n}"
 
 
-class LinksQueryLinksRepresentationInlineFragment(Representation):
-    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
+class LinksQueryLinksRelation(BaseModel):
+    """Relation(id, name, description)"""
+
+    typename: Optional[Literal["Relation"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    name: str
+    "The name of the relation"
+
+    class Config:
+        frozen = True
+
+
+class LinksQueryLinksRepresentationInlineFragment(Representation, BaseModel):
+    typename: Optional[Literal["Representation"]] = Field(
+        alias="__typename", exclude=True
+    )
     id: ID
     store: Optional[Store]
 
@@ -2585,8 +2758,10 @@ class LinksQueryLinksRepresentationInlineFragment(Representation):
         frozen = True
 
 
-class LinksQueryLinksRepresentationInlineFragment(Representation):
-    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
+class LinksQueryLinksRepresentationInlineFragment(Representation, BaseModel):
+    typename: Optional[Literal["Representation"]] = Field(
+        alias="__typename", exclude=True
+    )
     id: ID
     store: Optional[Store]
 
@@ -2597,12 +2772,12 @@ class LinksQueryLinksRepresentationInlineFragment(Representation):
 class LinksQueryLinks(BaseModel):
     """DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)"""
 
-    typename: Optional[Literal["DataLink"]] = Field(alias="__typename")
-    relation: Optional[str]
-    "Relation"
-    x: LinksQueryLinksRepresentationInlineFragment
+    typename: Optional[Literal["DataLink"]] = Field(alias="__typename", exclude=True)
+    relation: LinksQueryLinksRelation
+    "The relation between the two objects"
+    left: LinksQueryLinksRepresentationInlineFragment
     "X"
-    y: LinksQueryLinksRepresentationInlineFragment
+    right: LinksQueryLinksRepresentationInlineFragment
     "Y"
 
     class Config:
@@ -2621,11 +2796,27 @@ class LinksQuery(BaseModel):
         limit: Optional[int] = 10
 
     class Meta:
-        document = "query Links($x_type: LinkableModels!, $y_type: LinkableModels!, $relation: String!, $context: ID, $limit: Int = 10) {\n  links(\n    xType: $x_type\n    yType: $y_type\n    relation: $relation\n    context: $context\n    limit: $limit\n  ) {\n    relation\n    x {\n      ... on Representation {\n        id\n        store\n      }\n    }\n    y {\n      ... on Representation {\n        id\n        store\n      }\n    }\n  }\n}"
+        document = "query Links($x_type: LinkableModels!, $y_type: LinkableModels!, $relation: String!, $context: ID, $limit: Int = 10) {\n  links(\n    xType: $x_type\n    yType: $y_type\n    relation: $relation\n    context: $context\n    limit: $limit\n  ) {\n    relation {\n      id\n      name\n    }\n    left {\n      ... on Representation {\n        id\n        store\n      }\n    }\n    right {\n      ... on Representation {\n        id\n        store\n      }\n    }\n  }\n}"
 
 
-class Get_image_image_linksQueryLinksRepresentationInlineFragment(Representation):
-    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
+class Get_image_image_linksQueryLinksRelation(BaseModel):
+    """Relation(id, name, description)"""
+
+    typename: Optional[Literal["Relation"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    name: str
+    "The name of the relation"
+
+    class Config:
+        frozen = True
+
+
+class Get_image_image_linksQueryLinksRepresentationInlineFragment(
+    Representation, BaseModel
+):
+    typename: Optional[Literal["Representation"]] = Field(
+        alias="__typename", exclude=True
+    )
     id: ID
     store: Optional[Store]
     variety: RepresentationVariety
@@ -2635,8 +2826,12 @@ class Get_image_image_linksQueryLinksRepresentationInlineFragment(Representation
         frozen = True
 
 
-class Get_image_image_linksQueryLinksRepresentationInlineFragment(Representation):
-    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
+class Get_image_image_linksQueryLinksRepresentationInlineFragment(
+    Representation, BaseModel
+):
+    typename: Optional[Literal["Representation"]] = Field(
+        alias="__typename", exclude=True
+    )
     id: ID
     store: Optional[Store]
     variety: RepresentationVariety
@@ -2649,12 +2844,12 @@ class Get_image_image_linksQueryLinksRepresentationInlineFragment(Representation
 class Get_image_image_linksQueryLinks(BaseModel):
     """DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)"""
 
-    typename: Optional[Literal["DataLink"]] = Field(alias="__typename")
-    relation: Optional[str]
-    "Relation"
-    x: Get_image_image_linksQueryLinksRepresentationInlineFragment
+    typename: Optional[Literal["DataLink"]] = Field(alias="__typename", exclude=True)
+    relation: Get_image_image_linksQueryLinksRelation
+    "The relation between the two objects"
+    left: Get_image_image_linksQueryLinksRepresentationInlineFragment
     "X"
-    y: Get_image_image_linksQueryLinksRepresentationInlineFragment
+    right: Get_image_image_linksQueryLinksRepresentationInlineFragment
     "Y"
 
     class Config:
@@ -2671,7 +2866,7 @@ class Get_image_image_linksQuery(BaseModel):
         limit: Optional[int] = 10
 
     class Meta:
-        document = "query get_image_image_links($relation: String!, $context: ID, $limit: Int = 10) {\n  links(\n    xType: GRUNNLAG_REPRESENTATION\n    yType: GRUNNLAG_REPRESENTATION\n    relation: $relation\n    context: $context\n    limit: $limit\n  ) {\n    relation\n    x {\n      ... on Representation {\n        id\n        store\n        variety\n      }\n    }\n    y {\n      ... on Representation {\n        id\n        store\n        variety\n      }\n    }\n  }\n}"
+        document = "query get_image_image_links($relation: String!, $context: ID, $limit: Int = 10) {\n  links(\n    xType: GRUNNLAG_REPRESENTATION\n    yType: GRUNNLAG_REPRESENTATION\n    relation: $relation\n    context: $context\n    limit: $limit\n  ) {\n    relation {\n      id\n      name\n    }\n    left {\n      ... on Representation {\n        id\n        store\n        variety\n      }\n    }\n    right {\n      ... on Representation {\n        id\n        store\n        variety\n      }\n    }\n  }\n}"
 
 
 class Get_linkQuery(BaseModel):
@@ -2682,7 +2877,7 @@ class Get_linkQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Link on DataLink {\n  relation\n  id\n  xId\n  yId\n  leftType\n  rightType\n}\n\nquery get_link($id: ID!) {\n  link(id: $id) {\n    ...Link\n  }\n}"
+        document = "fragment Link on DataLink {\n  relation {\n    id\n    name\n  }\n  id\n  leftId\n  rightId\n  leftType\n  rightType\n}\n\nquery get_link($id: ID!) {\n  link(id: $id) {\n    ...Link\n  }\n}"
 
 
 class Expand_linkQuery(BaseModel):
@@ -2693,16 +2888,15 @@ class Expand_linkQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Link on DataLink {\n  relation\n  id\n  xId\n  yId\n  leftType\n  rightType\n}\n\nquery expand_link($id: ID!) {\n  link(id: $id) {\n    ...Link\n  }\n}"
+        document = "fragment Link on DataLink {\n  relation {\n    id\n    name\n  }\n  id\n  leftId\n  rightId\n  leftType\n  rightType\n}\n\nquery expand_link($id: ID!) {\n  link(id: $id) {\n    ...Link\n  }\n}"
 
 
 class Search_linksQueryOptions(BaseModel):
     """DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)"""
 
-    typename: Optional[Literal["DataLink"]] = Field(alias="__typename")
+    typename: Optional[Literal["DataLink"]] = Field(alias="__typename", exclude=True)
     value: ID
-    label: Optional[str]
-    "Relation"
+    label: ID
 
     class Config:
         frozen = True
@@ -2714,9 +2908,10 @@ class Search_linksQuery(BaseModel):
 
     class Arguments(BaseModel):
         search: Optional[str] = None
+        values: Optional[List[Optional[ID]]] = None
 
     class Meta:
-        document = "query search_links($search: String) {\n  options: links(relation: $search, limit: 30) {\n    value: id\n    label: relation\n  }\n}"
+        document = "query search_links($search: String, $values: [ID]) {\n  options: links(relation: $search, limit: 30, ids: $values) {\n    value: id\n    label: id\n  }\n}"
 
 
 class Get_stageQuery(BaseModel):
@@ -2748,7 +2943,7 @@ class Search_stagesQueryOptions(Stage, BaseModel):
 
     """
 
-    typename: Optional[Literal["Stage"]] = Field(alias="__typename")
+    typename: Optional[Literal["Stage"]] = Field(alias="__typename", exclude=True)
     value: ID
     label: str
     "The name of the stage"
@@ -2763,9 +2958,10 @@ class Search_stagesQuery(BaseModel):
 
     class Arguments(BaseModel):
         search: Optional[str] = None
+        values: Optional[List[Optional[ID]]] = None
 
     class Meta:
-        document = "query search_stages($search: String) {\n  options: stages(name: $search, limit: 30) {\n    value: id\n    label: name\n  }\n}"
+        document = "query search_stages($search: String, $values: [ID]) {\n  options: stages(name: $search, limit: 30, ids: $values) {\n    value: id\n    label: name\n  }\n}"
 
 
 class Get_display_stageQueryStagePositionsOmerosPhysicalsize(BaseModel):
@@ -2781,7 +2977,9 @@ class Get_display_stageQueryStagePositionsOmerosPhysicalsize(BaseModel):
     The t dimension is given in ms, since the time is given in ms.
     The C dimension is given in nm, since the wavelength is given in nm."""
 
-    typename: Optional[Literal["PhysicalSize"]] = Field(alias="__typename")
+    typename: Optional[Literal["PhysicalSize"]] = Field(
+        alias="__typename", exclude=True
+    )
     x: Optional[float]
     "Physical size of *one* Pixel in the x dimension (in µm)"
     y: Optional[float]
@@ -2800,7 +2998,7 @@ class Get_display_stageQueryStagePositionsOmerosRepresentation(
 ):
     """A Representation is 5-dimensional representation of an image
 
-    Mikro stores each image as a 5-dimensional representation. The dimensions are:
+    Mikro stores each image as sa 5-dimensional representation. The dimensions are:
     - t: time
     - c: channel
     - z: z-stack
@@ -2830,7 +3028,9 @@ class Get_display_stageQueryStagePositionsOmerosRepresentation(
 
     """
 
-    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
+    typename: Optional[Literal["Representation"]] = Field(
+        alias="__typename", exclude=True
+    )
     store: Optional[Store]
     id: ID
 
@@ -2846,7 +3046,7 @@ class Get_display_stageQueryStagePositionsOmeros(Omero, BaseModel):
 
     """
 
-    typename: Optional[Literal["Omero"]] = Field(alias="__typename")
+    typename: Optional[Literal["Omero"]] = Field(alias="__typename", exclude=True)
     physical_size: Optional[
         Get_display_stageQueryStagePositionsOmerosPhysicalsize
     ] = Field(alias="physicalSize")
@@ -2859,7 +3059,7 @@ class Get_display_stageQueryStagePositionsOmeros(Omero, BaseModel):
 class Get_display_stageQueryStagePositions(Position, BaseModel):
     """The relative position of a sample on a microscope stage"""
 
-    typename: Optional[Literal["Position"]] = Field(alias="__typename")
+    typename: Optional[Literal["Position"]] = Field(alias="__typename", exclude=True)
     x: float
     "pixelSize for x in microns"
     y: float
@@ -2880,7 +3080,7 @@ class Get_display_stageQueryStage(Stage, BaseModel):
 
     """
 
-    typename: Optional[Literal["Stage"]] = Field(alias="__typename")
+    typename: Optional[Literal["Stage"]] = Field(alias="__typename", exclude=True)
     id: ID
     positions: Tuple[Get_display_stageQueryStagePositions, ...]
 
@@ -2913,7 +3113,7 @@ class Get_sampleQuery(BaseModel):
 class Search_sampleQueryOptions(BaseModel):
     """Samples are storage containers for representations. A Sample is to be understood analogous to a Biological Sample. It existed in Time (the time of acquisiton and experimental procedure), was measured in space (x,y,z) and in different modalities (c). Sample therefore provide a datacontainer where each Representation of the data shares the same dimensions. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample"""
 
-    typename: Optional[Literal["Sample"]] = Field(alias="__typename")
+    typename: Optional[Literal["Sample"]] = Field(alias="__typename", exclude=True)
     value: ID
     label: str
     "The name of the sample"
@@ -2928,9 +3128,10 @@ class Search_sampleQuery(BaseModel):
 
     class Arguments(BaseModel):
         search: Optional[str] = None
+        values: Optional[List[Optional[ID]]] = None
 
     class Meta:
-        document = "query search_sample($search: String) {\n  options: samples(name: $search, limit: 20) {\n    value: id\n    label: name\n  }\n}"
+        document = "query search_sample($search: String, $values: [ID]) {\n  options: samples(name: $search, limit: 20, ids: $values) {\n    value: id\n    label: name\n  }\n}"
 
 
 class Expand_sampleQuery(BaseModel):
@@ -2991,7 +3192,7 @@ class Search_roisQueryOptions(ROI, BaseModel):
 
     """
 
-    typename: Optional[Literal["ROI"]] = Field(alias="__typename")
+    typename: Optional[Literal["ROI"]] = Field(alias="__typename", exclude=True)
     label: ID
     value: ID
 
@@ -3005,9 +3206,10 @@ class Search_roisQuery(BaseModel):
 
     class Arguments(BaseModel):
         search: Optional[str] = None
+        values: Optional[List[Optional[ID]]] = None
 
     class Meta:
-        document = "query search_rois($search: String) {\n  options: rois(repname: $search) {\n    label: id\n    value: id\n  }\n}"
+        document = "query search_rois($search: String, $values: [ID]) {\n  options: rois(repname: $search, ids: $values) {\n    label: id\n    value: id\n  }\n}"
 
 
 class Expand_featureQuery(BaseModel):
@@ -3037,7 +3239,7 @@ class Search_featuresQueryOptions(BaseModel):
 
     """
 
-    typename: Optional[Literal["Feature"]] = Field(alias="__typename")
+    typename: Optional[Literal["Feature"]] = Field(alias="__typename", exclude=True)
     label: str
     "The key of the feature"
     value: ID
@@ -3052,17 +3254,18 @@ class Search_featuresQuery(BaseModel):
 
     class Arguments(BaseModel):
         search: Optional[str] = None
+        values: Optional[List[Optional[ID]]] = None
 
     class Meta:
-        document = "query search_features($search: String) {\n  options: features(substring: $search, limit: 20) {\n    label: key\n    value: id\n  }\n}"
+        document = "query search_features($search: String, $values: [ID]) {\n  options: features(substring: $search, limit: 20, ids: $values) {\n    label: key\n    value: id\n  }\n}"
 
 
 class RequestQueryRequest(BaseModel):
-    typename: Optional[Literal["Credentials"]] = Field(alias="__typename")
-    access_key: Optional[str] = Field(alias="accessKey")
-    status: Optional[str]
-    secret_key: Optional[str] = Field(alias="secretKey")
-    session_token: Optional[str] = Field(alias="sessionToken")
+    typename: Optional[Literal["Credentials"]] = Field(alias="__typename", exclude=True)
+    access_key: str = Field(alias="accessKey")
+    status: str
+    secret_key: str = Field(alias="secretKey")
+    session_token: str = Field(alias="sessionToken")
 
     class Config:
         frozen = True
@@ -3105,7 +3308,7 @@ class Expand_instrumentQuery(BaseModel):
 class Search_instrumentsQueryOptions(BaseModel):
     """Instrument(id, created_by, created_through, name, detectors, dichroics, filters, lot_number, manufacturer, model, serial_number)"""
 
-    typename: Optional[Literal["Instrument"]] = Field(alias="__typename")
+    typename: Optional[Literal["Instrument"]] = Field(alias="__typename", exclude=True)
     value: ID
     label: str
 
@@ -3119,9 +3322,10 @@ class Search_instrumentsQuery(BaseModel):
 
     class Arguments(BaseModel):
         search: Optional[str] = None
+        values: Optional[List[Optional[ID]]] = None
 
     class Meta:
-        document = "query search_instruments($search: String) {\n  options: instruments(name: $search, limit: 30) {\n    value: id\n    label: name\n  }\n}"
+        document = "query search_instruments($search: String, $values: [ID]) {\n  options: instruments(name: $search, limit: 30, ids: $values) {\n    value: id\n    label: name\n  }\n}"
 
 
 class Get_experimentQuery(BaseModel):
@@ -3167,7 +3371,7 @@ class Search_experimentQueryOptions(BaseModel):
     to how you would group files into folders in a file system.
     """
 
-    typename: Optional[Literal["Experiment"]] = Field(alias="__typename")
+    typename: Optional[Literal["Experiment"]] = Field(alias="__typename", exclude=True)
     value: ID
     label: str
     "The name of the experiment"
@@ -3182,9 +3386,10 @@ class Search_experimentQuery(BaseModel):
 
     class Arguments(BaseModel):
         search: Optional[str] = None
+        values: Optional[List[Optional[ID]]] = None
 
     class Meta:
-        document = "query search_experiment($search: String) {\n  options: experiments(name: $search, limit: 30) {\n    value: id\n    label: name\n  }\n}"
+        document = "query search_experiment($search: String, $values: [ID]) {\n  options: experiments(name: $search, limit: 30, ids: $values) {\n    value: id\n    label: name\n  }\n}"
 
 
 class Expand_representationQuery(BaseModel):
@@ -3214,7 +3419,7 @@ class Get_representationQuery(BaseModel):
 class Search_representationQueryOptions(Representation, BaseModel):
     """A Representation is 5-dimensional representation of an image
 
-    Mikro stores each image as a 5-dimensional representation. The dimensions are:
+    Mikro stores each image as sa 5-dimensional representation. The dimensions are:
     - t: time
     - c: channel
     - z: z-stack
@@ -3244,7 +3449,9 @@ class Search_representationQueryOptions(Representation, BaseModel):
 
     """
 
-    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
+    typename: Optional[Literal["Representation"]] = Field(
+        alias="__typename", exclude=True
+    )
     value: ID
     label: Optional[str]
     "Cleartext name"
@@ -3259,9 +3466,10 @@ class Search_representationQuery(BaseModel):
 
     class Arguments(BaseModel):
         search: Optional[str] = None
+        values: Optional[List[Optional[ID]]] = None
 
     class Meta:
-        document = "query search_representation($search: String) {\n  options: representations(name: $search, limit: 20) {\n    value: id\n    label: name\n  }\n}"
+        document = "query search_representation($search: String, $values: [ID]) {\n  options: representations(name: $search, limit: 20, ids: $values) {\n    value: id\n    label: name\n  }\n}"
 
 
 class Get_random_repQuery(BaseModel):
@@ -3292,7 +3500,7 @@ class My_accessiblesQuery(BaseModel):
 
 
 class Search_tagsQueryOptions(BaseModel):
-    typename: Optional[Literal["Tag"]] = Field(alias="__typename")
+    typename: Optional[Literal["Tag"]] = Field(alias="__typename", exclude=True)
     value: str
     label: str
 
@@ -3306,9 +3514,10 @@ class Search_tagsQuery(BaseModel):
 
     class Arguments(BaseModel):
         search: Optional[str] = None
+        values: Optional[List[Optional[ID]]] = None
 
     class Meta:
-        document = "query search_tags($search: String) {\n  options: tags(name: $search) {\n    value: slug\n    label: name\n  }\n}"
+        document = "query search_tags($search: String, $values: [ID]) {\n  options: tags(name: $search, ids: $values) {\n    value: slug\n    label: name\n  }\n}"
 
 
 class Get_modelQuery(BaseModel):
@@ -3338,7 +3547,7 @@ class Search_modelsQueryOptions(BaseModel):
 
     Mikro uses the omero-meta data to create representations of the file. See Representation for more information."""
 
-    typename: Optional[Literal["Model"]] = Field(alias="__typename")
+    typename: Optional[Literal["Model"]] = Field(alias="__typename", exclude=True)
     label: str
     "The name of the model"
     value: ID
@@ -3349,13 +3558,14 @@ class Search_modelsQueryOptions(BaseModel):
 
 class Search_modelsQuery(BaseModel):
     options: Optional[Tuple[Optional[Search_modelsQueryOptions], ...]]
-    "All Labels\n    \n    This query returns all Labels that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Labels that the user has access to. If the user is an amdin\n    or superuser, all Labels will be returned.\n    "
+    "All Labels\n    \n    This query returns all Labels that are stored on the platform\n    depending on the user's permissions.s Generally, this query will return\n    all Labels that the user has access to. If the user is an amdin\n    or superuser, all Labels wsill be returned.\n    "
 
     class Arguments(BaseModel):
         search: Optional[str] = None
+        values: Optional[List[Optional[ID]]] = None
 
     class Meta:
-        document = "query search_models($search: String) {\n  options: models(name: $search, limit: 20) {\n    label: name\n    value: id\n  }\n}"
+        document = "query search_models($search: String, $values: [ID]) {\n  options: models(name: $search, limit: 20, ids: $values) {\n    label: name\n    value: id\n  }\n}"
 
 
 class Expand_metricQuery(BaseModel):
@@ -3412,7 +3622,7 @@ class Search_datasetsQueryOptions(BaseModel):
 
     """
 
-    typename: Optional[Literal["Dataset"]] = Field(alias="__typename")
+    typename: Optional[Literal["Dataset"]] = Field(alias="__typename", exclude=True)
     value: ID
     label: str
     "The name of the experiment"
@@ -3427,9 +3637,10 @@ class Search_datasetsQuery(BaseModel):
 
     class Arguments(BaseModel):
         search: Optional[str] = None
+        values: Optional[List[Optional[ID]]] = None
 
     class Meta:
-        document = "query search_datasets($search: String) {\n  options: datasets(name: $search, limit: 30) {\n    value: id\n    label: name\n  }\n}"
+        document = "query search_datasets($search: String, $values: [ID]) {\n  options: datasets(name: $search, limit: 30, ids: $values) {\n    value: id\n    label: name\n  }\n}"
 
 
 class ThiernoQueryRepresentationsSamplePinnedby(BaseModel):
@@ -3447,7 +3658,7 @@ class ThiernoQueryRepresentationsSamplePinnedby(BaseModel):
 
     See the documentation for "Object Level Permissions" for more information."""
 
-    typename: Optional[Literal["User"]] = Field(alias="__typename")
+    typename: Optional[Literal["User"]] = Field(alias="__typename", exclude=True)
     name: str
     "The name of the user"
 
@@ -3458,7 +3669,7 @@ class ThiernoQueryRepresentationsSamplePinnedby(BaseModel):
 class ThiernoQueryRepresentationsSample(BaseModel):
     """Samples are storage containers for representations. A Sample is to be understood analogous to a Biological Sample. It existed in Time (the time of acquisiton and experimental procedure), was measured in space (x,y,z) and in different modalities (c). Sample therefore provide a datacontainer where each Representation of the data shares the same dimensions. Every transaction to our image data is still part of the original acuqistion, so also filtered images are refering back to the sample"""
 
-    typename: Optional[Literal["Sample"]] = Field(alias="__typename")
+    typename: Optional[Literal["Sample"]] = Field(alias="__typename", exclude=True)
     id: ID
     pinned_by: Tuple[ThiernoQueryRepresentationsSamplePinnedby, ...] = Field(
         alias="pinnedBy"
@@ -3472,7 +3683,7 @@ class ThiernoQueryRepresentationsSample(BaseModel):
 class ThiernoQueryRepresentations(Representation, BaseModel):
     """A Representation is 5-dimensional representation of an image
 
-    Mikro stores each image as a 5-dimensional representation. The dimensions are:
+    Mikro stores each image as sa 5-dimensional representation. The dimensions are:
     - t: time
     - c: channel
     - z: z-stack
@@ -3502,7 +3713,9 @@ class ThiernoQueryRepresentations(Representation, BaseModel):
 
     """
 
-    typename: Optional[Literal["Representation"]] = Field(alias="__typename")
+    typename: Optional[Literal["Representation"]] = Field(
+        alias="__typename", exclude=True
+    )
     created_at: datetime = Field(alias="createdAt")
     store: Optional[Store]
     sample: Optional[ThiernoQueryRepresentationsSample]
@@ -3531,7 +3744,7 @@ class Get_positionQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = 'fragment ListStage on Stage {\n  id\n  name\n  kind\n}\n\nfragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nquery get_position($id: ID!) {\n  position(id: $id) {\n    ...Position\n  }\n}'
+        document = 'fragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment ListStage on Stage {\n  id\n  name\n  kind\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nquery get_position($id: ID!) {\n  position(id: $id) {\n    ...Position\n  }\n}'
 
 
 class Expand_positionQuery(BaseModel):
@@ -3542,13 +3755,13 @@ class Expand_positionQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = 'fragment ListStage on Stage {\n  id\n  name\n  kind\n}\n\nfragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nquery expand_position($id: ID!) {\n  position(id: $id) {\n    ...Position\n  }\n}'
+        document = 'fragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment ListStage on Stage {\n  id\n  name\n  kind\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nquery expand_position($id: ID!) {\n  position(id: $id) {\n    ...Position\n  }\n}'
 
 
 class Search_positionsQueryOptions(Position, BaseModel):
     """The relative position of a sample on a microscope stage"""
 
-    typename: Optional[Literal["Position"]] = Field(alias="__typename")
+    typename: Optional[Literal["Position"]] = Field(alias="__typename", exclude=True)
     value: ID
     label: str
     "The name of the possition"
@@ -3563,10 +3776,11 @@ class Search_positionsQuery(BaseModel):
 
     class Arguments(BaseModel):
         search: Optional[str] = None
+        values: Optional[List[Optional[ID]]] = None
         stage: Optional[ID] = None
 
     class Meta:
-        document = "query search_positions($search: String, $stage: ID) {\n  options: positions(name: $search, limit: 30, stage: $stage) {\n    value: id\n    label: name\n  }\n}"
+        document = "query search_positions($search: String, $values: [ID], $stage: ID) {\n  options: positions(name: $search, limit: 30, stage: $stage, ids: $values) {\n    value: id\n    label: name\n  }\n}"
 
 
 class Get_objectiveQuery(BaseModel):
@@ -3595,7 +3809,7 @@ class Expand_objectiveQuery(BaseModel):
 class Search_objectivesQueryOptions(Objective, BaseModel):
     """Objective(id, created_by, created_through, serial_number, name, magnification, na, immersion)"""
 
-    typename: Optional[Literal["Objective"]] = Field(alias="__typename")
+    typename: Optional[Literal["Objective"]] = Field(alias="__typename", exclude=True)
     value: ID
     label: str
 
@@ -3609,9 +3823,10 @@ class Search_objectivesQuery(BaseModel):
 
     class Arguments(BaseModel):
         search: Optional[str] = None
+        values: Optional[List[Optional[ID]]] = None
 
     class Meta:
-        document = "query search_objectives($search: String) {\n  options: objectives(search: $search) {\n    value: id\n    label: name\n  }\n}"
+        document = "query search_objectives($search: String, $values: [ID]) {\n  options: objectives(search: $search, ids: $values) {\n    value: id\n    label: name\n  }\n}"
 
 
 class Get_omero_fileQuery(BaseModel):
@@ -3637,7 +3852,7 @@ class Expand_omerofileQuery(BaseModel):
 
 
 class Search_omerofileQueryOptions(BaseModel):
-    typename: Optional[Literal["OmeroFile"]] = Field(alias="__typename")
+    typename: Optional[Literal["OmeroFile"]] = Field(alias="__typename", exclude=True)
     value: ID
     label: str
     "The name of the file"
@@ -3651,10 +3866,11 @@ class Search_omerofileQuery(BaseModel):
     "All OmeroFiles\n\n    This query returns all OmeroFiles that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all OmeroFiles that the user has access to. If the user is an amdin\n    or superuser, all OmeroFiles will be returned.\n    \n    "
 
     class Arguments(BaseModel):
-        search: str
+        search: Optional[str] = None
+        values: Optional[List[Optional[ID]]] = None
 
     class Meta:
-        document = "query search_omerofile($search: String!) {\n  options: omerofiles(name: $search) {\n    value: id\n    label: name\n  }\n}"
+        document = "query search_omerofile($search: String, $values: [ID]) {\n  options: omerofiles(name: $search, ids: $values) {\n    value: id\n    label: name\n  }\n}"
 
 
 async def awatch_samples(
@@ -4043,7 +4259,7 @@ def from_df(
 
 
 async def alink(
-    relation: str,
+    relation: ID,
     x_type: LinkableModels,
     x_id: ID,
     y_type: LinkableModels,
@@ -4058,7 +4274,7 @@ async def alink(
 
 
     Arguments:
-        relation (str): relation
+        relation (ID): relation
         x_type (LinkableModels): x_type
         x_id (ID): x_id
         y_type (LinkableModels): y_type
@@ -4085,7 +4301,7 @@ async def alink(
 
 
 def link(
-    relation: str,
+    relation: ID,
     x_type: LinkableModels,
     x_id: ID,
     y_type: LinkableModels,
@@ -4100,7 +4316,7 @@ def link(
 
 
     Arguments:
-        relation (str): relation
+        relation (ID): relation
         x_type (LinkableModels): x_type
         x_id (ID): x_id
         y_type (LinkableModels): y_type
@@ -4125,7 +4341,7 @@ def link(
 
 
 async def alink_rep_to_rep(
-    relation: str,
+    relation: ID,
     left_rep: ID,
     right_rep: ID,
     context: Optional[ID] = None,
@@ -4138,7 +4354,7 @@ async def alink_rep_to_rep(
 
 
     Arguments:
-        relation (str): relation
+        relation (ID): relation
         left_rep (ID): left_rep
         right_rep (ID): right_rep
         context (Optional[ID], optional): context.
@@ -4161,7 +4377,7 @@ async def alink_rep_to_rep(
 
 
 def link_rep_to_rep(
-    relation: str,
+    relation: ID,
     left_rep: ID,
     right_rep: ID,
     context: Optional[ID] = None,
@@ -4174,7 +4390,7 @@ def link_rep_to_rep(
 
 
     Arguments:
-        relation (str): relation
+        relation (ID): relation
         left_rep (ID): left_rep
         right_rep (ID): right_rep
         context (Optional[ID], optional): context.
@@ -4454,7 +4670,7 @@ async def acreate_rois(
 
      createROIS: A Representation is 5-dimensional representation of an image
 
-        Mikro stores each image as a 5-dimensional representation. The dimensions are:
+        Mikro stores each image as sa 5-dimensional representation. The dimensions are:
         - t: time
         - c: channel
         - z: z-stack
@@ -4526,7 +4742,7 @@ def create_rois(
 
      createROIS: A Representation is 5-dimensional representation of an image
 
-        Mikro stores each image as a 5-dimensional representation. The dimensions are:
+        Mikro stores each image as sa 5-dimensional representation. The dimensions are:
         - t: time
         - c: channel
         - z: z-stack
@@ -4768,6 +4984,38 @@ def create_instrument(
     ).create_instrument
 
 
+async def apresign(
+    file_name: str, rath: MikroRath = None
+) -> Optional[PresignMutationPresign]:
+    """presign
+
+
+
+    Arguments:
+        file_name (str): file_name
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[PresignMutationPresign]"""
+    return (
+        await aexecute(PresignMutation, {"file_name": file_name}, rath=rath)
+    ).presign
+
+
+def presign(file_name: str, rath: MikroRath = None) -> Optional[PresignMutationPresign]:
+    """presign
+
+
+
+    Arguments:
+        file_name (str): file_name
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[PresignMutationPresign]"""
+    return execute(PresignMutation, {"file_name": file_name}, rath=rath).presign
+
+
 async def acreate_experiment(
     name: str,
     creator: Optional[str] = None,
@@ -4967,7 +5215,7 @@ async def aupdate_representation(
 
      updateRepresentation: A Representation is 5-dimensional representation of an image
 
-        Mikro stores each image as a 5-dimensional representation. The dimensions are:
+        Mikro stores each image as sa 5-dimensional representation. The dimensions are:
         - t: time
         - c: channel
         - z: z-stack
@@ -5028,7 +5276,7 @@ def update_representation(
 
      updateRepresentation: A Representation is 5-dimensional representation of an image
 
-        Mikro stores each image as a 5-dimensional representation. The dimensions are:
+        Mikro stores each image as sa 5-dimensional representation. The dimensions are:
         - t: time
         - c: channel
         - z: z-stack
@@ -5483,6 +5731,46 @@ def upload_bioimage(
     ).upload_omero_file
 
 
+async def aupload_bigfile(
+    file: BigFile, datasets: Optional[List[Optional[ID]]] = None, rath: MikroRath = None
+) -> Optional[Upload_bigfileMutationUploadbigfile]:
+    """upload_bigfile
+
+
+
+    Arguments:
+        file (BigFile): file
+        datasets (Optional[List[Optional[ID]]], optional): datasets.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[Upload_bigfileMutationUploadbigfile]"""
+    return (
+        await aexecute(
+            Upload_bigfileMutation, {"file": file, "datasets": datasets}, rath=rath
+        )
+    ).upload_big_file
+
+
+def upload_bigfile(
+    file: BigFile, datasets: Optional[List[Optional[ID]]] = None, rath: MikroRath = None
+) -> Optional[Upload_bigfileMutationUploadbigfile]:
+    """upload_bigfile
+
+
+
+    Arguments:
+        file (BigFile): file
+        datasets (Optional[List[Optional[ID]]], optional): datasets.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[Upload_bigfileMutationUploadbigfile]"""
+    return execute(
+        Upload_bigfileMutation, {"file": file, "datasets": datasets}, rath=rath
+    ).upload_big_file
+
+
 async def aget_label(
     representation: ID, instance: int, rath: MikroRath = None
 ) -> Optional[Get_labelQueryLabelfor]:
@@ -5604,7 +5892,9 @@ def expand_label(id: ID, rath: MikroRath = None) -> Optional[LabelFragment]:
 
 
 async def asearch_labels(
-    search: Optional[str] = None, rath: MikroRath = None
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
 ) -> Optional[List[Optional[Search_labelsQueryOptions]]]:
     """search_labels
 
@@ -5624,15 +5914,22 @@ async def asearch_labels(
 
     Arguments:
         search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[List[Optional[Search_labelsQueryLabels]]]"""
-    return (await aexecute(Search_labelsQuery, {"search": search}, rath=rath)).labels
+    return (
+        await aexecute(
+            Search_labelsQuery, {"search": search, "values": values}, rath=rath
+        )
+    ).labels
 
 
 def search_labels(
-    search: Optional[str] = None, rath: MikroRath = None
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
 ) -> Optional[List[Optional[Search_labelsQueryOptions]]]:
     """search_labels
 
@@ -5652,11 +5949,14 @@ def search_labels(
 
     Arguments:
         search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[List[Optional[Search_labelsQueryLabels]]]"""
-    return execute(Search_labelsQuery, {"search": search}, rath=rath).labels
+    return execute(
+        Search_labelsQuery, {"search": search, "values": values}, rath=rath
+    ).labels
 
 
 async def aget_context(id: ID, rath: MikroRath = None) -> Optional[ContextFragment]:
@@ -5768,7 +6068,9 @@ def expand_context(id: ID, rath: MikroRath = None) -> Optional[ContextFragment]:
 
 
 async def asearch_contexts(
-    search: Optional[str] = None, rath: MikroRath = None
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
 ) -> Optional[List[Optional[Search_contextsQueryOptions]]]:
     """search_contexts
 
@@ -5778,17 +6080,22 @@ async def asearch_contexts(
 
     Arguments:
         search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[List[Optional[Search_contextsQueryMycontexts]]]"""
     return (
-        await aexecute(Search_contextsQuery, {"search": search}, rath=rath)
+        await aexecute(
+            Search_contextsQuery, {"search": search, "values": values}, rath=rath
+        )
     ).mycontexts
 
 
 def search_contexts(
-    search: Optional[str] = None, rath: MikroRath = None
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
 ) -> Optional[List[Optional[Search_contextsQueryOptions]]]:
     """search_contexts
 
@@ -5798,11 +6105,14 @@ def search_contexts(
 
     Arguments:
         search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[List[Optional[Search_contextsQueryMycontexts]]]"""
-    return execute(Search_contextsQuery, {"search": search}, rath=rath).mycontexts
+    return execute(
+        Search_contextsQuery, {"search": search, "values": values}, rath=rath
+    ).mycontexts
 
 
 async def athumbnail(id: ID, rath: MikroRath = None) -> Optional[ThumbnailFragment]:
@@ -5884,7 +6194,9 @@ def expand_thumbnail(id: ID, rath: MikroRath = None) -> Optional[ThumbnailFragme
 
 
 async def asearch_thumbnails(
-    search: Optional[str] = None, rath: MikroRath = None
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
 ) -> Optional[List[Optional[Search_thumbnailsQueryOptions]]]:
     """search_thumbnails
 
@@ -5897,17 +6209,22 @@ async def asearch_thumbnails(
 
     Arguments:
         search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[List[Optional[Search_thumbnailsQueryThumbnails]]]"""
     return (
-        await aexecute(Search_thumbnailsQuery, {"search": search}, rath=rath)
+        await aexecute(
+            Search_thumbnailsQuery, {"search": search, "values": values}, rath=rath
+        )
     ).thumbnails
 
 
 def search_thumbnails(
-    search: Optional[str] = None, rath: MikroRath = None
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
 ) -> Optional[List[Optional[Search_thumbnailsQueryOptions]]]:
     """search_thumbnails
 
@@ -5920,11 +6237,14 @@ def search_thumbnails(
 
     Arguments:
         search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[List[Optional[Search_thumbnailsQueryThumbnails]]]"""
-    return execute(Search_thumbnailsQuery, {"search": search}, rath=rath).thumbnails
+    return execute(
+        Search_thumbnailsQuery, {"search": search, "values": values}, rath=rath
+    ).thumbnails
 
 
 async def aimage_for_thumbnail(
@@ -6078,6 +6398,8 @@ def expand_table(id: ID, rath: MikroRath = None) -> Optional[TableFragment]:
 
 
 async def asearch_tables(
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
     rath: MikroRath = None,
 ) -> Optional[List[Optional[Search_tablesQueryOptions]]]:
     """search_tables
@@ -6098,14 +6420,22 @@ async def asearch_tables(
 
 
     Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[List[Optional[Search_tablesQueryTables]]]"""
-    return (await aexecute(Search_tablesQuery, {}, rath=rath)).tables
+    return (
+        await aexecute(
+            Search_tablesQuery, {"search": search, "values": values}, rath=rath
+        )
+    ).tables
 
 
 def search_tables(
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
     rath: MikroRath = None,
 ) -> Optional[List[Optional[Search_tablesQueryOptions]]]:
     """search_tables
@@ -6126,11 +6456,15 @@ def search_tables(
 
 
     Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[List[Optional[Search_tablesQueryTables]]]"""
-    return execute(Search_tablesQuery, {}, rath=rath).tables
+    return execute(
+        Search_tablesQuery, {"search": search, "values": values}, rath=rath
+    ).tables
 
 
 async def alinks(
@@ -6330,7 +6664,9 @@ def expand_link(id: ID, rath: MikroRath = None) -> Optional[LinkFragment]:
 
 
 async def asearch_links(
-    search: Optional[str] = None, rath: MikroRath = None
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
 ) -> Optional[List[Optional[Search_linksQueryOptions]]]:
     """search_links
 
@@ -6340,15 +6676,22 @@ async def asearch_links(
 
     Arguments:
         search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[List[Optional[Search_linksQueryLinks]]]"""
-    return (await aexecute(Search_linksQuery, {"search": search}, rath=rath)).links
+    return (
+        await aexecute(
+            Search_linksQuery, {"search": search, "values": values}, rath=rath
+        )
+    ).links
 
 
 def search_links(
-    search: Optional[str] = None, rath: MikroRath = None
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
 ) -> Optional[List[Optional[Search_linksQueryOptions]]]:
     """search_links
 
@@ -6358,11 +6701,14 @@ def search_links(
 
     Arguments:
         search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[List[Optional[Search_linksQueryLinks]]]"""
-    return execute(Search_linksQuery, {"search": search}, rath=rath).links
+    return execute(
+        Search_linksQuery, {"search": search, "values": values}, rath=rath
+    ).links
 
 
 async def aget_stage(id: ID, rath: MikroRath = None) -> Optional[StageFragment]:
@@ -6446,7 +6792,9 @@ def expand_stage(id: ID, rath: MikroRath = None) -> Optional[StageFragment]:
 
 
 async def asearch_stages(
-    search: Optional[str] = None, rath: MikroRath = None
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
 ) -> Optional[List[Optional[Search_stagesQueryOptions]]]:
     """search_stages
 
@@ -6460,15 +6808,22 @@ async def asearch_stages(
 
     Arguments:
         search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[List[Optional[Search_stagesQueryStages]]]"""
-    return (await aexecute(Search_stagesQuery, {"search": search}, rath=rath)).stages
+    return (
+        await aexecute(
+            Search_stagesQuery, {"search": search, "values": values}, rath=rath
+        )
+    ).stages
 
 
 def search_stages(
-    search: Optional[str] = None, rath: MikroRath = None
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
 ) -> Optional[List[Optional[Search_stagesQueryOptions]]]:
     """search_stages
 
@@ -6482,11 +6837,14 @@ def search_stages(
 
     Arguments:
         search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[List[Optional[Search_stagesQueryStages]]]"""
-    return execute(Search_stagesQuery, {"search": search}, rath=rath).stages
+    return execute(
+        Search_stagesQuery, {"search": search, "values": values}, rath=rath
+    ).stages
 
 
 async def aget_display_stage(
@@ -6566,7 +6924,9 @@ def get_sample(id: ID, rath: MikroRath = None) -> Optional[SampleFragment]:
 
 
 async def asearch_sample(
-    search: Optional[str] = None, rath: MikroRath = None
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
 ) -> Optional[List[Optional[Search_sampleQueryOptions]]]:
     """search_sample
 
@@ -6576,15 +6936,22 @@ async def asearch_sample(
 
     Arguments:
         search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[List[Optional[Search_sampleQuerySamples]]]"""
-    return (await aexecute(Search_sampleQuery, {"search": search}, rath=rath)).samples
+    return (
+        await aexecute(
+            Search_sampleQuery, {"search": search, "values": values}, rath=rath
+        )
+    ).samples
 
 
 def search_sample(
-    search: Optional[str] = None, rath: MikroRath = None
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
 ) -> Optional[List[Optional[Search_sampleQueryOptions]]]:
     """search_sample
 
@@ -6594,11 +6961,14 @@ def search_sample(
 
     Arguments:
         search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[List[Optional[Search_sampleQuerySamples]]]"""
-    return execute(Search_sampleQuery, {"search": search}, rath=rath).samples
+    return execute(
+        Search_sampleQuery, {"search": search, "values": values}, rath=rath
+    ).samples
 
 
 async def aexpand_sample(id: ID, rath: MikroRath = None) -> Optional[SampleFragment]:
@@ -6806,7 +7176,9 @@ def get_roi(id: ID, rath: MikroRath = None) -> Optional[ROIFragment]:
 
 
 async def asearch_rois(
-    search: Optional[str] = None, rath: MikroRath = None
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
 ) -> Optional[List[Optional[Search_roisQueryOptions]]]:
     """search_rois
 
@@ -6826,15 +7198,22 @@ async def asearch_rois(
 
     Arguments:
         search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[List[Optional[Search_roisQueryRois]]]"""
-    return (await aexecute(Search_roisQuery, {"search": search}, rath=rath)).rois
+    return (
+        await aexecute(
+            Search_roisQuery, {"search": search, "values": values}, rath=rath
+        )
+    ).rois
 
 
 def search_rois(
-    search: Optional[str] = None, rath: MikroRath = None
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
 ) -> Optional[List[Optional[Search_roisQueryOptions]]]:
     """search_rois
 
@@ -6854,11 +7233,14 @@ def search_rois(
 
     Arguments:
         search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[List[Optional[Search_roisQueryRois]]]"""
-    return execute(Search_roisQuery, {"search": search}, rath=rath).rois
+    return execute(
+        Search_roisQuery, {"search": search, "values": values}, rath=rath
+    ).rois
 
 
 async def aexpand_feature(id: ID, rath: MikroRath = None) -> Optional[FeatureFragment]:
@@ -6920,7 +7302,9 @@ def expand_feature(id: ID, rath: MikroRath = None) -> Optional[FeatureFragment]:
 
 
 async def asearch_features(
-    search: Optional[str] = None, rath: MikroRath = None
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
 ) -> Optional[List[Optional[Search_featuresQueryOptions]]]:
     """search_features
 
@@ -6943,17 +7327,22 @@ async def asearch_features(
 
     Arguments:
         search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[List[Optional[Search_featuresQueryFeatures]]]"""
     return (
-        await aexecute(Search_featuresQuery, {"search": search}, rath=rath)
+        await aexecute(
+            Search_featuresQuery, {"search": search, "values": values}, rath=rath
+        )
     ).features
 
 
 def search_features(
-    search: Optional[str] = None, rath: MikroRath = None
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
 ) -> Optional[List[Optional[Search_featuresQueryOptions]]]:
     """search_features
 
@@ -6976,11 +7365,14 @@ def search_features(
 
     Arguments:
         search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[List[Optional[Search_featuresQueryFeatures]]]"""
-    return execute(Search_featuresQuery, {"search": search}, rath=rath).features
+    return execute(
+        Search_featuresQuery, {"search": search, "values": values}, rath=rath
+    ).features
 
 
 async def arequest(rath: MikroRath = None) -> Optional[RequestQueryRequest]:
@@ -7084,7 +7476,9 @@ def expand_instrument(id: ID, rath: MikroRath = None) -> Optional[InstrumentFrag
 
 
 async def asearch_instruments(
-    search: Optional[str] = None, rath: MikroRath = None
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
 ) -> Optional[List[Optional[Search_instrumentsQueryOptions]]]:
     """search_instruments
 
@@ -7094,17 +7488,22 @@ async def asearch_instruments(
 
     Arguments:
         search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[List[Optional[Search_instrumentsQueryInstruments]]]"""
     return (
-        await aexecute(Search_instrumentsQuery, {"search": search}, rath=rath)
+        await aexecute(
+            Search_instrumentsQuery, {"search": search, "values": values}, rath=rath
+        )
     ).instruments
 
 
 def search_instruments(
-    search: Optional[str] = None, rath: MikroRath = None
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
 ) -> Optional[List[Optional[Search_instrumentsQueryOptions]]]:
     """search_instruments
 
@@ -7114,11 +7513,14 @@ def search_instruments(
 
     Arguments:
         search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[List[Optional[Search_instrumentsQueryInstruments]]]"""
-    return execute(Search_instrumentsQuery, {"search": search}, rath=rath).instruments
+    return execute(
+        Search_instrumentsQuery, {"search": search, "values": values}, rath=rath
+    ).instruments
 
 
 async def aget_experiment(
@@ -7266,7 +7668,9 @@ def eget_experiments(
 
 
 async def asearch_experiment(
-    search: Optional[str] = None, rath: MikroRath = None
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
 ) -> Optional[List[Optional[Search_experimentQueryOptions]]]:
     """search_experiment
 
@@ -7283,17 +7687,22 @@ async def asearch_experiment(
 
     Arguments:
         search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[List[Optional[Search_experimentQueryExperiments]]]"""
     return (
-        await aexecute(Search_experimentQuery, {"search": search}, rath=rath)
+        await aexecute(
+            Search_experimentQuery, {"search": search, "values": values}, rath=rath
+        )
     ).experiments
 
 
 def search_experiment(
-    search: Optional[str] = None, rath: MikroRath = None
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
 ) -> Optional[List[Optional[Search_experimentQueryOptions]]]:
     """search_experiment
 
@@ -7310,11 +7719,14 @@ def search_experiment(
 
     Arguments:
         search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[List[Optional[Search_experimentQueryExperiments]]]"""
-    return execute(Search_experimentQuery, {"search": search}, rath=rath).experiments
+    return execute(
+        Search_experimentQuery, {"search": search, "values": values}, rath=rath
+    ).experiments
 
 
 async def aexpand_representation(
@@ -7359,7 +7771,7 @@ async def aget_representation(
 
      representation: A Representation is 5-dimensional representation of an image
 
-        Mikro stores each image as a 5-dimensional representation. The dimensions are:
+        Mikro stores each image as sa 5-dimensional representation. The dimensions are:
         - t: time
         - c: channel
         - z: z-stack
@@ -7409,7 +7821,7 @@ def get_representation(
 
      representation: A Representation is 5-dimensional representation of an image
 
-        Mikro stores each image as a 5-dimensional representation. The dimensions are:
+        Mikro stores each image as sa 5-dimensional representation. The dimensions are:
         - t: time
         - c: channel
         - z: z-stack
@@ -7450,14 +7862,16 @@ def get_representation(
 
 
 async def asearch_representation(
-    search: Optional[str] = None, rath: MikroRath = None
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
 ) -> Optional[List[Optional[Search_representationQueryOptions]]]:
     """search_representation
 
 
      options: A Representation is 5-dimensional representation of an image
 
-        Mikro stores each image as a 5-dimensional representation. The dimensions are:
+        Mikro stores each image as sa 5-dimensional representation. The dimensions are:
         - t: time
         - c: channel
         - z: z-stack
@@ -7490,24 +7904,29 @@ async def asearch_representation(
 
     Arguments:
         search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[List[Optional[Search_representationQueryRepresentations]]]"""
     return (
-        await aexecute(Search_representationQuery, {"search": search}, rath=rath)
+        await aexecute(
+            Search_representationQuery, {"search": search, "values": values}, rath=rath
+        )
     ).representations
 
 
 def search_representation(
-    search: Optional[str] = None, rath: MikroRath = None
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
 ) -> Optional[List[Optional[Search_representationQueryOptions]]]:
     """search_representation
 
 
      options: A Representation is 5-dimensional representation of an image
 
-        Mikro stores each image as a 5-dimensional representation. The dimensions are:
+        Mikro stores each image as sa 5-dimensional representation. The dimensions are:
         - t: time
         - c: channel
         - z: z-stack
@@ -7540,12 +7959,13 @@ def search_representation(
 
     Arguments:
         search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[List[Optional[Search_representationQueryRepresentations]]]"""
     return execute(
-        Search_representationQuery, {"search": search}, rath=rath
+        Search_representationQuery, {"search": search, "values": values}, rath=rath
     ).representations
 
 
@@ -7587,7 +8007,7 @@ async def amy_accessibles(
 
      accessiblerepresentations: A Representation is 5-dimensional representation of an image
 
-        Mikro stores each image as a 5-dimensional representation. The dimensions are:
+        Mikro stores each image as sa 5-dimensional representation. The dimensions are:
         - t: time
         - c: channel
         - z: z-stack
@@ -7636,7 +8056,7 @@ def my_accessibles(
 
      accessiblerepresentations: A Representation is 5-dimensional representation of an image
 
-        Mikro stores each image as a 5-dimensional representation. The dimensions are:
+        Mikro stores each image as sa 5-dimensional representation. The dimensions are:
         - t: time
         - c: channel
         - z: z-stack
@@ -7676,7 +8096,9 @@ def my_accessibles(
 
 
 async def asearch_tags(
-    search: Optional[str] = None, rath: MikroRath = None
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
 ) -> Optional[List[Optional[Search_tagsQueryOptions]]]:
     """search_tags
 
@@ -7684,15 +8106,22 @@ async def asearch_tags(
 
     Arguments:
         search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[List[Optional[Search_tagsQueryTags]]]"""
-    return (await aexecute(Search_tagsQuery, {"search": search}, rath=rath)).tags
+    return (
+        await aexecute(
+            Search_tagsQuery, {"search": search, "values": values}, rath=rath
+        )
+    ).tags
 
 
 def search_tags(
-    search: Optional[str] = None, rath: MikroRath = None
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
 ) -> Optional[List[Optional[Search_tagsQueryOptions]]]:
     """search_tags
 
@@ -7700,11 +8129,14 @@ def search_tags(
 
     Arguments:
         search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[List[Optional[Search_tagsQueryTags]]]"""
-    return execute(Search_tagsQuery, {"search": search}, rath=rath).tags
+    return execute(
+        Search_tagsQuery, {"search": search, "values": values}, rath=rath
+    ).tags
 
 
 async def aget_model(id: ID, rath: MikroRath = None) -> Optional[ModelFragment]:
@@ -7780,7 +8212,9 @@ def expand_model(id: ID, rath: MikroRath = None) -> Optional[ModelFragment]:
 
 
 async def asearch_models(
-    search: Optional[str] = None, rath: MikroRath = None
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
 ) -> Optional[List[Optional[Search_modelsQueryOptions]]]:
     """search_models
 
@@ -7792,15 +8226,22 @@ async def asearch_models(
 
     Arguments:
         search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[List[Optional[Search_modelsQueryModels]]]"""
-    return (await aexecute(Search_modelsQuery, {"search": search}, rath=rath)).models
+    return (
+        await aexecute(
+            Search_modelsQuery, {"search": search, "values": values}, rath=rath
+        )
+    ).models
 
 
 def search_models(
-    search: Optional[str] = None, rath: MikroRath = None
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
 ) -> Optional[List[Optional[Search_modelsQueryOptions]]]:
     """search_models
 
@@ -7812,11 +8253,14 @@ def search_models(
 
     Arguments:
         search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[List[Optional[Search_modelsQueryModels]]]"""
-    return execute(Search_modelsQuery, {"search": search}, rath=rath).models
+    return execute(
+        Search_modelsQuery, {"search": search, "values": values}, rath=rath
+    ).models
 
 
 async def aexpand_metric(id: ID, rath: MikroRath = None) -> Optional[MetricFragment]:
@@ -7976,7 +8420,9 @@ def get_datasets(
 
 
 async def asearch_datasets(
-    search: Optional[str] = None, rath: MikroRath = None
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
 ) -> Optional[List[Optional[Search_datasetsQueryOptions]]]:
     """search_datasets
 
@@ -7991,17 +8437,22 @@ async def asearch_datasets(
 
     Arguments:
         search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[List[Optional[Search_datasetsQueryDatasets]]]"""
     return (
-        await aexecute(Search_datasetsQuery, {"search": search}, rath=rath)
+        await aexecute(
+            Search_datasetsQuery, {"search": search, "values": values}, rath=rath
+        )
     ).datasets
 
 
 def search_datasets(
-    search: Optional[str] = None, rath: MikroRath = None
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
 ) -> Optional[List[Optional[Search_datasetsQueryOptions]]]:
     """search_datasets
 
@@ -8016,11 +8467,14 @@ def search_datasets(
 
     Arguments:
         search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[List[Optional[Search_datasetsQueryDatasets]]]"""
-    return execute(Search_datasetsQuery, {"search": search}, rath=rath).datasets
+    return execute(
+        Search_datasetsQuery, {"search": search, "values": values}, rath=rath
+    ).datasets
 
 
 async def athierno(
@@ -8031,7 +8485,7 @@ async def athierno(
 
      representations: A Representation is 5-dimensional representation of an image
 
-        Mikro stores each image as a 5-dimensional representation. The dimensions are:
+        Mikro stores each image as sa 5-dimensional representation. The dimensions are:
         - t: time
         - c: channel
         - z: z-stack
@@ -8078,7 +8532,7 @@ def thierno(
 
      representations: A Representation is 5-dimensional representation of an image
 
-        Mikro stores each image as a 5-dimensional representation. The dimensions are:
+        Mikro stores each image as sa 5-dimensional representation. The dimensions are:
         - t: time
         - c: channel
         - z: z-stack
@@ -8184,7 +8638,10 @@ def expand_position(id: ID, rath: MikroRath = None) -> Optional[PositionFragment
 
 
 async def asearch_positions(
-    search: Optional[str] = None, stage: Optional[ID] = None, rath: MikroRath = None
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    stage: Optional[ID] = None,
+    rath: MikroRath = None,
 ) -> Optional[List[Optional[Search_positionsQueryOptions]]]:
     """search_positions
 
@@ -8194,6 +8651,7 @@ async def asearch_positions(
 
     Arguments:
         search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
         stage (Optional[ID], optional): stage.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
@@ -8201,13 +8659,18 @@ async def asearch_positions(
         Optional[List[Optional[Search_positionsQueryPositions]]]"""
     return (
         await aexecute(
-            Search_positionsQuery, {"search": search, "stage": stage}, rath=rath
+            Search_positionsQuery,
+            {"search": search, "values": values, "stage": stage},
+            rath=rath,
         )
     ).positions
 
 
 def search_positions(
-    search: Optional[str] = None, stage: Optional[ID] = None, rath: MikroRath = None
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    stage: Optional[ID] = None,
+    rath: MikroRath = None,
 ) -> Optional[List[Optional[Search_positionsQueryOptions]]]:
     """search_positions
 
@@ -8217,13 +8680,16 @@ def search_positions(
 
     Arguments:
         search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
         stage (Optional[ID], optional): stage.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[List[Optional[Search_positionsQueryPositions]]]"""
     return execute(
-        Search_positionsQuery, {"search": search, "stage": stage}, rath=rath
+        Search_positionsQuery,
+        {"search": search, "values": values, "stage": stage},
+        rath=rath,
     ).positions
 
 
@@ -8302,7 +8768,9 @@ def expand_objective(id: ID, rath: MikroRath = None) -> Optional[ObjectiveFragme
 
 
 async def asearch_objectives(
-    search: Optional[str] = None, rath: MikroRath = None
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
 ) -> Optional[List[Optional[Search_objectivesQueryOptions]]]:
     """search_objectives
 
@@ -8312,17 +8780,22 @@ async def asearch_objectives(
 
     Arguments:
         search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[List[Optional[Search_objectivesQueryObjectives]]]"""
     return (
-        await aexecute(Search_objectivesQuery, {"search": search}, rath=rath)
+        await aexecute(
+            Search_objectivesQuery, {"search": search, "values": values}, rath=rath
+        )
     ).objectives
 
 
 def search_objectives(
-    search: Optional[str] = None, rath: MikroRath = None
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
 ) -> Optional[List[Optional[Search_objectivesQueryOptions]]]:
     """search_objectives
 
@@ -8332,11 +8805,14 @@ def search_objectives(
 
     Arguments:
         search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[List[Optional[Search_objectivesQueryObjectives]]]"""
-    return execute(Search_objectivesQuery, {"search": search}, rath=rath).objectives
+    return execute(
+        Search_objectivesQuery, {"search": search, "values": values}, rath=rath
+    ).objectives
 
 
 async def aget_omero_file(
@@ -8400,37 +8876,47 @@ def expand_omerofile(id: ID, rath: MikroRath = None) -> Optional[OmeroFileFragme
 
 
 async def asearch_omerofile(
-    search: str, rath: MikroRath = None
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
 ) -> Optional[List[Optional[Search_omerofileQueryOptions]]]:
     """search_omerofile
 
 
 
     Arguments:
-        search (str): search
+        search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[List[Optional[Search_omerofileQueryOmerofiles]]]"""
     return (
-        await aexecute(Search_omerofileQuery, {"search": search}, rath=rath)
+        await aexecute(
+            Search_omerofileQuery, {"search": search, "values": values}, rath=rath
+        )
     ).omerofiles
 
 
 def search_omerofile(
-    search: str, rath: MikroRath = None
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
 ) -> Optional[List[Optional[Search_omerofileQueryOptions]]]:
     """search_omerofile
 
 
 
     Arguments:
-        search (str): search
+        search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[List[Optional[Search_omerofileQueryOmerofiles]]]"""
-    return execute(Search_omerofileQuery, {"search": search}, rath=rath).omerofiles
+    return execute(
+        Search_omerofileQuery, {"search": search, "values": values}, rath=rath
+    ).omerofiles
 
 
 DescendendInput.update_forward_refs()

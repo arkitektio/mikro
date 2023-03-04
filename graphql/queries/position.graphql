@@ -10,8 +10,8 @@ query expand_position($id: ID!) {
   }
 }
 
-query search_positions($search: String, $stage: ID) {
-  options: positions(name: $search, limit: 30, stage: $stage) {
+query search_positions($search: String, $values: [ID], $stage: ID) {
+  options: positions(name: $search, limit: 30, stage: $stage, ids: $values) {
     value: id
     label: name
   }

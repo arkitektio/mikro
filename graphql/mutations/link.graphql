@@ -1,5 +1,5 @@
 mutation link(
-  $relation: String!
+  $relation: ID!
   $x_type: LinkableModels!
   $x_id: ID!
   $y_type: LinkableModels!
@@ -19,7 +19,7 @@ mutation link(
 }
 
 mutation link_rep_to_rep(
-  $relation: String!
+  $relation: ID!
   $left_rep: ID!
   $right_rep: ID!
   $context: ID

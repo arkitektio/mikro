@@ -4,8 +4,8 @@ query expand_feature($id: ID!) {
   }
 }
 
-query search_features($search: String) {
-  options: features(substring: $search, limit: 20) {
+query search_features($search: String, $values: [ID]) {
+  options: features(substring: $search, limit: 20, ids: $values) {
     label: key
     value: id
   }
