@@ -16,11 +16,11 @@ try:
 except ImportError:
     pass
     rekuest = None
+    structure_reg = None
 
+# Check if rekuest is installed
+# If it is, register the structures with the default structure registry
 if rekuest:
-    
-
-
     from rekuest.structures.default import get_default_structure_registry
     from rekuest.widgets import SearchWidget
     from rekuest.widgets import CustomReturnWidget
