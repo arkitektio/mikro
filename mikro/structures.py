@@ -6,11 +6,23 @@ structure-registry so that they can be used in the arkitekt app without having t
 You can of course overwrite this in your app if you need to expand to a more complex query.
 
 """
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 try:
+    import rekuest
+except ImportError:
+    pass
+    rekuest = None
+
+if rekuest:
+    
+
+
     from rekuest.structures.default import get_default_structure_registry
-    from rekuest.widgets import SearchWidget, ImageReturnWidget
+    from rekuest.widgets import SearchWidget
     from rekuest.widgets import CustomReturnWidget
     from mikro.api.schema import *
 
@@ -28,7 +40,7 @@ try:
         identifier="@mikro/metric",
         expand=aexpand_metric,
         default_widget=None,
-        default_returnwidget=CustomReturnWidget(hook="metric", ward="mikro"),
+        default_returnwidget=CustomReturnWidget(hook="metric"),
     )
     structure_reg.register_as_structure(
         SampleFragment,
@@ -60,9 +72,6 @@ try:
         expand=aexpand_thumbnail,
         default_widget=SearchWidget(
             query=Search_thumbnailsQuery.Meta.document, ward="mikro"
-        ),
-        default_returnwidget=ImageReturnWidget(
-            query=Image_for_thumbnailQuery.Meta.document, ward="mikro"
         ),
     )
     structure_reg.register_as_structure(
@@ -152,6 +161,3 @@ try:
         ),
     )
 
-
-except ImportError:
-    structure_reg = None
