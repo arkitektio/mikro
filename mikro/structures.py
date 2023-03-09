@@ -40,7 +40,6 @@ if rekuest:
         identifier="@mikro/metric",
         expand=aexpand_metric,
         default_widget=None,
-        default_returnwidget=CustomReturnWidget(hook="metric"),
     )
     structure_reg.register_as_structure(
         SampleFragment,

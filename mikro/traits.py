@@ -299,7 +299,6 @@ class Vectorizable:
         Returns:
             List[Vectorizable]: A list of InputVector
         """
-        print(x)
         assert x.ndim == 2, "Needs to be a List array of vectors"
         if x.shape[1] == 4:
             return [cls(x=i[1], y=i[0], z=i[2], t=i[3], c=c) for i in x.tolist()]

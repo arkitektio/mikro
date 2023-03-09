@@ -711,14 +711,14 @@ files = [
 
 [[package]]
 name = "fsspec"
-version = "2023.1.0"
+version = "2023.3.0"
 description = "File-system specification"
 category = "main"
 optional = false
-python-versions = ">=3.7"
+python-versions = ">=3.8"
 files = [
-    {file = "fsspec-2023.1.0-py3-none-any.whl", hash = "sha256:b833e2e541e9e8cde0ab549414187871243177feb3d344f9d27b25a93f5d8139"},
-    {file = "fsspec-2023.1.0.tar.gz", hash = "sha256:fbae7f20ff801eb5f7d0bedf81f25c787c0dfac5e982d98fa3884a9cde2b5411"},
+    {file = "fsspec-2023.3.0-py3-none-any.whl", hash = "sha256:bf57215e19dbfa4fe7edae53040cc1deef825e3b1605cca9a8d2c2fadd2328a0"},
+    {file = "fsspec-2023.3.0.tar.gz", hash = "sha256:24e635549a590d74c6c18274ddd3ffab4753341753e923408b1904eaabafe04d"},
 ]
 
 [package.extras]
@@ -727,7 +727,6 @@ adl = ["adlfs"]
 arrow = ["pyarrow (>=1)"]
 dask = ["dask", "distributed"]
 dropbox = ["dropbox", "dropboxdrivefs", "requests"]
-entrypoints = ["importlib-metadata"]
 fuse = ["fusepy"]
 gcs = ["gcsfs"]
 git = ["pygit2"]
@@ -1588,20 +1587,20 @@ files = [
 
 [[package]]
 name = "s3fs"
-version = "2023.1.0"
+version = "2023.3.0"
 description = "Convenient Filesystem interface over S3"
 category = "main"
 optional = false
-python-versions = ">= 3.7"
+python-versions = ">= 3.8"
 files = [
-    {file = "s3fs-2023.1.0-py3-none-any.whl", hash = "sha256:a549ae518fff4388bd6fca5248575c29f521e7e39efcd2bfab476651701fd114"},
-    {file = "s3fs-2023.1.0.tar.gz", hash = "sha256:8b2e28372423e93f26312208a9272e22a962ddd0a79d63f9a68693b6af5ff187"},
+    {file = "s3fs-2023.3.0-py3-none-any.whl", hash = "sha256:8858cc9a03a00eaf81f8641f080d1765953181bdc0d242df682941171e9214c3"},
+    {file = "s3fs-2023.3.0.tar.gz", hash = "sha256:5c154ded38e3c3d8f0eba7fec2706f29b41e0c395f19fbfef3ba8e70c685b049"},
 ]
 
 [package.dependencies]
 aiobotocore = ">=2.4.2,<2.5.0"
 aiohttp = "<4.0.0a0 || >4.0.0a0,<4.0.0a1 || >4.0.0a1"
-fsspec = "2023.1.0"
+fsspec = "2023.3.0"
 
 [package.extras]
 awscli = ["aiobotocore[awscli] (>=2.4.2,<2.5.0)"]
@@ -2052,4 +2051,4 @@ turms = []
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8, <=3.12"
-content-hash = "f3165c95cb910da4cd957cb7b63476f732f41f2dca873cffed7ca3e78654628a"
+content-hash = "59ba1177c74e945dd7f7df15a63d70677bae2453d274861d119655359c7eed6e"

@@ -46,7 +46,10 @@ from koil import unkoil
 from mikro.scalars import XArrayInput, ParquetInput, BigFile
 from aiobotocore.session import get_session
 import ntpath
+import logging
 
+
+logger = logging.getLogger(__name__)
 current_datalayer = contextvars.ContextVar("current_datalayer", default=None)
 
 
@@ -90,7 +93,7 @@ class DataLayer(KoiledModel):
 
         s3_path = f"s3://parquet/{path}"
         pq.write_table(table, s3_path, filesystem=self.fs)
-        return path
+        return s3_path
 
     async def astore_array_input(self, xarray: XArrayInput) -> str:
         """Stores an xarray in the DataLayer"""
@@ -110,7 +113,7 @@ class DataLayer(KoiledModel):
             )
             return await asyncio.wrap_future(co_future)
         except PermissionError as e:
-            print(e)
+            logger.warning("Permission error, trying to reconnect")
             await self.aconnect()
             co_future = self._executor_session.submit(
                 self._storedataset, dataset, s3_path

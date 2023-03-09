@@ -56,8 +56,8 @@ def environment():
         filepath=build_relative("integration"),
         compose_file_name="docker-compose.yml",
     ) as compose:
-        wait_for_http_response("http://localhost:8019/ht", max_retries=5)
-        wait_for_http_response("http://localhost:8088/ht", max_retries=5)
+        wait_for_http_response("http://localhost:8008/ht", max_retries=5)
+        wait_for_http_response("http://localhost:8089/ht", max_retries=5)
         yield
 
 

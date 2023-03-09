@@ -1,30 +1,30 @@
-from typing import Optional, Iterator, AsyncIterator, Literal, List, Tuple, Dict
-from mikro.funcs import execute, asubscribe, aexecute, subscribe
+from mikro.funcs import aexecute, asubscribe, subscribe, execute
 from mikro.scalars import (
-    ParquetInput,
-    FeatureValue,
-    Store,
-    ModelFile,
-    XArrayInput,
     BigFile,
-    Parquet,
-    AffineMatrix,
+    XArrayInput,
     MetricValue,
-    File,
+    AffineMatrix,
+    ParquetInput,
+    Parquet,
+    ModelFile,
+    Store,
     ModelData,
+    FeatureValue,
+    File,
 )
+from pydantic import Field, BaseModel
 from mikro.traits import (
-    Omero,
-    Stage,
-    Vectorizable,
-    Objective,
-    Position,
-    Representation,
-    ROI,
     Table,
+    Position,
+    Omero,
+    Vectorizable,
+    Stage,
+    Objective,
+    ROI,
+    Representation,
 )
+from typing import Literal, Iterator, AsyncIterator, Tuple, Optional, List, Dict
 from mikro.rath import MikroRath
-from pydantic import BaseModel, Field
 from rath.scalars import ID
 from datetime import datetime
 from enum import Enum
@@ -554,6 +554,7 @@ class ContextFragmentLinks(BaseModel):
     """DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)"""
 
     typename: Optional[Literal["DataLink"]] = Field(alias="__typename", exclude=True)
+    id: ID
     left_id: ID = Field(alias="leftId")
     "X"
     right_id: ID = Field(alias="rightId")
@@ -1888,7 +1889,7 @@ class Create_contextMutation(BaseModel):
         experiment: Optional[ID] = None
 
     class Meta:
-        document = "fragment Context on Context {\n  id\n  name\n  links {\n    leftId\n    rightId\n    leftType\n    rightType\n  }\n}\n\nmutation create_context($name: String!, $experiment: ID) {\n  createContext(name: $name, experiment: $experiment) {\n    ...Context\n  }\n}"
+        document = "fragment Context on Context {\n  id\n  name\n  links {\n    id\n    leftId\n    rightId\n    leftType\n    rightType\n  }\n}\n\nmutation create_context($name: String!, $experiment: ID) {\n  createContext(name: $name, experiment: $experiment) {\n    ...Context\n  }\n}"
 
 
 class Create_thumbnailMutation(BaseModel):
@@ -2368,7 +2369,7 @@ class Create_positionMutation(BaseModel):
         tags: Optional[List[Optional[str]]] = None
 
     class Meta:
-        document = 'fragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment ListStage on Stage {\n  id\n  name\n  kind\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nmutation create_position($stage: ID!, $x: Float!, $y: Float!, $z: Float!, $tolerance: Float, $name: String, $tags: [String]) {\n  createPosition(\n    stage: $stage\n    x: $x\n    y: $y\n    z: $z\n    tags: $tags\n    name: $name\n    tolerance: $tolerance\n  ) {\n    ...Position\n  }\n}'
+        document = 'fragment ListStage on Stage {\n  id\n  name\n  kind\n}\n\nfragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nmutation create_position($stage: ID!, $x: Float!, $y: Float!, $z: Float!, $tolerance: Float, $name: String, $tags: [String]) {\n  createPosition(\n    stage: $stage\n    x: $x\n    y: $y\n    z: $z\n    tags: $tags\n    name: $name\n    tolerance: $tolerance\n  ) {\n    ...Position\n  }\n}'
 
 
 class Create_objectiveMutation(BaseModel):
@@ -2556,7 +2557,7 @@ class Get_contextQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Context on Context {\n  id\n  name\n  links {\n    leftId\n    rightId\n    leftType\n    rightType\n  }\n}\n\nquery get_context($id: ID!) {\n  context(id: $id) {\n    ...Context\n  }\n}"
+        document = "fragment Context on Context {\n  id\n  name\n  links {\n    id\n    leftId\n    rightId\n    leftType\n    rightType\n  }\n}\n\nquery get_context($id: ID!) {\n  context(id: $id) {\n    ...Context\n  }\n}"
 
 
 class Get_mycontextsQuery(BaseModel):
@@ -2579,7 +2580,7 @@ class Expand_contextQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Context on Context {\n  id\n  name\n  links {\n    leftId\n    rightId\n    leftType\n    rightType\n  }\n}\n\nquery expand_context($id: ID!) {\n  context(id: $id) {\n    ...Context\n  }\n}"
+        document = "fragment Context on Context {\n  id\n  name\n  links {\n    id\n    leftId\n    rightId\n    leftType\n    rightType\n  }\n}\n\nquery expand_context($id: ID!) {\n  context(id: $id) {\n    ...Context\n  }\n}"
 
 
 class Search_contextsQueryOptions(BaseModel):
@@ -3475,7 +3476,8 @@ class Search_representationQuery(BaseModel):
 class Get_random_repQuery(BaseModel):
     """Queries the database for a random representation
     This is used to generate a random representation for the user to play with
-    The random representation is generated by taking a random representation from the database"""
+    The random representation is generated by taking a random representation from the database
+    """
 
     random_representation: Optional[RepresentationFragment] = Field(
         alias="randomRepresentation"
@@ -3545,7 +3547,8 @@ class Expand_modelQuery(BaseModel):
 class Search_modelsQueryOptions(BaseModel):
     """A
 
-    Mikro uses the omero-meta data to create representations of the file. See Representation for more information."""
+    Mikro uses the omero-meta data to create representations of the file. See Representation for more information.
+    """
 
     typename: Optional[Literal["Model"]] = Field(alias="__typename", exclude=True)
     label: str
@@ -3744,7 +3747,7 @@ class Get_positionQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = 'fragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment ListStage on Stage {\n  id\n  name\n  kind\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nquery get_position($id: ID!) {\n  position(id: $id) {\n    ...Position\n  }\n}'
+        document = 'fragment ListStage on Stage {\n  id\n  name\n  kind\n}\n\nfragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nquery get_position($id: ID!) {\n  position(id: $id) {\n    ...Position\n  }\n}'
 
 
 class Expand_positionQuery(BaseModel):
@@ -3755,7 +3758,7 @@ class Expand_positionQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = 'fragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment ListStage on Stage {\n  id\n  name\n  kind\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nquery expand_position($id: ID!) {\n  position(id: $id) {\n    ...Position\n  }\n}'
+        document = 'fragment ListStage on Stage {\n  id\n  name\n  kind\n}\n\nfragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nquery expand_position($id: ID!) {\n  position(id: $id) {\n    ...Position\n  }\n}'
 
 
 class Search_positionsQueryOptions(Position, BaseModel):
