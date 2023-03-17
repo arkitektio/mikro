@@ -7,7 +7,7 @@ Example:
     You can define all of the logic within the context manager
 
     ```python
-    from mikro.datalayer import Datalayer
+    from mikro. imports Datalayer
 
     dl = Datalayer(access_key="XXXX", secret_key="XXXX", endpoint_url="s3.amazonaws.com")
 
@@ -141,6 +141,8 @@ class DataLayer(KoiledModel):
             if self.auto_connect:
                 await self.aconnect()
 
+        print(file)
+
         key = ntpath.basename(file.value.name)
         session = get_session()
         async with session.create_client(
@@ -151,10 +153,13 @@ class DataLayer(KoiledModel):
             aws_access_key_id=self.access_key,
             aws_session_token=self.session_token,
         ) as client:
+            print(client)
             resp = await client.put_object(
                 Bucket="mikromedia", Key=key, Body=file.value
             )
+            print(resp)
 
+    
         return f"mikromedia/{key}"
 
     def open_store(self, path):
