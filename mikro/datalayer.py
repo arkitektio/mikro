@@ -37,7 +37,7 @@ from concurrent.futures import Executor, ThreadPoolExecutor
 import contextvars
 from typing import Optional
 import uuid
-
+import botocore
 import xarray as xr
 from pydantic import Field, SecretStr
 from koil.composition import KoiledModel
@@ -78,6 +78,7 @@ class DataLayer(KoiledModel):
     secret_key: SecretStr = Field(default="")
     session_token: SecretStr = Field(default="")
     endpoint_url: str = ""
+    max_retries: int = 5
 
     _s3fs: Optional[s3fs.S3FileSystem] = None
     _connected = False
@@ -95,7 +96,7 @@ class DataLayer(KoiledModel):
         pq.write_table(table, s3_path, filesystem=self.fs)
         return s3_path
 
-    async def astore_array_input(self, xarray: XArrayInput) -> str:
+    async def astore_array_input(self, xarray: XArrayInput, retry: int = 0) -> str:
         """Stores an xarray in the DataLayer"""
         if not self._connected:
             if self.auto_connect:
@@ -113,12 +114,21 @@ class DataLayer(KoiledModel):
             )
             return await asyncio.wrap_future(co_future)
         except PermissionError as e:
-            logger.warning("Permission error, trying to reconnect")
-            await self.aconnect()
-            co_future = self._executor_session.submit(
-                self._storedataset, dataset, s3_path
-            )
-            return await asyncio.wrap_future(co_future)
+            logger.error("Permission error, trying to get new credentials")
+            if retry < self.max_retries:
+                await self.aconnect()
+                return await self.astore_array_input(xarray, retry=retry + 1)
+            else:
+                raise e
+        except botocore.exceptions.ClientError as e:
+            if e.response["Error"]["Code"] == "InvalidAccessKeyId":
+                logger.error("Access Key is invalid, trying to get new credentials")
+                if retry < self.max_retries:
+                    await self.aconnect()
+                    return await self.astore_array_input(xarray, retry=retry + 1)
+
+            else:
+                raise e
 
     async def astore_parquet_input(self, pqinput: ParquetInput) -> str:
         """Store a DataFrame in the DataLayer"""
@@ -135,13 +145,11 @@ class DataLayer(KoiledModel):
         co_future = self._executor_session.submit(self._storetable, table, random_ui)
         return await asyncio.wrap_future(co_future)
 
-    async def astore_bigfile(self, file: BigFile) -> str:
+    async def astore_bigfile(self, file: BigFile, retry: int = 0) -> str:
         """Store a DataFrame in the DataLayer"""
         if not self._connected:
             if self.auto_connect:
                 await self.aconnect()
-
-        print(file)
 
         key = ntpath.basename(file.value.name)
         session = get_session()
@@ -153,17 +161,38 @@ class DataLayer(KoiledModel):
             aws_access_key_id=self.access_key,
             aws_session_token=self.session_token,
         ) as client:
-            print(client)
-            resp = await client.put_object(
-                Bucket="mikromedia", Key=key, Body=file.value
-            )
-            print(resp)
+            try:
+                resp = await client.put_object(
+                    Bucket="mikromedia", Key=key, Body=file.value
+                )
+            except botocore.exceptions.ClientError as e:
+                if e.response["Error"]["Code"] == "InvalidAccessKeyId":
+                    logger.debug("Access Key is invalid, trying to get new credentials")
+                    if retry < self.max_retries:
+                        await self.aget_credentials()
+                        return await self.astore_bigfile(file, retry=retry + 1)
 
-    
-        return f"mikromedia/{key}"
+                raise e
+
+        return f"{key}"
+
+    def test_path_accessible(self, path, retry=0):
+        # Check if we can access the path with the current credentials
+        try:
+            self.fs.ls(path)
+            return True
+        except PermissionError as e:
+            logger.debug("Permission error, trying to get new credentials")
+            if retry < self.max_retries:
+                self.reconnect()
+                return self.test_path_accessible(path, retry=retry + 1)
+            else:
+                logger.error("Permission error, could not get new credentials")
+                raise e
 
     def open_store(self, path):
-        return self.fs.get_mapper(path)
+        if self.test_path_accessible(path):
+            return self.fs.get_mapper(path)
 
     @property
     def fs(self):

@@ -3,12 +3,14 @@ mutation create_thumbnail(
   $file: ImageFile!
   $major_color: String
   $blurhash: String
+  $created_while: AssignationID @validator(path: "mikro.scalars.get_current_id")
 ) {
   uploadThumbnail(
     rep: $rep
     file: $file
     majorColor: $major_color
     blurhash: $blurhash
+    createdWhile: $created_while
   ) {
     ...Thumbnail
   }

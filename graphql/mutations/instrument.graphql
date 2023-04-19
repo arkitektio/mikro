@@ -8,6 +8,7 @@ mutation create_instrument(
   $serialNumber: String
   $model: String
   $manufacturer: String
+  $created_while: AssignationID @validator(path: "mikro.scalars.get_current_id")
 ) {
   createInstrument(
     detectors: $detectors
@@ -19,6 +20,7 @@ mutation create_instrument(
     serialNumber: $serialNumber
     model: $model
     manufacturer: $manufacturer
+    createdWhile: $created_while
   ) {
     ...Instrument
   }

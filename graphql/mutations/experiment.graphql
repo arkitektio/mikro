@@ -3,12 +3,14 @@ mutation create_experiment(
   $creator: String
   $description: String
   $tags: [String]
+  $created_while: AssignationID @validator(path: "mikro.scalars.get_current_id")
 ) {
   createExperiment(
     name: $name
     creator: $creator
     description: $description
     tags: $tags
+    createdWhile: $created_while
   ) {
     ...Experiment
   }

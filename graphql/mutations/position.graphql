@@ -6,6 +6,7 @@ mutation create_position(
   $tolerance: Float
   $name: String
   $tags: [String]
+  $created_while: AssignationID @validator(path: "mikro.scalars.get_current_id")
 ) {
   createPosition(
     stage: $stage
@@ -15,6 +16,7 @@ mutation create_position(
     tags: $tags
     name: $name
     tolerance: $tolerance
+    createdWhile: $created_while
   ) {
     ...Position
   }

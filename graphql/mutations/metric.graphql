@@ -4,6 +4,7 @@ mutation create_metric(
   $experiment: ID
   $key: String!
   $value: MetricValue!
+  $created_while: AssignationID @validator(path: "mikro.scalars.get_current_id")
 ) {
   createMetric(
     representation: $representation
@@ -11,6 +12,7 @@ mutation create_metric(
     experiment: $experiment
     key: $key
     value: $value
+    createdWhile: $created_while
   ) {
     ...Metric
   }

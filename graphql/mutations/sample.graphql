@@ -4,6 +4,7 @@ mutation create_sample(
   $meta: GenericScalar
   $experiments: [ID]
   $tags: [String]
+  $created_while: AssignationID @validator(path: "mikro.scalars.get_current_id")
 ) {
   createSample(
     name: $name
@@ -11,6 +12,7 @@ mutation create_sample(
     meta: $meta
     experiments: $experiments
     tags: $tags
+    createdWhile: $created_while
   ) {
     id
     name

@@ -10,6 +10,7 @@ mutation from_xarray(
   $datasets: [ID]
   $sample: ID
   $omero: OmeroRepresentationInput
+  $created_while: AssignationID @validator(path: "mikro.scalars.get_current_id")
 ) {
   # Creates a Representation from an xarray dataset.
   fromXArray(
@@ -24,6 +25,7 @@ mutation from_xarray(
     experiments: $experiments
     datasets: $datasets
     variety: $variety
+    createdWhile: $created_while
   ) {
     ...Representation
   }

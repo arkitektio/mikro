@@ -12,9 +12,44 @@ import pandas as pd
 import numpy as np
 import io
 from typing import TYPE_CHECKING
+from .utils import rechunk
+import logging
 
 if TYPE_CHECKING:
     from mikro.datalayer import DataLayer
+
+
+
+class AssignationID(str):
+    """A custom scalar to represent an affine matrix."""
+
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, v):
+        """Validate the input array and convert it to a xr.DataArray."""
+        return cls(v)
+
+
+try:
+    from rekuest.actors.vars import get_current_assignation_helper, NotWithinAnAssignationError
+    def get_current_id(cls, value) -> AssignationID:
+        try:
+            return value or get_current_assignation_helper().assignation.assignation
+        except NotWithinAnAssignationError:
+            return value
+
+    
+except ImportError:
+    def get_current_id(cls, value):
+        return value
+
+
+
+
+
 
 
 class XArrayConversionException(Exception):
@@ -45,6 +80,8 @@ class AffineMatrix(list):
 
         assert isinstance(v, list)
         return cls(v)
+    
+
 
 
 class XArrayInput:
@@ -83,13 +120,7 @@ class XArrayInput:
         if "z" not in v.dims:
             v = v.expand_dims("z")
 
-        chunks = {
-            "t": 1,
-            "x": 1024 if v.sizes["x"] > 1024 else v.sizes["x"],
-            "y": 1024 if v.sizes["y"] > 1024 else v.sizes["y"],
-            "z": 40 if v.sizes["z"] > 40 else 1,
-            "c": 1,
-        }
+        chunks = rechunk(v.sizes)
 
         v = v.chunk(
             {key: chunksize for key, chunksize in chunks.items() if key in v.dims}
@@ -196,12 +227,6 @@ class Store:
             dl
         ), "No datalayer set. This probably happened because you never connected the datalayer. Please connect (either with async or sync) and try again."
         if self._openstore is None:
-            try:
-                self._openstore = xr.open_zarr(
-                    store=dl.open_store(self.value), consolidated=True
-                )["data"]
-            except PermissionError as e:
-                dl.reconnect()
                 self._openstore = xr.open_zarr(
                     store=dl.open_store(self.value), consolidated=True
                 )["data"]
@@ -234,6 +259,9 @@ class Store:
                     store=dl.open_store(self.value), consolidated=True
                 )["data"]
             except PermissionError as e:
+                logging.warning(
+                    "Permission denied. Trying to reconnect datalayer and retrieve credentials"
+                )
                 await dl.areconnect()
                 self._openstore = xr.open_zarr(
                     store=dl.open_store(self.value), consolidated=True

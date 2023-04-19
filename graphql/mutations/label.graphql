@@ -3,12 +3,14 @@ mutation create_label(
   $representation: ID!
   $creator: ID
   $name: String
+  $created_while: AssignationID @validator(path: "mikro.scalars.get_current_id")
 ) {
   createLabel(
     instance: $instance
     representation: $representation
     creator: $creator
     name: $name
+    createdWhile: $created_while
   ) {
     id
     instance

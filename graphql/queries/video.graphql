@@ -1,0 +1,12 @@
+query get_video($id: ID!) {
+  video(id: $id) {
+    ...Video
+  }
+}
+
+query search_videos($search: String, $values: [ID]) {
+  options: videos(name: $search, ids: $values) {
+    label: id
+    value: id
+  }
+}

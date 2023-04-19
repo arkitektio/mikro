@@ -3,12 +3,14 @@ mutation create_stage(
   $creator: ID
   $instrument: ID
   $tags: [String]
+  $created_while: AssignationID @validator(path: "mikro.scalars.get_current_id")
 ) {
   createStage(
     name: $name
     creator: $creator
     instrument: $instrument
     tags: $tags
+    createdWhile: $created_while
   ) {
     ...Stage
   }

@@ -1,33 +1,35 @@
-from mikro.funcs import aexecute, asubscribe, subscribe, execute
-from mikro.scalars import (
-    BigFile,
-    XArrayInput,
-    MetricValue,
-    AffineMatrix,
-    ParquetInput,
-    Parquet,
-    ModelFile,
-    Store,
-    ModelData,
-    FeatureValue,
-    File,
-)
-from pydantic import Field, BaseModel
+from mikro.funcs import subscribe, asubscribe, aexecute, execute
 from mikro.traits import (
-    Table,
-    Position,
-    Omero,
     Vectorizable,
-    Stage,
     Objective,
+    Table,
+    Omero,
     ROI,
     Representation,
+    Stage,
+    Position,
 )
-from typing import Literal, Iterator, AsyncIterator, Tuple, Optional, List, Dict
-from mikro.rath import MikroRath
-from rath.scalars import ID
 from datetime import datetime
+from mikro.scalars import (
+    AffineMatrix,
+    Store,
+    ModelFile,
+    BigFile,
+    FeatureValue,
+    XArrayInput,
+    AssignationID,
+    ParquetInput,
+    MetricValue,
+    get_current_id,
+    ModelData,
+    File,
+    Parquet,
+)
+from typing import Literal, Tuple, Optional, Dict, List, Iterator, AsyncIterator
+from pydantic import validator, Field, BaseModel
 from enum import Enum
+from rath.scalars import ID
+from mikro.rath import MikroRath
 
 
 class CommentableModels(str, Enum):
@@ -51,6 +53,7 @@ class CommentableModels(str, Enum):
     GRUNNLAG_OMERO = "GRUNNLAG_OMERO"
     GRUNNLAG_METRIC = "GRUNNLAG_METRIC"
     GRUNNLAG_THUMBNAIL = "GRUNNLAG_THUMBNAIL"
+    GRUNNLAG_VIDEO = "GRUNNLAG_VIDEO"
     GRUNNLAG_ROI = "GRUNNLAG_ROI"
     GRUNNLAG_LABEL = "GRUNNLAG_LABEL"
     GRUNNLAG_FEATURE = "GRUNNLAG_FEATURE"
@@ -80,6 +83,7 @@ class SharableModels(str, Enum):
     GRUNNLAG_OMERO = "GRUNNLAG_OMERO"
     GRUNNLAG_METRIC = "GRUNNLAG_METRIC"
     GRUNNLAG_THUMBNAIL = "GRUNNLAG_THUMBNAIL"
+    GRUNNLAG_VIDEO = "GRUNNLAG_VIDEO"
     GRUNNLAG_ROI = "GRUNNLAG_ROI"
     GRUNNLAG_LABEL = "GRUNNLAG_LABEL"
     GRUNNLAG_FEATURE = "GRUNNLAG_FEATURE"
@@ -138,6 +142,7 @@ class LinkableModels(str, Enum):
     GRUNNLAG_OMERO = "GRUNNLAG_OMERO"
     GRUNNLAG_METRIC = "GRUNNLAG_METRIC"
     GRUNNLAG_THUMBNAIL = "GRUNNLAG_THUMBNAIL"
+    GRUNNLAG_VIDEO = "GRUNNLAG_VIDEO"
     GRUNNLAG_ROI = "GRUNNLAG_ROI"
     GRUNNLAG_LABEL = "GRUNNLAG_LABEL"
     GRUNNLAG_FEATURE = "GRUNNLAG_FEATURE"
@@ -551,7 +556,7 @@ class LabelFragment(BaseModel):
 
 
 class ContextFragmentLinks(BaseModel):
-    """DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)"""
+    """DataLink(id, created_by, created_through, created_while, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)"""
 
     typename: Optional[Literal["DataLink"]] = Field(alias="__typename", exclude=True)
     id: ID
@@ -711,7 +716,7 @@ class TableFragment(Table, BaseModel):
 
 
 class ListLinkFragmentRelation(BaseModel):
-    """Relation(id, name, description)"""
+    """Relation(id, created_by, created_through, created_while, name, description)"""
 
     typename: Optional[Literal["Relation"]] = Field(alias="__typename", exclude=True)
     id: ID
@@ -741,7 +746,7 @@ class ListLinkFragment(BaseModel):
 
 
 class LinkFragmentRelation(BaseModel):
-    """Relation(id, name, description)"""
+    """Relation(id, created_by, created_through, created_while, name, description)"""
 
     typename: Optional[Literal["Relation"]] = Field(alias="__typename", exclude=True)
     id: ID
@@ -923,6 +928,9 @@ class ROIFragmentRepresentation(Representation, BaseModel):
     id: ID
     shape: Optional[Tuple[int, ...]]
     "The arrays shape format [c,t,z,y,x]"
+    store: Optional[Store]
+    variety: RepresentationVariety
+    "The Representation can have vasrying types, consult your API"
 
     class Config:
         frozen = True
@@ -965,6 +973,11 @@ class ROIFragmentDerivedrepresentations(Representation, BaseModel):
         alias="__typename", exclude=True
     )
     id: ID
+    store: Optional[Store]
+    shape: Optional[Tuple[int, ...]]
+    "The arrays shape format [c,t,z,y,x]"
+    variety: RepresentationVariety
+    "The Representation can have vasrying types, consult your API"
 
     class Config:
         frozen = True
@@ -1213,6 +1226,15 @@ class InstrumentFragment(BaseModel):
         frozen = True
 
 
+class VideoFragment(BaseModel):
+    typename: Optional[Literal["Video"]] = Field(alias="__typename", exclude=True)
+    data: Optional[str]
+    id: ID
+
+    class Config:
+        frozen = True
+
+
 class ExperimentFragmentCreator(BaseModel):
     """User
 
@@ -1425,6 +1447,7 @@ class RepresentationFragment(Representation, BaseModel):
     store: Optional[Store]
     variety: RepresentationVariety
     "The Representation can have vasrying types, consult your API"
+    created_while: Optional[str] = Field(alias="createdWhile")
     name: Optional[str]
     "Cleartext name"
     omero: Optional[RepresentationFragmentOmero]
@@ -1450,7 +1473,7 @@ class ListRepresentationFragment(Representation, BaseModel):
 
 
 class ModelFragmentContexts(BaseModel):
-    """Context(id, created_by, created_through, name, created_at, experiment, creator)"""
+    """Context(id, created_by, created_through, created_while, name, created_at, experiment, creator)"""
 
     typename: Optional[Literal["Context"]] = Field(alias="__typename", exclude=True)
     id: ID
@@ -1632,7 +1655,8 @@ class DatasetFragment(BaseModel):
     name: str
     "The name of the experiment"
     parent: Optional[DatasetFragmentParent]
-    representations: Tuple[DatasetFragmentRepresentations, ...]
+    representations: Optional[Tuple[Optional[DatasetFragmentRepresentations], ...]]
+    "Associated images through Omero"
     omerofiles: Tuple[DatasetFragmentOmerofiles, ...]
 
     class Config:
@@ -1873,11 +1897,16 @@ class Create_labelMutation(BaseModel):
     class Arguments(BaseModel):
         instance: int
         representation: ID
-        creator: Optional[ID] = None
-        name: Optional[str] = None
+        creator: Optional[ID]
+        name: Optional[str]
+        created_while: Optional[AssignationID]
+
+        @validator("created_while", pre=True, always=True)
+        def created_while_validator(cls, value):
+            return get_current_id(cls, value)
 
     class Meta:
-        document = "mutation create_label($instance: Int!, $representation: ID!, $creator: ID, $name: String) {\n  createLabel(\n    instance: $instance\n    representation: $representation\n    creator: $creator\n    name: $name\n  ) {\n    id\n    instance\n  }\n}"
+        document = "mutation create_label($instance: Int!, $representation: ID!, $creator: ID, $name: String, $created_while: AssignationID) {\n  createLabel(\n    instance: $instance\n    representation: $representation\n    creator: $creator\n    name: $name\n    createdWhile: $created_while\n  ) {\n    id\n    instance\n  }\n}"
 
 
 class Create_contextMutation(BaseModel):
@@ -1886,10 +1915,15 @@ class Create_contextMutation(BaseModel):
 
     class Arguments(BaseModel):
         name: str
-        experiment: Optional[ID] = None
+        experiment: Optional[ID]
+        created_while: Optional[AssignationID]
+
+        @validator("created_while", pre=True, always=True)
+        def created_while_validator(cls, value):
+            return get_current_id(cls, value)
 
     class Meta:
-        document = "fragment Context on Context {\n  id\n  name\n  links {\n    id\n    leftId\n    rightId\n    leftType\n    rightType\n  }\n}\n\nmutation create_context($name: String!, $experiment: ID) {\n  createContext(name: $name, experiment: $experiment) {\n    ...Context\n  }\n}"
+        document = "fragment Context on Context {\n  id\n  name\n  links {\n    id\n    leftId\n    rightId\n    leftType\n    rightType\n  }\n}\n\nmutation create_context($name: String!, $experiment: ID, $created_while: AssignationID) {\n  createContext(\n    name: $name\n    experiment: $experiment\n    createdWhile: $created_while\n  ) {\n    ...Context\n  }\n}"
 
 
 class Create_thumbnailMutation(BaseModel):
@@ -1898,21 +1932,16 @@ class Create_thumbnailMutation(BaseModel):
     class Arguments(BaseModel):
         rep: ID
         file: File
-        major_color: Optional[str] = None
-        blurhash: Optional[str] = None
+        major_color: Optional[str]
+        blurhash: Optional[str]
+        created_while: Optional[AssignationID]
+
+        @validator("created_while", pre=True, always=True)
+        def created_while_validator(cls, value):
+            return get_current_id(cls, value)
 
     class Meta:
-        document = "fragment Thumbnail on Thumbnail {\n  id\n  image\n}\n\nmutation create_thumbnail($rep: ID!, $file: ImageFile!, $major_color: String, $blurhash: String) {\n  uploadThumbnail(\n    rep: $rep\n    file: $file\n    majorColor: $major_color\n    blurhash: $blurhash\n  ) {\n    ...Thumbnail\n  }\n}"
-
-
-class NegotiateMutation(BaseModel):
-    negotiate: Optional[Dict]
-
-    class Arguments(BaseModel):
-        pass
-
-    class Meta:
-        document = "mutation negotiate {\n  negotiate\n}"
+        document = "fragment Thumbnail on Thumbnail {\n  id\n  image\n}\n\nmutation create_thumbnail($rep: ID!, $file: ImageFile!, $major_color: String, $blurhash: String, $created_while: AssignationID) {\n  uploadThumbnail(\n    rep: $rep\n    file: $file\n    majorColor: $major_color\n    blurhash: $blurhash\n    createdWhile: $created_while\n  ) {\n    ...Thumbnail\n  }\n}"
 
 
 class From_dfMutation(BaseModel):
@@ -1922,10 +1951,15 @@ class From_dfMutation(BaseModel):
     class Arguments(BaseModel):
         df: ParquetInput
         name: str
-        rep_origins: Optional[List[Optional[ID]]] = None
+        rep_origins: Optional[List[Optional[ID]]]
+        created_while: Optional[AssignationID]
+
+        @validator("created_while", pre=True, always=True)
+        def created_while_validator(cls, value):
+            return get_current_id(cls, value)
 
     class Meta:
-        document = "fragment Table on Table {\n  id\n  name\n  tags\n  store\n  creator {\n    email\n  }\n  sample {\n    id\n  }\n  repOrigins {\n    id\n  }\n  experiment {\n    id\n  }\n}\n\nmutation from_df($df: ParquetInput!, $name: String!, $rep_origins: [ID]) {\n  fromDf(df: $df, name: $name, repOrigins: $rep_origins) {\n    ...Table\n  }\n}"
+        document = "fragment Table on Table {\n  id\n  name\n  tags\n  store\n  creator {\n    email\n  }\n  sample {\n    id\n  }\n  repOrigins {\n    id\n  }\n  experiment {\n    id\n  }\n}\n\nmutation from_df($df: ParquetInput!, $name: String!, $rep_origins: [ID], $created_while: AssignationID) {\n  fromDf(\n    df: $df\n    name: $name\n    repOrigins: $rep_origins\n    createdWhile: $created_while\n  ) {\n    ...Table\n  }\n}"
 
 
 class LinkMutation(BaseModel):
@@ -1934,28 +1968,19 @@ class LinkMutation(BaseModel):
 
     class Arguments(BaseModel):
         relation: ID
-        x_type: LinkableModels
-        x_id: ID
-        y_type: LinkableModels
-        y_id: ID
-        context: Optional[ID] = None
+        left_type: LinkableModels
+        left_id: ID
+        right_type: LinkableModels
+        right_id: ID
+        context: Optional[ID]
+        created_while: Optional[AssignationID]
+
+        @validator("created_while", pre=True, always=True)
+        def created_while_validator(cls, value):
+            return get_current_id(cls, value)
 
     class Meta:
-        document = "fragment ListLink on DataLink {\n  relation {\n    id\n    name\n  }\n  id\n  leftId\n  rightId\n  leftType\n  rightType\n}\n\nmutation link($relation: ID!, $x_type: LinkableModels!, $x_id: ID!, $y_type: LinkableModels!, $y_id: ID!, $context: ID) {\n  link(\n    relation: $relation\n    xType: $x_type\n    xId: $x_id\n    yType: $y_type\n    yId: $y_id\n    context: $context\n  ) {\n    ...ListLink\n  }\n}"
-
-
-class Link_rep_to_repMutation(BaseModel):
-    link: Optional[ListLinkFragment]
-    "Create an Comment \n    \n    This mutation creates a comment. It takes a commentable_id and a commentable_type.\n    If this is the first comment on the commentable, it will create a new comment thread.\n    If there is already a comment thread, it will add the comment to the thread (by setting\n    it's parent to the last parent comment in the thread).\n\n    CreateComment takes a list of Descendents, which are the comment tree. The Descendents\n    are a recursive structure, where each Descendent can have a list of Descendents as children.\n    The Descendents are either a Leaf, which is a text node, or a MentionDescendent, which is a\n    reference to another user on the platform.\n\n    Please convert your comment tree to a list of Descendents before sending it to the server.\n    TODO: Add a converter from a comment tree to a list of Descendents.\n\n    \n    (only signed in users)"
-
-    class Arguments(BaseModel):
-        relation: ID
-        left_rep: ID
-        right_rep: ID
-        context: Optional[ID] = None
-
-    class Meta:
-        document = "fragment ListLink on DataLink {\n  relation {\n    id\n    name\n  }\n  id\n  leftId\n  rightId\n  leftType\n  rightType\n}\n\nmutation link_rep_to_rep($relation: ID!, $left_rep: ID!, $right_rep: ID!, $context: ID) {\n  link(\n    relation: $relation\n    xType: GRUNNLAG_REPRESENTATION\n    xId: $left_rep\n    yType: GRUNNLAG_REPRESENTATION\n    yId: $right_rep\n    context: $context\n  ) {\n    ...ListLink\n  }\n}"
+        document = "fragment ListLink on DataLink {\n  relation {\n    id\n    name\n  }\n  id\n  leftId\n  rightId\n  leftType\n  rightType\n}\n\nmutation link($relation: ID!, $left_type: LinkableModels!, $left_id: ID!, $right_type: LinkableModels!, $right_id: ID!, $context: ID, $created_while: AssignationID) {\n  link(\n    relation: $relation\n    leftType: $left_type\n    leftId: $left_id\n    rightType: $right_type\n    rightId: $right_id\n    context: $context\n    createdWhile: $created_while\n  ) {\n    ...ListLink\n  }\n}"
 
 
 class Create_stageMutation(BaseModel):
@@ -1964,12 +1989,17 @@ class Create_stageMutation(BaseModel):
 
     class Arguments(BaseModel):
         name: str
-        creator: Optional[ID] = None
-        instrument: Optional[ID] = None
-        tags: Optional[List[Optional[str]]] = None
+        creator: Optional[ID]
+        instrument: Optional[ID]
+        tags: Optional[List[Optional[str]]]
+        created_while: Optional[AssignationID]
+
+        @validator("created_while", pre=True, always=True)
+        def created_while_validator(cls, value):
+            return get_current_id(cls, value)
 
     class Meta:
-        document = "fragment Stage on Stage {\n  id\n  kind\n  name\n}\n\nmutation create_stage($name: String!, $creator: ID, $instrument: ID, $tags: [String]) {\n  createStage(\n    name: $name\n    creator: $creator\n    instrument: $instrument\n    tags: $tags\n  ) {\n    ...Stage\n  }\n}"
+        document = "fragment Stage on Stage {\n  id\n  kind\n  name\n}\n\nmutation create_stage($name: String!, $creator: ID, $instrument: ID, $tags: [String], $created_while: AssignationID) {\n  createStage(\n    name: $name\n    creator: $creator\n    instrument: $instrument\n    tags: $tags\n    createdWhile: $created_while\n  ) {\n    ...Stage\n  }\n}"
 
 
 class Create_sampleMutationCreatesampleCreator(BaseModel):
@@ -2015,14 +2045,19 @@ class Create_sampleMutation(BaseModel):
     "Creates a Sample"
 
     class Arguments(BaseModel):
-        name: Optional[str] = None
-        creator: Optional[str] = None
-        meta: Optional[Dict] = None
-        experiments: Optional[List[Optional[ID]]] = None
-        tags: Optional[List[Optional[str]]] = None
+        name: Optional[str]
+        creator: Optional[str]
+        meta: Optional[Dict]
+        experiments: Optional[List[Optional[ID]]]
+        tags: Optional[List[Optional[str]]]
+        created_while: Optional[AssignationID]
+
+        @validator("created_while", pre=True, always=True)
+        def created_while_validator(cls, value):
+            return get_current_id(cls, value)
 
     class Meta:
-        document = "mutation create_sample($name: String, $creator: String, $meta: GenericScalar, $experiments: [ID], $tags: [String]) {\n  createSample(\n    name: $name\n    creator: $creator\n    meta: $meta\n    experiments: $experiments\n    tags: $tags\n  ) {\n    id\n    name\n    creator {\n      email\n    }\n  }\n}"
+        document = "mutation create_sample($name: String, $creator: String, $meta: GenericScalar, $experiments: [ID], $tags: [String], $created_while: AssignationID) {\n  createSample(\n    name: $name\n    creator: $creator\n    meta: $meta\n    experiments: $experiments\n    tags: $tags\n    createdWhile: $created_while\n  ) {\n    id\n    name\n    creator {\n      email\n    }\n  }\n}"
 
 
 class Create_roiMutation(BaseModel):
@@ -2032,13 +2067,18 @@ class Create_roiMutation(BaseModel):
     class Arguments(BaseModel):
         representation: ID
         vectors: List[Optional[InputVector]]
-        creator: Optional[ID] = None
+        creator: Optional[ID]
         type: RoiTypeInput
-        label: Optional[str] = None
-        tags: Optional[List[Optional[str]]] = None
+        label: Optional[str]
+        tags: Optional[List[Optional[str]]]
+        created_while: Optional[AssignationID]
+
+        @validator("created_while", pre=True, always=True)
+        def created_while_validator(cls, value):
+            return get_current_id(cls, value)
 
     class Meta:
-        document = "fragment ROI on ROI {\n  id\n  label\n  vectors {\n    x\n    y\n    t\n    c\n    z\n  }\n  type\n  representation {\n    id\n    shape\n  }\n  derivedRepresentations {\n    id\n  }\n  creator {\n    email\n    id\n    color\n  }\n}\n\nmutation create_roi($representation: ID!, $vectors: [InputVector]!, $creator: ID, $type: RoiTypeInput!, $label: String, $tags: [String]) {\n  createROI(\n    representation: $representation\n    vectors: $vectors\n    type: $type\n    creator: $creator\n    label: $label\n    tags: $tags\n  ) {\n    ...ROI\n  }\n}"
+        document = "fragment ROI on ROI {\n  id\n  label\n  vectors {\n    x\n    y\n    t\n    c\n    z\n  }\n  type\n  representation {\n    id\n    shape\n    store\n    variety\n  }\n  derivedRepresentations {\n    id\n    store\n    shape\n    variety\n  }\n  creator {\n    email\n    id\n    color\n  }\n}\n\nmutation create_roi($representation: ID!, $vectors: [InputVector]!, $creator: ID, $type: RoiTypeInput!, $label: String, $tags: [String], $created_while: AssignationID) {\n  createROI(\n    representation: $representation\n    vectors: $vectors\n    type: $type\n    creator: $creator\n    label: $label\n    tags: $tags\n    createdWhile: $created_while\n  ) {\n    ...ROI\n  }\n}"
 
 
 class Create_roisMutationCreaterois(Representation, BaseModel):
@@ -2090,13 +2130,18 @@ class Create_roisMutation(BaseModel):
     class Arguments(BaseModel):
         representation: ID
         vectors_list: List[Optional[List[Optional[InputVector]]]]
-        creator: Optional[ID] = None
+        creator: Optional[ID]
         type: RoiTypeInput
-        labels: Optional[List[Optional[str]]] = None
-        tags: Optional[List[Optional[str]]] = None
+        labels: Optional[List[Optional[str]]]
+        tags: Optional[List[Optional[str]]]
+        created_while: Optional[AssignationID]
+
+        @validator("created_while", pre=True, always=True)
+        def created_while_validator(cls, value):
+            return get_current_id(cls, value)
 
     class Meta:
-        document = "mutation create_rois($representation: ID!, $vectors_list: [[InputVector]]!, $creator: ID, $type: RoiTypeInput!, $labels: [String], $tags: [String]) {\n  createROIS(\n    representation: $representation\n    vectorsList: $vectors_list\n    type: $type\n    creator: $creator\n    labels: $labels\n    tags: $tags\n  ) {\n    id\n  }\n}"
+        document = "mutation create_rois($representation: ID!, $vectors_list: [[InputVector]]!, $creator: ID, $type: RoiTypeInput!, $labels: [String], $tags: [String], $created_while: AssignationID) {\n  createROIS(\n    representation: $representation\n    vectorsList: $vectors_list\n    type: $type\n    creator: $creator\n    labels: $labels\n    tags: $tags\n    createdWhile: $created_while\n  ) {\n    id\n  }\n}"
 
 
 class Create_featureMutationCreatefeatureLabelRepresentation(Representation, BaseModel):
@@ -2198,12 +2243,17 @@ class Create_featureMutation(BaseModel):
 
     class Arguments(BaseModel):
         label: ID
-        key: Optional[str] = None
+        key: Optional[str]
         value: FeatureValue
-        creator: Optional[ID] = None
+        creator: Optional[ID]
+        created_while: Optional[AssignationID]
+
+        @validator("created_while", pre=True, always=True)
+        def created_while_validator(cls, value):
+            return get_current_id(cls, value)
 
     class Meta:
-        document = "mutation create_feature($label: ID!, $key: String, $value: FeatureValue!, $creator: ID) {\n  createfeature(label: $label, key: $key, value: $value, creator: $creator) {\n    id\n    key\n    value\n    label {\n      id\n      representation {\n        id\n      }\n    }\n  }\n}"
+        document = "mutation create_feature($label: ID!, $key: String, $value: FeatureValue!, $creator: ID, $created_while: AssignationID) {\n  createfeature(\n    label: $label\n    key: $key\n    value: $value\n    creator: $creator\n    createdWhile: $created_while\n  ) {\n    id\n    key\n    value\n    label {\n      id\n      representation {\n        id\n      }\n    }\n  }\n}"
 
 
 class Create_instrumentMutation(BaseModel):
@@ -2211,18 +2261,23 @@ class Create_instrumentMutation(BaseModel):
     "Creates an Instrument\n    \n    This mutation creates an Instrument and returns the created Instrument.\n    The serial number is required and the manufacturer is inferred from the serial number.\n    "
 
     class Arguments(BaseModel):
-        detectors: Optional[List[Optional[Dict]]] = None
-        dichroics: Optional[List[Optional[Dict]]] = None
-        filters: Optional[List[Optional[Dict]]] = None
+        detectors: Optional[List[Optional[Dict]]]
+        dichroics: Optional[List[Optional[Dict]]]
+        filters: Optional[List[Optional[Dict]]]
         name: str
-        objectives: Optional[List[Optional[ID]]] = None
-        lot_number: Optional[str] = None
-        serial_number: Optional[str] = None
-        model: Optional[str] = None
-        manufacturer: Optional[str] = None
+        objectives: Optional[List[Optional[ID]]]
+        lot_number: Optional[str]
+        serial_number: Optional[str]
+        model: Optional[str]
+        manufacturer: Optional[str]
+        created_while: Optional[AssignationID]
+
+        @validator("created_while", pre=True, always=True)
+        def created_while_validator(cls, value):
+            return get_current_id(cls, value)
 
     class Meta:
-        document = "fragment Instrument on Instrument {\n  id\n  dichroics\n  detectors\n  filters\n  name\n  lotNumber\n  serialNumber\n  manufacturer\n  model\n}\n\nmutation create_instrument($detectors: [GenericScalar], $dichroics: [GenericScalar], $filters: [GenericScalar], $name: String!, $objectives: [ID], $lotNumber: String, $serialNumber: String, $model: String, $manufacturer: String) {\n  createInstrument(\n    detectors: $detectors\n    dichroics: $dichroics\n    filters: $filters\n    name: $name\n    lotNumber: $lotNumber\n    objectives: $objectives\n    serialNumber: $serialNumber\n    model: $model\n    manufacturer: $manufacturer\n  ) {\n    ...Instrument\n  }\n}"
+        document = "fragment Instrument on Instrument {\n  id\n  dichroics\n  detectors\n  filters\n  name\n  lotNumber\n  serialNumber\n  manufacturer\n  model\n}\n\nmutation create_instrument($detectors: [GenericScalar], $dichroics: [GenericScalar], $filters: [GenericScalar], $name: String!, $objectives: [ID], $lotNumber: String, $serialNumber: String, $model: String, $manufacturer: String, $created_while: AssignationID) {\n  createInstrument(\n    detectors: $detectors\n    dichroics: $dichroics\n    filters: $filters\n    name: $name\n    lotNumber: $lotNumber\n    objectives: $objectives\n    serialNumber: $serialNumber\n    model: $model\n    manufacturer: $manufacturer\n    createdWhile: $created_while\n  ) {\n    ...Instrument\n  }\n}"
 
 
 class PresignMutationPresignFields(BaseModel):
@@ -2260,18 +2315,40 @@ class PresignMutation(BaseModel):
         document = "mutation presign($file_name: String!) {\n  presign(file: $file_name) {\n    bucket\n    fields {\n      key\n      policy\n      xAmzAlgorithm\n      xAmzCredential\n      xAmzDate\n      xAmzSignature\n    }\n  }\n}"
 
 
+class Upload_videoMutation(BaseModel):
+    upload_video: Optional[VideoFragment] = Field(alias="uploadVideo")
+
+    class Arguments(BaseModel):
+        file: BigFile
+        representations: List[Optional[ID]]
+        front_image: Optional[BigFile]
+        created_while: Optional[AssignationID]
+
+        @validator("created_while", pre=True, always=True)
+        def created_while_validator(cls, value):
+            return get_current_id(cls, value)
+
+    class Meta:
+        document = "fragment Video on Video {\n  data\n  id\n}\n\nmutation upload_video($file: BigFile!, $representations: [ID]!, $frontImage: BigFile, $created_while: AssignationID) {\n  uploadVideo(\n    file: $file\n    frontImage: $frontImage\n    representations: $representations\n    createdWhile: $created_while\n  ) {\n    ...Video\n  }\n}"
+
+
 class Create_experimentMutation(BaseModel):
     create_experiment: Optional[ExperimentFragment] = Field(alias="createExperiment")
     "Create an Experiment\n    \n    This mutation creates an Experiment and returns the created Experiment.\n    "
 
     class Arguments(BaseModel):
         name: str
-        creator: Optional[str] = None
-        description: Optional[str] = None
-        tags: Optional[List[Optional[str]]] = None
+        creator: Optional[str]
+        description: Optional[str]
+        tags: Optional[List[Optional[str]]]
+        created_while: Optional[AssignationID]
+
+        @validator("created_while", pre=True, always=True)
+        def created_while_validator(cls, value):
+            return get_current_id(cls, value)
 
     class Meta:
-        document = "fragment Experiment on Experiment {\n  id\n  name\n  creator {\n    email\n  }\n}\n\nmutation create_experiment($name: String!, $creator: String, $description: String, $tags: [String]) {\n  createExperiment(\n    name: $name\n    creator: $creator\n    description: $description\n    tags: $tags\n  ) {\n    ...Experiment\n  }\n}"
+        document = "fragment Experiment on Experiment {\n  id\n  name\n  creator {\n    email\n  }\n}\n\nmutation create_experiment($name: String!, $creator: String, $description: String, $tags: [String], $created_while: AssignationID) {\n  createExperiment(\n    name: $name\n    creator: $creator\n    description: $description\n    tags: $tags\n    createdWhile: $created_while\n  ) {\n    ...Experiment\n  }\n}"
 
 
 class From_xarrayMutation(BaseModel):
@@ -2282,19 +2359,24 @@ class From_xarrayMutation(BaseModel):
 
     class Arguments(BaseModel):
         xarray: XArrayInput
-        name: Optional[str] = None
-        variety: Optional[RepresentationVarietyInput] = None
-        origins: Optional[List[Optional[ID]]] = None
-        file_origins: Optional[List[Optional[ID]]] = None
-        roi_origins: Optional[List[Optional[ID]]] = None
-        tags: Optional[List[Optional[str]]] = None
-        experiments: Optional[List[Optional[ID]]] = None
-        datasets: Optional[List[Optional[ID]]] = None
-        sample: Optional[ID] = None
-        omero: Optional[OmeroRepresentationInput] = None
+        name: Optional[str]
+        variety: Optional[RepresentationVarietyInput]
+        origins: Optional[List[Optional[ID]]]
+        file_origins: Optional[List[Optional[ID]]]
+        roi_origins: Optional[List[Optional[ID]]]
+        tags: Optional[List[Optional[str]]]
+        experiments: Optional[List[Optional[ID]]]
+        datasets: Optional[List[Optional[ID]]]
+        sample: Optional[ID]
+        omero: Optional[OmeroRepresentationInput]
+        created_while: Optional[AssignationID]
+
+        @validator("created_while", pre=True, always=True)
+        def created_while_validator(cls, value):
+            return get_current_id(cls, value)
 
     class Meta:
-        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n    position {\n      id\n      x\n      y\n      z\n      stage {\n        id\n      }\n    }\n    affineTransformation\n    channels {\n      name\n      color\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nmutation from_xarray($xarray: XArrayInput!, $name: String, $variety: RepresentationVarietyInput, $origins: [ID], $file_origins: [ID], $roi_origins: [ID], $tags: [String], $experiments: [ID], $datasets: [ID], $sample: ID, $omero: OmeroRepresentationInput) {\n  fromXArray(\n    xarray: $xarray\n    name: $name\n    origins: $origins\n    tags: $tags\n    sample: $sample\n    omero: $omero\n    fileOrigins: $file_origins\n    roiOrigins: $roi_origins\n    experiments: $experiments\n    datasets: $datasets\n    variety: $variety\n  ) {\n    ...Representation\n  }\n}"
+        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  createdWhile\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n    position {\n      id\n      x\n      y\n      z\n      stage {\n        id\n      }\n    }\n    affineTransformation\n    channels {\n      name\n      color\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nmutation from_xarray($xarray: XArrayInput!, $name: String, $variety: RepresentationVarietyInput, $origins: [ID], $file_origins: [ID], $roi_origins: [ID], $tags: [String], $experiments: [ID], $datasets: [ID], $sample: ID, $omero: OmeroRepresentationInput, $created_while: AssignationID) {\n  fromXArray(\n    xarray: $xarray\n    name: $name\n    origins: $origins\n    tags: $tags\n    sample: $sample\n    omero: $omero\n    fileOrigins: $file_origins\n    roiOrigins: $roi_origins\n    experiments: $experiments\n    datasets: $datasets\n    variety: $variety\n    createdWhile: $created_while\n  ) {\n    ...Representation\n  }\n}"
 
 
 class Update_representationMutation(BaseModel):
@@ -2305,12 +2387,12 @@ class Update_representationMutation(BaseModel):
 
     class Arguments(BaseModel):
         id: ID
-        tags: Optional[List[Optional[str]]] = None
-        sample: Optional[ID] = None
-        variety: Optional[RepresentationVarietyInput] = None
+        tags: Optional[List[Optional[str]]]
+        sample: Optional[ID]
+        variety: Optional[RepresentationVarietyInput]
 
     class Meta:
-        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n    position {\n      id\n      x\n      y\n      z\n      stage {\n        id\n      }\n    }\n    affineTransformation\n    channels {\n      name\n      color\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nmutation update_representation($id: ID!, $tags: [String], $sample: ID, $variety: RepresentationVarietyInput) {\n  updateRepresentation(rep: $id, tags: $tags, sample: $sample, variety: $variety) {\n    ...Representation\n  }\n}"
+        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  createdWhile\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n    position {\n      id\n      x\n      y\n      z\n      stage {\n        id\n      }\n    }\n    affineTransformation\n    channels {\n      name\n      color\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nmutation update_representation($id: ID!, $tags: [String], $sample: ID, $variety: RepresentationVarietyInput) {\n  updateRepresentation(rep: $id, tags: $tags, sample: $sample, variety: $variety) {\n    ...Representation\n  }\n}"
 
 
 class Create_modelMutation(BaseModel):
@@ -2321,11 +2403,16 @@ class Create_modelMutation(BaseModel):
         data: ModelFile
         kind: ModelKind
         name: str
-        contexts: Optional[List[Optional[ID]]] = None
-        experiments: Optional[List[Optional[ID]]] = None
+        contexts: Optional[List[Optional[ID]]]
+        experiments: Optional[List[Optional[ID]]]
+        created_while: Optional[AssignationID]
+
+        @validator("created_while", pre=True, always=True)
+        def created_while_validator(cls, value):
+            return get_current_id(cls, value)
 
     class Meta:
-        document = "fragment Model on Model {\n  id\n  data\n  kind\n  name\n  contexts {\n    id\n    name\n  }\n}\n\nmutation create_model($data: ModelFile!, $kind: ModelKind!, $name: String!, $contexts: [ID], $experiments: [ID]) {\n  createModel(\n    data: $data\n    kind: $kind\n    name: $name\n    contexts: $contexts\n    experiments: $experiments\n  ) {\n    ...Model\n  }\n}"
+        document = "fragment Model on Model {\n  id\n  data\n  kind\n  name\n  contexts {\n    id\n    name\n  }\n}\n\nmutation create_model($data: ModelFile!, $kind: ModelKind!, $name: String!, $contexts: [ID], $experiments: [ID], $created_while: AssignationID) {\n  createModel(\n    data: $data\n    kind: $kind\n    name: $name\n    contexts: $contexts\n    experiments: $experiments\n    createdWhile: $created_while\n  ) {\n    ...Model\n  }\n}"
 
 
 class Create_metricMutation(BaseModel):
@@ -2333,14 +2420,19 @@ class Create_metricMutation(BaseModel):
     "Create a metric\n\n    This mutation creates a metric and returns the created metric.\n    \n    "
 
     class Arguments(BaseModel):
-        representation: Optional[ID] = None
-        sample: Optional[ID] = None
-        experiment: Optional[ID] = None
+        representation: Optional[ID]
+        sample: Optional[ID]
+        experiment: Optional[ID]
         key: str
         value: MetricValue
+        created_while: Optional[AssignationID]
+
+        @validator("created_while", pre=True, always=True)
+        def created_while_validator(cls, value):
+            return get_current_id(cls, value)
 
     class Meta:
-        document = "fragment Metric on Metric {\n  id\n  representation {\n    id\n  }\n  key\n  value\n  creator {\n    id\n  }\n  createdAt\n}\n\nmutation create_metric($representation: ID, $sample: ID, $experiment: ID, $key: String!, $value: MetricValue!) {\n  createMetric(\n    representation: $representation\n    sample: $sample\n    experiment: $experiment\n    key: $key\n    value: $value\n  ) {\n    ...Metric\n  }\n}"
+        document = "fragment Metric on Metric {\n  id\n  representation {\n    id\n  }\n  key\n  value\n  creator {\n    id\n  }\n  createdAt\n}\n\nmutation create_metric($representation: ID, $sample: ID, $experiment: ID, $key: String!, $value: MetricValue!, $created_while: AssignationID) {\n  createMetric(\n    representation: $representation\n    sample: $sample\n    experiment: $experiment\n    key: $key\n    value: $value\n    createdWhile: $created_while\n  ) {\n    ...Metric\n  }\n}"
 
 
 class Create_datasetMutation(BaseModel):
@@ -2349,10 +2441,15 @@ class Create_datasetMutation(BaseModel):
 
     class Arguments(BaseModel):
         name: str
-        parent: Optional[ID] = None
+        parent: Optional[ID]
+        created_while: Optional[AssignationID]
+
+        @validator("created_while", pre=True, always=True)
+        def created_while_validator(cls, value):
+            return get_current_id(cls, value)
 
     class Meta:
-        document = "fragment Dataset on Dataset {\n  id\n  name\n  parent {\n    id\n  }\n  representations {\n    id\n    name\n  }\n  omerofiles {\n    id\n    name\n  }\n}\n\nmutation create_dataset($name: String!, $parent: ID) {\n  createDataset(name: $name, parent: $parent) {\n    ...Dataset\n  }\n}"
+        document = "fragment Dataset on Dataset {\n  id\n  name\n  parent {\n    id\n  }\n  representations {\n    id\n    name\n  }\n  omerofiles {\n    id\n    name\n  }\n}\n\nmutation create_dataset($name: String!, $parent: ID, $created_while: AssignationID) {\n  createDataset(name: $name, parent: $parent, createdWhile: $created_while) {\n    ...Dataset\n  }\n}"
 
 
 class Create_positionMutation(BaseModel):
@@ -2364,12 +2461,17 @@ class Create_positionMutation(BaseModel):
         x: float
         y: float
         z: float
-        tolerance: Optional[float] = None
-        name: Optional[str] = None
-        tags: Optional[List[Optional[str]]] = None
+        tolerance: Optional[float]
+        name: Optional[str]
+        tags: Optional[List[Optional[str]]]
+        created_while: Optional[AssignationID]
+
+        @validator("created_while", pre=True, always=True)
+        def created_while_validator(cls, value):
+            return get_current_id(cls, value)
 
     class Meta:
-        document = 'fragment ListStage on Stage {\n  id\n  name\n  kind\n}\n\nfragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nmutation create_position($stage: ID!, $x: Float!, $y: Float!, $z: Float!, $tolerance: Float, $name: String, $tags: [String]) {\n  createPosition(\n    stage: $stage\n    x: $x\n    y: $y\n    z: $z\n    tags: $tags\n    name: $name\n    tolerance: $tolerance\n  ) {\n    ...Position\n  }\n}'
+        document = 'fragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment ListStage on Stage {\n  id\n  name\n  kind\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nmutation create_position($stage: ID!, $x: Float!, $y: Float!, $z: Float!, $tolerance: Float, $name: String, $tags: [String], $created_while: AssignationID) {\n  createPosition(\n    stage: $stage\n    x: $x\n    y: $y\n    z: $z\n    tags: $tags\n    name: $name\n    tolerance: $tolerance\n    createdWhile: $created_while\n  ) {\n    ...Position\n  }\n}'
 
 
 class Create_objectiveMutation(BaseModel):
@@ -2380,11 +2482,16 @@ class Create_objectiveMutation(BaseModel):
         serial_number: str
         name: str
         magnification: float
-        na: Optional[float] = None
-        immersion: Optional[str] = None
+        na: Optional[float]
+        immersion: Optional[str]
+        created_while: Optional[AssignationID]
+
+        @validator("created_while", pre=True, always=True)
+        def created_while_validator(cls, value):
+            return get_current_id(cls, value)
 
     class Meta:
-        document = "fragment Objective on Objective {\n  id\n  name\n  magnification\n}\n\nmutation create_objective($serial_number: String!, $name: String!, $magnification: Float!, $na: Float, $immersion: String) {\n  createObjective(\n    name: $name\n    serialNumber: $serial_number\n    magnification: $magnification\n    na: $na\n    immersion: $immersion\n  ) {\n    ...Objective\n  }\n}"
+        document = "fragment Objective on Objective {\n  id\n  name\n  magnification\n}\n\nmutation create_objective($serial_number: String!, $name: String!, $magnification: Float!, $na: Float, $immersion: String, $created_while: AssignationID) {\n  createObjective(\n    name: $name\n    serialNumber: $serial_number\n    magnification: $magnification\n    na: $na\n    immersion: $immersion\n    createdWhile: $created_while\n  ) {\n    ...Objective\n  }\n}"
 
 
 class Upload_bioimageMutationUploadomerofile(BaseModel):
@@ -2409,7 +2516,7 @@ class Upload_bioimageMutation(BaseModel):
 
     class Arguments(BaseModel):
         file: File
-        name: Optional[str] = None
+        name: Optional[str]
 
     class Meta:
         document = "mutation upload_bioimage($file: ImageFile!, $name: String) {\n  uploadOmeroFile(file: $file, name: $name) {\n    id\n    file\n    type\n    name\n  }\n}"
@@ -2437,10 +2544,15 @@ class Upload_bigfileMutation(BaseModel):
 
     class Arguments(BaseModel):
         file: BigFile
-        datasets: Optional[List[Optional[ID]]] = None
+        datasets: Optional[List[Optional[ID]]]
+        created_while: Optional[AssignationID]
+
+        @validator("created_while", pre=True, always=True)
+        def created_while_validator(cls, value):
+            return get_current_id(cls, value)
 
     class Meta:
-        document = "mutation upload_bigfile($file: BigFile!, $datasets: [ID]) {\n  uploadBigFile(file: $file, datasets: $datasets) {\n    id\n    file\n    type\n    name\n  }\n}"
+        document = "mutation upload_bigfile($file: BigFile!, $datasets: [ID], $created_while: AssignationID) {\n  uploadBigFile(file: $file, datasets: $datasets, createdWhile: $created_while) {\n    id\n    file\n    type\n    name\n  }\n}"
 
 
 class Get_labelQueryLabelforFeatures(BaseModel):
@@ -2542,8 +2654,8 @@ class Search_labelsQuery(BaseModel):
     "All Labels\n    \n    This query returns all Labels that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Labels that the user has access to. If the user is an amdin\n    or superuser, all Labels will be returned.\n    "
 
     class Arguments(BaseModel):
-        search: Optional[str] = None
-        values: Optional[List[Optional[ID]]] = None
+        search: Optional[str]
+        values: Optional[List[Optional[ID]]]
 
     class Meta:
         document = "query search_labels($search: String, $values: [ID]) {\n  options: labels(name: $search, limit: 20, ids: $values) {\n    label: name\n    value: id\n  }\n}"
@@ -2565,8 +2677,8 @@ class Get_mycontextsQuery(BaseModel):
     "My Experiments runs a fast query on the database to return all\n    Experiments that the user has created. This query is faster than\n    the `experiments` query, but it does not return all Experiments that\n    the user has access to."
 
     class Arguments(BaseModel):
-        limit: Optional[int] = None
-        offset: Optional[int] = None
+        limit: Optional[int]
+        offset: Optional[int]
 
     class Meta:
         document = "fragment ListContext on Context {\n  id\n  name\n}\n\nquery get_mycontexts($limit: Int, $offset: Int) {\n  mycontexts(limit: $limit, offset: $offset) {\n    ...ListContext\n  }\n}"
@@ -2584,7 +2696,7 @@ class Expand_contextQuery(BaseModel):
 
 
 class Search_contextsQueryOptions(BaseModel):
-    """Context(id, created_by, created_through, name, created_at, experiment, creator)"""
+    """Context(id, created_by, created_through, created_while, name, created_at, experiment, creator)"""
 
     typename: Optional[Literal["Context"]] = Field(alias="__typename", exclude=True)
     value: ID
@@ -2600,8 +2712,8 @@ class Search_contextsQuery(BaseModel):
     "My Experiments runs a fast query on the database to return all\n    Experiments that the user has created. This query is faster than\n    the `experiments` query, but it does not return all Experiments that\n    the user has access to."
 
     class Arguments(BaseModel):
-        search: Optional[str] = None
-        values: Optional[List[Optional[ID]]] = None
+        search: Optional[str]
+        values: Optional[List[Optional[ID]]]
 
     class Meta:
         document = "query search_contexts($search: String, $values: [ID]) {\n  options: mycontexts(name: $search, limit: 30, ids: $values) {\n    value: id\n    label: name\n  }\n}"
@@ -2648,8 +2760,8 @@ class Search_thumbnailsQuery(BaseModel):
     "All Thumbnails\n    \n    This query returns all Thumbnails that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Thumbnails that the user has access to. If the user is an amdin\n    or superuser, all Thumbnails will be returned.\n    \n    "
 
     class Arguments(BaseModel):
-        search: Optional[str] = None
-        values: Optional[List[Optional[ID]]] = None
+        search: Optional[str]
+        values: Optional[List[Optional[ID]]]
 
     class Meta:
         document = "query search_thumbnails($search: String, $values: [ID]) {\n  options: thumbnails(name: $search, limit: 20, ids: $values) {\n    value: id\n    label: image\n  }\n}"
@@ -2729,15 +2841,15 @@ class Search_tablesQuery(BaseModel):
     "My samples return all of the users samples attached to the current user"
 
     class Arguments(BaseModel):
-        search: Optional[str] = None
-        values: Optional[List[Optional[ID]]] = None
+        search: Optional[str]
+        values: Optional[List[Optional[ID]]]
 
     class Meta:
         document = "query search_tables($search: String, $values: [ID]) {\n  options: tables(name: $search, limit: 30, ids: $values) {\n    value: id\n    label: name\n  }\n}"
 
 
 class LinksQueryLinksRelation(BaseModel):
-    """Relation(id, name, description)"""
+    """Relation(id, created_by, created_through, created_while, name, description)"""
 
     typename: Optional[Literal["Relation"]] = Field(alias="__typename", exclude=True)
     id: ID
@@ -2771,7 +2883,7 @@ class LinksQueryLinksRepresentationInlineFragment(Representation, BaseModel):
 
 
 class LinksQueryLinks(BaseModel):
-    """DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)"""
+    """DataLink(id, created_by, created_through, created_while, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)"""
 
     typename: Optional[Literal["DataLink"]] = Field(alias="__typename", exclude=True)
     relation: LinksQueryLinksRelation
@@ -2793,15 +2905,15 @@ class LinksQuery(BaseModel):
         x_type: LinkableModels
         y_type: LinkableModels
         relation: str
-        context: Optional[ID] = None
-        limit: Optional[int] = 10
+        context: Optional[ID]
+        limit: Optional[int] = Field(default="10")
 
     class Meta:
         document = "query Links($x_type: LinkableModels!, $y_type: LinkableModels!, $relation: String!, $context: ID, $limit: Int = 10) {\n  links(\n    xType: $x_type\n    yType: $y_type\n    relation: $relation\n    context: $context\n    limit: $limit\n  ) {\n    relation {\n      id\n      name\n    }\n    left {\n      ... on Representation {\n        id\n        store\n      }\n    }\n    right {\n      ... on Representation {\n        id\n        store\n      }\n    }\n  }\n}"
 
 
 class Get_image_image_linksQueryLinksRelation(BaseModel):
-    """Relation(id, name, description)"""
+    """Relation(id, created_by, created_through, created_while, name, description)"""
 
     typename: Optional[Literal["Relation"]] = Field(alias="__typename", exclude=True)
     id: ID
@@ -2843,7 +2955,7 @@ class Get_image_image_linksQueryLinksRepresentationInlineFragment(
 
 
 class Get_image_image_linksQueryLinks(BaseModel):
-    """DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)"""
+    """DataLink(id, created_by, created_through, created_while, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)"""
 
     typename: Optional[Literal["DataLink"]] = Field(alias="__typename", exclude=True)
     relation: Get_image_image_linksQueryLinksRelation
@@ -2863,8 +2975,8 @@ class Get_image_image_linksQuery(BaseModel):
 
     class Arguments(BaseModel):
         relation: str
-        context: Optional[ID] = None
-        limit: Optional[int] = 10
+        context: Optional[ID]
+        limit: Optional[int] = Field(default="10")
 
     class Meta:
         document = "query get_image_image_links($relation: String!, $context: ID, $limit: Int = 10) {\n  links(\n    xType: GRUNNLAG_REPRESENTATION\n    yType: GRUNNLAG_REPRESENTATION\n    relation: $relation\n    context: $context\n    limit: $limit\n  ) {\n    relation {\n      id\n      name\n    }\n    left {\n      ... on Representation {\n        id\n        store\n        variety\n      }\n    }\n    right {\n      ... on Representation {\n        id\n        store\n        variety\n      }\n    }\n  }\n}"
@@ -2893,7 +3005,7 @@ class Expand_linkQuery(BaseModel):
 
 
 class Search_linksQueryOptions(BaseModel):
-    """DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)"""
+    """DataLink(id, created_by, created_through, created_while, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)"""
 
     typename: Optional[Literal["DataLink"]] = Field(alias="__typename", exclude=True)
     value: ID
@@ -2908,8 +3020,8 @@ class Search_linksQuery(BaseModel):
     "All Experiments\n    \n    This query returns all Experiments that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Experiments that the user has access to. If the user is an amdin\n    or superuser, all Experiments will be returned.\n\n    If you want to retrieve only the Experiments that you have created,\n    use the `myExperiments` query.\n    \n    "
 
     class Arguments(BaseModel):
-        search: Optional[str] = None
-        values: Optional[List[Optional[ID]]] = None
+        search: Optional[str]
+        values: Optional[List[Optional[ID]]]
 
     class Meta:
         document = "query search_links($search: String, $values: [ID]) {\n  options: links(relation: $search, limit: 30, ids: $values) {\n    value: id\n    label: id\n  }\n}"
@@ -2958,8 +3070,8 @@ class Search_stagesQuery(BaseModel):
     "All Experiments\n    \n    This query returns all Experiments that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Experiments that the user has access to. If the user is an amdin\n    or superuser, all Experiments will be returned.\n\n    If you want to retrieve only the Experiments that you have created,\n    use the `myExperiments` query.\n    \n    "
 
     class Arguments(BaseModel):
-        search: Optional[str] = None
-        values: Optional[List[Optional[ID]]] = None
+        search: Optional[str]
+        values: Optional[List[Optional[ID]]]
 
     class Meta:
         document = "query search_stages($search: String, $values: [ID]) {\n  options: stages(name: $search, limit: 30, ids: $values) {\n    value: id\n    label: name\n  }\n}"
@@ -3128,8 +3240,8 @@ class Search_sampleQuery(BaseModel):
     "All Samples\n    \n    This query returns all Samples that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Samples that the user has access to. If the user is an amdin\n    or superuser, all Samples will be returned.\n    \n    "
 
     class Arguments(BaseModel):
-        search: Optional[str] = None
-        values: Optional[List[Optional[ID]]] = None
+        search: Optional[str]
+        values: Optional[List[Optional[ID]]]
 
     class Meta:
         document = "query search_sample($search: String, $values: [ID]) {\n  options: samples(name: $search, limit: 20, ids: $values) {\n    value: id\n    label: name\n  }\n}"
@@ -3152,7 +3264,7 @@ class Get_roisQuery(BaseModel):
 
     class Arguments(BaseModel):
         representation: ID
-        type: Optional[List[Optional[RoiTypeInput]]] = None
+        type: Optional[List[Optional[RoiTypeInput]]]
 
     class Meta:
         document = "fragment ListROI on ROI {\n  id\n  label\n  vectors {\n    x\n    y\n    t\n    c\n    z\n  }\n  type\n  representation {\n    id\n  }\n  creator {\n    email\n    id\n    color\n  }\n}\n\nquery get_rois($representation: ID!, $type: [RoiTypeInput]) {\n  rois(representation: $representation, type: $type) {\n    ...ListROI\n  }\n}"
@@ -3166,7 +3278,7 @@ class Expand_roiQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment ROI on ROI {\n  id\n  label\n  vectors {\n    x\n    y\n    t\n    c\n    z\n  }\n  type\n  representation {\n    id\n    shape\n  }\n  derivedRepresentations {\n    id\n  }\n  creator {\n    email\n    id\n    color\n  }\n}\n\nquery expand_roi($id: ID!) {\n  roi(id: $id) {\n    ...ROI\n  }\n}"
+        document = "fragment ROI on ROI {\n  id\n  label\n  vectors {\n    x\n    y\n    t\n    c\n    z\n  }\n  type\n  representation {\n    id\n    shape\n    store\n    variety\n  }\n  derivedRepresentations {\n    id\n    store\n    shape\n    variety\n  }\n  creator {\n    email\n    id\n    color\n  }\n}\n\nquery expand_roi($id: ID!) {\n  roi(id: $id) {\n    ...ROI\n  }\n}"
 
 
 class Get_roiQuery(BaseModel):
@@ -3177,7 +3289,7 @@ class Get_roiQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment ROI on ROI {\n  id\n  label\n  vectors {\n    x\n    y\n    t\n    c\n    z\n  }\n  type\n  representation {\n    id\n    shape\n  }\n  derivedRepresentations {\n    id\n  }\n  creator {\n    email\n    id\n    color\n  }\n}\n\nquery get_roi($id: ID!) {\n  roi(id: $id) {\n    ...ROI\n  }\n}"
+        document = "fragment ROI on ROI {\n  id\n  label\n  vectors {\n    x\n    y\n    t\n    c\n    z\n  }\n  type\n  representation {\n    id\n    shape\n    store\n    variety\n  }\n  derivedRepresentations {\n    id\n    store\n    shape\n    variety\n  }\n  creator {\n    email\n    id\n    color\n  }\n}\n\nquery get_roi($id: ID!) {\n  roi(id: $id) {\n    ...ROI\n  }\n}"
 
 
 class Search_roisQueryOptions(ROI, BaseModel):
@@ -3206,8 +3318,8 @@ class Search_roisQuery(BaseModel):
     "All Rois\n    \n    This query returns all Rois that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Rois that the user has access to. If the user is an amdin\n    or superuser, all Rois will be returned."
 
     class Arguments(BaseModel):
-        search: Optional[str] = None
-        values: Optional[List[Optional[ID]]] = None
+        search: Optional[str]
+        values: Optional[List[Optional[ID]]]
 
     class Meta:
         document = "query search_rois($search: String, $values: [ID]) {\n  options: rois(repname: $search, ids: $values) {\n    label: id\n    value: id\n  }\n}"
@@ -3254,8 +3366,8 @@ class Search_featuresQuery(BaseModel):
     "All features\n    \n    This query returns all features that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all features that the user has access to. If the user is an amdin\n    or superuser, all features will be returned.\n    "
 
     class Arguments(BaseModel):
-        search: Optional[str] = None
-        values: Optional[List[Optional[ID]]] = None
+        search: Optional[str]
+        values: Optional[List[Optional[ID]]]
 
     class Meta:
         document = "query search_features($search: String, $values: [ID]) {\n  options: features(substring: $search, limit: 20, ids: $values) {\n    label: key\n    value: id\n  }\n}"
@@ -3288,8 +3400,8 @@ class Get_instrumentQuery(BaseModel):
     "Get a single instrumes by ID\n    \n    Returns a single instrument by ID. If the user does not have access\n    to the instrument, an error will be raised."
 
     class Arguments(BaseModel):
-        id: Optional[ID] = None
-        name: Optional[str] = None
+        id: Optional[ID]
+        name: Optional[str]
 
     class Meta:
         document = "fragment Instrument on Instrument {\n  id\n  dichroics\n  detectors\n  filters\n  name\n  lotNumber\n  serialNumber\n  manufacturer\n  model\n}\n\nquery get_instrument($id: ID, $name: String) {\n  instrument(id: $id, name: $name) {\n    ...Instrument\n  }\n}"
@@ -3307,7 +3419,7 @@ class Expand_instrumentQuery(BaseModel):
 
 
 class Search_instrumentsQueryOptions(BaseModel):
-    """Instrument(id, created_by, created_through, name, detectors, dichroics, filters, lot_number, manufacturer, model, serial_number)"""
+    """Instrument(id, created_by, created_through, created_while, name, detectors, dichroics, filters, lot_number, manufacturer, model, serial_number)"""
 
     typename: Optional[Literal["Instrument"]] = Field(alias="__typename", exclude=True)
     value: ID
@@ -3322,11 +3434,43 @@ class Search_instrumentsQuery(BaseModel):
     "All Instruments\n    \n    This query returns all Instruments that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Instruments that the user has access to. If the user is an amdin\n    or superuser, all Instruments will be returned."
 
     class Arguments(BaseModel):
-        search: Optional[str] = None
-        values: Optional[List[Optional[ID]]] = None
+        search: Optional[str]
+        values: Optional[List[Optional[ID]]]
 
     class Meta:
         document = "query search_instruments($search: String, $values: [ID]) {\n  options: instruments(name: $search, limit: 30, ids: $values) {\n    value: id\n    label: name\n  }\n}"
+
+
+class Get_videoQuery(BaseModel):
+    video: Optional[VideoFragment]
+    "Get a single Thumbnail by ID\n    \n    Get a single Thumbnail by ID. If the user does not have access\n    to the Thumbnail, an error will be raised.\n    "
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "fragment Video on Video {\n  data\n  id\n}\n\nquery get_video($id: ID!) {\n  video(id: $id) {\n    ...Video\n  }\n}"
+
+
+class Search_videosQueryOptions(BaseModel):
+    typename: Optional[Literal["Video"]] = Field(alias="__typename", exclude=True)
+    label: ID
+    value: ID
+
+    class Config:
+        frozen = True
+
+
+class Search_videosQuery(BaseModel):
+    options: Optional[Tuple[Optional[Search_videosQueryOptions], ...]]
+    "All Thumbnails\n    \n    This query returns all Thumbnails that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Thumbnails that the user has access to. If the user is an amdin\n    or superuser, all Thumbnails will be returned.\n    \n    "
+
+    class Arguments(BaseModel):
+        search: Optional[str]
+        values: Optional[List[Optional[ID]]]
+
+    class Meta:
+        document = "query search_videos($search: String, $values: [ID]) {\n  options: videos(name: $search, ids: $values) {\n    label: id\n    value: id\n  }\n}"
 
 
 class Get_experimentQuery(BaseModel):
@@ -3386,8 +3530,8 @@ class Search_experimentQuery(BaseModel):
     "All Experiments \n ![Image](/static/img/data.png) \n This query returns all Experiments that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Experiments that the user has access to. If the user is an amdin\n    or superuser, all Experiments will be returned. \n If you want to retrieve only the Experiments that you have created,\n    use the `myExperiments` query. \n \n    \n    "
 
     class Arguments(BaseModel):
-        search: Optional[str] = None
-        values: Optional[List[Optional[ID]]] = None
+        search: Optional[str]
+        values: Optional[List[Optional[ID]]]
 
     class Meta:
         document = "query search_experiment($search: String, $values: [ID]) {\n  options: experiments(name: $search, limit: 30, ids: $values) {\n    value: id\n    label: name\n  }\n}"
@@ -3403,7 +3547,7 @@ class Expand_representationQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n    position {\n      id\n      x\n      y\n      z\n      stage {\n        id\n      }\n    }\n    affineTransformation\n    channels {\n      name\n      color\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nquery expand_representation($id: ID!) {\n  representation(id: $id) {\n    ...Representation\n  }\n}"
+        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  createdWhile\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n    position {\n      id\n      x\n      y\n      z\n      stage {\n        id\n      }\n    }\n    affineTransformation\n    channels {\n      name\n      color\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nquery expand_representation($id: ID!) {\n  representation(id: $id) {\n    ...Representation\n  }\n}"
 
 
 class Get_representationQuery(BaseModel):
@@ -3414,7 +3558,7 @@ class Get_representationQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n    position {\n      id\n      x\n      y\n      z\n      stage {\n        id\n      }\n    }\n    affineTransformation\n    channels {\n      name\n      color\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nquery get_representation($id: ID!) {\n  representation(id: $id) {\n    ...Representation\n  }\n}"
+        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  createdWhile\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n    position {\n      id\n      x\n      y\n      z\n      stage {\n        id\n      }\n    }\n    affineTransformation\n    channels {\n      name\n      color\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nquery get_representation($id: ID!) {\n  representation(id: $id) {\n    ...Representation\n  }\n}"
 
 
 class Search_representationQueryOptions(Representation, BaseModel):
@@ -3466,8 +3610,8 @@ class Search_representationQuery(BaseModel):
     "All Representations\n    \n    This query returns all Representations that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Representations that the user has access to. If the user is an amdin\n    or superuser, all Representations will be returned."
 
     class Arguments(BaseModel):
-        search: Optional[str] = None
-        values: Optional[List[Optional[ID]]] = None
+        search: Optional[str]
+        values: Optional[List[Optional[ID]]]
 
     class Meta:
         document = "query search_representation($search: String, $values: [ID]) {\n  options: representations(name: $search, limit: 20, ids: $values) {\n    value: id\n    label: name\n  }\n}"
@@ -3488,7 +3632,7 @@ class Get_random_repQuery(BaseModel):
         pass
 
     class Meta:
-        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n    position {\n      id\n      x\n      y\n      z\n      stage {\n        id\n      }\n    }\n    affineTransformation\n    channels {\n      name\n      color\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nquery get_random_rep {\n  randomRepresentation {\n    ...Representation\n  }\n}"
+        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  createdWhile\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n    position {\n      id\n      x\n      y\n      z\n      stage {\n        id\n      }\n    }\n    affineTransformation\n    channels {\n      name\n      color\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nquery get_random_rep {\n  randomRepresentation {\n    ...Representation\n  }\n}"
 
 
 class My_accessiblesQuery(BaseModel):
@@ -3498,7 +3642,7 @@ class My_accessiblesQuery(BaseModel):
         pass
 
     class Meta:
-        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n    position {\n      id\n      x\n      y\n      z\n      stage {\n        id\n      }\n    }\n    affineTransformation\n    channels {\n      name\n      color\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nquery my_accessibles {\n  accessiblerepresentations {\n    ...Representation\n  }\n}"
+        document = "fragment Representation on Representation {\n  sample {\n    id\n    name\n  }\n  shape\n  id\n  store\n  variety\n  createdWhile\n  name\n  omero {\n    scale\n    physicalSize {\n      x\n      y\n      z\n      t\n      c\n    }\n    position {\n      id\n      x\n      y\n      z\n      stage {\n        id\n      }\n    }\n    affineTransformation\n    channels {\n      name\n      color\n    }\n  }\n  origins {\n    id\n    store\n    variety\n  }\n}\n\nquery my_accessibles {\n  accessiblerepresentations {\n    ...Representation\n  }\n}"
 
 
 class Search_tagsQueryOptions(BaseModel):
@@ -3515,8 +3659,8 @@ class Search_tagsQuery(BaseModel):
     "All Tags\n    \n    Returns all Tags that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Tags that the user has access to. If the user is an amdin\n    or superuser, all Tags will be returned.\n    "
 
     class Arguments(BaseModel):
-        search: Optional[str] = None
-        values: Optional[List[Optional[ID]]] = None
+        search: Optional[str]
+        values: Optional[List[Optional[ID]]]
 
     class Meta:
         document = "query search_tags($search: String, $values: [ID]) {\n  options: tags(name: $search, ids: $values) {\n    value: slug\n    label: name\n  }\n}"
@@ -3564,8 +3708,8 @@ class Search_modelsQuery(BaseModel):
     "All Labels\n    \n    This query returns all Labels that are stored on the platform\n    depending on the user's permissions.s Generally, this query will return\n    all Labels that the user has access to. If the user is an amdin\n    or superuser, all Labels wsill be returned.\n    "
 
     class Arguments(BaseModel):
-        search: Optional[str] = None
-        values: Optional[List[Optional[ID]]] = None
+        search: Optional[str]
+        values: Optional[List[Optional[ID]]]
 
     class Meta:
         document = "query search_models($search: String, $values: [ID]) {\n  options: models(name: $search, limit: 20, ids: $values) {\n    label: name\n    value: id\n  }\n}"
@@ -3639,8 +3783,8 @@ class Search_datasetsQuery(BaseModel):
     "All Experiments \n ![Image](/static/img/data.png) \n This query returns all Experiments that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Experiments that the user has access to. If the user is an amdin\n    or superuser, all Experiments will be returned. \n If you want to retrieve only the Experiments that you have created,\n    use the `myExperiments` query. \n \n    \n    "
 
     class Arguments(BaseModel):
-        search: Optional[str] = None
-        values: Optional[List[Optional[ID]]] = None
+        search: Optional[str]
+        values: Optional[List[Optional[ID]]]
 
     class Meta:
         document = "query search_datasets($search: String, $values: [ID]) {\n  options: datasets(name: $search, limit: 30, ids: $values) {\n    value: id\n    label: name\n  }\n}"
@@ -3747,7 +3891,7 @@ class Get_positionQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = 'fragment ListStage on Stage {\n  id\n  name\n  kind\n}\n\nfragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nquery get_position($id: ID!) {\n  position(id: $id) {\n    ...Position\n  }\n}'
+        document = 'fragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment ListStage on Stage {\n  id\n  name\n  kind\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nquery get_position($id: ID!) {\n  position(id: $id) {\n    ...Position\n  }\n}'
 
 
 class Expand_positionQuery(BaseModel):
@@ -3758,7 +3902,7 @@ class Expand_positionQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = 'fragment ListStage on Stage {\n  id\n  name\n  kind\n}\n\nfragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nquery expand_position($id: ID!) {\n  position(id: $id) {\n    ...Position\n  }\n}'
+        document = 'fragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment ListStage on Stage {\n  id\n  name\n  kind\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nquery expand_position($id: ID!) {\n  position(id: $id) {\n    ...Position\n  }\n}'
 
 
 class Search_positionsQueryOptions(Position, BaseModel):
@@ -3778,9 +3922,9 @@ class Search_positionsQuery(BaseModel):
     "All Experiments\n    \n    This query returns all Experiments that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Experiments that the user has access to. If the user is an amdin\n    or superuser, all Experiments will be returned.\n\n    If you want to retrieve only the Experiments that you have created,\n    use the `myExperiments` query.\n    \n    "
 
     class Arguments(BaseModel):
-        search: Optional[str] = None
-        values: Optional[List[Optional[ID]]] = None
-        stage: Optional[ID] = None
+        search: Optional[str]
+        values: Optional[List[Optional[ID]]]
+        stage: Optional[ID]
 
     class Meta:
         document = "query search_positions($search: String, $values: [ID], $stage: ID) {\n  options: positions(name: $search, limit: 30, stage: $stage, ids: $values) {\n    value: id\n    label: name\n  }\n}"
@@ -3791,8 +3935,8 @@ class Get_objectiveQuery(BaseModel):
     "Get a single instrumes by ID\n    \n    Returns a single instrument by ID. If the user does not have access\n    to the instrument, an error will be raised."
 
     class Arguments(BaseModel):
-        id: Optional[ID] = None
-        name: Optional[str] = None
+        id: Optional[ID]
+        name: Optional[str]
 
     class Meta:
         document = "fragment Objective on Objective {\n  id\n  name\n  magnification\n}\n\nquery get_objective($id: ID, $name: String) {\n  objective(id: $id, name: $name) {\n    ...Objective\n  }\n}"
@@ -3810,7 +3954,7 @@ class Expand_objectiveQuery(BaseModel):
 
 
 class Search_objectivesQueryOptions(Objective, BaseModel):
-    """Objective(id, created_by, created_through, serial_number, name, magnification, na, immersion)"""
+    """Objective(id, created_by, created_through, created_while, serial_number, name, magnification, na, immersion)"""
 
     typename: Optional[Literal["Objective"]] = Field(alias="__typename", exclude=True)
     value: ID
@@ -3825,8 +3969,8 @@ class Search_objectivesQuery(BaseModel):
     "All Instruments\n    \n    This query returns all Instruments that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Instruments that the user has access to. If the user is an amdin\n    or superuser, all Instruments will be returned."
 
     class Arguments(BaseModel):
-        search: Optional[str] = None
-        values: Optional[List[Optional[ID]]] = None
+        search: Optional[str]
+        values: Optional[List[Optional[ID]]]
 
     class Meta:
         document = "query search_objectives($search: String, $values: [ID]) {\n  options: objectives(search: $search, ids: $values) {\n    value: id\n    label: name\n  }\n}"
@@ -3869,8 +4013,8 @@ class Search_omerofileQuery(BaseModel):
     "All OmeroFiles\n\n    This query returns all OmeroFiles that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all OmeroFiles that the user has access to. If the user is an amdin\n    or superuser, all OmeroFiles will be returned.\n    \n    "
 
     class Arguments(BaseModel):
-        search: Optional[str] = None
-        values: Optional[List[Optional[ID]]] = None
+        search: Optional[str]
+        values: Optional[List[Optional[ID]]]
 
     class Meta:
         document = "query search_omerofile($search: String, $values: [ID]) {\n  options: omerofiles(name: $search, ids: $values) {\n    value: id\n    label: name\n  }\n}"
@@ -3951,6 +4095,7 @@ async def acreate_label(
     representation: ID,
     creator: Optional[ID] = None,
     name: Optional[str] = None,
+    created_while: Optional[AssignationID] = None,
     rath: MikroRath = None,
 ) -> Optional[Create_labelMutationCreatelabel]:
     """create_label
@@ -3974,6 +4119,7 @@ async def acreate_label(
         representation (ID): representation
         creator (Optional[ID], optional): creator.
         name (Optional[str], optional): name.
+        created_while (Optional[AssignationID], optional): created_while.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
@@ -3986,6 +4132,7 @@ async def acreate_label(
                 "representation": representation,
                 "creator": creator,
                 "name": name,
+                "created_while": created_while,
             },
             rath=rath,
         )
@@ -3997,6 +4144,7 @@ def create_label(
     representation: ID,
     creator: Optional[ID] = None,
     name: Optional[str] = None,
+    created_while: Optional[AssignationID] = None,
     rath: MikroRath = None,
 ) -> Optional[Create_labelMutationCreatelabel]:
     """create_label
@@ -4020,6 +4168,7 @@ def create_label(
         representation (ID): representation
         creator (Optional[ID], optional): creator.
         name (Optional[str], optional): name.
+        created_while (Optional[AssignationID], optional): created_while.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
@@ -4031,52 +4180,65 @@ def create_label(
             "representation": representation,
             "creator": creator,
             "name": name,
+            "created_while": created_while,
         },
         rath=rath,
     ).create_label
 
 
 async def acreate_context(
-    name: str, experiment: Optional[ID] = None, rath: MikroRath = None
+    name: str,
+    experiment: Optional[ID] = None,
+    created_while: Optional[AssignationID] = None,
+    rath: MikroRath = None,
 ) -> Optional[ContextFragment]:
     """create_context
 
 
-     createContext: Context(id, created_by, created_through, name, created_at, experiment, creator)
+     createContext: Context(id, created_by, created_through, created_while, name, created_at, experiment, creator)
 
 
     Arguments:
         name (str): name
         experiment (Optional[ID], optional): experiment.
+        created_while (Optional[AssignationID], optional): created_while.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[ContextFragment]"""
     return (
         await aexecute(
-            Create_contextMutation, {"name": name, "experiment": experiment}, rath=rath
+            Create_contextMutation,
+            {"name": name, "experiment": experiment, "created_while": created_while},
+            rath=rath,
         )
     ).create_context
 
 
 def create_context(
-    name: str, experiment: Optional[ID] = None, rath: MikroRath = None
+    name: str,
+    experiment: Optional[ID] = None,
+    created_while: Optional[AssignationID] = None,
+    rath: MikroRath = None,
 ) -> Optional[ContextFragment]:
     """create_context
 
 
-     createContext: Context(id, created_by, created_through, name, created_at, experiment, creator)
+     createContext: Context(id, created_by, created_through, created_while, name, created_at, experiment, creator)
 
 
     Arguments:
         name (str): name
         experiment (Optional[ID], optional): experiment.
+        created_while (Optional[AssignationID], optional): created_while.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[ContextFragment]"""
     return execute(
-        Create_contextMutation, {"name": name, "experiment": experiment}, rath=rath
+        Create_contextMutation,
+        {"name": name, "experiment": experiment, "created_while": created_while},
+        rath=rath,
     ).create_context
 
 
@@ -4085,6 +4247,7 @@ async def acreate_thumbnail(
     file: File,
     major_color: Optional[str] = None,
     blurhash: Optional[str] = None,
+    created_while: Optional[AssignationID] = None,
     rath: MikroRath = None,
 ) -> Optional[ThumbnailFragment]:
     """create_thumbnail
@@ -4101,6 +4264,7 @@ async def acreate_thumbnail(
         file (File): file
         major_color (Optional[str], optional): major_color.
         blurhash (Optional[str], optional): blurhash.
+        created_while (Optional[AssignationID], optional): created_while.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
@@ -4113,6 +4277,7 @@ async def acreate_thumbnail(
                 "file": file,
                 "major_color": major_color,
                 "blurhash": blurhash,
+                "created_while": created_while,
             },
             rath=rath,
         )
@@ -4124,6 +4289,7 @@ def create_thumbnail(
     file: File,
     major_color: Optional[str] = None,
     blurhash: Optional[str] = None,
+    created_while: Optional[AssignationID] = None,
     rath: MikroRath = None,
 ) -> Optional[ThumbnailFragment]:
     """create_thumbnail
@@ -4140,55 +4306,29 @@ def create_thumbnail(
         file (File): file
         major_color (Optional[str], optional): major_color.
         blurhash (Optional[str], optional): blurhash.
+        created_while (Optional[AssignationID], optional): created_while.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[ThumbnailFragment]"""
     return execute(
         Create_thumbnailMutation,
-        {"rep": rep, "file": file, "major_color": major_color, "blurhash": blurhash},
+        {
+            "rep": rep,
+            "file": file,
+            "major_color": major_color,
+            "blurhash": blurhash,
+            "created_while": created_while,
+        },
         rath=rath,
     ).upload_thumbnail
-
-
-async def anegotiate(rath: MikroRath = None) -> Optional[Dict]:
-    """negotiate
-
-
-     negotiate: The `GenericScalar` scalar type represents a generic
-    GraphQL scalar value that could be:
-    String, Boolean, Int, Float, List or Object.
-
-
-    Arguments:
-        rath (mikro.rath.MikroRath, optional): The mikro rath client
-
-    Returns:
-        Optional[Dict]"""
-    return (await aexecute(NegotiateMutation, {}, rath=rath)).negotiate
-
-
-def negotiate(rath: MikroRath = None) -> Optional[Dict]:
-    """negotiate
-
-
-     negotiate: The `GenericScalar` scalar type represents a generic
-    GraphQL scalar value that could be:
-    String, Boolean, Int, Float, List or Object.
-
-
-    Arguments:
-        rath (mikro.rath.MikroRath, optional): The mikro rath client
-
-    Returns:
-        Optional[Dict]"""
-    return execute(NegotiateMutation, {}, rath=rath).negotiate
 
 
 async def afrom_df(
     df: ParquetInput,
     name: str,
     rep_origins: Optional[List[Optional[ID]]] = None,
+    created_while: Optional[AssignationID] = None,
     rath: MikroRath = None,
 ) -> Optional[TableFragment]:
     """from_df
@@ -4212,6 +4352,7 @@ async def afrom_df(
         df (ParquetInput): df
         name (str): name
         rep_origins (Optional[List[Optional[ID]]], optional): rep_origins.
+        created_while (Optional[AssignationID], optional): created_while.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
@@ -4219,7 +4360,12 @@ async def afrom_df(
     return (
         await aexecute(
             From_dfMutation,
-            {"df": df, "name": name, "rep_origins": rep_origins},
+            {
+                "df": df,
+                "name": name,
+                "rep_origins": rep_origins,
+                "created_while": created_while,
+            },
             rath=rath,
         )
     ).from_df
@@ -4229,6 +4375,7 @@ def from_df(
     df: ParquetInput,
     name: str,
     rep_origins: Optional[List[Optional[ID]]] = None,
+    created_while: Optional[AssignationID] = None,
     rath: MikroRath = None,
 ) -> Optional[TableFragment]:
     """from_df
@@ -4252,37 +4399,47 @@ def from_df(
         df (ParquetInput): df
         name (str): name
         rep_origins (Optional[List[Optional[ID]]], optional): rep_origins.
+        created_while (Optional[AssignationID], optional): created_while.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[TableFragment]"""
     return execute(
-        From_dfMutation, {"df": df, "name": name, "rep_origins": rep_origins}, rath=rath
+        From_dfMutation,
+        {
+            "df": df,
+            "name": name,
+            "rep_origins": rep_origins,
+            "created_while": created_while,
+        },
+        rath=rath,
     ).from_df
 
 
 async def alink(
     relation: ID,
-    x_type: LinkableModels,
-    x_id: ID,
-    y_type: LinkableModels,
-    y_id: ID,
+    left_type: LinkableModels,
+    left_id: ID,
+    right_type: LinkableModels,
+    right_id: ID,
     context: Optional[ID] = None,
+    created_while: Optional[AssignationID] = None,
     rath: MikroRath = None,
 ) -> Optional[ListLinkFragment]:
     """link
 
 
-     link: DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
+     link: DataLink(id, created_by, created_through, created_while, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
 
 
     Arguments:
         relation (ID): relation
-        x_type (LinkableModels): x_type
-        x_id (ID): x_id
-        y_type (LinkableModels): y_type
-        y_id (ID): y_id
+        left_type (LinkableModels): left_type
+        left_id (ID): left_id
+        right_type (LinkableModels): right_type
+        right_id (ID): right_id
         context (Optional[ID], optional): context.
+        created_while (Optional[AssignationID], optional): created_while.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
@@ -4292,11 +4449,12 @@ async def alink(
             LinkMutation,
             {
                 "relation": relation,
-                "x_type": x_type,
-                "x_id": x_id,
-                "y_type": y_type,
-                "y_id": y_id,
+                "left_type": left_type,
+                "left_id": left_id,
+                "right_type": right_type,
+                "right_id": right_id,
                 "context": context,
+                "created_while": created_while,
             },
             rath=rath,
         )
@@ -4305,26 +4463,28 @@ async def alink(
 
 def link(
     relation: ID,
-    x_type: LinkableModels,
-    x_id: ID,
-    y_type: LinkableModels,
-    y_id: ID,
+    left_type: LinkableModels,
+    left_id: ID,
+    right_type: LinkableModels,
+    right_id: ID,
     context: Optional[ID] = None,
+    created_while: Optional[AssignationID] = None,
     rath: MikroRath = None,
 ) -> Optional[ListLinkFragment]:
     """link
 
 
-     link: DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
+     link: DataLink(id, created_by, created_through, created_while, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
 
 
     Arguments:
         relation (ID): relation
-        x_type (LinkableModels): x_type
-        x_id (ID): x_id
-        y_type (LinkableModels): y_type
-        y_id (ID): y_id
+        left_type (LinkableModels): left_type
+        left_id (ID): left_id
+        right_type (LinkableModels): right_type
+        right_id (ID): right_id
         context (Optional[ID], optional): context.
+        created_while (Optional[AssignationID], optional): created_while.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
@@ -4333,81 +4493,12 @@ def link(
         LinkMutation,
         {
             "relation": relation,
-            "x_type": x_type,
-            "x_id": x_id,
-            "y_type": y_type,
-            "y_id": y_id,
+            "left_type": left_type,
+            "left_id": left_id,
+            "right_type": right_type,
+            "right_id": right_id,
             "context": context,
-        },
-        rath=rath,
-    ).link
-
-
-async def alink_rep_to_rep(
-    relation: ID,
-    left_rep: ID,
-    right_rep: ID,
-    context: Optional[ID] = None,
-    rath: MikroRath = None,
-) -> Optional[ListLinkFragment]:
-    """link_rep_to_rep
-
-
-     link: DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
-
-
-    Arguments:
-        relation (ID): relation
-        left_rep (ID): left_rep
-        right_rep (ID): right_rep
-        context (Optional[ID], optional): context.
-        rath (mikro.rath.MikroRath, optional): The mikro rath client
-
-    Returns:
-        Optional[ListLinkFragment]"""
-    return (
-        await aexecute(
-            Link_rep_to_repMutation,
-            {
-                "relation": relation,
-                "left_rep": left_rep,
-                "right_rep": right_rep,
-                "context": context,
-            },
-            rath=rath,
-        )
-    ).link
-
-
-def link_rep_to_rep(
-    relation: ID,
-    left_rep: ID,
-    right_rep: ID,
-    context: Optional[ID] = None,
-    rath: MikroRath = None,
-) -> Optional[ListLinkFragment]:
-    """link_rep_to_rep
-
-
-     link: DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
-
-
-    Arguments:
-        relation (ID): relation
-        left_rep (ID): left_rep
-        right_rep (ID): right_rep
-        context (Optional[ID], optional): context.
-        rath (mikro.rath.MikroRath, optional): The mikro rath client
-
-    Returns:
-        Optional[ListLinkFragment]"""
-    return execute(
-        Link_rep_to_repMutation,
-        {
-            "relation": relation,
-            "left_rep": left_rep,
-            "right_rep": right_rep,
-            "context": context,
+            "created_while": created_while,
         },
         rath=rath,
     ).link
@@ -4418,6 +4509,7 @@ async def acreate_stage(
     creator: Optional[ID] = None,
     instrument: Optional[ID] = None,
     tags: Optional[List[Optional[str]]] = None,
+    created_while: Optional[AssignationID] = None,
     rath: MikroRath = None,
 ) -> Optional[StageFragment]:
     """create_stage
@@ -4435,6 +4527,7 @@ async def acreate_stage(
         creator (Optional[ID], optional): creator.
         instrument (Optional[ID], optional): instrument.
         tags (Optional[List[Optional[str]]], optional): tags.
+        created_while (Optional[AssignationID], optional): created_while.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
@@ -4442,7 +4535,13 @@ async def acreate_stage(
     return (
         await aexecute(
             Create_stageMutation,
-            {"name": name, "creator": creator, "instrument": instrument, "tags": tags},
+            {
+                "name": name,
+                "creator": creator,
+                "instrument": instrument,
+                "tags": tags,
+                "created_while": created_while,
+            },
             rath=rath,
         )
     ).create_stage
@@ -4453,6 +4552,7 @@ def create_stage(
     creator: Optional[ID] = None,
     instrument: Optional[ID] = None,
     tags: Optional[List[Optional[str]]] = None,
+    created_while: Optional[AssignationID] = None,
     rath: MikroRath = None,
 ) -> Optional[StageFragment]:
     """create_stage
@@ -4470,13 +4570,20 @@ def create_stage(
         creator (Optional[ID], optional): creator.
         instrument (Optional[ID], optional): instrument.
         tags (Optional[List[Optional[str]]], optional): tags.
+        created_while (Optional[AssignationID], optional): created_while.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[StageFragment]"""
     return execute(
         Create_stageMutation,
-        {"name": name, "creator": creator, "instrument": instrument, "tags": tags},
+        {
+            "name": name,
+            "creator": creator,
+            "instrument": instrument,
+            "tags": tags,
+            "created_while": created_while,
+        },
         rath=rath,
     ).create_stage
 
@@ -4487,6 +4594,7 @@ async def acreate_sample(
     meta: Optional[Dict] = None,
     experiments: Optional[List[Optional[ID]]] = None,
     tags: Optional[List[Optional[str]]] = None,
+    created_while: Optional[AssignationID] = None,
     rath: MikroRath = None,
 ) -> Optional[Create_sampleMutationCreatesample]:
     """create_sample
@@ -4501,6 +4609,7 @@ async def acreate_sample(
         meta (Optional[Dict], optional): meta.
         experiments (Optional[List[Optional[ID]]], optional): experiments.
         tags (Optional[List[Optional[str]]], optional): tags.
+        created_while (Optional[AssignationID], optional): created_while.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
@@ -4514,6 +4623,7 @@ async def acreate_sample(
                 "meta": meta,
                 "experiments": experiments,
                 "tags": tags,
+                "created_while": created_while,
             },
             rath=rath,
         )
@@ -4526,6 +4636,7 @@ def create_sample(
     meta: Optional[Dict] = None,
     experiments: Optional[List[Optional[ID]]] = None,
     tags: Optional[List[Optional[str]]] = None,
+    created_while: Optional[AssignationID] = None,
     rath: MikroRath = None,
 ) -> Optional[Create_sampleMutationCreatesample]:
     """create_sample
@@ -4540,6 +4651,7 @@ def create_sample(
         meta (Optional[Dict], optional): meta.
         experiments (Optional[List[Optional[ID]]], optional): experiments.
         tags (Optional[List[Optional[str]]], optional): tags.
+        created_while (Optional[AssignationID], optional): created_while.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
@@ -4552,6 +4664,7 @@ def create_sample(
             "meta": meta,
             "experiments": experiments,
             "tags": tags,
+            "created_while": created_while,
         },
         rath=rath,
     ).create_sample
@@ -4564,6 +4677,7 @@ async def acreate_roi(
     creator: Optional[ID] = None,
     label: Optional[str] = None,
     tags: Optional[List[Optional[str]]] = None,
+    created_while: Optional[AssignationID] = None,
     rath: MikroRath = None,
 ) -> Optional[ROIFragment]:
     """create_roi
@@ -4589,6 +4703,7 @@ async def acreate_roi(
         creator (Optional[ID], optional): creator.
         label (Optional[str], optional): label.
         tags (Optional[List[Optional[str]]], optional): tags.
+        created_while (Optional[AssignationID], optional): created_while.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
@@ -4603,6 +4718,7 @@ async def acreate_roi(
                 "type": type,
                 "label": label,
                 "tags": tags,
+                "created_while": created_while,
             },
             rath=rath,
         )
@@ -4616,6 +4732,7 @@ def create_roi(
     creator: Optional[ID] = None,
     label: Optional[str] = None,
     tags: Optional[List[Optional[str]]] = None,
+    created_while: Optional[AssignationID] = None,
     rath: MikroRath = None,
 ) -> Optional[ROIFragment]:
     """create_roi
@@ -4641,6 +4758,7 @@ def create_roi(
         creator (Optional[ID], optional): creator.
         label (Optional[str], optional): label.
         tags (Optional[List[Optional[str]]], optional): tags.
+        created_while (Optional[AssignationID], optional): created_while.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
@@ -4654,6 +4772,7 @@ def create_roi(
             "type": type,
             "label": label,
             "tags": tags,
+            "created_while": created_while,
         },
         rath=rath,
     ).create_roi
@@ -4666,6 +4785,7 @@ async def acreate_rois(
     creator: Optional[ID] = None,
     labels: Optional[List[Optional[str]]] = None,
     tags: Optional[List[Optional[str]]] = None,
+    created_while: Optional[AssignationID] = None,
     rath: MikroRath = None,
 ) -> Optional[Create_roisMutationCreaterois]:
     """create_rois
@@ -4711,6 +4831,7 @@ async def acreate_rois(
         creator (Optional[ID], optional): creator.
         labels (Optional[List[Optional[str]]], optional): labels.
         tags (Optional[List[Optional[str]]], optional): tags.
+        created_while (Optional[AssignationID], optional): created_while.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
@@ -4725,6 +4846,7 @@ async def acreate_rois(
                 "type": type,
                 "labels": labels,
                 "tags": tags,
+                "created_while": created_while,
             },
             rath=rath,
         )
@@ -4738,6 +4860,7 @@ def create_rois(
     creator: Optional[ID] = None,
     labels: Optional[List[Optional[str]]] = None,
     tags: Optional[List[Optional[str]]] = None,
+    created_while: Optional[AssignationID] = None,
     rath: MikroRath = None,
 ) -> Optional[Create_roisMutationCreaterois]:
     """create_rois
@@ -4783,6 +4906,7 @@ def create_rois(
         creator (Optional[ID], optional): creator.
         labels (Optional[List[Optional[str]]], optional): labels.
         tags (Optional[List[Optional[str]]], optional): tags.
+        created_while (Optional[AssignationID], optional): created_while.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
@@ -4796,6 +4920,7 @@ def create_rois(
             "type": type,
             "labels": labels,
             "tags": tags,
+            "created_while": created_while,
         },
         rath=rath,
     ).create_rois
@@ -4806,6 +4931,7 @@ async def acreate_feature(
     value: FeatureValue,
     key: Optional[str] = None,
     creator: Optional[ID] = None,
+    created_while: Optional[AssignationID] = None,
     rath: MikroRath = None,
 ) -> Optional[Create_featureMutationCreatefeature]:
     """create_feature
@@ -4832,6 +4958,7 @@ async def acreate_feature(
         value (FeatureValue): value
         key (Optional[str], optional): key.
         creator (Optional[ID], optional): creator.
+        created_while (Optional[AssignationID], optional): created_while.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
@@ -4839,7 +4966,13 @@ async def acreate_feature(
     return (
         await aexecute(
             Create_featureMutation,
-            {"label": label, "key": key, "value": value, "creator": creator},
+            {
+                "label": label,
+                "key": key,
+                "value": value,
+                "creator": creator,
+                "created_while": created_while,
+            },
             rath=rath,
         )
     ).createfeature
@@ -4850,6 +4983,7 @@ def create_feature(
     value: FeatureValue,
     key: Optional[str] = None,
     creator: Optional[ID] = None,
+    created_while: Optional[AssignationID] = None,
     rath: MikroRath = None,
 ) -> Optional[Create_featureMutationCreatefeature]:
     """create_feature
@@ -4876,13 +5010,20 @@ def create_feature(
         value (FeatureValue): value
         key (Optional[str], optional): key.
         creator (Optional[ID], optional): creator.
+        created_while (Optional[AssignationID], optional): created_while.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[Create_featureMutationCreatefeature]"""
     return execute(
         Create_featureMutation,
-        {"label": label, "key": key, "value": value, "creator": creator},
+        {
+            "label": label,
+            "key": key,
+            "value": value,
+            "creator": creator,
+            "created_while": created_while,
+        },
         rath=rath,
     ).createfeature
 
@@ -4897,12 +5038,13 @@ async def acreate_instrument(
     serial_number: Optional[str] = None,
     model: Optional[str] = None,
     manufacturer: Optional[str] = None,
+    created_while: Optional[AssignationID] = None,
     rath: MikroRath = None,
 ) -> Optional[InstrumentFragment]:
     """create_instrument
 
 
-     createInstrument: Instrument(id, created_by, created_through, name, detectors, dichroics, filters, lot_number, manufacturer, model, serial_number)
+     createInstrument: Instrument(id, created_by, created_through, created_while, name, detectors, dichroics, filters, lot_number, manufacturer, model, serial_number)
 
 
     Arguments:
@@ -4915,6 +5057,7 @@ async def acreate_instrument(
         serial_number (Optional[str], optional): serialNumber.
         model (Optional[str], optional): model.
         manufacturer (Optional[str], optional): manufacturer.
+        created_while (Optional[AssignationID], optional): created_while.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
@@ -4932,6 +5075,7 @@ async def acreate_instrument(
                 "serialNumber": serial_number,
                 "model": model,
                 "manufacturer": manufacturer,
+                "created_while": created_while,
             },
             rath=rath,
         )
@@ -4948,12 +5092,13 @@ def create_instrument(
     serial_number: Optional[str] = None,
     model: Optional[str] = None,
     manufacturer: Optional[str] = None,
+    created_while: Optional[AssignationID] = None,
     rath: MikroRath = None,
 ) -> Optional[InstrumentFragment]:
     """create_instrument
 
 
-     createInstrument: Instrument(id, created_by, created_through, name, detectors, dichroics, filters, lot_number, manufacturer, model, serial_number)
+     createInstrument: Instrument(id, created_by, created_through, created_while, name, detectors, dichroics, filters, lot_number, manufacturer, model, serial_number)
 
 
     Arguments:
@@ -4966,6 +5111,7 @@ def create_instrument(
         serial_number (Optional[str], optional): serialNumber.
         model (Optional[str], optional): model.
         manufacturer (Optional[str], optional): manufacturer.
+        created_while (Optional[AssignationID], optional): created_while.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
@@ -4982,6 +5128,7 @@ def create_instrument(
             "serialNumber": serial_number,
             "model": model,
             "manufacturer": manufacturer,
+            "created_while": created_while,
         },
         rath=rath,
     ).create_instrument
@@ -5019,11 +5166,78 @@ def presign(file_name: str, rath: MikroRath = None) -> Optional[PresignMutationP
     return execute(PresignMutation, {"file_name": file_name}, rath=rath).presign
 
 
+async def aupload_video(
+    file: BigFile,
+    representations: List[Optional[ID]],
+    front_image: Optional[BigFile] = None,
+    created_while: Optional[AssignationID] = None,
+    rath: MikroRath = None,
+) -> Optional[VideoFragment]:
+    """upload_video
+
+
+
+    Arguments:
+        file (BigFile): file
+        representations (List[Optional[ID]]): representations
+        front_image (Optional[BigFile], optional): frontImage.
+        created_while (Optional[AssignationID], optional): created_while.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[VideoFragment]"""
+    return (
+        await aexecute(
+            Upload_videoMutation,
+            {
+                "file": file,
+                "representations": representations,
+                "frontImage": front_image,
+                "created_while": created_while,
+            },
+            rath=rath,
+        )
+    ).upload_video
+
+
+def upload_video(
+    file: BigFile,
+    representations: List[Optional[ID]],
+    front_image: Optional[BigFile] = None,
+    created_while: Optional[AssignationID] = None,
+    rath: MikroRath = None,
+) -> Optional[VideoFragment]:
+    """upload_video
+
+
+
+    Arguments:
+        file (BigFile): file
+        representations (List[Optional[ID]]): representations
+        front_image (Optional[BigFile], optional): frontImage.
+        created_while (Optional[AssignationID], optional): created_while.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[VideoFragment]"""
+    return execute(
+        Upload_videoMutation,
+        {
+            "file": file,
+            "representations": representations,
+            "frontImage": front_image,
+            "created_while": created_while,
+        },
+        rath=rath,
+    ).upload_video
+
+
 async def acreate_experiment(
     name: str,
     creator: Optional[str] = None,
     description: Optional[str] = None,
     tags: Optional[List[Optional[str]]] = None,
+    created_while: Optional[AssignationID] = None,
     rath: MikroRath = None,
 ) -> Optional[ExperimentFragment]:
     """create_experiment
@@ -5044,6 +5258,7 @@ async def acreate_experiment(
         creator (Optional[str], optional): creator.
         description (Optional[str], optional): description.
         tags (Optional[List[Optional[str]]], optional): tags.
+        created_while (Optional[AssignationID], optional): created_while.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
@@ -5056,6 +5271,7 @@ async def acreate_experiment(
                 "creator": creator,
                 "description": description,
                 "tags": tags,
+                "created_while": created_while,
             },
             rath=rath,
         )
@@ -5067,6 +5283,7 @@ def create_experiment(
     creator: Optional[str] = None,
     description: Optional[str] = None,
     tags: Optional[List[Optional[str]]] = None,
+    created_while: Optional[AssignationID] = None,
     rath: MikroRath = None,
 ) -> Optional[ExperimentFragment]:
     """create_experiment
@@ -5087,13 +5304,20 @@ def create_experiment(
         creator (Optional[str], optional): creator.
         description (Optional[str], optional): description.
         tags (Optional[List[Optional[str]]], optional): tags.
+        created_while (Optional[AssignationID], optional): created_while.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[ExperimentFragment]"""
     return execute(
         Create_experimentMutation,
-        {"name": name, "creator": creator, "description": description, "tags": tags},
+        {
+            "name": name,
+            "creator": creator,
+            "description": description,
+            "tags": tags,
+            "created_while": created_while,
+        },
         rath=rath,
     ).create_experiment
 
@@ -5110,6 +5334,7 @@ async def afrom_xarray(
     datasets: Optional[List[Optional[ID]]] = None,
     sample: Optional[ID] = None,
     omero: Optional[OmeroRepresentationInput] = None,
+    created_while: Optional[AssignationID] = None,
     rath: MikroRath = None,
 ) -> Optional[RepresentationFragment]:
     """from_xarray
@@ -5128,6 +5353,7 @@ async def afrom_xarray(
         datasets (Optional[List[Optional[ID]]], optional): datasets.
         sample (Optional[ID], optional): sample.
         omero (Optional[OmeroRepresentationInput], optional): omero.
+        created_while (Optional[AssignationID], optional): created_while.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
@@ -5147,6 +5373,7 @@ async def afrom_xarray(
                 "datasets": datasets,
                 "sample": sample,
                 "omero": omero,
+                "created_while": created_while,
             },
             rath=rath,
         )
@@ -5165,6 +5392,7 @@ def from_xarray(
     datasets: Optional[List[Optional[ID]]] = None,
     sample: Optional[ID] = None,
     omero: Optional[OmeroRepresentationInput] = None,
+    created_while: Optional[AssignationID] = None,
     rath: MikroRath = None,
 ) -> Optional[RepresentationFragment]:
     """from_xarray
@@ -5183,6 +5411,7 @@ def from_xarray(
         datasets (Optional[List[Optional[ID]]], optional): datasets.
         sample (Optional[ID], optional): sample.
         omero (Optional[OmeroRepresentationInput], optional): omero.
+        created_while (Optional[AssignationID], optional): created_while.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
@@ -5201,6 +5430,7 @@ def from_xarray(
             "datasets": datasets,
             "sample": sample,
             "omero": omero,
+            "created_while": created_while,
         },
         rath=rath,
     ).from_x_array
@@ -5332,6 +5562,7 @@ async def acreate_model(
     name: str,
     contexts: Optional[List[Optional[ID]]] = None,
     experiments: Optional[List[Optional[ID]]] = None,
+    created_while: Optional[AssignationID] = None,
     rath: MikroRath = None,
 ) -> Optional[ModelFragment]:
     """create_model
@@ -5348,6 +5579,7 @@ async def acreate_model(
         name (str): name
         contexts (Optional[List[Optional[ID]]], optional): contexts.
         experiments (Optional[List[Optional[ID]]], optional): experiments.
+        created_while (Optional[AssignationID], optional): created_while.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
@@ -5361,6 +5593,7 @@ async def acreate_model(
                 "name": name,
                 "contexts": contexts,
                 "experiments": experiments,
+                "created_while": created_while,
             },
             rath=rath,
         )
@@ -5373,6 +5606,7 @@ def create_model(
     name: str,
     contexts: Optional[List[Optional[ID]]] = None,
     experiments: Optional[List[Optional[ID]]] = None,
+    created_while: Optional[AssignationID] = None,
     rath: MikroRath = None,
 ) -> Optional[ModelFragment]:
     """create_model
@@ -5389,6 +5623,7 @@ def create_model(
         name (str): name
         contexts (Optional[List[Optional[ID]]], optional): contexts.
         experiments (Optional[List[Optional[ID]]], optional): experiments.
+        created_while (Optional[AssignationID], optional): created_while.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
@@ -5401,6 +5636,7 @@ def create_model(
             "name": name,
             "contexts": contexts,
             "experiments": experiments,
+            "created_while": created_while,
         },
         rath=rath,
     ).create_model
@@ -5412,6 +5648,7 @@ async def acreate_metric(
     representation: Optional[ID] = None,
     sample: Optional[ID] = None,
     experiment: Optional[ID] = None,
+    created_while: Optional[AssignationID] = None,
     rath: MikroRath = None,
 ) -> Optional[MetricFragment]:
     """create_metric
@@ -5424,6 +5661,7 @@ async def acreate_metric(
         representation (Optional[ID], optional): representation.
         sample (Optional[ID], optional): sample.
         experiment (Optional[ID], optional): experiment.
+        created_while (Optional[AssignationID], optional): created_while.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
@@ -5437,6 +5675,7 @@ async def acreate_metric(
                 "experiment": experiment,
                 "key": key,
                 "value": value,
+                "created_while": created_while,
             },
             rath=rath,
         )
@@ -5449,6 +5688,7 @@ def create_metric(
     representation: Optional[ID] = None,
     sample: Optional[ID] = None,
     experiment: Optional[ID] = None,
+    created_while: Optional[AssignationID] = None,
     rath: MikroRath = None,
 ) -> Optional[MetricFragment]:
     """create_metric
@@ -5461,6 +5701,7 @@ def create_metric(
         representation (Optional[ID], optional): representation.
         sample (Optional[ID], optional): sample.
         experiment (Optional[ID], optional): experiment.
+        created_while (Optional[AssignationID], optional): created_while.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
@@ -5473,13 +5714,17 @@ def create_metric(
             "experiment": experiment,
             "key": key,
             "value": value,
+            "created_while": created_while,
         },
         rath=rath,
     ).create_metric
 
 
 async def acreate_dataset(
-    name: str, parent: Optional[ID] = None, rath: MikroRath = None
+    name: str,
+    parent: Optional[ID] = None,
+    created_while: Optional[AssignationID] = None,
+    rath: MikroRath = None,
 ) -> Optional[DatasetFragment]:
     """create_dataset
 
@@ -5495,19 +5740,25 @@ async def acreate_dataset(
     Arguments:
         name (str): name
         parent (Optional[ID], optional): parent.
+        created_while (Optional[AssignationID], optional): created_while.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[DatasetFragment]"""
     return (
         await aexecute(
-            Create_datasetMutation, {"name": name, "parent": parent}, rath=rath
+            Create_datasetMutation,
+            {"name": name, "parent": parent, "created_while": created_while},
+            rath=rath,
         )
     ).create_dataset
 
 
 def create_dataset(
-    name: str, parent: Optional[ID] = None, rath: MikroRath = None
+    name: str,
+    parent: Optional[ID] = None,
+    created_while: Optional[AssignationID] = None,
+    rath: MikroRath = None,
 ) -> Optional[DatasetFragment]:
     """create_dataset
 
@@ -5523,12 +5774,15 @@ def create_dataset(
     Arguments:
         name (str): name
         parent (Optional[ID], optional): parent.
+        created_while (Optional[AssignationID], optional): created_while.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[DatasetFragment]"""
     return execute(
-        Create_datasetMutation, {"name": name, "parent": parent}, rath=rath
+        Create_datasetMutation,
+        {"name": name, "parent": parent, "created_while": created_while},
+        rath=rath,
     ).create_dataset
 
 
@@ -5540,6 +5794,7 @@ async def acreate_position(
     tolerance: Optional[float] = None,
     name: Optional[str] = None,
     tags: Optional[List[Optional[str]]] = None,
+    created_while: Optional[AssignationID] = None,
     rath: MikroRath = None,
 ) -> Optional[PositionFragment]:
     """create_position
@@ -5556,6 +5811,7 @@ async def acreate_position(
         tolerance (Optional[float], optional): tolerance.
         name (Optional[str], optional): name.
         tags (Optional[List[Optional[str]]], optional): tags.
+        created_while (Optional[AssignationID], optional): created_while.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
@@ -5571,6 +5827,7 @@ async def acreate_position(
                 "tolerance": tolerance,
                 "name": name,
                 "tags": tags,
+                "created_while": created_while,
             },
             rath=rath,
         )
@@ -5585,6 +5842,7 @@ def create_position(
     tolerance: Optional[float] = None,
     name: Optional[str] = None,
     tags: Optional[List[Optional[str]]] = None,
+    created_while: Optional[AssignationID] = None,
     rath: MikroRath = None,
 ) -> Optional[PositionFragment]:
     """create_position
@@ -5601,6 +5859,7 @@ def create_position(
         tolerance (Optional[float], optional): tolerance.
         name (Optional[str], optional): name.
         tags (Optional[List[Optional[str]]], optional): tags.
+        created_while (Optional[AssignationID], optional): created_while.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
@@ -5615,6 +5874,7 @@ def create_position(
             "tolerance": tolerance,
             "name": name,
             "tags": tags,
+            "created_while": created_while,
         },
         rath=rath,
     ).create_position
@@ -5626,12 +5886,13 @@ async def acreate_objective(
     magnification: float,
     na: Optional[float] = None,
     immersion: Optional[str] = None,
+    created_while: Optional[AssignationID] = None,
     rath: MikroRath = None,
 ) -> Optional[ObjectiveFragment]:
     """create_objective
 
 
-     createObjective: Objective(id, created_by, created_through, serial_number, name, magnification, na, immersion)
+     createObjective: Objective(id, created_by, created_through, created_while, serial_number, name, magnification, na, immersion)
 
 
     Arguments:
@@ -5640,6 +5901,7 @@ async def acreate_objective(
         magnification (float): magnification
         na (Optional[float], optional): na.
         immersion (Optional[str], optional): immersion.
+        created_while (Optional[AssignationID], optional): created_while.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
@@ -5653,6 +5915,7 @@ async def acreate_objective(
                 "magnification": magnification,
                 "na": na,
                 "immersion": immersion,
+                "created_while": created_while,
             },
             rath=rath,
         )
@@ -5665,12 +5928,13 @@ def create_objective(
     magnification: float,
     na: Optional[float] = None,
     immersion: Optional[str] = None,
+    created_while: Optional[AssignationID] = None,
     rath: MikroRath = None,
 ) -> Optional[ObjectiveFragment]:
     """create_objective
 
 
-     createObjective: Objective(id, created_by, created_through, serial_number, name, magnification, na, immersion)
+     createObjective: Objective(id, created_by, created_through, created_while, serial_number, name, magnification, na, immersion)
 
 
     Arguments:
@@ -5679,6 +5943,7 @@ def create_objective(
         magnification (float): magnification
         na (Optional[float], optional): na.
         immersion (Optional[str], optional): immersion.
+        created_while (Optional[AssignationID], optional): created_while.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
@@ -5691,6 +5956,7 @@ def create_objective(
             "magnification": magnification,
             "na": na,
             "immersion": immersion,
+            "created_while": created_while,
         },
         rath=rath,
     ).create_objective
@@ -5735,7 +6001,10 @@ def upload_bioimage(
 
 
 async def aupload_bigfile(
-    file: BigFile, datasets: Optional[List[Optional[ID]]] = None, rath: MikroRath = None
+    file: BigFile,
+    datasets: Optional[List[Optional[ID]]] = None,
+    created_while: Optional[AssignationID] = None,
+    rath: MikroRath = None,
 ) -> Optional[Upload_bigfileMutationUploadbigfile]:
     """upload_bigfile
 
@@ -5744,19 +6013,25 @@ async def aupload_bigfile(
     Arguments:
         file (BigFile): file
         datasets (Optional[List[Optional[ID]]], optional): datasets.
+        created_while (Optional[AssignationID], optional): created_while.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[Upload_bigfileMutationUploadbigfile]"""
     return (
         await aexecute(
-            Upload_bigfileMutation, {"file": file, "datasets": datasets}, rath=rath
+            Upload_bigfileMutation,
+            {"file": file, "datasets": datasets, "created_while": created_while},
+            rath=rath,
         )
     ).upload_big_file
 
 
 def upload_bigfile(
-    file: BigFile, datasets: Optional[List[Optional[ID]]] = None, rath: MikroRath = None
+    file: BigFile,
+    datasets: Optional[List[Optional[ID]]] = None,
+    created_while: Optional[AssignationID] = None,
+    rath: MikroRath = None,
 ) -> Optional[Upload_bigfileMutationUploadbigfile]:
     """upload_bigfile
 
@@ -5765,12 +6040,15 @@ def upload_bigfile(
     Arguments:
         file (BigFile): file
         datasets (Optional[List[Optional[ID]]], optional): datasets.
+        created_while (Optional[AssignationID], optional): created_while.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[Upload_bigfileMutationUploadbigfile]"""
     return execute(
-        Upload_bigfileMutation, {"file": file, "datasets": datasets}, rath=rath
+        Upload_bigfileMutation,
+        {"file": file, "datasets": datasets, "created_while": created_while},
+        rath=rath,
     ).upload_big_file
 
 
@@ -5966,7 +6244,7 @@ async def aget_context(id: ID, rath: MikroRath = None) -> Optional[ContextFragme
     """get_context
 
 
-     context: Context(id, created_by, created_through, name, created_at, experiment, creator)
+     context: Context(id, created_by, created_through, created_while, name, created_at, experiment, creator)
 
 
     Arguments:
@@ -5982,7 +6260,7 @@ def get_context(id: ID, rath: MikroRath = None) -> Optional[ContextFragment]:
     """get_context
 
 
-     context: Context(id, created_by, created_through, name, created_at, experiment, creator)
+     context: Context(id, created_by, created_through, created_while, name, created_at, experiment, creator)
 
 
     Arguments:
@@ -6000,7 +6278,7 @@ async def aget_mycontexts(
     """get_mycontexts
 
 
-     mycontexts: Context(id, created_by, created_through, name, created_at, experiment, creator)
+     mycontexts: Context(id, created_by, created_through, created_while, name, created_at, experiment, creator)
 
 
     Arguments:
@@ -6023,7 +6301,7 @@ def get_mycontexts(
     """get_mycontexts
 
 
-     mycontexts: Context(id, created_by, created_through, name, created_at, experiment, creator)
+     mycontexts: Context(id, created_by, created_through, created_while, name, created_at, experiment, creator)
 
 
     Arguments:
@@ -6042,7 +6320,7 @@ async def aexpand_context(id: ID, rath: MikroRath = None) -> Optional[ContextFra
     """expand_context
 
 
-     context: Context(id, created_by, created_through, name, created_at, experiment, creator)
+     context: Context(id, created_by, created_through, created_while, name, created_at, experiment, creator)
 
 
     Arguments:
@@ -6058,7 +6336,7 @@ def expand_context(id: ID, rath: MikroRath = None) -> Optional[ContextFragment]:
     """expand_context
 
 
-     context: Context(id, created_by, created_through, name, created_at, experiment, creator)
+     context: Context(id, created_by, created_through, created_while, name, created_at, experiment, creator)
 
 
     Arguments:
@@ -6078,7 +6356,7 @@ async def asearch_contexts(
     """search_contexts
 
 
-     options: Context(id, created_by, created_through, name, created_at, experiment, creator)
+     options: Context(id, created_by, created_through, created_while, name, created_at, experiment, creator)
 
 
     Arguments:
@@ -6103,7 +6381,7 @@ def search_contexts(
     """search_contexts
 
 
-     options: Context(id, created_by, created_through, name, created_at, experiment, creator)
+     options: Context(id, created_by, created_through, created_while, name, created_at, experiment, creator)
 
 
     Arguments:
@@ -6481,7 +6759,7 @@ async def alinks(
     """Links
 
 
-     links: DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
+     links: DataLink(id, created_by, created_through, created_while, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
 
 
     Arguments:
@@ -6520,7 +6798,7 @@ def links(
     """Links
 
 
-     links: DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
+     links: DataLink(id, created_by, created_through, created_while, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
 
 
     Arguments:
@@ -6555,7 +6833,7 @@ async def aget_image_image_links(
     """get_image_image_links
 
 
-     links: DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
+     links: DataLink(id, created_by, created_through, created_while, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
 
 
     Arguments:
@@ -6584,7 +6862,7 @@ def get_image_image_links(
     """get_image_image_links
 
 
-     links: DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
+     links: DataLink(id, created_by, created_through, created_while, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
 
 
     Arguments:
@@ -6606,7 +6884,7 @@ async def aget_link(id: ID, rath: MikroRath = None) -> Optional[LinkFragment]:
     """get_link
 
 
-     link: DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
+     link: DataLink(id, created_by, created_through, created_while, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
 
 
     Arguments:
@@ -6622,7 +6900,7 @@ def get_link(id: ID, rath: MikroRath = None) -> Optional[LinkFragment]:
     """get_link
 
 
-     link: DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
+     link: DataLink(id, created_by, created_through, created_while, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
 
 
     Arguments:
@@ -6638,7 +6916,7 @@ async def aexpand_link(id: ID, rath: MikroRath = None) -> Optional[LinkFragment]
     """expand_link
 
 
-     link: DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
+     link: DataLink(id, created_by, created_through, created_while, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
 
 
     Arguments:
@@ -6654,7 +6932,7 @@ def expand_link(id: ID, rath: MikroRath = None) -> Optional[LinkFragment]:
     """expand_link
 
 
-     link: DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
+     link: DataLink(id, created_by, created_through, created_while, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
 
 
     Arguments:
@@ -6674,7 +6952,7 @@ async def asearch_links(
     """search_links
 
 
-     options: DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
+     options: DataLink(id, created_by, created_through, created_while, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
 
 
     Arguments:
@@ -6699,7 +6977,7 @@ def search_links(
     """search_links
 
 
-     options: DataLink(id, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
+     options: DataLink(id, created_by, created_through, created_while, x_content_type, x_id, y_content_type, y_id, relation, left_type, right_type, context, created_at, creator)
 
 
     Arguments:
@@ -7410,7 +7688,7 @@ async def aget_instrument(
     """get_instrument
 
 
-     instrument: Instrument(id, created_by, created_through, name, detectors, dichroics, filters, lot_number, manufacturer, model, serial_number)
+     instrument: Instrument(id, created_by, created_through, created_while, name, detectors, dichroics, filters, lot_number, manufacturer, model, serial_number)
 
 
     Arguments:
@@ -7431,7 +7709,7 @@ def get_instrument(
     """get_instrument
 
 
-     instrument: Instrument(id, created_by, created_through, name, detectors, dichroics, filters, lot_number, manufacturer, model, serial_number)
+     instrument: Instrument(id, created_by, created_through, created_while, name, detectors, dichroics, filters, lot_number, manufacturer, model, serial_number)
 
 
     Arguments:
@@ -7450,7 +7728,7 @@ async def aexpand_instrument(
     """expand_instrument
 
 
-     instrument: Instrument(id, created_by, created_through, name, detectors, dichroics, filters, lot_number, manufacturer, model, serial_number)
+     instrument: Instrument(id, created_by, created_through, created_while, name, detectors, dichroics, filters, lot_number, manufacturer, model, serial_number)
 
 
     Arguments:
@@ -7466,7 +7744,7 @@ def expand_instrument(id: ID, rath: MikroRath = None) -> Optional[InstrumentFrag
     """expand_instrument
 
 
-     instrument: Instrument(id, created_by, created_through, name, detectors, dichroics, filters, lot_number, manufacturer, model, serial_number)
+     instrument: Instrument(id, created_by, created_through, created_while, name, detectors, dichroics, filters, lot_number, manufacturer, model, serial_number)
 
 
     Arguments:
@@ -7486,7 +7764,7 @@ async def asearch_instruments(
     """search_instruments
 
 
-     options: Instrument(id, created_by, created_through, name, detectors, dichroics, filters, lot_number, manufacturer, model, serial_number)
+     options: Instrument(id, created_by, created_through, created_while, name, detectors, dichroics, filters, lot_number, manufacturer, model, serial_number)
 
 
     Arguments:
@@ -7511,7 +7789,7 @@ def search_instruments(
     """search_instruments
 
 
-     options: Instrument(id, created_by, created_through, name, detectors, dichroics, filters, lot_number, manufacturer, model, serial_number)
+     options: Instrument(id, created_by, created_through, created_while, name, detectors, dichroics, filters, lot_number, manufacturer, model, serial_number)
 
 
     Arguments:
@@ -7524,6 +7802,78 @@ def search_instruments(
     return execute(
         Search_instrumentsQuery, {"search": search, "values": values}, rath=rath
     ).instruments
+
+
+async def aget_video(id: ID, rath: MikroRath = None) -> Optional[VideoFragment]:
+    """get_video
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[VideoFragment]"""
+    return (await aexecute(Get_videoQuery, {"id": id}, rath=rath)).video
+
+
+def get_video(id: ID, rath: MikroRath = None) -> Optional[VideoFragment]:
+    """get_video
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[VideoFragment]"""
+    return execute(Get_videoQuery, {"id": id}, rath=rath).video
+
+
+async def asearch_videos(
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
+) -> Optional[List[Optional[Search_videosQueryOptions]]]:
+    """search_videos
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[Search_videosQueryVideos]]]"""
+    return (
+        await aexecute(
+            Search_videosQuery, {"search": search, "values": values}, rath=rath
+        )
+    ).videos
+
+
+def search_videos(
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
+) -> Optional[List[Optional[Search_videosQueryOptions]]]:
+    """search_videos
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[Search_videosQueryVideos]]]"""
+    return execute(
+        Search_videosQuery, {"search": search, "values": values}, rath=rath
+    ).videos
 
 
 async def aget_experiment(
@@ -8702,7 +9052,7 @@ async def aget_objective(
     """get_objective
 
 
-     objective: Objective(id, created_by, created_through, serial_number, name, magnification, na, immersion)
+     objective: Objective(id, created_by, created_through, created_while, serial_number, name, magnification, na, immersion)
 
 
     Arguments:
@@ -8723,7 +9073,7 @@ def get_objective(
     """get_objective
 
 
-     objective: Objective(id, created_by, created_through, serial_number, name, magnification, na, immersion)
+     objective: Objective(id, created_by, created_through, created_while, serial_number, name, magnification, na, immersion)
 
 
     Arguments:
@@ -8742,7 +9092,7 @@ async def aexpand_objective(
     """expand_objective
 
 
-     objective: Objective(id, created_by, created_through, serial_number, name, magnification, na, immersion)
+     objective: Objective(id, created_by, created_through, created_while, serial_number, name, magnification, na, immersion)
 
 
     Arguments:
@@ -8758,7 +9108,7 @@ def expand_objective(id: ID, rath: MikroRath = None) -> Optional[ObjectiveFragme
     """expand_objective
 
 
-     objective: Objective(id, created_by, created_through, serial_number, name, magnification, na, immersion)
+     objective: Objective(id, created_by, created_through, created_while, serial_number, name, magnification, na, immersion)
 
 
     Arguments:
@@ -8778,7 +9128,7 @@ async def asearch_objectives(
     """search_objectives
 
 
-     options: Objective(id, created_by, created_through, serial_number, name, magnification, na, immersion)
+     options: Objective(id, created_by, created_through, created_while, serial_number, name, magnification, na, immersion)
 
 
     Arguments:
@@ -8803,7 +9153,7 @@ def search_objectives(
     """search_objectives
 
 
-     options: Objective(id, created_by, created_through, serial_number, name, magnification, na, immersion)
+     options: Objective(id, created_by, created_through, created_while, serial_number, name, magnification, na, immersion)
 
 
     Arguments:

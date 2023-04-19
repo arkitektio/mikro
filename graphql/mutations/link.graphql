@@ -1,36 +1,20 @@
 mutation link(
   $relation: ID!
-  $x_type: LinkableModels!
-  $x_id: ID!
-  $y_type: LinkableModels!
-  $y_id: ID!
+  $left_type: LinkableModels!
+  $left_id: ID!
+  $right_type: LinkableModels!
+  $right_id: ID!
   $context: ID
+  $created_while: AssignationID @validator(path: "mikro.scalars.get_current_id")
 ) {
   link(
     relation: $relation
-    xType: $x_type
-    xId: $x_id
-    yType: $y_type
-    yId: $y_id
+    leftType: $left_type
+    leftId: $left_id
+    rightType: $right_type
+    rightId: $right_id
     context: $context
-  ) {
-    ...ListLink
-  }
-}
-
-mutation link_rep_to_rep(
-  $relation: ID!
-  $left_rep: ID!
-  $right_rep: ID!
-  $context: ID
-) {
-  link(
-    relation: $relation
-    xType: GRUNNLAG_REPRESENTATION
-    xId: $left_rep
-    yType: GRUNNLAG_REPRESENTATION
-    yId: $right_rep
-    context: $context
+    createdWhile: $created_while
   ) {
     ...ListLink
   }
