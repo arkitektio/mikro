@@ -19,7 +19,6 @@ if TYPE_CHECKING:
     from mikro.datalayer import DataLayer
 
 
-
 class AssignationID(str):
     """A custom scalar to represent an affine matrix."""
 
@@ -34,22 +33,21 @@ class AssignationID(str):
 
 
 try:
-    from rekuest.actors.vars import get_current_assignation_helper, NotWithinAnAssignationError
+    from rekuest.actors.vars import (
+        get_current_assignation_helper,
+        NotWithinAnAssignationError,
+    )
+
     def get_current_id(cls, value) -> AssignationID:
         try:
             return value or get_current_assignation_helper().assignation.assignation
         except NotWithinAnAssignationError:
             return value
 
-    
 except ImportError:
+
     def get_current_id(cls, value):
         return value
-
-
-
-
-
 
 
 class XArrayConversionException(Exception):
@@ -80,8 +78,6 @@ class AffineMatrix(list):
 
         assert isinstance(v, list)
         return cls(v)
-    
-
 
 
 class XArrayInput:
@@ -97,7 +93,7 @@ class XArrayInput:
         yield cls.validate
 
     @classmethod
-    def validate(cls, v: Any):
+    def validate(cls, v: xr.DataArray):
         """Validate the input array and convert it to a xr.DataArray."""
 
         if isinstance(v, np.ndarray):
@@ -120,7 +116,10 @@ class XArrayInput:
         if "z" not in v.dims:
             v = v.expand_dims("z")
 
-        chunks = rechunk(v.sizes)
+        chunks = rechunk(
+            v.sizes, itemsize=v.data.itemsize, chunksize_in_bytes=20_000_000
+        )
+        print(chunks)
 
         v = v.chunk(
             {key: chunksize for key, chunksize in chunks.items() if key in v.dims}
@@ -227,9 +226,9 @@ class Store:
             dl
         ), "No datalayer set. This probably happened because you never connected the datalayer. Please connect (either with async or sync) and try again."
         if self._openstore is None:
-                self._openstore = xr.open_zarr(
-                    store=dl.open_store(self.value), consolidated=True
-                )["data"]
+            self._openstore = xr.open_zarr(
+                store=dl.open_store(self.value), consolidated=True
+            )["data"]
 
         return self._openstore
 

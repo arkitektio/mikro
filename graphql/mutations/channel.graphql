@@ -1,0 +1,17 @@
+mutation CreateChannel(
+  $name: String!
+  $emissionWavelength: Float
+  $excitationWavelength: Float
+  $acquisitionMode: String
+  $color: String
+) {
+  createChannel(
+    name: $name
+    emissionWavelength: $emissionWavelength
+    excitationWavelength: $excitationWavelength
+    acquisitionMode: $acquisitionMode
+    color: $color
+  ) {
+    ...Channel
+  }
+}

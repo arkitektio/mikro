@@ -1,0 +1,12 @@
+query GetDimensionMap($id: ID!) {
+  dimensionmap(id: $id) {
+    ...DimensionMap
+  }
+}
+
+query SearchDimensionMaps($search: String, $values: [ID]) {
+  options: dimensionmaps(name: $search, limit: 30, ids: $values) {
+    value: id
+    label: dimension
+  }
+}

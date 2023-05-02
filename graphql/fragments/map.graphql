@@ -1,0 +1,8 @@
+fragment DimensionMap on DimensionMap {
+  channel {
+    id
+  }
+  id
+  dimension
+  index
+}

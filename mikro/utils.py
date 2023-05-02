@@ -1,7 +1,10 @@
 from typing import Dict
+import math
 
 
-def rechunk(sizes: Dict[str, int]) -> Dict[str, int]:
+def rechunk(
+    sizes: Dict[str, int], itemsize: int = 8, chunksize_in_bytes: int = 20_000_000
+) -> Dict[str, int]:
     """Calculates Chunks for a given size
 
     Args:
@@ -28,8 +31,13 @@ def rechunk(sizes: Dict[str, int]) -> Dict[str, int]:
     y = (
         sizes["y"] if not sizes["y"] > 2048 else 2048
     )  # Biggest Y but not bigger than 1024
-    z = 1
-    t = 1
+
+    best_z = math.ceil(chunksize_in_bytes / (x * y * itemsize))
+    print(best_z)
+    z = best_z if best_z < sizes["z"] else sizes["z"]
+
+    best_t = math.ceil(chunksize_in_bytes / (x * y * z * itemsize))
+    t = best_t if best_t < sizes["t"] else sizes["t"]
 
     chunk = {
         "c": 1,

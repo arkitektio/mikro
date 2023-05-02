@@ -43,6 +43,20 @@ if rekuest:
         default_widget=None,
     )
     structure_reg.register_as_structure(
+        ChannelFragment,
+        identifier="@mikro/channel",
+        expand=aget_channel,
+        scope=Scope.GLOBAL,
+        default_widget=None,
+    )
+    structure_reg.register_as_structure(
+        DimensionMapFragment,
+        identifier="@mikro/dimensionmap",
+        expand=aget_dimension_map,
+        scope=Scope.GLOBAL,
+        default_widget=None,
+    )
+    structure_reg.register_as_structure(
         SampleFragment,
         identifier="@mikro/sample",
         expand=aexpand_sample,

@@ -1,0 +1,15 @@
+mutation CreateDimensionMap(
+  $omero: ID!
+  $dim: Dimension!
+  $index: Int!
+  $channel: ID
+) {
+  createDimensionMap(
+    omero: $omero
+    dim: $dim
+    index: $index
+    channel: $channel
+  ) {
+    ...DimensionMap
+  }
+}

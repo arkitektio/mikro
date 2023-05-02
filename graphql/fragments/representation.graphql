@@ -10,6 +10,7 @@ fragment Representation on Representation {
   createdWhile
   name
   omero {
+    id
     scale
     physicalSize {
       x
@@ -18,7 +19,7 @@ fragment Representation on Representation {
       t
       c
     }
-    position {
+    positions {
       id
       x
       y
@@ -26,6 +27,11 @@ fragment Representation on Representation {
       stage {
         id
       }
+    }
+    dimensionMaps {
+      id
+      dimension
+      index
     }
     affineTransformation
     channels {
