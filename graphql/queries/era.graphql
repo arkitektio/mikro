@@ -1,0 +1,12 @@
+query GetEra($id: ID!) {
+  era(id: $id) {
+    ...Era
+  }
+}
+
+query SearchEras($search: String, $values: [ID]) {
+  options: eras(name: $search, limit: 30, ids: $values) {
+    value: id
+    label: name
+  }
+}

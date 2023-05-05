@@ -1,0 +1,12 @@
+query GetTimepoint($id: ID!) {
+  timepoint(id: $id) {
+    ...Timepoint
+  }
+}
+
+query SearchTimepoints($search: String, $values: [ID]) {
+  options: timepoints(name: $search, limit: 30, ids: $values) {
+    value: id
+    label: name
+  }
+}

@@ -1,0 +1,15 @@
+mutation CreateTimepoint(
+  $era: ID!
+  $delta_t: Float!
+  $name: String
+  $tolerance: Float
+) {
+  createTimepoint(
+    era: $era
+    deltaT: $delta_t
+    name: $name
+    tolerance: $tolerance
+  ) {
+    ...Timepoint
+  }
+}

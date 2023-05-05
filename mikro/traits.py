@@ -153,6 +153,82 @@ class Objective:
         )
 
 
+class PhysicalSizeProtocol(Protocol):
+    """A Protocol for Vectorizable data
+
+    Attributes:
+        x (float): The x value
+        y (float): The y value
+        z (float): The z value
+        t (float): The t value
+        c (float): The c value
+    """
+
+    x: float
+    y: float
+    z: float
+    t: float
+    c: float
+
+    def __call__(
+        self,
+        x: Optional[int] = None,
+        y: Optional[int] = None,
+        z: Optional[int] = None,
+        t: Optional[int] = None,
+        c: Optional[int] = None,
+    ):
+        ...
+
+
+class PhysicalSize:
+    """Additional Methods for PhysicalSize"""
+
+    def is_similar(
+        self: PhysicalSizeProtocol,
+        other: PhysicalSizeProtocol,
+        tolerance=0.02,
+        raise_exception=False,
+    ) -> bool:
+        if self.x is not None and other.x is not None:
+            if abs(other.x - self.x) > tolerance:
+                if raise_exception:
+                    raise ValueError(
+                        f"X values are not similar: {self.x} vs {other.x} is above tolerance {tolerance}"
+                    )
+                return False
+        if self.y is not None and other.y is not None:
+            if abs(other.y - self.y) > tolerance:
+                if raise_exception:
+                    raise ValueError(
+                        f"Y values are not similar: {self.y} vs {other.y} is above tolerance {tolerance}"
+                    )
+                return False
+        if self.z is not None and other.z is not None:
+            if abs(other.z - self.z) > tolerance:
+                if raise_exception:
+                    raise ValueError(
+                        f"Z values are not similar: {self.z} vs {other.z} is above tolerance {tolerance}"
+                    )
+                return False
+        if self.t is not None and other.t is not None:
+            if abs(other.t - self.t) > tolerance:
+                if raise_exception:
+                    raise ValueError(
+                        f"T values are not similar: {self.t} vs {other.t} is above tolerance {tolerance}"
+                    )
+                return False
+        if self.c is not None and other.c is not None:
+            if abs(other.c - self.c) > tolerance:
+                if raise_exception:
+                    raise ValueError(
+                        f"C values are not similar: {self.c} vs {other.c} is above tolerance {tolerance}"
+                    )
+                return False
+
+        return True
+
+
 class ROI(BaseModel):
     """Additional Methods for ROI"""
 

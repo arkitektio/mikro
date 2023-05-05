@@ -12,6 +12,8 @@ from .items import (
     ROI,
     Image,
     Dataset,
+    Timepoint,
+    Era,
 )
 
 
@@ -26,6 +28,10 @@ __all__ = [
     "OmeroFile",
     "Metric",
     "Video",
-    "Dataset" "Image",
+    "Dataset",
+    "Image",
     "ROI",
+    "Dataset",
+    "Era",
+    "Timepoint",
 ]

@@ -154,6 +154,22 @@ if rekuest:
         ),
     )
     structure_reg.register_as_structure(
+        EraFragment,
+        identifier="@mikro/era",
+        scope=Scope.GLOBAL,
+        expand=aget_era,
+        default_widget=SearchWidget(query=SearchErasQuery.Meta.document, ward="mikro"),
+    )
+    structure_reg.register_as_structure(
+        TimepointFragment,
+        identifier="@mikro/timepoint",
+        scope=Scope.GLOBAL,
+        expand=aget_timepoint,
+        default_widget=SearchWidget(
+            query=SearchTimepointsQuery.Meta.document, ward="mikro"
+        ),
+    )
+    structure_reg.register_as_structure(
         DatasetFragment,
         identifier="@mikro/dataset",
         scope=Scope.GLOBAL,

@@ -1,35 +1,36 @@
-from mikro.traits import (
-    Table,
-    Position,
-    Vectorizable,
-    Stage,
-    Omero,
-    ROI,
-    Representation,
-    Objective,
-)
-from pydantic import BaseModel, validator, Field
 from mikro.scalars import (
-    XArrayInput,
-    MetricValue,
-    File,
-    Parquet,
-    AffineMatrix,
-    ModelFile,
     ParquetInput,
-    Store,
+    XArrayInput,
     AssignationID,
-    get_current_id,
+    MetricValue,
+    AffineMatrix,
     FeatureValue,
+    Parquet,
+    File,
     ModelData,
     BigFile,
+    Store,
+    ModelFile,
+    get_current_id,
 )
-from typing import Tuple, Optional, Literal, List, Dict, AsyncIterator, Iterator
-from mikro.funcs import subscribe, aexecute, execute, asubscribe
+from mikro.funcs import subscribe, asubscribe, aexecute, execute
+from pydantic import validator, BaseModel, Field
+from rath.scalars import ID
+from typing import Tuple, AsyncIterator, Literal, Iterator, List, Dict, Optional
+from mikro.traits import (
+    Stage,
+    Objective,
+    ROI,
+    Vectorizable,
+    Position,
+    Representation,
+    Table,
+    PhysicalSize,
+    Omero,
+)
+from mikro.rath import MikroRath
 from enum import Enum
 from datetime import datetime
-from rath.scalars import ID
-from mikro.rath import MikroRath
 
 
 class CommentableModels(str, Enum):
@@ -50,6 +51,8 @@ class CommentableModels(str, Enum):
     GRUNNLAG_STAGE = "GRUNNLAG_STAGE"
     GRUNNLAG_CHANNEL = "GRUNNLAG_CHANNEL"
     GRUNNLAG_POSITION = "GRUNNLAG_POSITION"
+    GRUNNLAG_ERA = "GRUNNLAG_ERA"
+    GRUNNLAG_TIMEPOINT = "GRUNNLAG_TIMEPOINT"
     GRUNNLAG_REPRESENTATION = "GRUNNLAG_REPRESENTATION"
     GRUNNLAG_OMERO = "GRUNNLAG_OMERO"
     GRUNNLAG_DIMENSIONMAP = "GRUNNLAG_DIMENSIONMAP"
@@ -83,6 +86,8 @@ class SharableModels(str, Enum):
     GRUNNLAG_STAGE = "GRUNNLAG_STAGE"
     GRUNNLAG_CHANNEL = "GRUNNLAG_CHANNEL"
     GRUNNLAG_POSITION = "GRUNNLAG_POSITION"
+    GRUNNLAG_ERA = "GRUNNLAG_ERA"
+    GRUNNLAG_TIMEPOINT = "GRUNNLAG_TIMEPOINT"
     GRUNNLAG_REPRESENTATION = "GRUNNLAG_REPRESENTATION"
     GRUNNLAG_OMERO = "GRUNNLAG_OMERO"
     GRUNNLAG_DIMENSIONMAP = "GRUNNLAG_DIMENSIONMAP"
@@ -145,6 +150,8 @@ class LinkableModels(str, Enum):
     GRUNNLAG_STAGE = "GRUNNLAG_STAGE"
     GRUNNLAG_CHANNEL = "GRUNNLAG_CHANNEL"
     GRUNNLAG_POSITION = "GRUNNLAG_POSITION"
+    GRUNNLAG_ERA = "GRUNNLAG_ERA"
+    GRUNNLAG_TIMEPOINT = "GRUNNLAG_TIMEPOINT"
     GRUNNLAG_REPRESENTATION = "GRUNNLAG_REPRESENTATION"
     GRUNNLAG_OMERO = "GRUNNLAG_OMERO"
     GRUNNLAG_DIMENSIONMAP = "GRUNNLAG_DIMENSIONMAP"
@@ -357,6 +364,7 @@ class OmeroRepresentationInput(BaseModel):
 
     planes: Optional[Tuple[Optional["PlaneInput"], ...]]
     maps: Optional[Tuple[Optional[ID], ...]]
+    timepoints: Optional[Tuple[Optional[ID], ...]]
     channels: Optional[Tuple[Optional["ChannelInput"], ...]]
     physical_size: Optional["PhysicalSizeInput"] = Field(alias="physicalSize")
     affine_transformation: Optional[AffineMatrix] = Field(alias="affineTransformation")
@@ -535,6 +543,8 @@ class RepresentationViewInput(BaseModel):
     "The channel you want to associate with this map"
     position: Optional[ID]
     "The position you want to associate with this map"
+    timepoint: Optional[ID]
+    "The position you want to associate with this map"
     created_while: Optional[AssignationID] = Field(alias="createdWhile")
     "The assignation id"
 
@@ -588,6 +598,8 @@ class ViewInput(BaseModel):
     channel: Optional[ID]
     "The channel you want to associate with this map"
     position: Optional[ID]
+    "The position you want to associate with this map"
+    timepoint: Optional[ID]
     "The position you want to associate with this map"
     created_while: Optional[AssignationID] = Field(alias="createdWhile")
     "The assignation id"
@@ -1351,6 +1363,22 @@ class FeatureFragment(BaseModel):
         frozen = True
 
 
+class EraFragment(BaseModel):
+    typename: Optional[Literal["Era"]] = Field(alias="__typename", exclude=True)
+    name: str
+    "The name of the era"
+    id: ID
+    start: Optional[datetime]
+    "The start of the era"
+    end: Optional[datetime]
+    "The end of the era"
+    timepoints: Optional[Tuple[Optional["TimepointFragment"], ...]]
+    "Associated Timepoints"
+
+    class Config:
+        frozen = True
+
+
 class DimensionMapFragmentChannel(BaseModel):
     """Channel(id, created_by, created_through, created_while, name, emission_wavelength, excitation_wavelength, acquisition_mode, color)"""
 
@@ -1395,6 +1423,17 @@ class VideoFragment(BaseModel):
     typename: Optional[Literal["Video"]] = Field(alias="__typename", exclude=True)
     data: Optional[str]
     id: ID
+
+    class Config:
+        frozen = True
+
+
+class TimepointFragment(BaseModel):
+    typename: Optional[Literal["Timepoint"]] = Field(alias="__typename", exclude=True)
+    name: Optional[str]
+    "The name of the timepoint"
+    id: ID
+    delta_t: Optional[float] = Field(alias="deltaT")
 
     class Config:
         frozen = True
@@ -1456,7 +1495,7 @@ class RepresentationFragmentSample(BaseModel):
         frozen = True
 
 
-class RepresentationFragmentOmeroPhysicalsize(BaseModel):
+class RepresentationFragmentOmeroPhysicalsize(PhysicalSize, BaseModel):
     """Physical size of the image
 
     Each dimensions of the image has a physical size. This is the size of the
@@ -2458,6 +2497,19 @@ class Create_featureMutation(BaseModel):
         document = "mutation create_feature($label: ID!, $key: String, $value: FeatureValue!, $creator: ID, $created_while: AssignationID) {\n  createfeature(\n    label: $label\n    key: $key\n    value: $value\n    creator: $creator\n    createdWhile: $created_while\n  ) {\n    id\n    key\n    value\n    label {\n      id\n      representation {\n        id\n      }\n    }\n  }\n}"
 
 
+class CreateEraMutation(BaseModel):
+    create_era: Optional[EraFragment] = Field(alias="createEra")
+    "Creates a Stage\n    \n    This mutation creates a Feature and returns the created Feature.\n    We require a reference to the label that the feature belongs to.\n    As well as the key and value of the feature.\n    \n    There can be multiple features with the same label, but only one feature per key\n    per label"
+
+    class Arguments(BaseModel):
+        name: Optional[str]
+        start: Optional[datetime]
+        end: Optional[datetime]
+
+    class Meta:
+        document = "fragment Timepoint on Timepoint {\n  name\n  id\n  deltaT\n}\n\nfragment Era on Era {\n  name\n  id\n  start\n  end\n  timepoints {\n    ...Timepoint\n  }\n}\n\nmutation CreateEra($name: String, $start: DateTime, $end: DateTime) {\n  createEra(name: $name, start: $start, end: $end) {\n    ...Era\n  }\n}"
+
+
 class CreateDimensionMapMutation(BaseModel):
     create_dimension_map: Optional[DimensionMapFragment] = Field(
         alias="createDimensionMap"
@@ -2548,6 +2600,20 @@ class Upload_videoMutation(BaseModel):
 
     class Meta:
         document = "fragment Video on Video {\n  data\n  id\n}\n\nmutation upload_video($file: BigFile!, $representations: [ID]!, $frontImage: BigFile, $created_while: AssignationID) {\n  uploadVideo(\n    file: $file\n    frontImage: $frontImage\n    representations: $representations\n    createdWhile: $created_while\n  ) {\n    ...Video\n  }\n}"
+
+
+class CreateTimepointMutation(BaseModel):
+    create_timepoint: Optional[TimepointFragment] = Field(alias="createTimepoint")
+    "Creates a Timepoint\n    \n    This mutation creates a Feature and returns the created Feature.\n    We require a reference to the label that the feature belongs to.\n    As well as the key and value of the feature.\n    \n    There can be multiple features with the same label, but only one feature per key\n    per label"
+
+    class Arguments(BaseModel):
+        era: ID
+        delta_t: float
+        name: Optional[str]
+        tolerance: Optional[float]
+
+    class Meta:
+        document = "fragment Timepoint on Timepoint {\n  name\n  id\n  deltaT\n}\n\nmutation CreateTimepoint($era: ID!, $delta_t: Float!, $name: String, $tolerance: Float) {\n  createTimepoint(era: $era, deltaT: $delta_t, name: $name, tolerance: $tolerance) {\n    ...Timepoint\n  }\n}"
 
 
 class Create_experimentMutation(BaseModel):
@@ -2691,7 +2757,7 @@ class Create_positionMutation(BaseModel):
             return get_current_id(cls, value)
 
     class Meta:
-        document = 'fragment ListStage on Stage {\n  id\n  name\n  kind\n}\n\nfragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nmutation create_position($stage: ID!, $x: Float!, $y: Float!, $z: Float!, $tolerance: Float, $name: String, $tags: [String], $created_while: AssignationID) {\n  createPosition(\n    stage: $stage\n    x: $x\n    y: $y\n    z: $z\n    tags: $tags\n    name: $name\n    tolerance: $tolerance\n    createdWhile: $created_while\n  ) {\n    ...Position\n  }\n}'
+        document = 'fragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment ListStage on Stage {\n  id\n  name\n  kind\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nmutation create_position($stage: ID!, $x: Float!, $y: Float!, $z: Float!, $tolerance: Float, $name: String, $tags: [String], $created_while: AssignationID) {\n  createPosition(\n    stage: $stage\n    x: $x\n    y: $y\n    z: $z\n    tags: $tags\n    name: $name\n    tolerance: $tolerance\n    createdWhile: $created_while\n  ) {\n    ...Position\n  }\n}'
 
 
 class Create_objectiveMutation(BaseModel):
@@ -3297,7 +3363,7 @@ class Search_stagesQuery(BaseModel):
         document = "query search_stages($search: String, $values: [ID]) {\n  options: stages(name: $search, limit: 30, ids: $values) {\n    value: id\n    label: name\n  }\n}"
 
 
-class Get_display_stageQueryStagePositionsOmerosPhysicalsize(BaseModel):
+class Get_display_stageQueryStagePositionsOmerosPhysicalsize(PhysicalSize, BaseModel):
     """Physical size of the image
 
     Each dimensions of the image has a physical size. This is the size of the
@@ -3628,6 +3694,41 @@ class Search_featuresQuery(BaseModel):
         document = "query search_features($search: String, $values: [ID]) {\n  options: features(substring: $search, limit: 20, ids: $values) {\n    label: key\n    value: id\n  }\n}"
 
 
+class GetEraQuery(BaseModel):
+    era: Optional[EraFragment]
+    'Get a single experiment by ID"\n    \n    Returns a single experiment by ID. If the user does not have access\n    to the experiment, an error will be raised.\n    \n    '
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "fragment Timepoint on Timepoint {\n  name\n  id\n  deltaT\n}\n\nfragment Era on Era {\n  name\n  id\n  start\n  end\n  timepoints {\n    ...Timepoint\n  }\n}\n\nquery GetEra($id: ID!) {\n  era(id: $id) {\n    ...Era\n  }\n}"
+
+
+class SearchErasQueryOptions(BaseModel):
+    """Era(id, created_by, created_through, created_while, name, start, end, created_at)"""
+
+    typename: Optional[Literal["Era"]] = Field(alias="__typename", exclude=True)
+    value: ID
+    label: str
+    "The name of the era"
+
+    class Config:
+        frozen = True
+
+
+class SearchErasQuery(BaseModel):
+    options: Optional[Tuple[Optional[SearchErasQueryOptions], ...]]
+    "All Experiments\n    \n    This query returns all Experiments that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Experiments that the user has access to. If the user is an amdin\n    or superuser, all Experiments will be returned.\n\n    If you want to retrieve only the Experiments that you have created,\n    use the `myExperiments` query.\n    \n    "
+
+    class Arguments(BaseModel):
+        search: Optional[str]
+        values: Optional[List[Optional[ID]]]
+
+    class Meta:
+        document = "query SearchEras($search: String, $values: [ID]) {\n  options: eras(name: $search, limit: 30, ids: $values) {\n    value: id\n    label: name\n  }\n}"
+
+
 class GetDimensionMapQuery(BaseModel):
     dimensionmap: Optional[DimensionMapFragment]
     'Get a single experiment by ID"\n    \n    Returns a single experiment by ID. If the user does not have access\n    to the experiment, an error will be raised.\n    \n    '
@@ -3762,6 +3863,41 @@ class Search_videosQuery(BaseModel):
 
     class Meta:
         document = "query search_videos($search: String, $values: [ID]) {\n  options: videos(name: $search, ids: $values) {\n    label: id\n    value: id\n  }\n}"
+
+
+class GetTimepointQuery(BaseModel):
+    timepoint: Optional[TimepointFragment]
+    'Get a single experiment by ID"\n    \n    Returns a single experiment by ID. If the user does not have access\n    to the experiment, an error will be raised.\n    \n    '
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "fragment Timepoint on Timepoint {\n  name\n  id\n  deltaT\n}\n\nquery GetTimepoint($id: ID!) {\n  timepoint(id: $id) {\n    ...Timepoint\n  }\n}"
+
+
+class SearchTimepointsQueryOptions(BaseModel):
+    """The relative position of a sample on a microscope stage"""
+
+    typename: Optional[Literal["Timepoint"]] = Field(alias="__typename", exclude=True)
+    value: ID
+    label: Optional[str]
+    "The name of the timepoint"
+
+    class Config:
+        frozen = True
+
+
+class SearchTimepointsQuery(BaseModel):
+    options: Optional[Tuple[Optional[SearchTimepointsQueryOptions], ...]]
+    "All Experiments\n    \n    This query returns all Experiments that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Experiments that the user has access to. If the user is an amdin\n    or superuser, all Experiments will be returned.\n\n    If you want to retrieve only the Experiments that you have created,\n    use the `myExperiments` query.\n    \n    "
+
+    class Arguments(BaseModel):
+        search: Optional[str]
+        values: Optional[List[Optional[ID]]]
+
+    class Meta:
+        document = "query SearchTimepoints($search: String, $values: [ID]) {\n  options: timepoints(name: $search, limit: 30, ids: $values) {\n    value: id\n    label: name\n  }\n}"
 
 
 class Get_experimentQuery(BaseModel):
@@ -4180,7 +4316,7 @@ class Get_positionQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = 'fragment ListStage on Stage {\n  id\n  name\n  kind\n}\n\nfragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nquery get_position($id: ID!) {\n  position(id: $id) {\n    ...Position\n  }\n}'
+        document = 'fragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment ListStage on Stage {\n  id\n  name\n  kind\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nquery get_position($id: ID!) {\n  position(id: $id) {\n    ...Position\n  }\n}'
 
 
 class Expand_positionQuery(BaseModel):
@@ -4191,7 +4327,7 @@ class Expand_positionQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = 'fragment ListStage on Stage {\n  id\n  name\n  kind\n}\n\nfragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nquery expand_position($id: ID!) {\n  position(id: $id) {\n    ...Position\n  }\n}'
+        document = 'fragment ListRepresentation on Representation {\n  id\n  shape\n  name\n  store\n}\n\nfragment ListStage on Stage {\n  id\n  name\n  kind\n}\n\nfragment Position on Position {\n  id\n  stage {\n    ...ListStage\n  }\n  x\n  y\n  z\n  omeros(order: "-acquired") {\n    representation {\n      ...ListRepresentation\n    }\n  }\n}\n\nquery expand_position($id: ID!) {\n  position(id: $id) {\n    ...Position\n  }\n}'
 
 
 class Search_positionsQueryOptions(Position, BaseModel):
@@ -5393,6 +5529,58 @@ def create_feature(
     ).createfeature
 
 
+async def acreate_era(
+    name: Optional[str] = None,
+    start: Optional[datetime] = None,
+    end: Optional[datetime] = None,
+    rath: MikroRath = None,
+) -> Optional[EraFragment]:
+    """CreateEra
+
+
+     createEra: Era(id, created_by, created_through, created_while, name, start, end, created_at)
+
+
+    Arguments:
+        name (Optional[str], optional): name.
+        start (Optional[datetime], optional): start.
+        end (Optional[datetime], optional): end.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[EraFragment]"""
+    return (
+        await aexecute(
+            CreateEraMutation, {"name": name, "start": start, "end": end}, rath=rath
+        )
+    ).create_era
+
+
+def create_era(
+    name: Optional[str] = None,
+    start: Optional[datetime] = None,
+    end: Optional[datetime] = None,
+    rath: MikroRath = None,
+) -> Optional[EraFragment]:
+    """CreateEra
+
+
+     createEra: Era(id, created_by, created_through, created_while, name, start, end, created_at)
+
+
+    Arguments:
+        name (Optional[str], optional): name.
+        start (Optional[datetime], optional): start.
+        end (Optional[datetime], optional): end.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[EraFragment]"""
+    return execute(
+        CreateEraMutation, {"name": name, "start": start, "end": end}, rath=rath
+    ).create_era
+
+
 async def acreate_dimension_map(
     omero: ID,
     dim: Dimension,
@@ -5655,6 +5843,66 @@ def upload_video(
         },
         rath=rath,
     ).upload_video
+
+
+async def acreate_timepoint(
+    era: ID,
+    delta_t: float,
+    name: Optional[str] = None,
+    tolerance: Optional[float] = None,
+    rath: MikroRath = None,
+) -> Optional[TimepointFragment]:
+    """CreateTimepoint
+
+
+     createTimepoint: The relative position of a sample on a microscope stage
+
+
+    Arguments:
+        era (ID): era
+        delta_t (float): delta_t
+        name (Optional[str], optional): name.
+        tolerance (Optional[float], optional): tolerance.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[TimepointFragment]"""
+    return (
+        await aexecute(
+            CreateTimepointMutation,
+            {"era": era, "delta_t": delta_t, "name": name, "tolerance": tolerance},
+            rath=rath,
+        )
+    ).create_timepoint
+
+
+def create_timepoint(
+    era: ID,
+    delta_t: float,
+    name: Optional[str] = None,
+    tolerance: Optional[float] = None,
+    rath: MikroRath = None,
+) -> Optional[TimepointFragment]:
+    """CreateTimepoint
+
+
+     createTimepoint: The relative position of a sample on a microscope stage
+
+
+    Arguments:
+        era (ID): era
+        delta_t (float): delta_t
+        name (Optional[str], optional): name.
+        tolerance (Optional[float], optional): tolerance.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[TimepointFragment]"""
+    return execute(
+        CreateTimepointMutation,
+        {"era": era, "delta_t": delta_t, "name": name, "tolerance": tolerance},
+        rath=rath,
+    ).create_timepoint
 
 
 async def acreate_experiment(
@@ -8173,6 +8421,84 @@ def search_features(
     ).features
 
 
+async def aget_era(id: ID, rath: MikroRath = None) -> Optional[EraFragment]:
+    """GetEra
+
+
+     era: Era(id, created_by, created_through, created_while, name, start, end, created_at)
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[EraFragment]"""
+    return (await aexecute(GetEraQuery, {"id": id}, rath=rath)).era
+
+
+def get_era(id: ID, rath: MikroRath = None) -> Optional[EraFragment]:
+    """GetEra
+
+
+     era: Era(id, created_by, created_through, created_while, name, start, end, created_at)
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[EraFragment]"""
+    return execute(GetEraQuery, {"id": id}, rath=rath).era
+
+
+async def asearch_eras(
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
+) -> Optional[List[Optional[SearchErasQueryOptions]]]:
+    """SearchEras
+
+
+     options: Era(id, created_by, created_through, created_while, name, start, end, created_at)
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[SearchErasQueryEras]]]"""
+    return (
+        await aexecute(SearchErasQuery, {"search": search, "values": values}, rath=rath)
+    ).eras
+
+
+def search_eras(
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
+) -> Optional[List[Optional[SearchErasQueryOptions]]]:
+    """SearchEras
+
+
+     options: Era(id, created_by, created_through, created_while, name, start, end, created_at)
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[SearchErasQueryEras]]]"""
+    return execute(
+        SearchErasQuery, {"search": search, "values": values}, rath=rath
+    ).eras
+
+
 async def aget_dimension_map(
     id: ID, rath: MikroRath = None
 ) -> Optional[DimensionMapFragment]:
@@ -8473,6 +8799,86 @@ def search_videos(
     return execute(
         Search_videosQuery, {"search": search, "values": values}, rath=rath
     ).videos
+
+
+async def aget_timepoint(id: ID, rath: MikroRath = None) -> Optional[TimepointFragment]:
+    """GetTimepoint
+
+
+     timepoint: The relative position of a sample on a microscope stage
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[TimepointFragment]"""
+    return (await aexecute(GetTimepointQuery, {"id": id}, rath=rath)).timepoint
+
+
+def get_timepoint(id: ID, rath: MikroRath = None) -> Optional[TimepointFragment]:
+    """GetTimepoint
+
+
+     timepoint: The relative position of a sample on a microscope stage
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[TimepointFragment]"""
+    return execute(GetTimepointQuery, {"id": id}, rath=rath).timepoint
+
+
+async def asearch_timepoints(
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
+) -> Optional[List[Optional[SearchTimepointsQueryOptions]]]:
+    """SearchTimepoints
+
+
+     options: The relative position of a sample on a microscope stage
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[SearchTimepointsQueryTimepoints]]]"""
+    return (
+        await aexecute(
+            SearchTimepointsQuery, {"search": search, "values": values}, rath=rath
+        )
+    ).timepoints
+
+
+def search_timepoints(
+    search: Optional[str] = None,
+    values: Optional[List[Optional[ID]]] = None,
+    rath: MikroRath = None,
+) -> Optional[List[Optional[SearchTimepointsQueryOptions]]]:
+    """SearchTimepoints
+
+
+     options: The relative position of a sample on a microscope stage
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[Optional[ID]]], optional): values.
+        rath (mikro.rath.MikroRath, optional): The mikro rath client
+
+    Returns:
+        Optional[List[Optional[SearchTimepointsQueryTimepoints]]]"""
+    return execute(
+        SearchTimepointsQuery, {"search": search, "values": values}, rath=rath
+    ).timepoints
 
 
 async def aget_experiment(
@@ -9872,4 +10278,5 @@ def search_omerofile(
 
 
 DescendendInput.update_forward_refs()
+EraFragment.update_forward_refs()
 OmeroRepresentationInput.update_forward_refs()

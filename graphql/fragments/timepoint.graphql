@@ -1,0 +1,5 @@
+fragment Timepoint on Timepoint {
+  name
+  id
+  deltaT
+}

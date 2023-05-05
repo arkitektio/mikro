@@ -9,6 +9,8 @@ from mikro.api import MetricFragment as Metric
 from mikro.api import VideoFragment as Video
 from mikro.api import ROIFragment as ROI
 from mikro.api import DatasetFragment as Dataset
+from mikro.api import EraFragment as Era
+from mikro.api import TimepointFragment as Timepoint
 
 
 __all__ = [
@@ -23,4 +25,6 @@ __all__ = [
     "Video",
     "Dataset",
     "ROI",
+    "Era",
+    "Timepoint",
 ]
