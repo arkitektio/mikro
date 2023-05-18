@@ -47,7 +47,7 @@ from mikro.scalars import XArrayInput, ParquetInput, BigFile
 from aiobotocore.session import get_session
 import ntpath
 import logging
-
+import zarr
 
 logger = logging.getLogger(__name__)
 current_datalayer = contextvars.ContextVar("current_datalayer", default=None)
@@ -83,6 +83,8 @@ class DataLayer(KoiledModel):
     _s3fs: Optional[s3fs.S3FileSystem] = None
     _connected = False
     auto_connect = True
+    cache: int = 2**30
+    """ O means no cache, 2**30 means 1GB cache"""
 
     def _storedataset(self, dataset: xr.Dataset, path):
         store = self.fs.get_mapper(path)
@@ -192,7 +194,10 @@ class DataLayer(KoiledModel):
 
     def open_store(self, path):
         if self.test_path_accessible(path):
-            return self.fs.get_mapper(path)
+            if self.cache > 0:
+                return zarr.LRUStoreCache(self.fs.get_mapper(path), self.cache)
+            else:
+                return self.fs.get_mapper(path)
 
     @property
     def fs(self):

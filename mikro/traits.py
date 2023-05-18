@@ -83,7 +83,7 @@ class Representation(BaseModel):
             f'<h3>{getattr(self, "name", "No name queried")}</h3>'
             + (
                 self.omero._repr_html_()
-                if hasattr(self, "omero")
+                if hasattr(self, "omero") and self.omero != None
                 else "No metadata<br/>"
             )
             + (self.data._repr_html_() if hasattr(self, "store") else "No data queried")

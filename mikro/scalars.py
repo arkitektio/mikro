@@ -40,7 +40,7 @@ try:
 
     def get_current_id(cls, value) -> AssignationID:
         try:
-            return value or get_current_assignation_helper().assignation.assignation
+            return value or get_current_assignation_helper().assignment.assignation
         except NotWithinAnAssignationError:
             return value
 
