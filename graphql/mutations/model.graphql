@@ -1,0 +1,19 @@
+mutation create_model(
+  $data: ModelFile!
+  $kind: ModelKind!
+  $name: String!
+  $contexts: [ID]
+  $experiments: [ID]
+  $created_while: AssignationID @validator(path: "mikro.scalars.get_current_id")
+) {
+  createModel(
+    data: $data
+    kind: $kind
+    name: $name
+    contexts: $contexts
+    experiments: $experiments
+    createdWhile: $created_while
+  ) {
+    ...Model
+  }
+}

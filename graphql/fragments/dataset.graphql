@@ -1,0 +1,20 @@
+fragment Dataset on Dataset {
+  id
+  name
+  parent {
+    id
+  }
+  representations {
+    id
+    name
+  }
+  omerofiles {
+    id
+    name
+  }
+}
+
+fragment ListDataset on Dataset {
+  id
+  name
+}

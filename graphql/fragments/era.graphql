@@ -1,0 +1,9 @@
+fragment Era on Era {
+  name
+  id
+  start
+  end
+  timepoints {
+    ...Timepoint
+  }
+}

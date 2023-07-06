@@ -6,3 +6,20 @@ mutation upload_bioimage($file: ImageFile!, $name: String) {
     name
   }
 }
+
+mutation upload_bigfile(
+  $file: BigFile!
+  $datasets: [ID]
+  $created_while: AssignationID @validator(path: "mikro.scalars.get_current_id")
+) {
+  uploadBigFile(
+    file: $file
+    datasets: $datasets
+    createdWhile: $created_while
+  ) {
+    id
+    file
+    type
+    name
+  }
+}

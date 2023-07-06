@@ -1,3 +1,5 @@
+""" This module provides helpers for the mikro rath api
+they are wrapped functions for the turms generated api"""
 from mikro.rath import MikroRath, current_mikro_rath
 
 

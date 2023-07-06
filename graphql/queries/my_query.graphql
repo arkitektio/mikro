@@ -1,0 +1,12 @@
+query Thierno {
+  representations(limit: 10) {
+    createdAt
+    store
+    sample {
+      id
+      pinnedBy {
+        name
+      }
+    }
+  }
+}

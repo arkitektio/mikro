@@ -1,5 +1,5 @@
-query search_tags($search: String) {
-  options: tags(name: $search) {
+query search_tags($search: String, $values: [ID]) {
+  options: tags(name: $search, ids: $values) {
     value: slug
     label: name
   }

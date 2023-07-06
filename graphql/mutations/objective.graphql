@@ -1,0 +1,19 @@
+mutation create_objective(
+  $serial_number: String!
+  $name: String!
+  $magnification: Float!
+  $na: Float
+  $immersion: String
+  $created_while: AssignationID @validator(path: "mikro.scalars.get_current_id")
+) {
+  createObjective(
+    name: $name
+    serialNumber: $serial_number
+    magnification: $magnification
+    na: $na
+    immersion: $immersion
+    createdWhile: $created_while
+  ) {
+    ...Objective
+  }
+}

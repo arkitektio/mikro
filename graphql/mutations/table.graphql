@@ -1,5 +1,15 @@
-mutation from_df($df: DataFrame!, $name: String!) {
-  fromDf(df: $df, name: $name) {
+mutation from_df(
+  $df: ParquetInput!
+  $name: String!
+  $rep_origins: [ID]
+  $created_while: AssignationID @validator(path: "mikro.scalars.get_current_id")
+) {
+  fromDf(
+    df: $df
+    name: $name
+    repOrigins: $rep_origins
+    createdWhile: $created_while
+  ) {
     ...Table
   }
 }

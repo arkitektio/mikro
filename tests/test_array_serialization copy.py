@@ -2,11 +2,11 @@ from pydantic import BaseModel
 import numpy as np
 import xarray as xr
 
-from mikro.scalars import ArrayInput
+from mikro.scalars import XArrayInput
 
 
 class Arguments(BaseModel):
-    x: ArrayInput
+    x: XArrayInput
 
 
 def test_numpy_serialization():

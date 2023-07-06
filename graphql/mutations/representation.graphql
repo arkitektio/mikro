@@ -1,13 +1,18 @@
 mutation from_xarray(
-  $xarray: XArray!
+  $xarray: XArrayInput!
   $name: String
   $variety: RepresentationVarietyInput
   $origins: [ID]
   $file_origins: [ID]
   $roi_origins: [ID]
+  $table_origins: [ID]
   $tags: [String]
+  $experiments: [ID]
+  $datasets: [ID]
   $sample: ID
   $omero: OmeroRepresentationInput
+  $views: [RepresentationViewInput]
+  $created_while: AssignationID @validator(path: "mikro.scalars.get_current_id")
 ) {
   # Creates a Representation from an xarray dataset.
   fromXArray(
@@ -19,41 +24,14 @@ mutation from_xarray(
     omero: $omero
     fileOrigins: $file_origins
     roiOrigins: $roi_origins
+    tableOrigins: $table_origins
+    experiments: $experiments
+    datasets: $datasets
     variety: $variety
+    views: $views
+    createdWhile: $created_while
   ) {
     ...Representation
-  }
-}
-
-mutation double_upload(
-  $xarray: XArray!
-  $name: String
-  $origins: [ID]
-  $tags: [String]
-  $sample: ID
-  $omero: OmeroRepresentationInput
-) {
-  x: fromXArray(
-    xarray: $xarray
-    name: $name
-    origins: $origins
-    tags: $tags
-    sample: $sample
-    omero: $omero
-  ) {
-    id
-    store
-  }
-  y: fromXArray(
-    xarray: $xarray
-    name: $name
-    origins: $origins
-    tags: $tags
-    sample: $sample
-    omero: $omero
-  ) {
-    id
-    store
   }
 }
 

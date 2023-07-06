@@ -1,0 +1,84 @@
+query Links(
+  $x_type: LinkableModels!
+  $y_type: LinkableModels!
+  $relation: String!
+  $context: ID
+  $limit: Int = 10
+) {
+  links(
+    xType: $x_type
+    yType: $y_type
+    relation: $relation
+    context: $context
+    limit: $limit
+  ) {
+    relation {
+      id
+      name
+    }
+    left {
+      ... on Representation {
+        id
+        store
+      }
+    }
+    right {
+      ... on Representation {
+        id
+        store
+      }
+    }
+  }
+}
+
+query get_image_image_links(
+  $relation: String!
+  $context: ID
+  $limit: Int = 10
+) {
+  links(
+    xType: GRUNNLAG_REPRESENTATION
+    yType: GRUNNLAG_REPRESENTATION
+    relation: $relation
+    context: $context
+    limit: $limit
+  ) {
+    relation {
+      id
+      name
+    }
+    left {
+      ... on Representation {
+        id
+        store
+        variety
+      }
+    }
+    right {
+      ... on Representation {
+        id
+        store
+        variety
+      }
+    }
+  }
+}
+
+query get_link($id: ID!) {
+  link(id: $id) {
+    ...Link
+  }
+}
+
+query expand_link($id: ID!) {
+  link(id: $id) {
+    ...Link
+  }
+}
+
+query search_links($search: String, $values: [ID]) {
+  options: links(relation: $search, limit: 30, ids: $values) {
+    value: id
+    label: id
+  }
+}

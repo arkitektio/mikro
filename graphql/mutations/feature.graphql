@@ -3,8 +3,15 @@ mutation create_feature(
   $key: String
   $value: FeatureValue!
   $creator: ID
+  $created_while: AssignationID @validator(path: "mikro.scalars.get_current_id")
 ) {
-  createfeature(label: $label, key: $key, value: $value, creator: $creator) {
+  createfeature(
+    label: $label
+    key: $key
+    value: $value
+    creator: $creator
+    createdWhile: $created_while
+  ) {
     id
     key
     value

@@ -5,6 +5,7 @@ mutation create_roi(
   $type: RoiTypeInput!
   $label: String
   $tags: [String]
+  $created_while: AssignationID @validator(path: "mikro.scalars.get_current_id")
 ) {
   createROI(
     representation: $representation
@@ -13,20 +14,30 @@ mutation create_roi(
     creator: $creator
     label: $label
     tags: $tags
+    createdWhile: $created_while
   ) {
     ...ROI
   }
 }
 
-query get_roi($id: ID!) {
-  roi(id: $id) {
-    ...ROI
-  }
-}
-
-query search_rois($search: String!) {
-  rois(repname: $search) {
-    label: id
-    value: id
+mutation create_rois(
+  $representation: ID!
+  $vectors_list: [[InputVector]]!
+  $creator: ID
+  $type: RoiTypeInput!
+  $labels: [String]
+  $tags: [String]
+  $created_while: AssignationID @validator(path: "mikro.scalars.get_current_id")
+) {
+  createROIS(
+    representation: $representation
+    vectorsList: $vectors_list
+    type: $type
+    creator: $creator
+    labels: $labels
+    tags: $tags
+    createdWhile: $created_while
+  ) {
+    id
   }
 }

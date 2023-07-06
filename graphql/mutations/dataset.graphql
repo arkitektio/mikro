@@ -1,0 +1,9 @@
+mutation create_dataset(
+  $name: String!
+  $parent: ID
+  $created_while: AssignationID @validator(path: "mikro.scalars.get_current_id")
+) {
+  createDataset(name: $name, parent: $parent, createdWhile: $created_while) {
+    ...Dataset
+  }
+}

@@ -1,0 +1,68 @@
+query get_stage($id: ID!) {
+  stage(id: $id) {
+    ...Stage
+  }
+}
+
+query expand_stage($id: ID!) {
+  stage(id: $id) {
+    ...Stage
+  }
+}
+
+query search_stages($search: String, $values: [ID]) {
+  options: stages(name: $search, limit: 30, ids: $values) {
+    value: id
+    label: name
+  }
+}
+
+query get_display_stage($id: ID!) {
+  stage(id: $id) {
+    id
+    positions {
+      x
+      y
+      z
+      omeros {
+        physicalSize {
+          x
+          y
+          z
+          t
+        }
+        representation {
+          store
+          id
+        }
+      }
+    }
+  }
+}
+
+query get_detail_stage($id: ID!) {
+  stage(id: $id) {
+    ...DetailStage
+  }
+}
+
+query get_timepointed_stage($stage: ID!, $timepoint: ID!) {
+  stage(id: $stage) {
+    id
+    name
+    kind
+    positions {
+      id
+      x
+      y
+      z
+      omeros(order: "-acquired", timepoints: [$timepoint]) {
+        id
+        acquisitionDate
+        representation {
+          id
+        }
+      }
+    }
+  }
+}

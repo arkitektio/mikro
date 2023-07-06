@@ -1,0 +1,4 @@
+fragment Video on Video {
+  data
+  id
+}

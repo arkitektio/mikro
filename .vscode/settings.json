@@ -30,7 +30,13 @@
     "**/__pycache__": true,
     "**/.pytest_cache": true
   },
-  "python.testing.pytestArgs": ["tests"],
+  "mypy.runUsingActiveInterpreter": true,
+  "python.testing.pytestArgs": [
+    "tests"
+  ],
   "python.testing.unittestEnabled": false,
-  "errorLens.enabledDiagnosticLevels": ["error"]
+  "errorLens.enabledDiagnosticLevels": [
+    "error"
+  ],
+  "python.testing.pytestEnabled": true
 }

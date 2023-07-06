@@ -1,9 +1,10 @@
 import asyncio
 
 from mikro.datalayer import DataLayer, current_datalayer
-from mikro.scalars import ArrayInput, DataFrame, ParquetInput
+from mikro.scalars import XArrayInput, ParquetInput, BigFile
 from rath.links.parsing import ParsingLink
-from rath.operation import Operation
+from rath.operation import Operation, opify
+import ntpath
 
 
 async def apply_recursive(func, obj, typeguard):
@@ -48,6 +49,7 @@ class DataLayerUploadLink(ParsingLink):
     async def aconnect(self):
         self._datalayer = current_datalayer.get()
 
+
     async def aparse(self, operation: Operation) -> Operation:
         """Parse the operation (Async)
 
@@ -69,10 +71,13 @@ class DataLayerUploadLink(ParsingLink):
         datalayer: DataLayer = current_datalayer.get()
 
         operation.variables = await apply_recursive(
-            datalayer.astore_array_input, operation.variables, ArrayInput
+            datalayer.astore_array_input, operation.variables, XArrayInput
         )
         operation.variables = await apply_recursive(
-            datalayer.astore_parquet_input, operation.variables, DataFrame
+            datalayer.astore_parquet_input, operation.variables, ParquetInput
+        )
+        operation.variables = await apply_recursive(
+            datalayer.astore_bigfile, operation.variables, BigFile
         )
 
         return operation

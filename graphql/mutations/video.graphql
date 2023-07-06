@@ -1,0 +1,15 @@
+mutation upload_video(
+  $file: BigFile!
+  $representations: [ID]!
+  $frontImage: BigFile
+  $created_while: AssignationID @validator(path: "mikro.scalars.get_current_id")
+) {
+  uploadVideo(
+    file: $file
+    frontImage: $frontImage
+    representations: $representations
+    createdWhile: $created_while
+  ) {
+    ...Video
+  }
+}

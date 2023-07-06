@@ -1,0 +1,25 @@
+mutation create_camera(
+  $serial_number: String!
+  $name: String!
+  $sensor_size_x: Int!
+  $sensor_size_y: Int!
+  $physical_sensor_size_x: Float!
+  $physical_sensor_size_y: Float!
+  $bit_depth: Int
+  $model: String
+  $created_while: AssignationID @validator(path: "mikro.scalars.get_current_id")
+) {
+  createCamera(
+    serialNumber: $serial_number
+    name: $name
+    sensorSizeX: $sensor_size_x
+    sensorSizeY: $sensor_size_y
+    physicalSensorSizeX: $physical_sensor_size_x
+    physicalSensorSizeY: $physical_sensor_size_y
+    bitDepth: $bit_depth
+    model: $model
+    createdWhile: $created_while
+  ) {
+    ...Camera
+  }
+}

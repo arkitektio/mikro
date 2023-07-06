@@ -1,0 +1,37 @@
+mutation create_position(
+  $stage: ID!
+  $x: Float!
+  $y: Float!
+  $z: Float!
+  $tolerance: Float
+  $name: String
+  $tags: [String]
+  $roi_origins: [ID]
+  $created_while: AssignationID @validator(path: "mikro.scalars.get_current_id")
+) {
+  createPosition(
+    stage: $stage
+    x: $x
+    y: $y
+    z: $z
+    tags: $tags
+    name: $name
+    tolerance: $tolerance
+    createdWhile: $created_while
+    roiOrigins: $roi_origins
+  ) {
+    ...Position
+  }
+}
+
+mutation add_position($omero: ID!, $position: ID!) {
+  addPosition(omero: $omero, position: $position) {
+    ...Omero
+  }
+}
+
+mutation remove_position($omero: ID!, $position: ID!) {
+  removePosition(omero: $omero, position: $position) {
+    ...Omero
+  }
+}

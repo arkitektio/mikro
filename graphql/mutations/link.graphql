@@ -1,0 +1,21 @@
+mutation link(
+  $relation: ID!
+  $left_type: LinkableModels!
+  $left_id: ID!
+  $right_type: LinkableModels!
+  $right_id: ID!
+  $context: ID
+  $created_while: AssignationID @validator(path: "mikro.scalars.get_current_id")
+) {
+  link(
+    relation: $relation
+    leftType: $left_type
+    leftId: $left_id
+    rightType: $right_type
+    rightId: $right_id
+    context: $context
+    createdWhile: $created_while
+  ) {
+    ...ListLink
+  }
+}

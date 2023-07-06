@@ -11,9 +11,15 @@ fragment ROI on ROI {
   type
   representation {
     id
+    shape
+    store
+    variety
   }
   derivedRepresentations {
     id
+    store
+    shape
+    variety
   }
   creator {
     email

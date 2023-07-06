@@ -1,6 +1,12 @@
 fragment OmeroFile on OmeroFile {
+  datasets {
+    id
+  }
   id
   name
   file
   type
+  experiments {
+    id
+  }
 }

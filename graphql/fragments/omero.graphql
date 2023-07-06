@@ -1,0 +1,30 @@
+fragment Omero on Omero {
+  id
+  scale
+  physicalSize {
+    x
+    y
+    z
+    t
+    c
+  }
+  positions {
+    id
+    x
+    y
+    z
+    stage {
+      id
+    }
+  }
+  dimensionMaps {
+    id
+    dimension
+    index
+  }
+  affineTransformation
+  channels {
+    name
+    color
+  }
+}

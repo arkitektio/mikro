@@ -14,3 +14,10 @@ query expand_label($id: ID!) {
     ...Label
   }
 }
+
+query search_labels($search: String, $values: [ID]) {
+  options: labels(name: $search, limit: 20, ids: $values) {
+    label: name
+    value: id
+  }
+}

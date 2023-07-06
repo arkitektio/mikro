@@ -1,0 +1,8 @@
+fragment Camera on Camera {
+  id
+  name
+  physicalSensorSizeX
+  physicalSensorSizeY
+  sensorSizeX
+  sensorSizeY
+}

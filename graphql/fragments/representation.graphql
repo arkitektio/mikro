@@ -3,23 +3,25 @@ fragment Representation on Representation {
     id
     name
   }
+  shape
   id
   store
   variety
+  createdWhile
   name
   omero {
-    scale
-    physicalSize {
-      x
-      y
-      z
-      t
-      c
-    }
+    ...Omero
   }
   origins {
     id
     store
     variety
   }
+}
+
+fragment ListRepresentation on Representation {
+  id
+  shape
+  name
+  store
 }

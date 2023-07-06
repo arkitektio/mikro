@@ -3,10 +3,12 @@ mutation create_instrument(
   $dichroics: [GenericScalar]
   $filters: [GenericScalar]
   $name: String!
+  $objectives: [ID]
   $lotNumber: String
   $serialNumber: String
   $model: String
   $manufacturer: String
+  $created_while: AssignationID @validator(path: "mikro.scalars.get_current_id")
 ) {
   createInstrument(
     detectors: $detectors
@@ -14,9 +16,11 @@ mutation create_instrument(
     filters: $filters
     name: $name
     lotNumber: $lotNumber
+    objectives: $objectives
     serialNumber: $serialNumber
     model: $model
     manufacturer: $manufacturer
+    createdWhile: $created_while
   ) {
     ...Instrument
   }

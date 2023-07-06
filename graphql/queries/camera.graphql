@@ -1,0 +1,18 @@
+query get_camera($id: ID, $name: String) {
+  camera(id: $id, name: $name) {
+    ...Camera
+  }
+}
+
+query expand_camera($id: ID!) {
+  camera(id: $id) {
+    ...Camera
+  }
+}
+
+query search_cameras($search: String, $values: [ID]) {
+  options: cameras(search: $search, ids: $values) {
+    value: id
+    label: name
+  }
+}
