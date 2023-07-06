@@ -85,6 +85,8 @@ class DataLayer(KoiledModel):
     auto_connect = True
     cache: int = 2**30
     """ O means no cache, 2**30 means 1GB cache"""
+    strict: bool = False
+    """ If True, it will not try to recover potential errors form the boto core client (only accept PermissionError). This is due to bad error handling on the boto core client when accesskeys are expired. """
 
     def _storedataset(self, dataset: xr.Dataset, path):
         store = self.fs.get_mapper(path)
@@ -191,6 +193,17 @@ class DataLayer(KoiledModel):
             else:
                 logger.error("Permission error, could not get new credentials")
                 raise e
+        except Exception as e:
+            if self.strict:
+                raise e
+            else:
+                logger.error("Permission error, trying to get new credentials")
+                if retry < self.max_retries:
+                    self.reconnect()
+                    return self.test_path_accessible(path, retry=retry + 1)
+                else:
+                    logger.error("Permission error, could not get new credentials")
+                    raise e
 
     def open_store(self, path):
         if self.test_path_accessible(path):

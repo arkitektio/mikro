@@ -79,6 +79,9 @@ class AffineMatrix(list):
         assert isinstance(v, list)
         return cls(v)
 
+    def as_matrix(self):
+        return np.array(self).reshape(3, 3)
+
 
 class XArrayInput:
     """A custom scalar for wrapping of every supported array like structure on
@@ -119,7 +122,6 @@ class XArrayInput:
         chunks = rechunk(
             v.sizes, itemsize=v.data.itemsize, chunksize_in_bytes=20_000_000
         )
-        print(chunks)
 
         v = v.chunk(
             {key: chunksize for key, chunksize in chunks.items() if key in v.dims}
@@ -222,17 +224,9 @@ class Store:
 
         dl = dl or current_datalayer.get()
 
-        assert (
-            dl
-        ), "No datalayer set. This probably happened because you never connected the datalayer. Please connect (either with async or sync) and try again."
-        if self._openstore is None:
-            self._openstore = xr.open_zarr(
-                store=dl.open_store(self.value), consolidated=True
-            )["data"]
+        return xr.open_zarr(store=dl.open_store(self.value), consolidated=True)["data"]
 
-        return self._openstore
-
-    async def aopen(self, dl=None):
+    async def aopen(self, dl=None, retry=True):
         """Opens the store and returns the zarr store object.
 
         The store is opened on the first access and then cached for later use. This is done to avoid
@@ -249,24 +243,7 @@ class Store:
 
         dl = dl or current_datalayer.get()
 
-        assert (
-            dl
-        ), "No datalayer set. This probably happened because you never connected the datalayer. Please connect (either with async or sync) and try again."
-        if self._openstore is None:
-            try:
-                self._openstore = xr.open_zarr(
-                    store=dl.open_store(self.value), consolidated=True
-                )["data"]
-            except PermissionError as e:
-                logging.warning(
-                    "Permission denied. Trying to reconnect datalayer and retrieve credentials"
-                )
-                await dl.areconnect()
-                self._openstore = xr.open_zarr(
-                    store=dl.open_store(self.value), consolidated=True
-                )["data"]
-
-        return self._openstore
+        return xr.open_zarr(store=dl.open_store(self.value), consolidated=True)["data"]
 
     @classmethod
     def __get_validators__(cls):

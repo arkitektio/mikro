@@ -13,3 +13,15 @@ mutation CreateTimepoint(
     ...Timepoint
   }
 }
+
+mutation add_timepoint($omero: ID!, $timepoint: ID!) {
+  addTimepoint(omero: $omero, timepoint: $timepoint) {
+    ...Omero
+  }
+}
+
+mutation remove_timepoint($omero: ID!, $timepoint: ID!) {
+  removeTimepoint(omero: $omero, timepoint: $timepoint) {
+    ...Omero
+  }
+}

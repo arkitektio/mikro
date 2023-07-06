@@ -33,7 +33,6 @@ def rechunk(
     )  # Biggest Y but not bigger than 1024
 
     best_z = math.ceil(chunksize_in_bytes / (x * y * itemsize))
-    print(best_z)
     z = best_z if best_z < sizes["z"] else sizes["z"]
 
     best_t = math.ceil(chunksize_in_bytes / (x * y * z * itemsize))

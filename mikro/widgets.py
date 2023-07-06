@@ -9,6 +9,23 @@ Attributes:
 """
 
 
+def build_column_query(for_input: str):
+    """Builds a query for a column widget. (Which is a search widget with a specific column query that
+    adsjust to the input variable name)"""
+    return """
+    query ColumnSearch($search: String, $values: [ID], $%s: ID!)  {
+        options: columnsof(search: $search, values: $values, table: $%s) {
+            value: name
+            label: fieldName
+            description: pandasType
+        }
+    }
+    """ % (
+        for_input,
+        for_input,
+    )
+
+
 try:
     from mikro.api.schema import (
         Search_representationQuery,
@@ -25,5 +42,8 @@ try:
 
     TAGS_WIDGET = SearchWidget(query=Search_tagsQuery.Meta.document, ward="mikro")
 
-except:
+    def ColumnWidget(for_input: str, **kwargs):
+        return SearchWidget(query=build_column_query(for_input), ward="mikro", **kwargs)
+
+except ImportError:
     pass

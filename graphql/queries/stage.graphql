@@ -39,3 +39,30 @@ query get_display_stage($id: ID!) {
     }
   }
 }
+
+query get_detail_stage($id: ID!) {
+  stage(id: $id) {
+    ...DetailStage
+  }
+}
+
+query get_timepointed_stage($stage: ID!, $timepoint: ID!) {
+  stage(id: $stage) {
+    id
+    name
+    kind
+    positions {
+      id
+      x
+      y
+      z
+      omeros(order: "-acquired", timepoints: [$timepoint]) {
+        id
+        acquisitionDate
+        representation {
+          id
+        }
+      }
+    }
+  }
+}

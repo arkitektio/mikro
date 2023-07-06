@@ -1,0 +1,15 @@
+mutation create_graph(
+  $image: ImageFile!
+  $name: String
+  $tables: [ID]
+  $created_while: AssignationID @validator(path: "mikro.scalars.get_current_id")
+) {
+  createGraph(
+    image: $image
+    name: $name
+    tables: $tables
+    createdWhile: $created_while
+  ) {
+    ...Graph
+  }
+}

@@ -190,35 +190,35 @@ class PhysicalSize:
         tolerance=0.02,
         raise_exception=False,
     ) -> bool:
-        if self.x is not None and other.x is not None:
+        if hasattr(self, "x") and self.x is not None and other.x is not None:
             if abs(other.x - self.x) > tolerance:
                 if raise_exception:
                     raise ValueError(
                         f"X values are not similar: {self.x} vs {other.x} is above tolerance {tolerance}"
                     )
                 return False
-        if self.y is not None and other.y is not None:
+        if hasattr(self, "y") and self.y is not None and other.y is not None:
             if abs(other.y - self.y) > tolerance:
                 if raise_exception:
                     raise ValueError(
                         f"Y values are not similar: {self.y} vs {other.y} is above tolerance {tolerance}"
                     )
                 return False
-        if self.z is not None and other.z is not None:
+        if hasattr(self, "z") and self.z is not None and other.z is not None:
             if abs(other.z - self.z) > tolerance:
                 if raise_exception:
                     raise ValueError(
                         f"Z values are not similar: {self.z} vs {other.z} is above tolerance {tolerance}"
                     )
                 return False
-        if self.t is not None and other.t is not None:
+        if hasattr(self, "t") and self.t is not None and other.t is not None:
             if abs(other.t - self.t) > tolerance:
                 if raise_exception:
                     raise ValueError(
                         f"T values are not similar: {self.t} vs {other.t} is above tolerance {tolerance}"
                     )
                 return False
-        if self.c is not None and other.c is not None:
+        if hasattr(self, "c") and self.c is not None and other.c is not None:
             if abs(other.c - self.c) > tolerance:
                 if raise_exception:
                     raise ValueError(
@@ -227,6 +227,15 @@ class PhysicalSize:
                 return False
 
         return True
+
+    def to_scale(self):
+        return [
+            getattr(self, "t", 1),
+            getattr(self, "c", 1),
+            getattr(self, "z", 1),
+            getattr(self, "y", 1),
+            getattr(self, "x", 1),
+        ]
 
 
 class ROI(BaseModel):
@@ -289,6 +298,8 @@ class ROI(BaseModel):
         ), "Please query 'type' in your request on 'ROI'. Center is not accessible otherwise"
         if self.type == RoiTypeInput.RECTANGLE:
             return self.get_vector_data(dims="ctzyx").mean(axis=0)
+        if self.type == RoiTypeInput.POINT:
+            return self.get_vector_data(dims="ctzyx")[0]
 
         raise NotImplementedError(
             f"Center calculation not implemented for this ROI type {self.type}"

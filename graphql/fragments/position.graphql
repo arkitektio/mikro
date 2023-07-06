@@ -7,6 +7,15 @@ fragment Position on Position {
   y
   z
   omeros(order: "-acquired") {
+    id
+    physicalSize {
+      x
+      y
+      z
+    }
+    positions {
+      id
+    }
     representation {
       ...ListRepresentation
     }

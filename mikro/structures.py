@@ -21,7 +21,11 @@ except ImportError:
 # Check if rekuest is installed
 # If it is, register the structures with the default structure registry
 if rekuest:
-    from rekuest.structures.default import get_default_structure_registry, Scope
+    from rekuest.structures.default import (
+        get_default_structure_registry,
+        Scope,
+        id_shrink,
+    )
     from rekuest.widgets import SearchWidget
     from mikro.api.schema import *
 
@@ -29,7 +33,8 @@ if rekuest:
     structure_reg.register_as_structure(
         RepresentationFragment,
         identifier="@mikro/representation",
-        expand=aexpand_representation,
+        aexpand=aexpand_representation,
+        ashrink=id_shrink,
         scope=Scope.GLOBAL,
         default_widget=SearchWidget(
             query=Search_representationQuery.Meta.document, ward="mikro"
@@ -38,37 +43,54 @@ if rekuest:
     structure_reg.register_as_structure(
         MetricFragment,
         identifier="@mikro/metric",
-        expand=aexpand_metric,
+        aexpand=aexpand_metric,
+        ashrink=id_shrink,
         scope=Scope.GLOBAL,
         default_widget=None,
     )
     structure_reg.register_as_structure(
         ChannelFragment,
         identifier="@mikro/channel",
-        expand=aget_channel,
+        aexpand=aget_channel,
+        ashrink=id_shrink,
         scope=Scope.GLOBAL,
-        default_widget=None,
+        default_widget=SearchWidget(
+            query=SearchChannelsQuery.Meta.document, ward="mikro"
+        ),
     )
     structure_reg.register_as_structure(
         DimensionMapFragment,
         identifier="@mikro/dimensionmap",
-        expand=aget_dimension_map,
+        aexpand=aget_dimension_map,
+        ashrink=id_shrink,
         scope=Scope.GLOBAL,
         default_widget=None,
     )
     structure_reg.register_as_structure(
         SampleFragment,
         identifier="@mikro/sample",
-        expand=aexpand_sample,
+        aexpand=aexpand_sample,
+        ashrink=id_shrink,
         scope=Scope.GLOBAL,
         default_widget=SearchWidget(
             query=Search_sampleQuery.Meta.document, ward="mikro"
         ),
     )
     structure_reg.register_as_structure(
+        GraphFragment,
+        identifier="@mikro/graph",
+        aexpand=aget_graph,
+        ashrink=id_shrink,
+        scope=Scope.GLOBAL,
+        default_widget=SearchWidget(
+            query=Search_graphsQuery.Meta.document, ward="mikro"
+        ),
+    )
+    structure_reg.register_as_structure(
         TableFragment,
         identifier="@mikro/table",
-        expand=aexpand_table,
+        aexpand=aexpand_table,
+        ashrink=id_shrink,
         scope=Scope.GLOBAL,
         default_widget=SearchWidget(
             query=Search_tablesQuery.Meta.document, ward="mikro"
@@ -77,7 +99,8 @@ if rekuest:
     structure_reg.register_as_structure(
         ExperimentFragment,
         identifier="@mikro/experiment",
-        expand=aexpand_experiment,
+        aexpand=aexpand_experiment,
+        ashrink=id_shrink,
         scope=Scope.GLOBAL,
         default_widget=SearchWidget(
             query=Search_experimentQuery.Meta.document, ward="mikro"
@@ -86,7 +109,8 @@ if rekuest:
     structure_reg.register_as_structure(
         ThumbnailFragment,
         identifier="@mikro/thumbnail",
-        expand=aexpand_thumbnail,
+        aexpand=aexpand_thumbnail,
+        ashrink=id_shrink,
         scope=Scope.GLOBAL,
         default_widget=SearchWidget(
             query=Search_thumbnailsQuery.Meta.document, ward="mikro"
@@ -95,7 +119,8 @@ if rekuest:
     structure_reg.register_as_structure(
         OmeroFileFragment,
         identifier="@mikro/omerofile",
-        expand=aexpand_omerofile,
+        aexpand=aexpand_omerofile,
+        ashrink=id_shrink,
         scope=Scope.GLOBAL,
         default_widget=SearchWidget(
             query=Search_omerofileQuery.Meta.document, ward="mikro"
@@ -104,14 +129,16 @@ if rekuest:
     structure_reg.register_as_structure(
         ROIFragment,
         identifier="@mikro/roi",
-        expand=aexpand_roi,
+        aexpand=aexpand_roi,
+        ashrink=id_shrink,
         scope=Scope.GLOBAL,
         default_widget=SearchWidget(query=Search_roisQuery.Meta.document, ward="mikro"),
     )
     structure_reg.register_as_structure(
         FeatureFragment,
         identifier="@mikro/feature",
-        expand=aexpand_feature,
+        aexpand=aexpand_feature,
+        ashrink=id_shrink,
         scope=Scope.GLOBAL,
         default_widget=SearchWidget(
             query=Search_featuresQuery.Meta.document, ward="mikro"
@@ -120,7 +147,8 @@ if rekuest:
     structure_reg.register_as_structure(
         LabelFragment,
         identifier="@mikro/label",
-        expand=aexpand_label,
+        aexpand=aexpand_label,
+        ashrink=id_shrink,
         scope=Scope.GLOBAL,
         default_widget=SearchWidget(
             query=Search_labelsQuery.Meta.document, ward="mikro"
@@ -130,7 +158,8 @@ if rekuest:
         VideoFragment,
         identifier="@mikro/video",
         scope=Scope.GLOBAL,
-        expand=aget_video,
+        aexpand=aget_video,
+        ashrink=id_shrink,
         default_widget=SearchWidget(
             query=Search_videosQuery.Meta.document, ward="mikro"
         ),
@@ -139,7 +168,8 @@ if rekuest:
         PositionFragment,
         identifier="@mikro/position",
         scope=Scope.GLOBAL,
-        expand=aexpand_position,
+        aexpand=aexpand_position,
+        ashrink=id_shrink,
         default_widget=SearchWidget(
             query=Search_positionsQuery.Meta.document, ward="mikro"
         ),
@@ -148,7 +178,8 @@ if rekuest:
         StageFragment,
         identifier="@mikro/stage",
         scope=Scope.GLOBAL,
-        expand=aexpand_stage,
+        aexpand=aexpand_stage,
+        ashrink=id_shrink,
         default_widget=SearchWidget(
             query=Search_stagesQuery.Meta.document, ward="mikro"
         ),
@@ -157,14 +188,16 @@ if rekuest:
         EraFragment,
         identifier="@mikro/era",
         scope=Scope.GLOBAL,
-        expand=aget_era,
+        aexpand=aget_era,
+        ashrink=id_shrink,
         default_widget=SearchWidget(query=SearchErasQuery.Meta.document, ward="mikro"),
     )
     structure_reg.register_as_structure(
         TimepointFragment,
         identifier="@mikro/timepoint",
         scope=Scope.GLOBAL,
-        expand=aget_timepoint,
+        aexpand=aget_timepoint,
+        ashrink=id_shrink,
         default_widget=SearchWidget(
             query=SearchTimepointsQuery.Meta.document, ward="mikro"
         ),
@@ -173,7 +206,8 @@ if rekuest:
         DatasetFragment,
         identifier="@mikro/dataset",
         scope=Scope.GLOBAL,
-        expand=aexpand_dataset,
+        aexpand=aexpand_dataset,
+        ashrink=id_shrink,
         default_widget=SearchWidget(
             query=Search_datasetsQuery.Meta.document, ward="mikro"
         ),
@@ -182,16 +216,28 @@ if rekuest:
         ObjectiveFragment,
         identifier="@mikro/objective",
         scope=Scope.GLOBAL,
-        expand=aexpand_objective,
+        aexpand=aexpand_objective,
+        ashrink=id_shrink,
         default_widget=SearchWidget(
             query=Search_objectivesQuery.Meta.document, ward="mikro"
+        ),
+    )
+    structure_reg.register_as_structure(
+        CameraFragment,
+        identifier="@mikro/camera",
+        scope=Scope.GLOBAL,
+        aexpand=aexpand_camera,
+        ashrink=id_shrink,
+        default_widget=SearchWidget(
+            query=Search_camerasQuery.Meta.document, ward="mikro"
         ),
     )
     structure_reg.register_as_structure(
         ModelFragment,
         identifier="@mikro/model",
         scope=Scope.GLOBAL,
-        expand=aexpand_model,
+        aexpand=aexpand_model,
+        ashrink=id_shrink,
         default_widget=SearchWidget(
             query=Search_modelsQuery.Meta.document, ward="mikro"
         ),
@@ -200,7 +246,8 @@ if rekuest:
         ContextFragment,
         identifier="@mikro/context",
         scope=Scope.GLOBAL,
-        expand=aexpand_context,
+        aexpand=aexpand_context,
+        ashrink=id_shrink,
         default_widget=SearchWidget(
             query=Search_contextsQuery.Meta.document, ward="mikro"
         ),
@@ -209,7 +256,8 @@ if rekuest:
         LinkFragment,
         identifier="@mikro/link",
         scope=Scope.GLOBAL,
-        expand=aexpand_link,
+        aexpand=aexpand_link,
+        ashrink=id_shrink,
         default_widget=SearchWidget(
             query=Search_linksQuery.Meta.document, ward="mikro"
         ),

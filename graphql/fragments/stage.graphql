@@ -9,3 +9,22 @@ fragment ListStage on Stage {
   name
   kind
 }
+
+fragment DetailStage on Stage {
+  id
+  name
+  kind
+  positions {
+    id
+    x
+    y
+    z
+    omeros(order: "-acquired") {
+      id
+      acquisitionDate
+      representation {
+        id
+      }
+    }
+  }
+}

@@ -1,0 +1,10 @@
+fragment Graph on Graph {
+  name
+  id
+  tables {
+    id
+    name
+  }
+  usedColumns
+  image
+}
