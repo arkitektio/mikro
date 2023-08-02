@@ -1,20 +1,7 @@
 """ This module provides helpers for the mikro rath api
 they are wrapped functions for the turms generated api"""
 from mikro.rath import MikroRath, current_mikro_rath
-
-
-def execute(
-    operation,
-    variables,
-    rath: MikroRath = None,
-):
-    rath = rath or current_mikro_rath.get()
-    return operation(
-        **rath.query(
-            operation.Meta.document,
-            operation.Arguments(**variables),
-        ).data
-    )
+from koil.helpers import unkoil
 
 
 async def aexecute(
@@ -25,6 +12,14 @@ async def aexecute(
     rath = rath or current_mikro_rath.get()
     x = await rath.aquery(operation.Meta.document, operation.Arguments(**variables))
     return operation(**x.data)
+
+
+def execute(
+    operation,
+    variables,
+    rath: MikroRath = None,
+):
+    return unkoil(aexecute, operation, variables, rath)
 
 
 def subscribe(operation, variables, rath: MikroRath = None):

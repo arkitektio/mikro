@@ -16,8 +16,12 @@ query get_roi($id: ID!) {
   }
 }
 
-query search_rois($search: String, $values: [ID]) {
-  options: rois(repname: $search, ids: $values) {
+query search_rois($search: String, $values: [ID], $representation: ID) {
+  options: rois(
+    repname: $search
+    ids: $values
+    representation: $representation
+  ) {
     label: id
     value: id
   }

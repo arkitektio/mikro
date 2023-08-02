@@ -1,8 +1,10 @@
 from mikro import Mikro
 from mikro.datalayer import DataLayer
 from mikro.testing.datalayer import LocalDataLayer
+from rath.links.auth import ComposedAuthLink
 from mikro.rath import MikroRath, MikroLinkComposition, AuthTokenLink, SplitLink
 from rath.links.testing.mock import AsyncMockLink
+from mikro.links.datalayer import DataLayerUploadLink
 from mikro.api.schema import from_xarray, RepresentationVariety
 import xarray as xr
 import numpy as np
@@ -34,8 +36,13 @@ async def mock_from_xarray(operation):
 
 
 def test_mikro(tmp_path_factory):
+    datalayer = LocalDataLayer(
+        endpoint_url="s3.amazonaws.com",
+        directory=str(tmp_path_factory.mktemp("data")),
+    )
+
     link = MikroLinkComposition(
-        auth=AuthTokenLink(token_loader=aget_token, token_refresher=aget_token),
+        auth=ComposedAuthLink(token_loader=aget_token, token_refresher=aget_token),
         split=SplitLink(
             left=AsyncMockLink(
                 query_resolver={
@@ -48,13 +55,11 @@ def test_mikro(tmp_path_factory):
             right=AsyncMockLink(),
             split=lambda x: True,
         ),
+        datalayer=DataLayerUploadLink(datalayer=datalayer),
     )
 
     app = Mikro(
-        datalayer=LocalDataLayer(
-            endpoint_url="s3.amazonaws.com",
-            directory=str(tmp_path_factory.mktemp("data")),
-        ),
+        datalayer=datalayer,
         rath=MikroRath(link=link),
     )
 

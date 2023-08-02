@@ -44,11 +44,7 @@ class DataLayerUploadLink(ParsingLink):
     _connected = False
     _lock: asyncio.Lock = False
 
-    _datalayer: DataLayer = None
-
-    async def aconnect(self):
-        self._datalayer = current_datalayer.get()
-
+    datalayer: DataLayer
 
     async def aparse(self, operation: Operation) -> Operation:
         """Parse the operation (Async)
@@ -65,19 +61,17 @@ class DataLayerUploadLink(ParsingLink):
         if not self._lock:
             self._lock = asyncio.Lock()
 
-        if not self._datalayer._connected:
-            await self._datalayer.aconnect()
-
-        datalayer: DataLayer = current_datalayer.get()
+        if not self.datalayer._connected:
+            await self.datalayer.aconnect()
 
         operation.variables = await apply_recursive(
-            datalayer.astore_array_input, operation.variables, XArrayInput
+            self.datalayer.astore_array_input, operation.variables, XArrayInput
         )
         operation.variables = await apply_recursive(
-            datalayer.astore_parquet_input, operation.variables, ParquetInput
+            self.datalayer.astore_parquet_input, operation.variables, ParquetInput
         )
         operation.variables = await apply_recursive(
-            datalayer.astore_bigfile, operation.variables, BigFile
+            self.datalayer.astore_bigfile, operation.variables, BigFile
         )
 
         return operation

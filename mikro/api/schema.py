@@ -1,36 +1,36 @@
-from mikro.funcs import execute, asubscribe, aexecute, subscribe
 from mikro.scalars import (
-    BigFile,
-    AffineMatrix,
-    Parquet,
-    ParquetInput,
-    AssignationID,
-    Store,
-    XArrayInput,
-    get_current_id,
-    MetricValue,
-    FeatureValue,
-    ModelData,
-    ModelFile,
     File,
+    get_current_id,
+    Store,
+    ModelData,
+    FeatureValue,
+    BigFile,
+    ParquetInput,
+    MetricValue,
+    Parquet,
+    AffineMatrix,
+    XArrayInput,
+    ModelFile,
+    AssignationID,
 )
 from mikro.traits import (
-    Omero,
-    Objective,
-    Table,
-    ROI,
-    Vectorizable,
     Representation,
+    ROI,
+    Table,
     Position,
-    PhysicalSize,
     Stage,
+    Vectorizable,
+    Objective,
+    Omero,
+    PhysicalSize,
 )
-from typing import Iterator, List, Optional, Tuple, AsyncIterator, Dict, Literal
-from pydantic import BaseModel, Field, validator
+from mikro.funcs import asubscribe, aexecute, subscribe, execute
+from typing import Dict, Iterator, AsyncIterator, Literal, List, Optional, Tuple
 from mikro.rath import MikroRath
-from rath.scalars import ID
-from enum import Enum
 from datetime import datetime
+from enum import Enum
+from pydantic import Field, BaseModel, validator
+from rath.scalars import ID
 
 
 class CommentableModels(str, Enum):
@@ -4067,9 +4067,10 @@ class Search_roisQuery(BaseModel):
     class Arguments(BaseModel):
         search: Optional[str]
         values: Optional[List[Optional[ID]]]
+        representation: Optional[ID]
 
     class Meta:
-        document = "query search_rois($search: String, $values: [ID]) {\n  options: rois(repname: $search, ids: $values) {\n    label: id\n    value: id\n  }\n}"
+        document = "query search_rois($search: String, $values: [ID], $representation: ID) {\n  options: rois(repname: $search, ids: $values, representation: $representation) {\n    label: id\n    value: id\n  }\n}"
 
 
 class Expand_featureQuery(BaseModel):
@@ -4394,7 +4395,7 @@ class Expand_representationQuery(BaseModel):
     """Creates a new representation"""
 
     representation: Optional[RepresentationFragment]
-    "Get a single Representation by ID\n    \n    Returns a single Representation by ID. If the user does not have access\n    to the Representation, an error will be raised.\n    "
+    "Get a single Representation by ID\n\n    Returns a single Representation by ID. If the user does not have access\n    to the Representation, an error will be raised.\n    "
 
     class Arguments(BaseModel):
         id: ID
@@ -4405,7 +4406,7 @@ class Expand_representationQuery(BaseModel):
 
 class Get_representationQuery(BaseModel):
     representation: Optional[RepresentationFragment]
-    "Get a single Representation by ID\n    \n    Returns a single Representation by ID. If the user does not have access\n    to the Representation, an error will be raised.\n    "
+    "Get a single Representation by ID\n\n    Returns a single Representation by ID. If the user does not have access\n    to the Representation, an error will be raised.\n    "
 
     class Arguments(BaseModel):
         id: ID
@@ -4460,7 +4461,7 @@ class Search_representationQueryOptions(Representation, BaseModel):
 
 class Search_representationQuery(BaseModel):
     options: Optional[Tuple[Optional[Search_representationQueryOptions], ...]]
-    "All Representations\n    \n    This query returns all Representations that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Representations that the user has access to. If the user is an amdin\n    or superuser, all Representations will be returned."
+    "All Representations\n\n    This query returns all Representations that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Representations that the user has access to. If the user is an amdin\n    or superuser, all Representations will be returned."
 
     class Arguments(BaseModel):
         search: Optional[str]
@@ -4479,7 +4480,7 @@ class Get_random_repQuery(BaseModel):
     random_representation: Optional[RepresentationFragment] = Field(
         alias="randomRepresentation"
     )
-    "Get a random Representation\n    \n    Gets a random Representation from the database. This is used for\n    testing purposes\n    \n    "
+    "Get a random Representation\n\n    Gets a random Representation from the database. This is used for\n    testing purposes\n\n    "
 
     class Arguments(BaseModel):
         pass
@@ -4727,7 +4728,7 @@ class ThiernoQueryRepresentations(Representation, BaseModel):
 
 class ThiernoQuery(BaseModel):
     representations: Optional[Tuple[Optional[ThiernoQueryRepresentations], ...]]
-    "All Representations\n    \n    This query returns all Representations that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Representations that the user has access to. If the user is an amdin\n    or superuser, all Representations will be returned."
+    "All Representations\n\n    This query returns all Representations that are stored on the platform\n    depending on the user's permissions. Generally, this query will return\n    all Representations that the user has access to. If the user is an amdin\n    or superuser, all Representations will be returned."
 
     class Arguments(BaseModel):
         pass
@@ -9270,6 +9271,7 @@ def get_roi(id: ID, rath: MikroRath = None) -> Optional[ROIFragment]:
 async def asearch_rois(
     search: Optional[str] = None,
     values: Optional[List[Optional[ID]]] = None,
+    representation: Optional[ID] = None,
     rath: MikroRath = None,
 ) -> Optional[List[Optional[Search_roisQueryOptions]]]:
     """search_rois
@@ -9291,13 +9293,16 @@ async def asearch_rois(
     Arguments:
         search (Optional[str], optional): search.
         values (Optional[List[Optional[ID]]], optional): values.
+        representation (Optional[ID], optional): representation.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[List[Optional[Search_roisQueryRois]]]"""
     return (
         await aexecute(
-            Search_roisQuery, {"search": search, "values": values}, rath=rath
+            Search_roisQuery,
+            {"search": search, "values": values, "representation": representation},
+            rath=rath,
         )
     ).rois
 
@@ -9305,6 +9310,7 @@ async def asearch_rois(
 def search_rois(
     search: Optional[str] = None,
     values: Optional[List[Optional[ID]]] = None,
+    representation: Optional[ID] = None,
     rath: MikroRath = None,
 ) -> Optional[List[Optional[Search_roisQueryOptions]]]:
     """search_rois
@@ -9326,12 +9332,15 @@ def search_rois(
     Arguments:
         search (Optional[str], optional): search.
         values (Optional[List[Optional[ID]]], optional): values.
+        representation (Optional[ID], optional): representation.
         rath (mikro.rath.MikroRath, optional): The mikro rath client
 
     Returns:
         Optional[List[Optional[Search_roisQueryRois]]]"""
     return execute(
-        Search_roisQuery, {"search": search, "values": values}, rath=rath
+        Search_roisQuery,
+        {"search": search, "values": values, "representation": representation},
+        rath=rath,
     ).rois
 
 

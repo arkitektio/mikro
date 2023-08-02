@@ -1,8 +1,8 @@
 from pydantic import Field
 from koil import koilable
 from koil.composition import Composition
-from mikro.datalayer import DataLayer
 from mikro.rath import MikroRath
+from mikro.datalayer import DataLayer
 
 
 class Mikro(Composition):
@@ -29,7 +29,7 @@ class Mikro(Composition):
     """
 
     datalayer: DataLayer
-    rath: MikroRath = Field(default_factory=MikroRath)
+    rath: MikroRath
 
     def _repr_html_inline_(self):
-        return f"<table><tr><td>datalayer</td><td>{self.datalayer._repr_html_inline_()}</td></tr><tr><td>rath</td><td>{self.rath._repr_html_inline_()}</td></tr></table>"
+        return f"<table></tr><tr><td>rath</td><td>{self.rath._repr_html_inline_()}</td></tr></table>"

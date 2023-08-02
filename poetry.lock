@@ -808,14 +808,14 @@ files = [
 
 [[package]]
 name = "koil"
-version = "0.2.11"
+version = "0.3.3"
 description = "Async for a sync world"
 category = "main"
 optional = false
 python-versions = ">=3.7,<4.0"
 files = [
-    {file = "koil-0.2.11-py3-none-any.whl", hash = "sha256:48c0192019db8f941ff28192fdf69dea17a1e59aa47752dd142af28a6c77811a"},
-    {file = "koil-0.2.11.tar.gz", hash = "sha256:a7f3c712207bf8ea925faecb6b2493131729d350f7bdb5aefd8ecc7a2ebee270"},
+    {file = "koil-0.3.3-py3-none-any.whl", hash = "sha256:2e489497589d36b40c667d60ab0fdfb7ffc2c754e365bcc7a7a464e7e3927e5a"},
+    {file = "koil-0.3.3.tar.gz", hash = "sha256:9f23da2babd4b7005cac211862bf5d54e21cb514170bf23c93f844f48fea5074"},
 ]
 
 [package.dependencies]
@@ -823,6 +823,7 @@ janus = ">=1.0.0,<2.0.0"
 qtpy = ">1"
 
 [package.extras]
+process = ["cloudpickle (>=2.2.1,<3.0.0)"]
 uvloop = ["uvloop (>=0.16.0,<0.17.0)"]
 
 [[package]]
@@ -1496,19 +1497,19 @@ test = ["pytest (>=6,!=7.0.0,!=7.0.1)", "pytest-cov (>=3.0.0)", "pytest-qt"]
 
 [[package]]
 name = "rath"
-version = "0.3.6"
+version = "0.4.0"
 description = "async transport-agnostic graphql client"
 category = "main"
 optional = false
 python-versions = ">=3.7,<4.0"
 files = [
-    {file = "rath-0.3.6-py3-none-any.whl", hash = "sha256:b1bbb09297e6a78c8bf9ead5fc3b589fdbf1ba59f704d67f42db81e88ac55531"},
-    {file = "rath-0.3.6.tar.gz", hash = "sha256:1e8ffbed5c512b19ce23de1af226a3221ed2251cca3bdaefd18136e39f95da42"},
+    {file = "rath-0.4.0-py3-none-any.whl", hash = "sha256:3295757bb27a5fa9ef9280adfbdde892d21489a1f03acd4561791045ade3981e"},
+    {file = "rath-0.4.0.tar.gz", hash = "sha256:a5937da46f4710523703d27336f86d90ec5e5f108223892960fedac1df8adfab"},
 ]
 
 [package.dependencies]
 graphql-core = ">=3.2.0,<4.0.0"
-koil = ">=0.2.10"
+koil = "0.3.3"
 pydantic = ">=1.9.0,<2.0.0"
 
 [package.extras]
@@ -2051,4 +2052,4 @@ turms = []
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8, <=3.12"
-content-hash = "59ba1177c74e945dd7f7df15a63d70677bae2453d274861d119655359c7eed6e"
+content-hash = "e3655cf16071a937b81d23b8cc47fd6ce5cb54932144d03eb41d3e0c1d6ae5cb"
