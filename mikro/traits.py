@@ -62,6 +62,28 @@ class Representation(BaseModel):
 
         return pstore.open()
 
+    @property
+    def uncached_data(self) -> xr.DataArray:
+        """The Data of the Representation as an xr.DataArray
+
+        Will be of shape [c,t,z,y,x]
+
+
+        Attention: Not accessible from asyncio
+
+        Returns:
+            xr.DataArray: The associated object.
+
+        Raises:
+            AssertionError: If the representation has no store attribute quries
+        """
+        pstore = getattr(self, "store", None)
+        assert (
+            pstore is not None
+        ), "Please query 'store' in your request on 'Representation'. Data is not accessible otherwise"
+
+        return pstore.open(cached=False)
+
     async def adata(self) -> Awaitable[xr.DataArray]:
         """The Data of the Representation as an xr.DataArray. Accessible from asyncio.
 
@@ -230,11 +252,11 @@ class PhysicalSize:
 
     def to_scale(self):
         return [
-            getattr(self, "t", 1),
-            getattr(self, "c", 1),
-            getattr(self, "z", 1),
-            getattr(self, "y", 1),
-            getattr(self, "x", 1),
+            getattr(self, "t", 1) or 1,
+            getattr(self, "c", 1) or 1,
+            getattr(self, "z", 1) or 1,
+            getattr(self, "y", 1) or 1,
+            getattr(self, "x", 1) or 1,
         ]
 
 

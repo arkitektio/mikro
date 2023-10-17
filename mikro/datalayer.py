@@ -118,7 +118,7 @@ class DataLayer(KoiledModel):
             )
             return await asyncio.wrap_future(co_future)
         except PermissionError as e:
-            logger.error("Permission error, trying to get new credentials")
+            logger.warning("Permission error, trying to get new credentials")
             if retry < self.max_retries:
                 await self.aconnect()
                 return await self.astore_array_input(xarray, retry=retry + 1)
@@ -126,7 +126,7 @@ class DataLayer(KoiledModel):
                 raise e
         except botocore.exceptions.ClientError as e:
             if e.response["Error"]["Code"] == "InvalidAccessKeyId":
-                logger.error("Access Key is invalid, trying to get new credentials")
+                logger.warning("Access Key is invalid, trying to get new credentials")
                 if retry < self.max_retries:
                     await self.aconnect()
                     return await self.astore_array_input(xarray, retry=retry + 1)
@@ -191,13 +191,13 @@ class DataLayer(KoiledModel):
                 self.reconnect()
                 return self.test_path_accessible(path, retry=retry + 1)
             else:
-                logger.error("Permission error, could not get new credentials")
+                logger.warning("Permission error, could not get new credentials")
                 raise e
         except Exception as e:
             if self.strict:
                 raise e
             else:
-                logger.error("Permission error, trying to get new credentials")
+                logger.warning("Permission error, trying to get new credentials")
                 if retry < self.max_retries:
                     self.reconnect()
                     return self.test_path_accessible(path, retry=retry + 1)
@@ -205,9 +205,9 @@ class DataLayer(KoiledModel):
                     logger.error("Permission error, could not get new credentials")
                     raise e
 
-    def open_store(self, path):
+    def open_store(self, path, cached=True):
         if self.test_path_accessible(path):
-            if self.cache > 0:
+            if self.cache > 0 and cached:
                 return zarr.LRUStoreCache(self.fs.get_mapper(path), self.cache)
             else:
                 return self.fs.get_mapper(path)
