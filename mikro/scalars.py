@@ -207,7 +207,32 @@ class Store:
         and then we can access the data
         """
 
-    def open(self, dl: Optional["DataLayer"] = None):
+    def open(self, dl: Optional["DataLayer"] = None, cached: bool =True) -> xr.DataArray:
+        """Opens the store and returns the zarr store object.
+
+        The store is opened on the first access and then cached for later use. This is done to avoid
+        opening the store on every access.
+
+
+        Args:
+            dl (Datalayer, optional): The datalayer. Defaults to active datalayer.
+
+        Returns:
+            xr.DataArray: the data array
+        """
+        from mikro.datalayer import current_datalayer
+
+        dl = dl or current_datalayer.get()
+        if not dl:
+            raise ValueError(
+                "No datalayer set. This probably happened because you never connected the datalayer. Please connect (either with async or sync) and try again."
+            )
+
+        return xr.open_zarr(
+            store=dl.open_store(self.value, cached=cached), consolidated=True
+        )["data"]
+
+    async def aopen(self, dl=None, retry=True, cached=True):
         """Opens the store and returns the zarr store object.
 
         The store is opened on the first access and then cached for later use. This is done to avoid
@@ -224,26 +249,9 @@ class Store:
 
         dl = dl or current_datalayer.get()
 
-        return xr.open_zarr(store=dl.open_store(self.value), consolidated=True)["data"]
-
-    async def aopen(self, dl=None, retry=True):
-        """Opens the store and returns the zarr store object.
-
-        The store is opened on the first access and then cached for later use. This is done to avoid
-        opening the store on every access.
-
-
-        Args:
-            dl (Datalayer, optional): The datalayer. Defaults to active datalayer.
-
-        Returns:
-            xr.DataArray: the data array
-        """
-        from mikro.datalayer import current_datalayer
-
-        dl = dl or current_datalayer.get()
-
-        return xr.open_zarr(store=dl.open_store(self.value), consolidated=True)["data"]
+        return xr.open_zarr(
+            store=dl.open_store(self.value, cached=cached), consolidated=True
+        )["data"]
 
     @classmethod
     def __get_validators__(cls):

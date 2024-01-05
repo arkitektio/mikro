@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "mikro"
-version = "0.3.81"
+version = "0.3.94"
 description = "images for arkitekt"
 authors = ["jhnnsrs <jhnnsrs@gmail.com>"]
 license = "CC BY-NC 3.0"
@@ -8,26 +8,24 @@ packages = [{ include = "mikro" }]
 
 [tool.poetry.dependencies]
 python = "^3.8, <=3.12"
-zarr = "^2.14.2"
+zarr = ">=2.14.2"
 xarray = ">=2022.12.0"
-s3fs = "^2023.1.0"
-pandas = "^1.5.3"
-pyarrow = { version = ">=11.0", python = ">=3.8", optional = true }
-dask = "^2023.3.0"
-rath = ">=0.3.6"
+s3fs = ">=2023.1.0"
+pandas = ">=1.5.3"
+pyarrow = ">=11.0"
+dask = ">=2023.3.0"
+rath = ">=0.4.7"
 
 [tool.poetry.extras]
 turms = ["turms"]
-table = ["pyarrow"]
-complete = ["turms", "pyarrow"]
 
 [tool.mypy]
-exclude = ["venv/"]
+exclude = ["venv/", "tests/", "examples/"]
 ignore_missing_imports = true
-
 
 [tool.ruff]
 extend-select = ["ANN", "D1"]
+extend-ignore = ["ANN101", "ANN002", "ANN003", "D100", "ANN401"]
 
 # Exclude a variety of commonly ignored directories.
 exclude = [
@@ -51,24 +49,30 @@ exclude = [
     "dist",
     "node_modules",
     "venv",
+    "tests",
+    "examples",
 ]
 
 # Same as Black.
-line-length = 100
+line-length = 300
 
 [tool.poetry.group.dev.dependencies]
-testcontainers = "3.7.0"
+httpx = "^0.23.0"
 autoflake = "^1.7.7"
 pytest = "^7.2.0"
+testcontainers = "^3.7.0"
+pytest-qt = "^4.2.0"
 pytest-asyncio = "^0.20.2"
-turms = { version = ">=0.3.1", python = "^3.9" }
 aiohttp = "^3.8.3"
 websockets = "^10.4"
-black = "^23.1.0"
+black = ">=22"
 pytest-cov = "^4.0.0"
-pytest-aiohttp = "^1.0.4"
-ruff = "^0.0.254"
-mypy = "^1.0.1"
+ruff = "^0.0.282"
+mypy = "^1.7.1"
+pydoc-markdown = "^4.8.2"
+types-toml = "^0.10.8.7"
+types-pyyaml = "^6.0.12.12"
+pyarrow = "^14.0.1"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
