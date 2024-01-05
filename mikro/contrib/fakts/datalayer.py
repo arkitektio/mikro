@@ -1,12 +1,12 @@
 from typing import Any, Dict, Optional
 
-from fakts.fakt.base import Fakt
+from pydantic import BaseModel
 from fakts.fakts import Fakts
-from herre.herre import Herre, current_herre
+from herre.herre import Herre
 from mikro.datalayer import DataLayer
 
 
-class DataLayerFakt(Fakt):
+class DataLayerFakt(BaseModel):
     endpoint_url: str
 
     class Config:

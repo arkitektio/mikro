@@ -4,7 +4,7 @@ from mikro.datalayer import DataLayer, current_datalayer
 from mikro.scalars import XArrayInput, ParquetInput, BigFile
 from rath.links.parsing import ParsingLink
 from rath.operation import Operation, opify
-import ntpath
+from typing import Optional
 
 
 async def apply_recursive(func, obj, typeguard):
@@ -42,7 +42,7 @@ class DataLayerUploadLink(ParsingLink):
 
     FILEVERSION = "0.1"
     _connected = False
-    _lock: asyncio.Lock = False
+    _lock: Optional[asyncio.Lock] = None
 
     datalayer: DataLayer
 
@@ -77,6 +77,7 @@ class DataLayerUploadLink(ParsingLink):
         return operation
 
     class Config:
+        """pydantic config class"""
         arbitrary_types_allowed = True
         underscore_attrs_are_private = True
         extra = "forbid"

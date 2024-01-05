@@ -40,6 +40,7 @@ class MikroRath(rath.Rath):
 
     async def __aenter__(self):
         await super().__aenter__()
+
         current_mikro_rath.set(self)
         return self
 

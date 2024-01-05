@@ -17,8 +17,7 @@ import numpy as np
 from pydantic import BaseModel
 import xarray as xr
 import pandas as pd
-from rath.links.shrink import ShrinkByID
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Type
 
 if TYPE_CHECKING:
     from mikro.api.schema import InputVector
@@ -60,10 +59,10 @@ class Representation(BaseModel):
             pstore is not None
         ), "Please query 'store' in your request on 'Representation'. Data is not accessible otherwise"
 
-        return pstore.open()
+        return pstore.open(cached=False)
 
     @property
-    def uncached_data(self) -> xr.DataArray:
+    def cached_data(self) -> xr.DataArray:
         """The Data of the Representation as an xr.DataArray
 
         Will be of shape [c,t,z,y,x]
@@ -281,6 +280,18 @@ class ROI(BaseModel):
         accesors = list(dims)
         return np.array([[getattr(v, ac) for ac in accesors] for v in vector_list])
 
+    def get_vector_pandas(self, dims="yx") -> pd.DataFrame:
+        vector_list = getattr(self, "vectors", None)
+        assert (
+            vector_list
+        ), "Please query 'vectors' in your request on 'ROI'. Data is not accessible otherwise"
+        vector_list: list
+        accesors = list(dims)
+
+        return pd.DataFrame.from_records(
+            [[getattr(v, ac) for ac in accesors] for v in vector_list], columns=accesors
+        )
+
     def center(self) -> "InputVector":
         """The center of the ROI
 
@@ -328,7 +339,7 @@ class ROI(BaseModel):
         )
 
 
-class Table(BaseModel, ShrinkByID):
+class Table(BaseModel):
     """Table Trait
 
     Implements both identifier and shrinking methods.
@@ -399,7 +410,7 @@ class Vectorizable:
         t: Optional[int] = None,
         c: Optional[int] = None,
         z: Optional[int] = None,
-    ) -> List[T]:
+    ) -> List[Vector]:
         """Creates a list of InputVector from a numpya array
 
         Args:
@@ -424,5 +435,5 @@ class Vectorizable:
     def from_array(
         cls: T,
         x: np.ndarray,
-    ) -> T:
+    ) -> Vector:
         return cls(x=x[4], y=x[3], z=x[2], t=x[1], c=x[0])
