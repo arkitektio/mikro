@@ -8,7 +8,6 @@ Custom scalars for Mikro.
 import os
 from typing import Any, List, IO, Optional
 import xarray as xr
-import pandas as pd
 import numpy as np
 import io
 from typing import TYPE_CHECKING
@@ -17,6 +16,7 @@ import logging
 
 if TYPE_CHECKING:
     from mikro.datalayer import DataLayer
+    from pandas import DataFrame
 
 
 class AssignationID(str):
@@ -168,7 +168,7 @@ class ParquetInput:
     parquet api supported by mikro. It converts the passed value into
     a compliant format.."""
 
-    def __init__(self, value: pd.DataFrame) -> None:
+    def __init__(self, value: "DataFrame") -> None:
         self.value = value
 
     @classmethod
@@ -180,6 +180,7 @@ class ParquetInput:
 
     @classmethod
     def validate(cls, v):
+        import pandas as pd
         if not isinstance(v, pd.DataFrame):
             raise ValueError("This needs to be a instance of pandas DataFrame")
 
