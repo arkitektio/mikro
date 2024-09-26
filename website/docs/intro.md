@@ -8,7 +8,7 @@ sidebar_label: "Introduction"
 Let's discover **mikro in less than 5 minutes**.
 
 :::warning
-This is a very developmental build, that is currently only used to test in the IINS, Bordeaux. If you are intersteted please contact
+This is a very developmental build, that is currently only used to test in the IINS, Bordeaux. If you are interested please contact
 the authors directly!
 please
 :::
