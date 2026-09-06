@@ -5,6 +5,11 @@ buckets:
   # The server config names a fourth store (`datalayer.bigfile.bucket`), so
   # without this every from_file_like upload 404s on a bucket that never existed.
   - name: bigfile
+  # The mesh and network stores — same class of bug as bigfile above: the server
+  # config names them, so without the buckets every create_mesh_collection /
+  # create_network_collection upload fails at its first grant.
+  - name: fabriks
+  - name: konnektion
 users:
   - access_key: mikro_access_key
     name: mikronew

@@ -50,6 +50,13 @@ datalayer:
     bucket: parquet
   bigfile:
     bucket: bigfile
+  # The mesh and network stores, without which get_bucket_config("fabriks"/
+  # "konnektion") refuses every mesh/network collection upload. The example tests
+  # are the first integration exercise of those paths.
+  fabriks:
+    bucket: fabriks
+  konnektion:
+    bucket: konnektion
 postgres:
   db_name: mikro
   engine: django.db.backends.postgresql

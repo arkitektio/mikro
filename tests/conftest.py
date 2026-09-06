@@ -98,8 +98,14 @@ def deployed_app() -> Generator[DeployedMikro, None, None]:
     minio_watcher = setup.create_watcher("minio")
 
     with setup:
+        # dokker >= 2.6 does nothing on enter: the spec below has to be resolved
+        # explicitly. `up()` (testing policy) also reaps the stacks earlier,
+        # since-killed test runs left behind and labels this one with our PID,
+        # so a stranded copy of it is removed by the next run instead of by a
+        # `docker rm -f` sweep that could hit a live sibling.
         setup.down()
         setup.pull()
+        setup.inspect()
 
         minio_url = f"http://localhost:{setup.spec.find_service('minio').get_port_for_internal(9000).published}"
         mikro_http_url = f"http://localhost:{setup.spec.find_service('mikro').get_port_for_internal(80).published}/graphql"

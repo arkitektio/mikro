@@ -59,11 +59,14 @@ dev-dependencies =  [
     "ruff>0.11",
     "cryptography>=44.0.3",
     "pyjwt>=2.10.1",
-    "dokker>=2.5",
+    "dokker>=2.8",
     "pillow>=11.2.1",
     # Test-only: a real path/file-object reader to check `RemoteFile` against, since
     # the point of that class is that unmodified readers work through it.
     "tifffile>=2024.1.30",
+    # The example generators (examples/) that the integration suite runs end-to-end:
+    # marching_cubes for the glass-brain meshes.
+    "scikit-image>=0.22",
     "fakts-next>=4",
     "rekuest-next>=0.12.2",
     "pyarrow>=24",
@@ -73,8 +76,9 @@ dev-dependencies =  [
     # The sparse wire format. An extra for callers (see `[project.optional-dependencies]`),
     # but a dev dependency here, because `SporadikLike.validate` -- and therefore every test
     # of the sparse declaration path -- cannot run without it. It was absent, which is why
-    # that path had no tests at all.
-    "sporadik>=1.0",
+    # that path had no tests at all. >=1.1 because the example generators build their
+    # matrices through `sporadik.SparseArray`, which 1.0 does not have.
+    "sporadik>=1.1",
     # rekuest-next imports `janus` without declaring it, so it never arrives
     # transitively — and without it `mikro_next.specs` cannot be imported and
     # `tests/test_specs.py` skips itself. Drop this once rekuest declares it.
