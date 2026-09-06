@@ -935,7 +935,7 @@ input AssociateInput {
 }
 
 """
-One executable answer to 'what is under this point?': map the point along `path` if the plan is not rooted where you probed, sample the field array, then look the value up in the table's parquet. Plans are discovered across the fact component -- probe a source image and the plans of the instance mask derived from it are found through the derivation edge -- but never through a registration: which claims compose is a scene's say-so, and this query has no scene. A plan takes no coordinate -- it is the same plan for every point, so fetch it once, cache it, and execute per hover locally with zero round-trips. attributePlans returns instructions, never attributes: anything that wants values runs the plan
+One executable answer to 'what is under this point?': map the point along `path` if the plan is not rooted where you probed, sample the field array, then run the hops -- the landing first, then every declared reference reachable from it, each bound from the one before. Plans are discovered across the fact component -- probe a source image and the plans of the instance mask derived from it are found through the derivation edge -- but never through a registration: which claims compose is a scene's say-so, and this query has no scene. A plan takes no coordinate -- it is the same plan for every point, so fetch it once, cache it, and execute per hover locally with zero round-trips. attributePlans returns instructions, never attributes: anything that wants values runs the plan
 """
 type AttributePlan {
   """
@@ -944,27 +944,19 @@ type AttributePlan {
   edge: FieldTransformation!
 
   """
-  The matrix the plan lands in, when `lookup.kind` is SPARSE. One or the other, never both
-  """
-  sparseDataset: SparseDataset
-
-  """
-  The table the plan lands in: the home of the attributes, its columns and their `references`
-  """
-  table: TableDataset
-
-  """
   The steps from the PROBED system to this plan's root (the FIELD edge's input system -- equal to `sample.system` when the mask's own pixels are the map). Empty when the plan is rooted where you probed. Compose in order, inverting the flagged steps, to map a probed-space point into the space `consumes` and `passthrough` are stated in -- the same contract as `pathToWorld`. The path crosses derivations, levels, lenses and physical spaces, never a registration
   """
   path: [PlacementStep!]!
 
   """
-  Where the id comes from: an `ArraySample` to read at the (path-mapped) point, or a `MeshSample` whose id the client already picked
+  Where the id comes from: an `ArraySample` to read at the (path-mapped) point, or a `MeshSample`/`NetworkSample` whose id the client already picked
   """
   sample: SampleStep!
 
-  """The duckdb half: look the id up in the parquet"""
-  lookup: LookupStep!
+  """
+  The chain, in execution order. `hops[0]` is the landing: the table or matrix the FIELD edge's id keys, bound from `sample`. Each later hop crosses one declared reference from a parent hop, up to the query's `maxJoinDepth`. A client that only wants the landing reads `hops[0]`
+  """
+  hops: [Hop!]!
 }
 
 """
@@ -3862,6 +3854,77 @@ enum HistoryKind {
 }
 
 """
+One step of a plan's chain through record-land. `hops[0]` is the landing -- the FIELD edge's own target, bound from `sample` -- and every later hop binds from the rows or slice its `parent` returned, under the name `via` states, and lands one declared reference further: a `Column.references`, a matrix axis a table identifies, or the same axis walked into the matrix. Execute in list order; a hop's parent always precedes it. `cardinality` says whether to bind a scalar or a list. The server describes the chain and reads nothing; the client runs it hop by hop with grants it already holds
+"""
+type Hop {
+  """This hop's position in `hops`, what a child names as its `parent`"""
+  index: Int!
+
+  """
+  The hop whose result this one binds from. Null only on `hops[0]`, which binds from `sample`
+  """
+  parent: Int
+
+  """
+  ONE: bind each key as a scalar. MANY: bind each as a list (every position a SPARSE parent returned) and expect the keys back per row. A floor: a ONE lookup may still return several rows
+  """
+  cardinality: HopCardinality!
+
+  """
+  The declared reference this hop crosses. Null on `hops[0]`, whose crossing is the plan's `edge`
+  """
+  via: HopVia
+
+  """
+  The table this hop lands in: the home of its attributes and their `references`. One or the other with `sparseDataset`, never both
+  """
+  table: TableDataset
+
+  """The matrix this hop lands in, when `lookup.kind` is SPARSE"""
+  sparseDataset: SparseDataset
+
+  """
+  How to read what this hop lands in: the rows of a parquet or a slice of a matrix
+  """
+  lookup: LookupStep!
+
+  """
+  The picker's name for this hop: the `(table, column)` reference steps from the landing table to here, exactly what a layer's `colorBys[].joinPath` stores -- so a stored colouring finds the hop that resolves it, and its key column, here. Empty on `hops[0]`, and empty once the chain has crossed a matrix, which no `joinPath` can name
+  """
+  joinPath: [ColumnOptionJoinStep!]!
+}
+
+"""
+How a hop's key values are bound. ONE: the worker holds a scalar per key -- the hover shape -- and binds it as one. MANY: it holds a set (every position a SPARSE step returned) and binds a list, and the lookup returns the key columns with each row so a row says which value it answers. A floor, not a guarantee: a ONE lookup can still return several rows, and a client that collected several parents may execute a ONE step as MANY
+"""
+enum HopCardinality {
+  """
+  The bound value is a scalar: one id from the sample, or one row's column from the parent hop.
+  """
+  ONE
+
+  """
+  The bound value is a set: every position a SPARSE parent returned, or every row a MANY parent did. Bind a list; the keys come back per row.
+  """
+  MANY
+}
+
+"""
+The schema fact one hop crosses. `column`: a `Column.references` hop -- the parent row's column whose values are row ids of the next table -- or, on a hop into a matrix, the parent table's INDEX column whose values are positions along `axis`. `axis`: the matrix axis crossed, in either direction. Whichever is set, its name is the name the hop's lookup binds under (`keyColumns[].axis` / `keyHeld`)
+"""
+type HopVia {
+  """
+  The column whose values are bound: the parent row's reference column, or its INDEX column when the hop enters a matrix
+  """
+  column: Column
+
+  """
+  The matrix axis crossed: the parent slice's value axis when the hop leaves a matrix, the target's indexed axis when it enters one
+  """
+  axis: String
+}
+
+"""
 What a column's values or an axis' positions **are**, as a discriminated union: `kind` selects which sort of thing is being named, and only that member's id field is read -- any other is rejected. Carried by a sparse dataset's axes and by a table's columns alike -- the one spelling of every 'values here identify things there' claim. `DATASET`, `MESH_COLLECTION` and `NETWORK_COLLECTION` author a FIELD edge from the source into this data, which is also what makes it reachable from a layer over that source (INDEX axes only -- the edge produces an axis); `TABLE` authors no edge and states a foreign key instead, on an INDEX axis or a plain data column; `NETWORK_COLLECTION_NODES` likewise authors none, on an INDEX axis scoped by a sibling object axis
 """
 input IdentificationInput {
@@ -5005,7 +5068,7 @@ input LinkFileInput {
 }
 
 """
-The duckdb half of a plan: look the sampled value up in the parquet. Bind order for `sql` is the parquet path/URL first (the read_parquet argument, supplied by the worker from its own access grant), then the key values in `keyColumns` order. Do not assume one row per point: (t, i) uniqueness is a convention no unique index backs, so the worker gets rows, plural
+The lookup half of a hop: read the rows (TABLE) or the slice (SPARSE) the held value identifies. There is no statement here, deliberately -- a TABLE lookup is `keyColumns` and `attributes`, and the DuckDB statement is derived from them by the worker (`core/logic/plan_sql.py`, a standard-library-only module the client carries unchanged): `SELECT <attributes> FROM read_parquet(?) WHERE <key> = ? ...`, bound with the parquet path/URL first (from the worker's own access grant) and then the key values in `keyColumns` order; a MANY hop binds lists and selects the keys too. Do not assume one row per point: (t, i) uniqueness is a convention no unique index backs, so the worker gets rows, plural
 """
 type LookupStep {
   """
@@ -5019,19 +5082,14 @@ type LookupStep {
   store: ParquetStore
 
   """
-  (TABLE) The key bindings, in bind order: each names the value the worker holds (by axis name) and the parquet column it binds
+  (TABLE) The key bindings, in bind order: each names the value the worker holds (by axis name, or by the parent hop's column or axis name) and the parquet column it binds
   """
   keyColumns: [PlanKeyColumn!]!
 
   """
-  (TABLE) What the SQL selects -- every declared non-coordinate column, never `*`. A column whose `references` names another table holds row ids of that table; following them is the client's choice, one more lookup away
+  (TABLE) What the statement selects -- every declared non-coordinate column, never `*`. A column whose `references` names another table holds row ids of that table; the plan's later hops say where they lead
   """
   attributes: [Column!]!
-
-  """
-  (TABLE) The parameterized DuckDB statement: identifiers from validated declared columns and quoted, values as `?` placeholders, never interpolated. Bind the parquet path first, then the key values in `keyColumns` order. A non-duckdb consumer ignores this and reads `keyColumns` + `attributes` instead
-  """
-  sql: String
 
   """
   (SPARSE) The layout to read. Ask its `store` for an accessGrant, open the group at its `path` -- both layouts of a matrix live in one prefix, so the store alone does not say which -- then make two reads: `indptr[i:i+2]` at the id, and the range those two offsets name in `indices` and `data`. There is no SQL and no database in the path
@@ -5039,9 +5097,14 @@ type LookupStep {
   sparseArray: SparseArray
 
   """
-  (SPARSE) The axis the sampled id is bound to -- what `keyColumns` is for a table. **Always the axis that layout's `indptr` indexes**, which is what makes the read one contiguous range; a plan is published over a layout where that holds, or not at all
+  (SPARSE) The axis the held id is bound to -- what `keyColumns` is for a table. **Always the axis that layout's `indptr` indexes**, which is what makes the read one contiguous range; a plan is published over a layout where that holds, or not at all
   """
   keyAxis: String
+
+  """
+  (SPARSE) The name the worker holds the value bound to `keyAxis` under -- what `keyColumns[].axis` is for a table. Equal to `keyAxis` on a landing, where the sample produced it under the axis' name; the parent row's column name on a hop into a matrix
+  """
+  keyHeld: String
 
   """
   (SPARSE) What comes back is indexed by: every position along these axes that carries a value. **Not keys** -- the client supplies nothing for them and receives all of them, which is what makes this one object's whole profile. One axis at rank two, so a returned position is a single coordinate and a row of the table that axis references; two at rank three, where a position is raveled and unravels through `sparseArray.indexOrder` into one coordinate per entry here, in order
@@ -7612,9 +7675,9 @@ type Query {
   lineageGraph(coordinateSystem: ID!, maxDepth: Int = null): LineageGraph! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
-  Every attribute plan reachable from one system: one per FIELD edge landing on a table, discovered across the fact component -- probe a source image and the plans of the instance mask derived from it come back, each carrying the `path` of steps from the probed system to its root. Registrations are never crossed (no scene, no world). A plan is instructions, never attributes -- map along the path, sample this array, look the value up in this parquet -- and takes no coordinate, so a client fetches it once and executes it per hover against the chunks it is already rendering. Cache it against the FIELD edge plus every path step (ids and versions); `maxDepth` bounds the discovery. The server reads no store and composes nothing
+  Every attribute plan reachable from one system: one per FIELD edge landing on a table, discovered across the fact component -- probe a source image and the plans of the instance mask derived from it come back, each carrying the `path` of steps from the probed system to its root. Registrations are never crossed (no scene, no world). A plan is instructions, never attributes -- map along the path, sample this array, look the value up in this parquet -- and takes no coordinate, so a client fetches it once and executes it per hover against the chunks it is already rendering. Cache it against the FIELD edge plus every path step (ids and versions); `maxDepth` bounds the discovery. Each plan is a chain of `hops`: the landing, then every declared reference reachable from it -- `Column.references` into another table, a matrix axis a table identifies, or the same axis walked into the matrix -- up to `maxJoinDepth` (default 1, at most 4; 0 is the landing alone), each bound from the hop before and executed by the client in order. The server reads no store and composes nothing
   """
-  attributePlans(system: ID!, maxDepth: Int = null): [AttributePlan!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  attributePlans(system: ID!, maxDepth: Int = null, maxJoinDepth: Int! = 1): [AttributePlan!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
   Every column a mesh collection's objects can be coloured or filtered by: one entry per (joinPath, table, column), with the control its declared role admits. **The set this returns is exactly the set `createMeshLayer(colorBys:)` and `filterBys` accept** -- same reachability walk, same measure-vs-categorical rule -- which is what makes it an options query rather than a suggestion. Distinct from `attributePlans`, which answers a different question (how to execute a lookup per hover) over a different set: it walks the whole fact component and returns plans rooted at a source mask that mesh ids cannot execute, drops tables the write path accepts, and fails outright on a storeless array. Both pickers read these same options, because both branch on the same split. `joinPath` follows `references` from table to table -- pass an option's path back verbatim to select it. The columns' *values* are not here: a picker wanting a class list or a numeric range reads them from the parquet it already has an `accessGrant` for

@@ -351,6 +351,14 @@ class GraphTarget(str, Enum):
     "Segments only, each taking its start node's value; node glyphs keep the layer's base colour. The honest per-edge statement, since an edge owns no value of its own."
     __str__ = str.__str__
 
+class HopCardinality(str, Enum):
+    """How a hop's key values are bound. ONE: the worker holds a scalar per key -- the hover shape -- and binds it as one. MANY: it holds a set (every position a SPARSE step returned) and binds a list, and the lookup returns the key columns with each row so a row says which value it answers. A floor, not a guarantee: a ONE lookup can still return several rows, and a client that collected several parents may execute a ONE step as MANY"""
+    ONE = 'ONE'
+    "The bound value is a scalar: one id from the sample, or one row's column from the parent hop."
+    MANY = 'MANY'
+    'The bound value is a set: every position a SPARSE parent returned, or every row a MANY parent did. Bind a list; the keys come back per row.'
+    __str__ = str.__str__
+
 class IdentificationKind(str, Enum):
     """How one axis is identified -- the discriminator of `IdentificationInput`, and the same question whether the axis belongs to a sparse matrix or to a table. An axis of positions means nothing until something says what those positions *are*, and there are exactly these five ways to answer. Three of them author a FIELD edge, which is also what makes the data reachable from a layer over that source; `TABLE` and `NETWORK_COLLECTION_NODES` author none -- a table states a foreign key, and a node axis states which collection's nodes it enumerates, scoped by the sibling axis that collection's objects key"""
     DATASET = 'DATASET'
@@ -5947,20 +5955,6 @@ class AttributePlansQueryAttributePlansEdge(TransformationTrait, BaseModel):
     output: AttributePlansQueryAttributePlansEdgeOutput | None = Field(default=None)
     model_config = ConfigDict(frozen=True)
 
-class AttributePlansQueryAttributePlansTable(HasParquestStoreTrait, BaseModel):
-    """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
-    typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
-    id: ID
-    name: str
-    model_config = ConfigDict(frozen=True)
-
-class AttributePlansQueryAttributePlansSparseDataset(BaseModel):
-    """A sparse matrix over two enumerated axes -- objects on one, features on the other -- stored as anndata-spelled zarr groups. It exists because a colouring names one *column*, so a colourable measurement is a column of a table: right for a few hundred features and impossible for a transcriptome, where a feature stops being a schema fact and becomes a data one. **Each axis is identified exactly once**, by its own `identifiedBy` -- a source whose contents are the ids, or the table whose rows the positions are. Its stores, axes and coordinate system are fixed at creation; a recomputation is a new dataset"""
-    typename: Literal['SparseDataset'] = Field(alias='__typename', default='SparseDataset', exclude=True)
-    id: ID
-    name: str
-    model_config = ConfigDict(frozen=True)
-
 class AttributePlansQueryAttributePlansPathTransformationBase(BaseModel):
     """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
     id: ID
@@ -6063,14 +6057,44 @@ class AttributePlansQueryAttributePlansSampleBaseCatchAll(AttributePlansQueryAtt
     """Catch all class for AttributePlansQueryAttributePlansSampleBase"""
     typename: str = Field(alias='__typename', exclude=True)
 
-class AttributePlansQueryAttributePlansLookupStore(HasParquetStoreAccesor, BaseModel):
+class AttributePlansQueryAttributePlansHopsViaColumn(BaseModel):
+    """One declared column of a table dataset: its name, dtype and role. A COORDINATE column is also an axis of the table's space"""
+    typename: Literal['Column'] = Field(alias='__typename', default='Column', exclude=True)
+    name: str
+    dtype: str
+    model_config = ConfigDict(frozen=True)
+
+class AttributePlansQueryAttributePlansHopsVia(BaseModel):
+    """The schema fact one hop crosses. `column`: a `Column.references` hop -- the parent row's column whose values are row ids of the next table -- or, on a hop into a matrix, the parent table's INDEX column whose values are positions along `axis`. `axis`: the matrix axis crossed, in either direction. Whichever is set, its name is the name the hop's lookup binds under (`keyColumns[].axis` / `keyHeld`)"""
+    typename: Literal['HopVia'] = Field(alias='__typename', default='HopVia', exclude=True)
+    column: AttributePlansQueryAttributePlansHopsViaColumn | None = Field(default=None)
+    "The column whose values are bound: the parent row's reference column, or its INDEX column when the hop enters a matrix"
+    axis: str | None = Field(default=None)
+    "The matrix axis crossed: the parent slice's value axis when the hop leaves a matrix, the target's indexed axis when it enters one"
+    model_config = ConfigDict(frozen=True)
+
+class AttributePlansQueryAttributePlansHopsTable(HasParquestStoreTrait, BaseModel):
+    """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
+    typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
+    id: ID
+    name: str
+    model_config = ConfigDict(frozen=True)
+
+class AttributePlansQueryAttributePlansHopsSparseDataset(BaseModel):
+    """A sparse matrix over two enumerated axes -- objects on one, features on the other -- stored as anndata-spelled zarr groups. It exists because a colouring names one *column*, so a colourable measurement is a column of a table: right for a few hundred features and impossible for a transcriptome, where a feature stops being a schema fact and becomes a data one. **Each axis is identified exactly once**, by its own `identifiedBy` -- a source whose contents are the ids, or the table whose rows the positions are. Its stores, axes and coordinate system are fixed at creation; a recomputation is a new dataset"""
+    typename: Literal['SparseDataset'] = Field(alias='__typename', default='SparseDataset', exclude=True)
+    id: ID
+    name: str
+    model_config = ConfigDict(frozen=True)
+
+class AttributePlansQueryAttributePlansHopsLookupStore(HasParquetStoreAccesor, BaseModel):
     """No documentation"""
     typename: Literal['ParquetStore'] = Field(alias='__typename', default='ParquetStore', exclude=True)
     id: ID
     key: str
     model_config = ConfigDict(frozen=True)
 
-class AttributePlansQueryAttributePlansLookupSparseArrayStore(BaseModel):
+class AttributePlansQueryAttributePlansHopsLookupSparseArrayStore(BaseModel):
     """A sparse matrix stored as an anndata-spelled zarr group behind the S3 datalayer: `data`, `indices` and `indptr`, with the encoding, shape and chunking read from the group itself rather than declared. Its `encoding` says which axis `indptr` indexes, and so which question it answers in one contiguous read -- ask the other and there is no range to read at all."""
     typename: Literal['SparseStore'] = Field(alias='__typename', default='SparseStore', exclude=True)
     id: ID
@@ -6079,7 +6103,7 @@ class AttributePlansQueryAttributePlansLookupSparseArrayStore(BaseModel):
     'The version of the `sporadik` block this store was accepted under. A spec selects how every byte in the prefix is read, so an unknown one is refused rather than guessed at'
     model_config = ConfigDict(frozen=True)
 
-class AttributePlansQueryAttributePlansLookupSparseArray(BaseModel):
+class AttributePlansQueryAttributePlansHopsLookupSparseArray(BaseModel):
     """One stored layout of a sparse matrix: a store, and which axis its `indptr` indexes. The `DataArray` of this world and deliberately thinner -- two layouts are the same space holding the same values in a different order, so unlike a pyramid level there is no coordinate system and no edge, because there is nothing spatial to state"""
     typename: Literal['SparseArray'] = Field(alias='__typename', default='SparseArray', exclude=True)
     id: ID
@@ -6087,69 +6111,107 @@ class AttributePlansQueryAttributePlansLookupSparseArray(BaseModel):
     "Where this layout sits inside the store's prefix, e.g. `layouts/csr_matrix`. Open the group at this path, not at the store root"
     indexed_axis: int = Field(alias='indexedAxis')
     "Which axis of the dataset this layout's `indptr` indexes, as a position in the declared axis order. Selecting one position along it is a single contiguous read; selecting along the other axis is a scan of everything, which is why a dataset that must answer both questions holds two of these"
-    store: AttributePlansQueryAttributePlansLookupSparseArrayStore
+    store: AttributePlansQueryAttributePlansHopsLookupSparseArrayStore
     'The store holding this layout. Both layouts of one matrix share it -- one matrix is one upload -- so `path` is what says which of them this is. Ask the store for an access grant and read the three arrays directly'
     model_config = ConfigDict(frozen=True)
 
-class AttributePlansQueryAttributePlansLookupKeyColumnsColumn(BaseModel):
+class AttributePlansQueryAttributePlansHopsLookupKeyColumnsColumn(BaseModel):
     """One declared column of a table dataset: its name, dtype and role. A COORDINATE column is also an axis of the table's space"""
     typename: Literal['Column'] = Field(alias='__typename', default='Column', exclude=True)
     name: str
     dtype: str
     model_config = ConfigDict(frozen=True)
 
-class AttributePlansQueryAttributePlansLookupKeyColumns(BaseModel):
+class AttributePlansQueryAttributePlansHopsLookupKeyColumns(BaseModel):
     """One key binding of a lookup: the sampled or passthrough value named `axis` binds the parquet column `column`. For a depth-1 plan the two names coincide by construction (a coordinate column and its derived axis are the same fact), but the worker should always bind by this pair: values live under axis names, columns live in a file, and the plan is the bridge"""
     typename: Literal['PlanKeyColumn'] = Field(alias='__typename', default='PlanKeyColumn', exclude=True)
     axis: str
     'The name the worker holds the value under: a passthrough axis of the sampled array (e.g. `t`) or an axis the sample produced (e.g. `i`)'
-    column: AttributePlansQueryAttributePlansLookupKeyColumnsColumn
+    column: AttributePlansQueryAttributePlansHopsLookupKeyColumnsColumn
     'The declared coordinate column this value binds, carrying the parquet column name and its dtype'
     model_config = ConfigDict(frozen=True)
 
-class AttributePlansQueryAttributePlansLookupAttributes(BaseModel):
+class AttributePlansQueryAttributePlansHopsLookupAttributes(BaseModel):
     """One declared column of a table dataset: its name, dtype and role. A COORDINATE column is also an axis of the table's space"""
     typename: Literal['Column'] = Field(alias='__typename', default='Column', exclude=True)
     name: str
     dtype: str
     model_config = ConfigDict(frozen=True)
 
-class AttributePlansQueryAttributePlansLookup(BaseModel):
-    """The duckdb half of a plan: look the sampled value up in the parquet. Bind order for `sql` is the parquet path/URL first (the read_parquet argument, supplied by the worker from its own access grant), then the key values in `keyColumns` order. Do not assume one row per point: (t, i) uniqueness is a convention no unique index backs, so the worker gets rows, plural"""
+class AttributePlansQueryAttributePlansHopsLookup(BaseModel):
+    """The lookup half of a hop: read the rows (TABLE) or the slice (SPARSE) the held value identifies. There is no statement here, deliberately -- a TABLE lookup is `keyColumns` and `attributes`, and the DuckDB statement is derived from them by the worker (`core/logic/plan_sql.py`, a standard-library-only module the client carries unchanged): `SELECT <attributes> FROM read_parquet(?) WHERE <key> = ? ...`, bound with the parquet path/URL first (from the worker's own access grant) and then the key values in `keyColumns` order; a MANY hop binds lists and selects the keys too. Do not assume one row per point: (t, i) uniqueness is a convention no unique index backs, so the worker gets rows, plural"""
     typename: Literal['LookupStep'] = Field(alias='__typename', default='LookupStep', exclude=True)
     kind: str
     'Which shape this lookup is: `TABLE` for a row of a parquet, `SPARSE` for a slice of a matrix. The fields of the other shape are null -- a flat discriminator rather than an interface, which over these two would carry nothing in common'
-    sql: str | None = Field(default=None)
-    '(TABLE) The parameterized DuckDB statement: identifiers from validated declared columns and quoted, values as `?` placeholders, never interpolated. Bind the parquet path first, then the key values in `keyColumns` order. A non-duckdb consumer ignores this and reads `keyColumns` + `attributes` instead'
-    store: AttributePlansQueryAttributePlansLookupStore | None = Field(default=None)
+    store: AttributePlansQueryAttributePlansHopsLookupStore | None = Field(default=None)
     '(TABLE) The parquet store holding the rows. Ask it for an accessGrant to actually read it -- credentials and locations never appear in a plan'
-    sparse_array: AttributePlansQueryAttributePlansLookupSparseArray | None = Field(default=None, alias='sparseArray')
+    sparse_array: AttributePlansQueryAttributePlansHopsLookupSparseArray | None = Field(default=None, alias='sparseArray')
     '(SPARSE) The layout to read. Ask its `store` for an accessGrant, open the group at its `path` -- both layouts of a matrix live in one prefix, so the store alone does not say which -- then make two reads: `indptr[i:i+2]` at the id, and the range those two offsets name in `indices` and `data`. There is no SQL and no database in the path'
     key_axis: str | None = Field(default=None, alias='keyAxis')
-    "(SPARSE) The axis the sampled id is bound to -- what `keyColumns` is for a table. **Always the axis that layout's `indptr` indexes**, which is what makes the read one contiguous range; a plan is published over a layout where that holds, or not at all"
+    "(SPARSE) The axis the held id is bound to -- what `keyColumns` is for a table. **Always the axis that layout's `indptr` indexes**, which is what makes the read one contiguous range; a plan is published over a layout where that holds, or not at all"
+    key_held: str | None = Field(default=None, alias='keyHeld')
+    "(SPARSE) The name the worker holds the value bound to `keyAxis` under -- what `keyColumns[].axis` is for a table. Equal to `keyAxis` on a landing, where the sample produced it under the axis' name; the parent row's column name on a hop into a matrix"
     value_axes: tuple[str, ...] = Field(alias='valueAxes')
     "(SPARSE) What comes back is indexed by: every position along these axes that carries a value. **Not keys** -- the client supplies nothing for them and receives all of them, which is what makes this one object's whole profile. One axis at rank two, so a returned position is a single coordinate and a row of the table that axis references; two at rank three, where a position is raveled and unravels through `sparseArray.indexOrder` into one coordinate per entry here, in order"
-    key_columns: tuple[AttributePlansQueryAttributePlansLookupKeyColumns, ...] = Field(alias='keyColumns')
-    '(TABLE) The key bindings, in bind order: each names the value the worker holds (by axis name) and the parquet column it binds'
-    attributes: tuple[AttributePlansQueryAttributePlansLookupAttributes, ...]
-    "(TABLE) What the SQL selects -- every declared non-coordinate column, never `*`. A column whose `references` names another table holds row ids of that table; following them is the client's choice, one more lookup away"
+    key_columns: tuple[AttributePlansQueryAttributePlansHopsLookupKeyColumns, ...] = Field(alias='keyColumns')
+    "(TABLE) The key bindings, in bind order: each names the value the worker holds (by axis name, or by the parent hop's column or axis name) and the parquet column it binds"
+    attributes: tuple[AttributePlansQueryAttributePlansHopsLookupAttributes, ...]
+    "(TABLE) What the statement selects -- every declared non-coordinate column, never `*`. A column whose `references` names another table holds row ids of that table; the plan's later hops say where they lead"
+    model_config = ConfigDict(frozen=True)
+
+class AttributePlansQueryAttributePlansHopsJoinPathTable(HasParquestStoreTrait, BaseModel):
+    """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
+    typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
+    id: ID
+    model_config = ConfigDict(frozen=True)
+
+class AttributePlansQueryAttributePlansHopsJoinPathColumn(BaseModel):
+    """One declared column of a table dataset: its name, dtype and role. A COORDINATE column is also an axis of the table's space"""
+    typename: Literal['Column'] = Field(alias='__typename', default='Column', exclude=True)
+    name: str
+    model_config = ConfigDict(frozen=True)
+
+class AttributePlansQueryAttributePlansHopsJoinPath(BaseModel):
+    """One hop of a join path: the column whose values identify rows of the next table"""
+    typename: Literal['ColumnOptionJoinStep'] = Field(alias='__typename', default='ColumnOptionJoinStep', exclude=True)
+    table: AttributePlansQueryAttributePlansHopsJoinPathTable
+    'The table this hop stands in'
+    column: AttributePlansQueryAttributePlansHopsJoinPathColumn
+    'The column of it whose `references` identifies rows of the next table'
+    model_config = ConfigDict(frozen=True)
+
+class AttributePlansQueryAttributePlansHops(BaseModel):
+    """One step of a plan's chain through record-land. `hops[0]` is the landing -- the FIELD edge's own target, bound from `sample` -- and every later hop binds from the rows or slice its `parent` returned, under the name `via` states, and lands one declared reference further: a `Column.references`, a matrix axis a table identifies, or the same axis walked into the matrix. Execute in list order; a hop's parent always precedes it. `cardinality` says whether to bind a scalar or a list. The server describes the chain and reads nothing; the client runs it hop by hop with grants it already holds"""
+    typename: Literal['Hop'] = Field(alias='__typename', default='Hop', exclude=True)
+    index: int
+    "This hop's position in `hops`, what a child names as its `parent`"
+    parent: int | None = Field(default=None)
+    'The hop whose result this one binds from. Null only on `hops[0]`, which binds from `sample`'
+    cardinality: HopCardinality
+    'ONE: bind each key as a scalar. MANY: bind each as a list (every position a SPARSE parent returned) and expect the keys back per row. A floor: a ONE lookup may still return several rows'
+    via: AttributePlansQueryAttributePlansHopsVia | None = Field(default=None)
+    "The declared reference this hop crosses. Null on `hops[0]`, whose crossing is the plan's `edge`"
+    table: AttributePlansQueryAttributePlansHopsTable | None = Field(default=None)
+    'The table this hop lands in: the home of its attributes and their `references`. One or the other with `sparseDataset`, never both'
+    sparse_dataset: AttributePlansQueryAttributePlansHopsSparseDataset | None = Field(default=None, alias='sparseDataset')
+    'The matrix this hop lands in, when `lookup.kind` is SPARSE'
+    lookup: AttributePlansQueryAttributePlansHopsLookup
+    'How to read what this hop lands in: the rows of a parquet or a slice of a matrix'
+    join_path: tuple[AttributePlansQueryAttributePlansHopsJoinPath, ...] = Field(alias='joinPath')
+    "The picker's name for this hop: the `(table, column)` reference steps from the landing table to here, exactly what a layer's `colorBys[].joinPath` stores -- so a stored colouring finds the hop that resolves it, and its key column, here. Empty on `hops[0]`, and empty once the chain has crossed a matrix, which no `joinPath` can name"
     model_config = ConfigDict(frozen=True)
 
 class AttributePlansQueryAttributePlans(BaseModel):
-    """One executable answer to 'what is under this point?': map the point along `path` if the plan is not rooted where you probed, sample the field array, then look the value up in the table's parquet. Plans are discovered across the fact component -- probe a source image and the plans of the instance mask derived from it are found through the derivation edge -- but never through a registration: which claims compose is a scene's say-so, and this query has no scene. A plan takes no coordinate -- it is the same plan for every point, so fetch it once, cache it, and execute per hover locally with zero round-trips. attributePlans returns instructions, never attributes: anything that wants values runs the plan"""
+    """One executable answer to 'what is under this point?': map the point along `path` if the plan is not rooted where you probed, sample the field array, then run the hops -- the landing first, then every declared reference reachable from it, each bound from the one before. Plans are discovered across the fact component -- probe a source image and the plans of the instance mask derived from it are found through the derivation edge -- but never through a registration: which claims compose is a scene's say-so, and this query has no scene. A plan takes no coordinate -- it is the same plan for every point, so fetch it once, cache it, and execute per hover locally with zero round-trips. attributePlans returns instructions, never attributes: anything that wants values runs the plan"""
     typename: Literal['AttributePlan'] = Field(alias='__typename', default='AttributePlan', exclude=True)
     edge: AttributePlansQueryAttributePlansEdge
     "The FIELD edge this plan was built from. The plan's cache key is this edge's (id, version) together with every `path` step's transformation (id, version): the stores and columns of a table are written once, so a deleted or version-bumped edge -- the FIELD, or any step on the way to it -- is the only thing that can stale a cached plan"
-    table: AttributePlansQueryAttributePlansTable | None = Field(default=None)
-    'The table the plan lands in: the home of the attributes, its columns and their `references`'
-    sparse_dataset: AttributePlansQueryAttributePlansSparseDataset | None = Field(default=None, alias='sparseDataset')
-    'The matrix the plan lands in, when `lookup.kind` is SPARSE. One or the other, never both'
     path: tuple[AttributePlansQueryAttributePlansPath, ...]
     "The steps from the PROBED system to this plan's root (the FIELD edge's input system -- equal to `sample.system` when the mask's own pixels are the map). Empty when the plan is rooted where you probed. Compose in order, inverting the flagged steps, to map a probed-space point into the space `consumes` and `passthrough` are stated in -- the same contract as `pathToWorld`. The path crosses derivations, levels, lenses and physical spaces, never a registration"
     sample: Annotated[AttributePlansQueryAttributePlansSampleBaseArraySample | AttributePlansQueryAttributePlansSampleBaseMeshSample | AttributePlansQueryAttributePlansSampleBaseNetworkSample, Field(discriminator='typename')] | AttributePlansQueryAttributePlansSampleBaseCatchAll
-    'Where the id comes from: an `ArraySample` to read at the (path-mapped) point, or a `MeshSample` whose id the client already picked'
-    lookup: AttributePlansQueryAttributePlansLookup
-    'The duckdb half: look the id up in the parquet'
+    'Where the id comes from: an `ArraySample` to read at the (path-mapped) point, or a `MeshSample`/`NetworkSample` whose id the client already picked'
+    hops: tuple[AttributePlansQueryAttributePlansHops, ...]
+    "The chain, in execution order. `hops[0]` is the landing: the table or matrix the FIELD edge's id keys, bound from `sample`. Each later hop crosses one declared reference from a parent hop, up to the query's `maxJoinDepth`. A client that only wants the landing reads `hops[0]`"
     model_config = ConfigDict(frozen=True)
 
 class AttributePlansQuery(BaseModel):
@@ -6157,22 +6219,25 @@ class AttributePlansQuery(BaseModel):
 
  A plan is instructions, never attributes -- map along `path`, get the id from the sample
  step (read the array for an ArraySample, use the picked mesh id for a MeshSample), then
- look it up in the parquet -- and it takes no coordinate, so a client fetches it
- once and executes it per hover locally. This selection is deliberately lean: the ids and
- axis lists that say *which* map was found, plus the SQL and key columns a worker needs to
- run it. Anything wanting the full table metadata queries it by id. The sample step is the
- one exception -- it spreads the whole store fragment, for the codegen reason noted below."""
+ run the `hops`: the landing first, then every declared reference reachable from it, each
+ bound from the one before -- and it takes no coordinate, so a client fetches it once and
+ executes it per hover locally. This selection is deliberately lean: the ids and axis
+ lists that say *which* map was found, plus the key columns and attributes a worker needs
+ to run each hop. Anything wanting the full table metadata queries it by id. The sample
+ step is the one exception -- it spreads the whole store fragment, for the codegen reason
+ noted below."""
     attribute_plans: tuple[AttributePlansQueryAttributePlans, ...] = Field(alias='attributePlans')
-    'Every attribute plan reachable from one system: one per FIELD edge landing on a table, discovered across the fact component -- probe a source image and the plans of the instance mask derived from it come back, each carrying the `path` of steps from the probed system to its root. Registrations are never crossed (no scene, no world). A plan is instructions, never attributes -- map along the path, sample this array, look the value up in this parquet -- and takes no coordinate, so a client fetches it once and executes it per hover against the chunks it is already rendering. Cache it against the FIELD edge plus every path step (ids and versions); `maxDepth` bounds the discovery. The server reads no store and composes nothing'
+    'Every attribute plan reachable from one system: one per FIELD edge landing on a table, discovered across the fact component -- probe a source image and the plans of the instance mask derived from it come back, each carrying the `path` of steps from the probed system to its root. Registrations are never crossed (no scene, no world). A plan is instructions, never attributes -- map along the path, sample this array, look the value up in this parquet -- and takes no coordinate, so a client fetches it once and executes it per hover against the chunks it is already rendering. Cache it against the FIELD edge plus every path step (ids and versions); `maxDepth` bounds the discovery. Each plan is a chain of `hops`: the landing, then every declared reference reachable from it -- `Column.references` into another table, a matrix axis a table identifies, or the same axis walked into the matrix -- up to `maxJoinDepth` (default 1, at most 4; 0 is the landing alone), each bound from the hop before and executed by the client in order. The server reads no store and composes nothing'
 
     class Arguments(BaseModel):
         """Arguments for AttributePlans """
         system: ID
         max_depth: int | None = Field(validation_alias=AliasChoices('max_depth', 'maxDepth'), serialization_alias='maxDepth', default=None)
+        max_join_depth: Annotated[int | None, GraphQLDefault('1')] = Field(validation_alias=AliasChoices('max_join_depth', 'maxJoinDepth'), serialization_alias='maxJoinDepth', default=None)
 
     class Meta:
         """Meta class for AttributePlans """
-        document = 'fragment FabriksStore on FabriksStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  __typename\n}\n\nfragment KonnektionStore on KonnektionStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  attributes\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nquery AttributePlans($system: ID!, $maxDepth: Int) {\n  attributePlans(system: $system, maxDepth: $maxDepth) {\n    edge {\n      id\n      kind\n      name\n      version\n      validity\n      inputAxes\n      outputAxes\n      input {\n        id\n        name\n        __typename\n      }\n      output {\n        id\n        name\n        __typename\n      }\n      __typename\n    }\n    table {\n      id\n      name\n      __typename\n    }\n    sparseDataset {\n      id\n      name\n      __typename\n    }\n    path {\n      inverted\n      transformation {\n        id\n        kind\n        version\n        __typename\n      }\n      __typename\n    }\n    sample {\n      consumes\n      produces\n      passthrough\n      system {\n        id\n        name\n        __typename\n      }\n      ... on ArraySample {\n        store {\n          ...ZarrStore\n        }\n      }\n      ... on MeshSample {\n        store {\n          ...FabriksStore\n        }\n      }\n      ... on NetworkSample {\n        store {\n          ...KonnektionStore\n        }\n      }\n      __typename\n    }\n    lookup {\n      kind\n      sql\n      store {\n        id\n        key\n        __typename\n      }\n      sparseArray {\n        id\n        path\n        indexedAxis\n        store {\n          id\n          key\n          spec\n          __typename\n        }\n        __typename\n      }\n      keyAxis\n      valueAxes\n      keyColumns {\n        axis\n        column {\n          name\n          dtype\n          __typename\n        }\n        __typename\n      }\n      attributes {\n        name\n        dtype\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n}'
+        document = 'fragment FabriksStore on FabriksStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  __typename\n}\n\nfragment KonnektionStore on KonnektionStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  attributes\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nquery AttributePlans($system: ID!, $maxDepth: Int, $maxJoinDepth: Int! = 1) {\n  attributePlans(\n    system: $system\n    maxDepth: $maxDepth\n    maxJoinDepth: $maxJoinDepth\n  ) {\n    edge {\n      id\n      kind\n      name\n      version\n      validity\n      inputAxes\n      outputAxes\n      input {\n        id\n        name\n        __typename\n      }\n      output {\n        id\n        name\n        __typename\n      }\n      __typename\n    }\n    path {\n      inverted\n      transformation {\n        id\n        kind\n        version\n        __typename\n      }\n      __typename\n    }\n    sample {\n      consumes\n      produces\n      passthrough\n      system {\n        id\n        name\n        __typename\n      }\n      ... on ArraySample {\n        store {\n          ...ZarrStore\n        }\n      }\n      ... on MeshSample {\n        store {\n          ...FabriksStore\n        }\n      }\n      ... on NetworkSample {\n        store {\n          ...KonnektionStore\n        }\n      }\n      __typename\n    }\n    hops {\n      index\n      parent\n      cardinality\n      via {\n        column {\n          name\n          dtype\n          __typename\n        }\n        axis\n        __typename\n      }\n      table {\n        id\n        name\n        __typename\n      }\n      sparseDataset {\n        id\n        name\n        __typename\n      }\n      lookup {\n        kind\n        store {\n          id\n          key\n          __typename\n        }\n        sparseArray {\n          id\n          path\n          indexedAxis\n          store {\n            id\n            key\n            spec\n            __typename\n          }\n          __typename\n        }\n        keyAxis\n        keyHeld\n        valueAxes\n        keyColumns {\n          axis\n          column {\n            name\n            dtype\n            __typename\n          }\n          __typename\n        }\n        attributes {\n          name\n          dtype\n          __typename\n        }\n        __typename\n      }\n      joinPath {\n        table {\n          id\n          __typename\n        }\n        column {\n          name\n          __typename\n        }\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n}'
 
 class LabelColorByOptionsQuery(BaseModel):
     """ Rooted on a lens -- what a label layer over that lens can be coloured by."""
@@ -12023,21 +12088,24 @@ Returns:
         variables['offset'] = offset
     return execute(SearchArrayDatasetsQuery, variables, rath=rath).options
 
-async def aattribute_plans(system: IDCoercible, max_depth: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[AttributePlansQueryAttributePlans, ...]:
+async def aattribute_plans(system: IDCoercible, max_depth: int | None | UnsetType=UNSET, max_join_depth: int | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[AttributePlansQueryAttributePlans, ...]:
     """AttributePlans 
  Every attribute plan reachable from one system: one per FIELD edge landing on a table.
 
  A plan is instructions, never attributes -- map along `path`, get the id from the sample
  step (read the array for an ArraySample, use the picked mesh id for a MeshSample), then
- look it up in the parquet -- and it takes no coordinate, so a client fetches it
- once and executes it per hover locally. This selection is deliberately lean: the ids and
- axis lists that say *which* map was found, plus the SQL and key columns a worker needs to
- run it. Anything wanting the full table metadata queries it by id. The sample step is the
- one exception -- it spreads the whole store fragment, for the codegen reason noted below.
+ run the `hops`: the landing first, then every declared reference reachable from it, each
+ bound from the one before -- and it takes no coordinate, so a client fetches it once and
+ executes it per hover locally. This selection is deliberately lean: the ids and axis
+ lists that say *which* map was found, plus the key columns and attributes a worker needs
+ to run each hop. Anything wanting the full table metadata queries it by id. The sample
+ step is the one exception -- it spreads the whole store fragment, for the codegen reason
+ noted below.
 
 Args:
     system (ID): No description
     max_depth (int | None, optional): No description. 
+    max_join_depth (int, optional): No description. Defaults to 1
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
@@ -12047,23 +12115,28 @@ Returns:
     variables['system'] = system
     if max_depth is not UNSET:
         variables['maxDepth'] = max_depth
+    if max_join_depth is not UNSET:
+        variables['maxJoinDepth'] = max_join_depth
     return (await aexecute(AttributePlansQuery, variables, rath=rath)).attribute_plans
 
-def attribute_plans(system: IDCoercible, max_depth: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[AttributePlansQueryAttributePlans, ...]:
+def attribute_plans(system: IDCoercible, max_depth: int | None | UnsetType=UNSET, max_join_depth: int | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[AttributePlansQueryAttributePlans, ...]:
     """AttributePlans 
  Every attribute plan reachable from one system: one per FIELD edge landing on a table.
 
  A plan is instructions, never attributes -- map along `path`, get the id from the sample
  step (read the array for an ArraySample, use the picked mesh id for a MeshSample), then
- look it up in the parquet -- and it takes no coordinate, so a client fetches it
- once and executes it per hover locally. This selection is deliberately lean: the ids and
- axis lists that say *which* map was found, plus the SQL and key columns a worker needs to
- run it. Anything wanting the full table metadata queries it by id. The sample step is the
- one exception -- it spreads the whole store fragment, for the codegen reason noted below.
+ run the `hops`: the landing first, then every declared reference reachable from it, each
+ bound from the one before -- and it takes no coordinate, so a client fetches it once and
+ executes it per hover locally. This selection is deliberately lean: the ids and axis
+ lists that say *which* map was found, plus the key columns and attributes a worker needs
+ to run each hop. Anything wanting the full table metadata queries it by id. The sample
+ step is the one exception -- it spreads the whole store fragment, for the codegen reason
+ noted below.
 
 Args:
     system (ID): No description
     max_depth (int | None, optional): No description. 
+    max_join_depth (int, optional): No description. Defaults to 1
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
@@ -12073,6 +12146,8 @@ Returns:
     variables['system'] = system
     if max_depth is not UNSET:
         variables['maxDepth'] = max_depth
+    if max_join_depth is not UNSET:
+        variables['maxJoinDepth'] = max_join_depth
     return execute(AttributePlansQuery, variables, rath=rath).attribute_plans
 
 async def alabel_color_by_options(lens: IDCoercible, filters: ColumnOptionFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, max_join_depth: int | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[ColorByOption, ...]:
