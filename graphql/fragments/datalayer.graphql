@@ -1,0 +1,158 @@
+fragment BigFileUploadGrant on BigFileUploadGrant {
+  accessKey
+  secretKey
+  sessionToken
+  path
+  key
+  bucket
+  expiresIn
+  store
+}
+
+
+fragment MediaUploadGrant on MediaUploadGrant {
+  accessKey
+  secretKey
+  sessionToken
+  path
+  key
+  bucket
+  expiresIn
+  maxBytes
+  store
+}
+
+
+fragment ZarrUploadGrant on ZarrUploadGrant {
+  accessKey
+  secretKey
+  sessionToken
+  path
+  key
+  bucket
+  expiresIn
+  maxBytes
+  store
+}
+
+
+fragment ParquetUploadGrant on ParquetUploadGrant {
+  accessKey
+  secretKey
+  sessionToken
+  path
+  key
+  bucket
+  expiresIn
+  maxBytes
+  store
+}
+
+
+
+# A fabriks store is a whole prefix rather than one object, and the grant covers it: the
+# manifest, both catalogs and every level under one set of credentials, with read and delete
+# inside it because the tree is written incrementally and `fabriks.json` lands last.
+fragment FabriksUploadGrant on FabriksUploadGrant {
+  accessKey
+  secretKey
+  sessionToken
+  path
+  key
+  bucket
+  expiresIn
+  maxBytes
+  store
+}
+
+fragment KonnektionUploadGrant on KonnektionUploadGrant {
+  accessKey
+  secretKey
+  sessionToken
+  path
+  key
+  bucket
+  expiresIn
+  maxBytes
+  store
+}
+
+
+
+fragment BigFileAccessGrant on BigFileAccessGrant {
+  accessKey
+  secretKey
+  sessionToken
+  expiresIn
+  path
+  key
+  bucket
+}
+
+
+fragment MediaAccessGrant on MediaAccessGrant {
+  accessKey
+  secretKey
+  sessionToken
+  expiresIn
+  path
+  key
+  bucket
+}
+
+
+
+fragment ZarrAccessGrant on ZarrAccessGrant {
+  accessKey
+  secretKey
+  sessionToken
+  expiresIn
+  path
+  key
+  bucket
+}
+
+
+fragment ParquetAccessGrant on ParquetAccessGrant {
+  accessKey
+  secretKey
+  sessionToken
+  expiresIn
+  path
+  key
+  bucket
+}
+
+
+fragment FabriksAccessGrant on FabriksAccessGrant {
+  accessKey
+  secretKey
+  sessionToken
+  expiresIn
+  path
+  key
+  bucket
+}
+
+fragment KonnektionAccessGrant on KonnektionAccessGrant {
+  accessKey
+  secretKey
+  sessionToken
+  expiresIn
+  path
+  key
+  bucket
+}
+
+
+fragment SparseUploadGrant on SparseUploadGrant {
+  accessKey
+  secretKey
+  sessionToken
+  path
+  key
+  bucket
+  expiresIn
+  maxBytes
+  store
+}

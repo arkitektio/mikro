@@ -1,0 +1,23 @@
+mutation CreateFolder($input: CreateFolderInput!) {
+  createFolder(input: $input) {
+    ...Folder
+  }
+}
+
+mutation EnsureFolder($input: CreateFolderInput!) {
+  ensureFolder(input: $input) {
+    ...Folder
+  }
+}
+
+mutation UpdateFolder($input: ChangeFolderInput!) {
+  updateFolder(input: $input) {
+   ...Folder
+  }
+}
+
+mutation RevertFolder($input: RevertInput!) {
+  revertFolder(input: $input) {
+    ...Folder
+  }
+}

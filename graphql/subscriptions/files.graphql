@@ -1,0 +1,11 @@
+subscription WatchFiles($folder: ID) {
+  files(folder: $folder) {
+    create {
+      ...File
+    }
+    delete
+    update {
+      ...File
+    }
+  }
+}

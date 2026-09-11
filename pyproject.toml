@@ -1,32 +1,106 @@
-[tool.poetry]
-name = "mikro"
-version = "0.3.95"
-description = "images for arkitekt"
-authors = ["jhnnsrs <jhnnsrs@gmail.com>"]
-license = "CC BY-NC 3.0"
-packages = [{ include = "mikro" }]
+[project]
+name = "mikro-next"
+version = "2.1.1"
+description = "next images for arkitekt"
+authors = [{ name = "jhnnsrs", email = "jhnnsrs@gmail.com" }]
+requires-python = ">=3.11"
+readme = "README.md"
+license = "MIT"
+dependencies = [
+    "zarr>=3.1",
+    "xarray>=2024.11.0",
+    "dask>=2024.12.1",
+    "rath>=3.12",
+    "numpy>=1.26; python_version ~= '3.12'",
+    "websockets>=15.0.1",
+    "pytest>=8.3.5",
+    "fakts-next>=2",
+    "numcodecs>=0.16.1",
+    "obstore>=0.10.0",
+    "kanne>=2.5.0",
+]
 
-[tool.poetry.dependencies]
-python = "^3.8"
-zarr = ">=2.14.2"
-xarray = ">=2022.12.0"
-s3fs = ">=2023.1.0"
-pandas = ">=1.5.3"
-pyarrow = ">=11.0"
-dask = ">=2023.3.0"
-rath = ">=0.5.0"
+[project.optional-dependencies]
+turms = []
+table = ["pyarrow>=12.0.1", "pandas>=2.2", "duckdb>=1.0"]
+# `fabriks` is the wire format: it owns the octree, the codecs and the simplifiers, and pulls
+# in everything that takes part in building a collection (trimesh, shapely, scipy,
+# fast-simplification). Its `[meshopt]` extra is deliberately *not* here: `codec` defaults to
+# `NONE`, so nothing on the default path needs a decoder on either side of the wire.
+mesh = ["fabriks>=1.0", "pyarrow>=12.0.1"]
+# `konnektion` is the graph wire format: it owns the octree, the codecs and the coarsening, the
+# way `fabriks` owns them for surfaces. A separate extra rather than a widening of `mesh`,
+# because they are separate formats and a client that only ever uploads meshes should not carry
+# the other one. Its dependency list is much shorter than fabriks's -- numpy and pyarrow, no
+# geometry stack -- because a graph is cut by assigning nodes rather than by intersecting.
+network = ["konnektion>=0.1", "pyarrow>=12.0.1"]
+# `codec="MESHOPT"`, for a caller whose renderer ships the EXT_meshopt_compression decoder.
+meshopt = ["fabriks[meshopt]>=1.0", "pyarrow>=12.0.1"]
+# `sporadik` is the sparse wire format, and an extra for the same reason `fabriks` is: it owns the
+# layout, the block and the invariants, and a client that never uploads a sparse dataset should not
+# carry them. It needs nothing beyond numpy and zarr, both of which are core dependencies here
+# already, so this extra costs a caller one small pure-Python package and no transitive weight.
+sparse = ["sporadik>=0.1"]
+complete = ["fabriks[meshopt]>=1.0", "konnektion>=0.1", "sporadik>=0.1", "pyarrow>=12.0.1", "pandas>=2.2", "duckdb>=1.0"]
+# Installed inside the semantic-release Docker action so build_command has uv.
+build = ["uv>=0.7.12"]
 
-[tool.poetry.extras]
-turms = ["turms"]
 
-[tool.mypy]
-exclude = ["venv/", "tests/", "examples/"]
-ignore_missing_imports = true
+[tool.uv]
+dev-dependencies =  [
+    "pytest-asyncio>=0.26.0",
+    "pytest-cov>=6.1.1",
+    "pytest>=8.3.5",
+    "python-semantic-release>=9.21.0",
+    "autoflake>=1.7.7,<2",
+    "aiohttp>=3.8.3,<4",
+    "black>=23.1.0,<24",
+    "pytest-aiohttp>=1.0.4,<2",
+    "ruff>0.11",
+    "cryptography>=44.0.3",
+    "pyjwt>=2.10.1",
+    "dokker>=2.8",
+    "pillow>=11.2.1",
+    # Test-only: a real path/file-object reader to check `RemoteFile` against, since
+    # the point of that class is that unmodified readers work through it.
+    "tifffile>=2024.1.30",
+    # The example generators (examples/) that the integration suite runs end-to-end:
+    # marching_cubes for the glass-brain meshes.
+    "scikit-image>=0.22",
+    "fakts-next>=4",
+    "rekuest-next>=0.12.2",
+    "pyarrow>=24",
+    "arkitekt-next==0.17",
+    "duckdb>=1.5.3",
+    "basedpyright>=1.21",
+    # The sparse wire format. An extra for callers (see `[project.optional-dependencies]`),
+    # but a dev dependency here, because `SporadikLike.validate` -- and therefore every test
+    # of the sparse declaration path -- cannot run without it. It was absent, which is why
+    # that path had no tests at all. >=1.1 because the example generators build their
+    # matrices through `sporadik.SparseArray`, which 1.0 does not have.
+    "sporadik>=1.1",
+    # rekuest-next imports `janus` without declaring it, so it never arrives
+    # transitively — and without it `mikro_next.specs` cannot be imported and
+    # `tests/test_specs.py` skips itself. Drop this once rekuest declares it.
+    "janus>=1.0",
+]
+
+[tool.hatch.build.targets.sdist]
+include = ["mikro_next"]
+
+[tool.hatch.build.targets.wheel]
+include = ["mikro_next"]
+
+
+[tool.basedpyright]
+include = ["mikro_next"]
+exclude = ["**/__pycache__", "tests"]
+typeCheckingMode = "standard"
+
+[tool.ruff.lint]
+extend-select = ["ANN", "D1"]
 
 [tool.ruff]
-extend-select = ["ANN", "D1"]
-extend-ignore = ["ANN101", "ANN002", "ANN003", "D100", "ANN401"]
-
 # Exclude a variety of commonly ignored directories.
 exclude = [
     ".bzr",
@@ -49,46 +123,63 @@ exclude = [
     "dist",
     "node_modules",
     "venv",
-    "tests",
-    "examples",
 ]
 
 # Same as Black.
-line-length = 300
-
-[tool.poetry.group.dev.dependencies]
-httpx = "^0.23.0"
-autoflake = "^1.7.7"
-pytest = "^7.2.0"
-testcontainers = "^3.7.0"
-pytest-qt = "^4.2.0"
-pytest-asyncio = "^0.20.2"
-aiohttp = "^3.8.3"
-websockets = "^10.4"
-black = ">=22"
-pytest-cov = "^4.0.0"
-ruff = "^0.0.282"
-mypy = "^1.7.1"
-pydoc-markdown = "^4.8.2"
-types-toml = "^0.10.8.7"
-types-pyyaml = "^6.0.12.12"
-pyarrow = "^14.0.1"
-
-[build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+line-length = 100
 
 [tool.pytest.ini_options]
-qt_api = "pyqt5"
 markers = [
-    "integration: marks tests that require a running server",
-    "qt: marks tests that require a running qt application",
+    "integration: marks tests that require a deployment via testcontainers",
+    "linux_only: marks tests that only run on Linux",
+    "no_windows: marks tests that are skipped on Windows",
 ]
 
-[[tool.pydoc-markdown.loaders]]
-type = "python"
-search_path = ["mikro"]
 
-[tool.pydoc-markdown.renderer]
-type = "docusaurus"
-docs_base_path = "website/docs"
+
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version"]
+# The semantic-release GitHub Action runs in a Docker container without uv, so
+# install it first (the `build` extra). After PSR bumps the version in
+# pyproject.toml, re-sync just this package's entry in uv.lock and stage it so
+# the release commit carries a consistent lock. $PACKAGE_NAME is injected by PSR.
+build_command = """
+    python -m pip install -e '.[build]'
+    uv lock --upgrade-package "$PACKAGE_NAME"
+    git add uv.lock
+    uv build
+"""
+commit_message = "chore(release): v{version} [skip ci]"
+
+# main -> stable X.Y.Z. next -> prereleases X.Y.Z-rc.N. N.x -> maintenance.
+[tool.semantic_release.branches.main]
+match = "main"
+prerelease = false
+
+[tool.semantic_release.branches.next]
+match = "next"
+prerelease = true
+prerelease_token = "rc"
+
+# Maintenance branches (1.x, 2.x, ...) cut stable patch/minor releases for an
+# older major after a new major has shipped from main.
+[tool.semantic_release.branches.maintenance]
+match = '^\d+\.x$'
+prerelease = false
+
+# Keep the changelog focused on user-facing changes. These patterns only filter
+# what's rendered — they do not affect version bumps.
+[tool.semantic_release.changelog]
+exclude_commit_patterns = [
+    '^chore(?:\([^)]*\))?: ',
+    '^ci(?:\([^)]*\))?: ',
+    '^build(?:\([^)]*\))?: ',
+    '^style(?:\([^)]*\))?: ',
+    '^test(?:\([^)]*\))?: ',
+    '^Merge ',
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+

@@ -1,0 +1,15 @@
+mutation CreateAnimation($input: CreateAnimationInput!) {
+  createAnimation(input: $input) {
+    ...Animation
+  }
+}
+
+mutation UpdateAnimation($input: UpdateAnimationInput!) {
+  updateAnimation(input: $input) {
+    ...Animation
+  }
+}
+
+mutation DeleteAnimation($input: DeleteAnimationInput!) {
+  deleteAnimation(input: $input)
+}

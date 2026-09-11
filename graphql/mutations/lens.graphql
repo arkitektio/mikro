@@ -1,0 +1,5 @@
+mutation CreateLens($input: CreateLensInput!) {
+  createLens(input: $input) {
+    ...Lens
+  }
+}

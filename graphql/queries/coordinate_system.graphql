@@ -1,0 +1,29 @@
+query GetCoordinateSystem($id: ID!) {
+  coordinateSystem(id: $id) {
+    ...CoordinateSystem
+  }
+}
+
+query GetCoordinateSystems(
+  $filters: CoordinateSystemFilter
+  $pagination: OffsetPaginationInput
+) {
+  coordinateSystems(filters: $filters, pagination: $pagination) {
+    ...CoordinateSystem
+  }
+}
+
+query SearchCoordinateSystems(
+  $search: String
+  $values: [ID!]
+  $limit: Int
+  $offset: Int = 0
+) {
+  options: coordinateSystems(
+    filters: { search: $search, ids: $values }
+    pagination: { limit: $limit, offset: $offset }
+  ) {
+    value: id
+    label: name
+  }
+}

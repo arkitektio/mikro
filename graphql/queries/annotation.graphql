@@ -1,0 +1,41 @@
+query GetAnnotation($id: ID!) {
+  annotation(id: $id) {
+    ...Annotation
+  }
+}
+
+query GetAnnotations($filters: AnnotationFilter, $pagination: OffsetPaginationInput) {
+  annotations(filters: $filters, pagination: $pagination) {
+    ...Annotation
+  }
+}
+
+query GetAnnotationCollection($id: ID!) {
+  annotationCollection(id: $id) {
+    ...AnnotationCollection
+  }
+}
+
+query GetAnnotationCollections(
+  $filters: AnnotationCollectionFilter
+  $pagination: OffsetPaginationInput
+) {
+  annotationCollections(filters: $filters, pagination: $pagination) {
+    ...AnnotationCollection
+  }
+}
+
+query SearchAnnotationCollections(
+  $search: String
+  $values: [ID!]
+  $limit: Int
+  $offset: Int = 0
+) {
+  options: annotationCollections(
+    filters: { search: $search, ids: $values }
+    pagination: { limit: $limit, offset: $offset }
+  ) {
+    value: id
+    label: name
+  }
+}

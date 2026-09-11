@@ -1,0 +1,15 @@
+mutation CreateTransformation($input: CreateTransformationInput!) {
+  createTransformation(input: $input) {
+    ...Transformation
+  }
+}
+
+mutation UpdateTransformation($input: UpdateTransformationInput!) {
+  updateTransformation(input: $input) {
+    ...Transformation
+  }
+}
+
+mutation DeleteTransformation($input: DeleteTransformationInput!) {
+  deleteTransformation(input: $input)
+}

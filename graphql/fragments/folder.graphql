@@ -1,0 +1,9 @@
+fragment Folder on Folder {
+  id
+  name
+  description
+  parent {
+    id
+    name
+  }
+}

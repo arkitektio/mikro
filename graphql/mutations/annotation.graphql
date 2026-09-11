@@ -1,0 +1,31 @@
+mutation CreateAnnotation($input: CreateAnnotationInput!) {
+  createAnnotation(input: $input) {
+    ...Annotation
+  }
+}
+
+mutation CreateAnnotations($input: CreateAnnotationsInput!) {
+  createAnnotations(input: $input) {
+    ...Annotation
+  }
+}
+
+mutation UpdateAnnotation($input: UpdateAnnotationInput!) {
+  updateAnnotation(input: $input) {
+    ...Annotation
+  }
+}
+
+mutation DeleteAnnotation($input: DeleteAnnotationInput!) {
+  deleteAnnotation(input: $input)
+}
+
+mutation CreateAnnotationCollection($input: CreateAnnotationCollectionInput!) {
+  createAnnotationCollection(input: $input) {
+    ...AnnotationCollection
+  }
+}
+
+mutation DeleteAnnotationCollection($input: DeleteAnnotationCollectionInput!) {
+  deleteAnnotationCollection(input: $input)
+}

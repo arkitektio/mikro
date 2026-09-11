@@ -1,0 +1,15 @@
+mutation CreateSceneSnapshot($input: SceneSnapshotInput!) {
+  createSceneSnapshot(input: $input) {
+    ...SceneSnapshot
+  }
+}
+
+mutation DeleteSceneSnapshot($input: DeleteSceneSnapshotInput!) {
+  deleteSceneSnapshot(input: $input)
+}
+
+mutation PinSceneSnapshot($input: PinSceneSnapshotInput!) {
+  pinSceneSnapshot(input: $input) {
+    ...SceneSnapshot
+  }
+}

@@ -1,0 +1,9 @@
+mutation CreateNetworkCollection($input: CreateNetworkCollectionInput!) {
+  createNetworkCollection(input: $input) {
+    ...NetworkCollection
+  }
+}
+
+mutation DeleteNetworkCollection($input: DeleteNetworkCollectionInput!) {
+  deleteNetworkCollection(input: $input)
+}

@@ -1,0 +1,29 @@
+query GetSceneSnapshot($id: ID!) {
+  sceneSnapshot(id: $id) {
+    ...SceneSnapshot
+  }
+}
+
+query GetSceneSnapshots(
+  $filters: SceneSnapshotFilter
+  $pagination: OffsetPaginationInput
+) {
+  sceneSnapshots(filters: $filters, pagination: $pagination) {
+    ...SceneSnapshot
+  }
+}
+
+query SearchSceneSnapshots(
+  $search: String
+  $values: [ID!]
+  $limit: Int
+  $offset: Int = 0
+) {
+  options: sceneSnapshots(
+    filters: { search: $search, ids: $values }
+    pagination: { limit: $limit, offset: $offset }
+  ) {
+    value: id
+    label: name
+  }
+}

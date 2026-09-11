@@ -1,0 +1,30 @@
+fragment CameraState on CameraState {
+  position
+  crossSectionOrientation
+  crossSectionScale
+  projectionOrientation
+  projectionScale
+}
+
+fragment AnimationWaypoint on AnimationWaypoint {
+  id
+  order
+  name
+  durationMs
+  easing
+  camera {
+    ...CameraState
+  }
+}
+
+fragment Animation on Animation {
+  id
+  name
+  description
+  scene {
+    ...Scene
+  }
+  waypoints {
+    ...AnimationWaypoint
+  }
+}

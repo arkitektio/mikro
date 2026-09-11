@@ -1,0 +1,29 @@
+mutation CreateScene($input: CreateSceneInput!) {
+  createScene(input: $input) {
+    ...Scene
+  }
+}
+
+mutation CreateSceneFromCoordinateSystem(
+  $input: CreateSceneFromCoordinateSystemInput!
+) {
+  createSceneFromCoordinateSystem(input: $input) {
+    ...Scene
+  }
+}
+
+mutation UpdateScene($input: UpdateSceneInput!) {
+  updateScene(input: $input) {
+    ...Scene
+  }
+}
+
+mutation ClearScene($input: ClearSceneInput!) {
+  clearScene(input: $input) {
+    ...Scene
+  }
+}
+
+mutation DeleteScene($input: DeleteSceneInput!) {
+  deleteScene(input: $input)
+}

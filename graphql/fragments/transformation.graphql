@@ -1,0 +1,73 @@
+# The parameters a child carries, for the composite kinds (SEQUENCE,
+# BY_DIMENSION). `__typename` is load-bearing rather than
+# decorative: the generated child models are a union discriminated on it, so a
+# child selection without it cannot be tagged and the *whole* parent edge fails
+# validation and degrades to a fieldless CatchAll.
+#
+# `inputAxes` and `outputAxes` are on the Transformation interface, so every
+# child carries the axis subset it acts on without an inline fragment.
+fragment TransformationChild on Transformation {
+  __typename
+  id
+  kind
+  inputAxes
+  outputAxes
+  ... on ScaleTransformation {
+    scale
+  }
+  ... on TranslationTransformation {
+    translation
+  }
+  ... on AffineTransformation {
+    affine
+  }
+  ... on RotationTransformation {
+    affine
+  }
+}
+
+fragment Transformation on Transformation {
+  id
+  kind
+  name
+  version
+  input {
+    ...CoordinateSystem
+  }
+  output {
+    ...CoordinateSystem
+  }
+  ... on ScaleTransformation {
+    scale
+  }
+  ... on TranslationTransformation {
+    translation
+  }
+  ... on AffineTransformation {
+    affine
+  }
+  ... on RotationTransformation {
+    affine
+  }
+  ... on MapAxisTransformation {
+    inputAxes
+    outputAxes
+  }
+  ... on FieldTransformation {
+    field {
+      ...CoordinateSystem
+    }
+  }
+  ... on SequenceTransformation {
+    sequenceChildren: transformations {
+      ...TransformationChild
+    }
+  }
+  ... on ByDimensionTransformation {
+    inputAxes
+    outputAxes
+    byDimensionChildren: transformations {
+      ...TransformationChild
+    }
+  }
+}

@@ -1,0 +1,12 @@
+mutation RequestSparseUpload($input: RequestSparseUploadInput!) {
+  requestSparseUpload(input: $input) {
+    ...SparseUploadGrant
+  }
+}
+
+
+mutation FinishSparseUpload($input: FinishSparseUploadInput!) {
+  finishSparseUpload(input: $input) {
+    ...SparseStore
+  }
+}

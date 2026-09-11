@@ -1,0 +1,20 @@
+query GetScene($id: ID!) {
+  scene(id: $id) {
+    ...Scene
+  }
+}
+
+query SearchScenes(
+  $search: String
+  $values: [ID!]
+  $limit: Int
+  $offset: Int = 0
+) {
+  options: scenes(
+    filters: { search: $search, ids: $values }
+    pagination: { limit: $limit, offset: $offset }
+  ) {
+    value: id
+    label: name
+  }
+}

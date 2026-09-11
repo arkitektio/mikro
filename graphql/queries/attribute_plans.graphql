@@ -1,0 +1,138 @@
+# Every attribute plan reachable from one system: one per FIELD edge landing on a table.
+#
+# A plan is instructions, never attributes -- map along `path`, get the id from the sample
+# step (read the array for an ArraySample, use the picked mesh id for a MeshSample), then
+# run the `hops`: the landing first, then every declared reference reachable from it, each
+# bound from the one before -- and it takes no coordinate, so a client fetches it once and
+# executes it per hover locally. This selection is deliberately lean: the ids and axis
+# lists that say *which* map was found, plus the key columns and attributes a worker needs
+# to run each hop. Anything wanting the full table metadata queries it by id. The sample
+# step is the one exception -- it spreads the whole store fragment, for the codegen reason
+# noted below.
+query AttributePlans($system: ID!, $maxDepth: Int, $maxJoinDepth: Int! = 1) {
+  attributePlans(system: $system, maxDepth: $maxDepth, maxJoinDepth: $maxJoinDepth) {
+    edge {
+      id
+      kind
+      name
+      version
+      validity
+      inputAxes
+      outputAxes
+      input {
+        id
+        name
+      }
+      output {
+        id
+        name
+      }
+    }
+    path {
+      inverted
+      transformation {
+        id
+        kind
+        version
+      }
+    }
+    sample {
+      consumes
+      produces
+      passthrough
+      system {
+        id
+        name
+      }
+      # Spread the named store fragments rather than an inline `{ id key }` in both
+      # branches: turms names a nested selection after its field path, so two inline
+      # `store` selections collapse into one class stamped with the wrong concrete
+      # type -- which loses ZarrStore's accessor trait. Fragment spreads keep them apart.
+      ... on ArraySample {
+        store {
+          ...ZarrStore
+        }
+      }
+      ... on MeshSample {
+        store {
+          ...FabriksStore
+        }
+      }
+      # The wireframe twin of MeshSample: the id rides on the geometry rows,
+      # one per traced OBJECT (never per node), so a pick already holds it.
+      ... on NetworkSample {
+        store {
+          ...KonnektionStore
+        }
+      }
+    }
+    # The chain, in execution order. `hops[0]` is the landing (bound from `sample`,
+    # `parent` and `via` null); each later hop crosses one declared reference from
+    # its `parent`, up to `maxJoinDepth`. A client that only wants the landing
+    # reads `hops[0]`.
+    hops {
+      index
+      parent
+      cardinality
+      via {
+        column {
+          name
+          dtype
+        }
+        axis
+      }
+      table {
+        id
+        name
+      }
+      sparseDataset {
+        id
+        name
+      }
+      lookup {
+        # TABLE or SPARSE. The other shape's fields are null: a table lookup is a read
+        # of a parquet's rows, a sparse one is two reads of a zarr group and no
+        # database at all.
+        kind
+        store {
+          id
+          key
+        }
+        sparseArray {
+          id
+          path
+          indexedAxis
+          store {
+            id
+            key
+            spec
+          }
+        }
+        keyAxis
+        keyHeld
+        valueAxes
+        keyColumns {
+          axis
+          column {
+            name
+            dtype
+          }
+        }
+        attributes {
+          name
+          dtype
+        }
+      }
+      # The picker's name for this hop, exactly what a layer's `colorBys[].joinPath`
+      # stores. Empty on `hops[0]` and once the chain has crossed a matrix.
+      joinPath {
+        table {
+          id
+        }
+        column {
+          name
+        }
+      }
+    }
+  }
+}

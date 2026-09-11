@@ -1,6 +1,0 @@
-query expand_metric($id: ID!) {
-  # Creates a new representation
-  metric(id: $id) {
-    ...Metric
-  }
-}

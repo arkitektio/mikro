@@ -1,0 +1,9 @@
+mutation CreateMeshCollection($input: CreateMeshCollectionInput!) {
+  createMeshCollection(input: $input) {
+    ...MeshCollection
+  }
+}
+
+mutation DeleteMeshCollection($input: DeleteMeshCollectionInput!) {
+  deleteMeshCollection(input: $input)
+}

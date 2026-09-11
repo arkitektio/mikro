@@ -4,7 +4,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.pyc
-docs/reference
+
 # C extensions
 *.so
 
@@ -27,12 +27,11 @@ share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-MANIFEST
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
-*.manifest
+
 *.spec
 
 # Installer logs
@@ -145,7 +144,6 @@ media
 export
 static_collected
 data
-*.temp
-venv
-*.fakts.yaml
-logs.txt
+token.temp
+# machine-local compose override for the integration test stack (see tests/conftest.py)
+tests/integration/docker-compose.local.yml

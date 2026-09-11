@@ -1,0 +1,22 @@
+mutation RequestKonnektionUpload($input: RequestKonnektionUploadInput!) {
+  requestKonnektionUpload(input: $input) {
+    ...KonnektionUploadGrant
+  }
+}
+
+
+# Reads the store's `konnektion.json` and refuses a prefix without one -- which is exactly what an
+# interrupted upload looks like, since the manifest is written last. So this is the completion
+# protocol, not a formality, and the store it returns carries the grid and encoding it read.
+mutation FinishKonnektionUpload($input: FinishKonnektionUploadInput!) {
+  finishKonnektionUpload(input: $input) {
+    ...KonnektionStore
+  }
+}
+
+
+mutation RequestKonnektionAccess($input: RequestKonnektionAccessInput!) {
+  requestKonnektionAccess(input: $input) {
+    ...KonnektionAccessGrant
+  }
+}

@@ -1,0 +1,5 @@
+mutation CreateArrayDataset($input: CreateArrayDatasetInput!) {
+  createArrayDataset(input: $input) {
+    ...ArrayDataset
+  }
+}

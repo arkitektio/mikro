@@ -1,0 +1,15 @@
+mutation CreateTableDataset($input: CreateTableDatasetInput!) {
+  createTableDataset(input: $input) {
+    ...TableDataset
+  }
+}
+
+mutation UpdateTableDataset($input: UpdateTableDatasetInput!) {
+  updateTableDataset(input: $input) {
+    ...TableDataset
+  }
+}
+
+mutation DeleteTableDataset($input: DeleteTableDatasetInput!) {
+  deleteTableDataset(input: $input)
+}

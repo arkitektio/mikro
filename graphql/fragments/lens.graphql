@@ -1,0 +1,37 @@
+fragment Slice on Slice {
+  axis
+  start
+  stop
+  step
+}
+
+
+fragment Lens on Lens {
+  id
+  dataset {
+    id
+    axisNames
+    dataArrays {
+      id
+      level
+      store {
+        ...ZarrStore
+      }
+    }
+  }
+  shape
+  axisNames
+  coordinateSystem {
+    ...CoordinateSystem
+  }
+  renderAxes {
+    x
+    y
+    z
+    t
+    intensity
+  }
+  slices {
+    ...Slice
+  }
+}

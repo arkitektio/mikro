@@ -1,0 +1,13 @@
+query GetCoordinateGraph($coordinateSystem: ID!, $maxDepth: Int) {
+  coordinateGraph(coordinateSystem: $coordinateSystem, maxDepth: $maxDepth) {
+    root {
+      ...CoordinateSystem
+    }
+    systems {
+      ...CoordinateSystem
+    }
+    transformations {
+      ...Transformation
+    }
+  }
+}

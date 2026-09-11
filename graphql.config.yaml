@@ -1,59 +1,151 @@
 projects:
-  mikro:
-    schema: http://localhost:8080/graphql
-    documents: graphql/mikro/*/**.graphql
+ mikro_next:
+    schema: http://jhnnsrs-lab/mikro/schema
+    documents: graphql/**/**.graphql
     extensions:
       turms:
-        out_dir: mikro/api
+        out_dir: mikro_next/api
+        exclude_typenames: true
+        dump_configuration: true
+        dump_schema: true
+        omitted_document_rules:
+          - "no_unused_fragments"
+        freeze:
+          enabled: true
+        options:
+          enabled: true
+          # snake_case is the only python-facing spelling a type checker sees;
+          # the GraphQL name stays the wire name. Both still validate.
+          alias_mode: split
+          extra: forbid
+          types:
+            - input
         stylers:
           - type: turms.stylers.default.DefaultStyler
           - type: turms.stylers.appender.AppenderStyler
-            append_fragment: "Fragment"
+            append_fragment: ""
         plugins:
           - type: turms.plugins.enums.EnumsPlugin
           - type: turms.plugins.inputs.InputsPlugin
           - type: turms.plugins.fragments.FragmentsPlugin
+            object_bases:
+              - mikro_next.traits.MikroFetchable
           - type: turms.plugins.operations.OperationsPlugin
           - type: turms.plugins.funcs.FuncsPlugin
+            coercible_scalars:
+              ArrayLike: mikro_next.scalars.ArrayCoercible
+              ImageFileLike: mikro_next.scalars.ImageFileCoercible
+              FileLike: mikro_next.scalars.ImageFileCoercible
+              ParquetLike: mikro_next.scalars.ParquetCoercible
+              FabriksLike: mikro_next.scalars.FabriksCoercible
+              KonnektionLike: mikro_next.scalars.KonnektionCoercible
+              SporadikLike: mikro_next.scalars.SporadikCoercible
+              ID: rath.scalars.IDCoercible
+            coercible_inputs:
+              AxisInput: str
+            expand_input_types:
+              - input
             global_kwargs:
-              - type: mikro.rath.MikroRath
+              - type: mikro_next.rath.MikroNextRath
                 key: rath
-                description: "The mikro rath client"
+                description: The mikro rath client
             definitions:
               - type: subscription
-                is_async: True
-                use: mikro.funcs.asubscribe
+                is_async: true
+                use: mikro_next.funcs.asubscribe
               - type: query
-                is_async: True
-                use: mikro.funcs.aexecute
+                is_async: true
+                use: mikro_next.funcs.aexecute
               - type: mutation
-                is_async: True
-                use: mikro.funcs.aexecute
+                is_async: true
+                use: mikro_next.funcs.aexecute
               - type: subscription
-                use: mikro.funcs.subscribe
+                use: mikro_next.funcs.subscribe
               - type: query
-                use: mikro.funcs.execute
+                use: mikro_next.funcs.execute
               - type: mutation
-                use: mikro.funcs.execute
-        processors:
-          - type: turms.processors.black.BlackProcessor
+                use: mikro_next.funcs.execute
         scalar_definitions:
-          XArrayInput: mikro.scalars.XArrayInput
-          File: mikro.scalars.File
-          ImageFile: mikro.scalars.File
-          Upload: mikro.scalars.Upload
-          ParquetInput: mikro.scalars.ParquetInput
-          Store: mikro.scalars.Store
-          Parquet: mikro.scalars.Parquet
+          Any: typing.Any
+          JSON: typing.Any
+          UUID: str
+          ArrayLike: mikro_next.scalars.ArrayLike
+          ParquetLike: mikro_next.scalars.ParquetLike
+          FabriksLike: mikro_next.scalars.FabriksLike
+          KonnektionLike: mikro_next.scalars.KonnektionLike
+          SporadikLike: mikro_next.scalars.SporadikLike
+          FileLike: mikro_next.scalars.FileLike
+          ImageFileLike: mikro_next.scalars.ImageFileLike
+          ThreeDVector: mikro_next.scalars.ThreeDVector
+          GenericQuantity: kanne.scalars.GenericQuantity
+          Length: kanne.scalars.Length
+          Unit: kanne.scalars.Unit
+          Power: kanne.scalars.Power
+          Frequency: kanne.scalars.Frequency
+          Temperature: kanne.scalars.Temperature
           ID: rath.scalars.ID
-          MetricValue: mikro.scalars.MetricValue
-          FeatureValue: mikro.scalars.FeatureValue
         additional_bases:
-          Representation:
-            - mikro.traits.Representation
-          Table:
-            - mikro.traits.Table
-          ROI:
-            - mikro.traits.ROI
-          InputVector:
-            - mikro.traits.Vectorizable
+          AxisInput:
+            - mikro_next.traits.AxisInputTrait
+          ValueHistogramInput:
+            - mikro_next.traits.ValueHistogramInputTrait
+          TransferFunctionInput:
+            - mikro_next.traits.RGBAColorInputTrait
+          PhasorCursorInput:
+            - mikro_next.traits.RGBAColorInputTrait
+          CoordinateAnchorInput:
+            - mikro_next.traits.CoordinateAnchorInputTrait
+          CreateTableDatasetInput:
+            - mikro_next.traits.CreateTableDatasetTrait
+          CreateSparseDatasetInput:
+            - mikro_next.traits.CreateSparseDatasetTrait
+          SparseAxisInput:
+            - mikro_next.traits.SparseAxisInputTrait
+          SparseColorByInput:
+            - mikro_next.traits.SparseColorByInputTrait
+          GraphColorByInput:
+            - mikro_next.traits.GraphColorByInputTrait
+          TableDataset:
+            - mikro_next.traits.HasParquestStoreTrait
+          ZarrStore:
+            - mikro_next.traits.HasZarrStoreAccessor
+          ParquetStore:
+            - mikro_next.traits.HasParquetStoreAccesor
+          BigFileStore:
+            - mikro_next.traits.HasDownloadAccessor
+          MediaStore:
+            - mikro_next.traits.HasPresignedDownloadAccessor
+          Lens:
+            - mikro_next.traits.Lensable
+          ArrayDataset:
+            - mikro_next.traits.DatasetTrait
+          Scene:
+            - mikro_next.traits.SceneTrait
+          CoordinateSystem:
+            - mikro_next.traits.CoordinateSystemTrait
+          ScaleTransformation:
+            - mikro_next.traits.TransformationTrait
+          TranslationTransformation:
+            - mikro_next.traits.TransformationTrait
+          AffineTransformation:
+            - mikro_next.traits.TransformationTrait
+          RotationTransformation:
+            - mikro_next.traits.TransformationTrait
+          IdentityTransformation:
+            - mikro_next.traits.TransformationTrait
+          MapAxisTransformation:
+            - mikro_next.traits.TransformationTrait
+          FieldTransformation:
+            - mikro_next.traits.TransformationTrait
+          SequenceTransformation:
+            - mikro_next.traits.TransformationTrait
+          ByDimensionTransformation:
+            - mikro_next.traits.TransformationTrait
+          UnmappableTransformation:
+            - mikro_next.traits.TransformationTrait
+          DataArray:
+            - mikro_next.traits.DataArrayTrait
+          CreateArrayDatasetInput:
+            - mikro_next.traits.CreateADatasetTrait
+          File:
+            - mikro_next.traits.FileTrait

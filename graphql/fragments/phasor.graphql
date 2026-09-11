@@ -1,0 +1,23 @@
+fragment PhasorCalibration on PhasorCalibration {
+  id
+  axis
+  harmonic
+  phaseOffset
+  modulationFactor
+  reference
+}
+
+fragment PhasorHistogram on PhasorHistogram {
+  id
+  axis
+  harmonic
+  bins
+  gMin
+  gMax
+  sMin
+  sMax
+  total
+  calibrated
+  counts
+  profile
+}

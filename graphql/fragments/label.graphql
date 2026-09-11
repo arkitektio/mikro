@@ -1,8 +1,0 @@
-fragment Label on Label {
-  instance
-  id
-  representation {
-    id
-    name
-  }
-}

@@ -1,0 +1,36 @@
+db:
+  db_name: mikro_db
+  engine: django.db.backends.postgresql
+  host: db
+  password: hello_django
+  port: 5432
+  username: hello_django
+django:
+  admin:
+    email: admin@admin.com
+    password: admin
+    username: admin
+  debug: false
+  hosts:
+    - "*"
+  secret_key: t!7qh%)_#&k_6px&n(xm4be@t3nrmgh=h2k#8f@rbgz=&y9f21
+lok:
+  issuer: lok
+  key_type: RS256
+  public_key_pem_file: public_key.pem
+  static_tokens:
+      johannes:
+          sub: 1
+s3:
+  access_key: mikro_access_key
+  buckets:
+    zarr: zarrnew
+    parquet: parquetnew
+    media: mikromedianew
+  host: minio
+  port: "9000"
+  protocol: http
+  secret_key: mikro_secret_key
+redis:
+  host: redis
+  port: 6379

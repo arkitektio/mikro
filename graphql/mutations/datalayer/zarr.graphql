@@ -1,0 +1,19 @@
+mutation RequestZarrUpload($input: RequestZarrUploadInput!) {
+  requestZarrUpload(input: $input) {
+    ...ZarrUploadGrant
+  }
+}
+
+
+mutation FinishZarrUpload($input: FinishZarrUploadInput!) {
+  finishZarrUpload(input: $input) {
+      ...ZarrStore
+  }
+}
+
+
+mutation RequestZarrAccess($input: RequestZarrAccessInput!) {
+  requestZarrAccess(input: $input) {
+    ...ZarrAccessGrant
+  }
+}

@@ -1,0 +1,22 @@
+mutation RequestFabriksUpload($input: RequestFabriksUploadInput!) {
+  requestFabriksUpload(input: $input) {
+    ...FabriksUploadGrant
+  }
+}
+
+
+# Reads the store's `fabriks.json` and refuses a prefix without one -- which is exactly what an
+# interrupted upload looks like, since the manifest is written last. So this is the completion
+# protocol, not a formality, and the store it returns carries the grid and encoding it read.
+mutation FinishFabriksUpload($input: FinishFabriksUploadInput!) {
+  finishFabriksUpload(input: $input) {
+    ...FabriksStore
+  }
+}
+
+
+mutation RequestFabriksAccess($input: RequestFabriksAccessInput!) {
+  requestFabriksAccess(input: $input) {
+    ...FabriksAccessGrant
+  }
+}

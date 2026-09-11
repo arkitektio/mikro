@@ -1,0 +1,33 @@
+fragment Annotation on Annotation {
+  id
+  name
+  kind
+  vectors
+  coordinates {
+    name
+    value
+  }
+  coordinateSystem {
+    ...CoordinateSystem
+  }
+  intrinsicBbox {
+    min
+    max
+  }
+  strokeColor
+  fillColor
+  strokeWidth
+  filled
+}
+
+fragment AnnotationCollection on AnnotationCollection {
+  id
+  name
+  description
+  coordinateSystem {
+    ...CoordinateSystem
+  }
+  annotations {
+    ...Annotation
+  }
+}

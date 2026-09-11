@@ -1,0 +1,348 @@
+fragment Layer on Layer {
+  id
+  # Which kind the server actually stored. Worth selecting on the interface rather than
+  # inferring from which inline branch came back populated: a writer that asked for an
+  # intensity layer and got an image layer has a bug, and this is the field that says so
+  # in one comparison instead of four.
+  kind
+  name
+  scene {
+    id
+    name
+  }
+  ... on ImageLayer {
+    lens {
+      id
+    }
+  }
+  # The three fixed-shape kinds. Their settings are columns rather than a render graph, so
+  # `renderGraph` is null on them and these fields are the only way to read back what was
+  # written -- the same reason `labelRender` is selected on LabelLayer below.
+  #
+  # Inlined, not spread as named fragments, for the reason spelled out on LabelLayer: a
+  # nested fragment spread inside an *interface* fragment breaks the generated module's
+  # import.
+  ... on IntensityLayer {
+    lens {
+      id
+    }
+    intensityAxis
+    intensityIndex
+    # Aliased, and it has to be. `PointLayer.colormap` below is `ColorMap` where this one
+    # is `ColorMap!` -- an intensity layer always has one, a point cloud need not -- and
+    # two sibling selections on the same interface spelled the same but typed differently
+    # are a conflict the GraphQL validator refuses outright. Aliasing here rather than on
+    # PointLayer keeps the older selection's generated name stable, and the spelling
+    # matches the `intensityAxis`/`intensityIndex` already beside it.
+    intensityColormap: colormap
+    # A solid RGBA tint, overriding the colormap. The field a channel coloured by its
+    # emission wavelength needs: that colour is a measured fact and matches no named map.
+    color
+    climMin
+    climMax
+    gamma
+    projectionMode
+  }
+  ... on RgbLayer {
+    lens {
+      id
+    }
+    intensityAxis
+    redIndex
+    greenIndex
+    blueIndex
+    # One pair across all three: they are components of one picture, not three signals.
+    climMin
+    climMax
+  }
+  ... on PhasorLayer {
+    lens {
+      id
+    }
+    phasorRender {
+      phasorAxis
+      intensityAxis
+      intensityIndex
+      harmonic
+      transfer {
+        mode
+        min
+        max
+        colormap
+        weightByIntensity
+        intensity {
+          climMin
+          climMax
+          colormap
+          color
+          gamma
+          opacity
+          invert
+        }
+        cursors {
+          kind
+          g
+          s
+          radius
+          points
+          color
+          label
+          visible
+        }
+      }
+    }
+  }
+  ... on LabelLayer {
+    lens {
+      id
+    }
+    # Selected rather than left off: without it a label layer's colouring is write-only from
+    # Python -- `createLabelLayer` takes a picker and nothing could read back what it stored.
+    #
+    # Inlined, not spread as named fragments, and that is deliberate. turms mis-handles a
+    # nested fragment spread inside an *interface* fragment: it emits a `Layer.model_rebuild()`
+    # keyed on the fragment name, which for an interface has no single generated class, and the
+    # module then fails to import with `NameError: name 'Layer' is not defined`.
+    #
+    # The collision this would normally risk -- turms naming a nested selection after its field
+    # path, so two sibling selections spelled the same collapse into one class -- does not arise
+    # here, because a label layer's pickers hang off `labelRender` while a mesh layer's are
+    # direct fields. The paths differ (`labelRender.colorBys` vs `colorBys`), so the classes do.
+    labelRender {
+      intensityAxis
+      intensityIndex
+      seed
+      background
+      opacity
+      contour
+      contourWidth
+      selected
+      selectionColor
+      showUnselected
+      colorBys {
+        kind
+        table
+        column
+        dataset
+        at {
+          axis
+          value
+        }
+        joinPath {
+          table
+          column
+        }
+        colormap
+        min
+        max
+        label
+      }
+      activeColorBy
+      filterBys {
+        table
+        column
+        joinPath {
+          table
+          column
+        }
+        min
+        max
+        values
+        exclude
+        label
+      }
+      activeFilterBys
+    }
+    placement
+    placementValidity
+  }
+  ... on MeshLayer {
+    collection {
+      id
+      version
+    }
+    materialColor
+    wireframe
+    shading
+    maxLevel
+    colorBys {
+      kind
+      table
+      column
+      dataset
+      at {
+        axis
+        value
+      }
+      joinPath {
+        table
+        column
+      }
+      colormap
+      min
+      max
+      label
+    }
+    activeColorBy
+    filterBys {
+      table
+      column
+      joinPath {
+        table
+        column
+      }
+      min
+      max
+      values
+      exclude
+      label
+    }
+    activeFilterBys
+    placement
+    placementValidity
+  }
+  # Trajectories over a table dataset, one polyline per value of its TRACK_ID column.
+  # Like the point layer below, its objects ARE rows of that table, and every column
+  # field here is derived from the table's declaration rather than stored per layer --
+  # which is why the create input carries none of them.
+  ... on TrackLayer {
+    tableDataset {
+      id
+      name
+    }
+    colorByColumn
+    lineWidth
+    colormap
+    trackIdColumn
+    xColumn
+    yColumn
+    zColumn
+    tColumn
+  }
+  # Inlined rather than spread, for the reason given on LabelLayer: a nested fragment spread
+  # inside an *interface* fragment breaks the generated module's import.
+  ... on NetworkLayer {
+    collection {
+      id
+    }
+    materialColor
+    # Aliased: `lineWidth` is already selected on TrackLayer above, and two sibling selections
+    # on one interface spelled the same must agree in type. They do here, but aliasing keeps the
+    # generated names distinct and readable, which is what the intensity aliases do too.
+    networkLineWidth: lineWidth
+    nodeSizeColumn
+    edgeWidthColumn
+    directed
+    showNodes
+    networkMaxLevel: maxLevel
+    # EVERY field, deliberately: the pickers are replaced wholesale on update, so a field
+    # unselected here is one a read-modify-write silently nulls. `attribute`/`target` are the
+    # GRAPH member's -- the per-node values the collection itself carries -- and null on the
+    # COLUMN and SPARSE entries, exactly as `dataset`/`at` are null off the sparse one.
+    #
+    # Aliased like `networkMaxLevel`, and here it is load-bearing rather than cosmetic: three
+    # arms of this interface fragment select a field spelled `colorBys`, turms names the
+    # nested class off the field, and three same-named module classes shadow each other --
+    # the LAST one wins every reference. The mesh and label pair got away with it by being
+    # field-for-field identical; this arm's `attribute`/`target` are exactly what the
+    # shadowing would silently drop.
+    networkColorBys: colorBys {
+      kind
+      table
+      column
+      dataset
+      at {
+        axis
+        value
+      }
+      attribute
+      target
+      joinPath {
+        table
+        column
+      }
+      colormap
+      min
+      max
+      label
+    }
+    networkActiveColorBy: activeColorBy
+    networkFilterBys: filterBys {
+      kind
+      table
+      column
+      dataset
+      at {
+        axis
+        value
+      }
+      attribute
+      target
+      joinPath {
+        table
+        column
+      }
+      min
+      max
+      values
+      exclude
+      label
+    }
+    networkActiveFilterBys: activeFilterBys
+    # Selected because the write path *checks* them. A layer whose data has no route to the
+    # scene's world is not refused -- it comes back UNREGISTERED with a null path and never
+    # draws -- so asking is the only way to find out. And `placementInvariance` is what says
+    # whether `lineWidth` and `nodeSizeColumn` are well-defined lengths at all: from SIMILARITY
+    # up, per RFC-8.
+    placement
+    placementValidity
+    placementInvariance
+  }
+  # A point cloud over a table dataset. Its objects ARE rows of that table, so a
+  # colouring by one of its own columns needs no FIELD edge -- the one way this
+  # layer differs from the other two kinds.
+  ... on PointLayer {
+    tableDataset {
+      id
+      name
+    }
+    xColumn
+    yColumn
+    zColumn
+    pointSize
+    colormap
+    activeColorBy
+    colorBys {
+      kind
+      table
+      column
+      dataset
+      at {
+        axis
+        value
+      }
+      joinPath {
+        table
+        column
+      }
+      colormap
+      min
+      max
+      label
+    }
+    activeFilterBys
+    filterBys {
+      table
+      column
+      joinPath {
+        table
+        column
+      }
+      min
+      max
+      values
+      exclude
+      label
+    }
+  }
+}

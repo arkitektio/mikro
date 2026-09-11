@@ -1,0 +1,19 @@
+fragment ArrayDataset on ArrayDataset {
+  id
+  name
+  axisNames
+  shape
+  multiscale
+  intrinsicSystem {
+    ...CoordinateSystem
+  }
+  dataArrays {
+    id
+    level
+    shape
+    chunkShape
+    store {
+      ...ZarrStore
+    }
+  }
+}

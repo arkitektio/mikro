@@ -1,0 +1,17 @@
+mutation CreateSparseDataset($input: CreateSparseDatasetInput!) {
+  createSparseDataset(input: $input) {
+    ...SparseDataset
+  }
+}
+
+
+mutation UpdateSparseDataset($input: UpdateSparseDatasetInput!) {
+  updateSparseDataset(input: $input) {
+    ...SparseDataset
+  }
+}
+
+
+mutation DeleteSparseDataset($input: DeleteSparseDatasetInput!) {
+  deleteSparseDataset(input: $input)
+}

@@ -1,0 +1,18 @@
+mutation RequestParquetUpload($input: RequestParquetUploadInput!) {
+  requestParquetUpload(input: $input) {
+    ...ParquetUploadGrant
+  }
+}
+
+
+mutation FinishParquetUpload($input: FinishParquetUploadInput!) {
+  finishParquetUpload(input: $input) {
+      ...ParquetStore
+  }
+}
+
+mutation RequestParquetAccess($input: RequestParquetAccessInput!) {
+  requestParquetAccess(input: $input) {
+    ...ParquetAccessGrant
+  }
+}

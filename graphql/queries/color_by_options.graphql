@@ -1,0 +1,148 @@
+# What a picker may offer. The server's stated invariant is that these queries return
+# *exactly* the set the corresponding mutation accepts -- offer a set that is neither a
+# subset nor a superset and a picker either hides legal choices or proposes refused ones.
+#
+# `joinPath` here is NOT the `JoinStep` the layer fragment selects: an option carries full
+# `TableDataset` / `Column` objects, and it is the *client* that maps them down
+# to the `{table: ID, column: String}` a `colorBys[].joinPath` takes. Hence its own fragment.
+fragment ColumnOptionJoinStep on ColumnOptionJoinStep {
+  table {
+    id
+    name
+  }
+  column {
+    name
+  }
+}
+
+# Lean on purpose: spreading `...TableDataset` here would drag in its store, its coordinate
+# system and its derivation edges for every one of potentially thousands of options.
+fragment ColorByOption on ColorByOption {
+  table {
+    id
+    name
+  }
+  sparseDataset {
+    id
+    name
+  }
+  axes
+  graphAttribute
+  # (network) which row set the values belong to: null per-object, NODE/EDGE on a graph
+  # attribute or on a column of a node/edge table. Informational on the way back in --
+  # the mutation re-derives and stamps it.
+  target
+  column {
+    id
+    name
+    dtype
+    role
+    unit
+    longName
+    description
+  }
+  control
+  joinPath {
+    ...ColumnOptionJoinStep
+  }
+}
+
+fragment FilterByOption on FilterByOption {
+  table {
+    id
+    name
+  }
+  sparseDataset {
+    id
+    name
+  }
+  axes
+  graphAttribute
+  column {
+    id
+    name
+    dtype
+    role
+    unit
+    longName
+    description
+  }
+  control
+  joinPath {
+    ...ColumnOptionJoinStep
+  }
+}
+
+# Rooted on a lens -- what a label layer over that lens can be coloured by.
+query LabelColorByOptions(
+  $lens: ID!
+  $filters: ColumnOptionFilter
+  $pagination: OffsetPaginationInput
+  $maxJoinDepth: Int! = 1
+) {
+  labelColorByOptions(lens: $lens, filters: $filters, pagination: $pagination, maxJoinDepth: $maxJoinDepth) {
+    ...ColorByOption
+  }
+}
+
+query LabelFilterByOptions(
+  $lens: ID!
+  $filters: ColumnOptionFilter
+  $pagination: OffsetPaginationInput
+  $maxJoinDepth: Int! = 1
+) {
+  labelFilterByOptions(lens: $lens, filters: $filters, pagination: $pagination, maxJoinDepth: $maxJoinDepth) {
+    ...FilterByOption
+  }
+}
+
+# Rooted on a mesh collection -- the same walk and the same answer for a mesh layer.
+query ColorByOptions(
+  $meshCollection: ID!
+  $filters: ColumnOptionFilter
+  $pagination: OffsetPaginationInput
+  $maxJoinDepth: Int! = 1
+) {
+  colorByOptions(meshCollection: $meshCollection, filters: $filters, pagination: $pagination, maxJoinDepth: $maxJoinDepth) {
+    ...ColorByOption
+  }
+}
+
+query FilterByOptions(
+  $meshCollection: ID!
+  $filters: ColumnOptionFilter
+  $pagination: OffsetPaginationInput
+  $maxJoinDepth: Int! = 1
+) {
+  filterByOptions(meshCollection: $meshCollection, filters: $filters, pagination: $pagination, maxJoinDepth: $maxJoinDepth) {
+    ...FilterByOption
+  }
+}
+
+# Rooted on a network collection -- what a network layer over it can be coloured by. The one
+# options list with a third arm: `graphAttribute` names a per-node value the collection itself
+# carries (strahler, degree, depth, component, a writer's own column, `radius` when the
+# encoding stores one), present exactly when `table`, `column` and `sparseDataset` are null.
+# Pass it back as `colorBys[].attribute` with `kind: GRAPH`. The COLUMN half is rooted at
+# depth zero server-side: only tables keyed by this collection's *object* ids are offered.
+query NetworkColorByOptions(
+  $networkCollection: ID!
+  $filters: ColumnOptionFilter
+  $pagination: OffsetPaginationInput
+  $maxJoinDepth: Int! = 1
+) {
+  networkColorByOptions(networkCollection: $networkCollection, filters: $filters, pagination: $pagination, maxJoinDepth: $maxJoinDepth) {
+    ...ColorByOption
+  }
+}
+
+query NetworkFilterByOptions(
+  $networkCollection: ID!
+  $filters: ColumnOptionFilter
+  $pagination: OffsetPaginationInput
+  $maxJoinDepth: Int! = 1
+) {
+  networkFilterByOptions(networkCollection: $networkCollection, filters: $filters, pagination: $pagination, maxJoinDepth: $maxJoinDepth) {
+    ...FilterByOption
+  }
+}

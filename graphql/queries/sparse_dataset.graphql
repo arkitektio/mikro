@@ -1,0 +1,13 @@
+query GetSparseDataset($id: ID!) {
+  sparseDataset(id: $id) {
+    ...SparseDataset
+  }
+}
+
+
+query SearchSparseDatasets($search: String, $values: [ID!]) {
+  options: sparseDatasets(filters: { search: $search, ids: $values }, pagination: { limit: 10 }) {
+    value: id
+    label: name
+  }
+}

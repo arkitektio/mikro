@@ -1,0 +1,36 @@
+fragment TableDataset on TableDataset {
+  id
+  name
+  description
+  store {
+    ...ParquetStore
+  }
+  columns {
+    id
+    order
+    name
+    dtype
+    role
+    axisType
+    unit
+    longName
+    # The two no-edge identifications a column can carry: the table its values key
+    # (`references`) and the network collection whose node ids they are
+    # (`nodeReferences`) -- the latter is what says a table is per-node (one such
+    # column) or per-edge (two, source then target in axis order).
+    references {
+      id
+    }
+    nodeReferences {
+      id
+    }
+  }
+  coordinateSystem {
+    ...CoordinateSystem
+  }
+  derivedFrom {
+    ...Transformation
+  }
+  axisNames
+  provenanceMetadata
+}

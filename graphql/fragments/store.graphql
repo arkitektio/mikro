@@ -1,0 +1,85 @@
+fragment ZarrStore on ZarrStore {
+  id
+  key
+  bucket
+  path
+}
+
+fragment ParquetStore on ParquetStore {
+  id
+  key
+  bucket
+  path
+}
+
+fragment BigFileStore on BigFileStore {
+  id
+  key
+  bucket
+  path
+  presignedUrl
+}
+
+fragment MediaStore on MediaStore {
+  id
+  key
+  bucket
+  path
+}
+
+# One prefix holding `fabriks.json`, both catalogs and every octree level -- so one grant reads
+# all of it. `specVersion`, `grid`, `encoding`, `axes`, `counts` and `files` are read off the
+# manifest by `finishFabriksUpload` rather than declared through the API, which is why they are
+# asked for here: they are what was actually written, not what a caller claimed.
+fragment FabriksStore on FabriksStore {
+  id
+  key
+  bucket
+  path
+  specVersion
+  grid
+  encoding
+  axes
+  counts
+  files
+}
+
+fragment KonnektionStore on KonnektionStore {
+  id
+  key
+  bucket
+  path
+  specVersion
+  grid
+  encoding
+  axes
+  counts
+  files
+  # The declared per-node attributes -- the vocabulary a network layer's GRAPH
+  # picker entries are validated against, `radius` joining off `encoding.radii`.
+  attributes
+}
+
+fragment SparseStore on SparseStore {
+  id
+  key
+  bucket
+  path
+  spec
+  shape
+  # One entry per `layouts/<encoding>` child. Which axis a layout compresses decides which
+  # question it answers in one contiguous read, so a store holding one offers one capability.
+  layouts {
+    path
+    encoding
+    encodingVersion
+    indexedAxis
+    # The axes this layout did not compress, in the order `indices` was raveled over them.
+    # At rank two it says nothing; above it, unravel a returned position through it.
+    indexOrder
+    nnz
+    dtype
+    chunks
+    rangeReadable
+  }
+}

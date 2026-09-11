@@ -1,0 +1,17 @@
+fragment Axis on Axis {
+  id
+  order
+  name
+  type
+  unit
+  longName
+}
+
+fragment CoordinateSystem on CoordinateSystem {
+  id
+  name
+  epoch
+  axes {
+    ...Axis
+  }
+}

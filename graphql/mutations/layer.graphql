@@ -1,0 +1,108 @@
+mutation CreateLayer($input: CreateLayerInput!) {
+  createLayer(input: $input) {
+    ...Layer
+  }
+}
+
+# The fixed-shape kinds. Each says as a set of fields what `createLayer` could only say as
+# a blend node with a single child -- and additively blending one thing is that thing, so
+# the graph form carried no information the columns do not. Reach for `CreateLayer` when a
+# layer genuinely composites: several channels together, an authored transfer curve, an
+# inverted mapping, per-channel opacity.
+
+# One channel through one colormap -- or one solid RGBA tint, for a colour that is a
+# measured fact (an emission wavelength, the acquisition software's own choice) and matches
+# no named map. The fluorescence workhorse.
+mutation CreateIntensityLayer($input: CreateIntensityLayerInput!) {
+  createIntensityLayer(input: $input) {
+    ...Layer
+  }
+}
+
+# The same layer drawn through z rather than flat. A projection collapses an axis, it does
+# not composite anything, so this returns an IntensityLayer with `projectionMode` set
+# rather than a kind of its own.
+mutation CreateVolumeLayer($input: CreateVolumeLayerInput!) {
+  createVolumeLayer(input: $input) {
+    ...Layer
+  }
+}
+
+# Three channels as the red, green and blue of one picture. Never inferred and always
+# stated: a flat three-channel image is a three-marker fluorescence acquisition far more
+# often than a photograph, and the two are indistinguishable as graphs. Note the server
+# forces NORMAL blending here -- a photograph sits *over* what is beneath it -- and takes
+# no `blending` argument at all.
+mutation CreateRgbLayer($input: CreateRgbLayerInput!) {
+  createRgbLayer(input: $input) {
+    ...Layer
+  }
+}
+
+mutation CreateLabelLayer($input: CreateLabelLayerInput!) {
+  createLabelLayer(input: $input) {
+    ...Layer
+  }
+}
+
+mutation CreateMeshLayer($input: CreateMeshLayerInput!) {
+  createMeshLayer(input: $input) {
+    ...Layer
+  }
+}
+
+mutation UpdateMeshLayer($input: UpdateMeshLayerInput!) {
+  updateMeshLayer(input: $input) {
+    ...Layer
+  }
+}
+
+# A node/edge network -- a traced arbor, a vessel tree, a connectome -- rather than a surface.
+# Its own mutation and not a mesh layer with a flag, for the reason the two collections are two
+# stores: konnektion holds a segment list and fabriks a triangle list, and nothing about either
+# blob distinguishes them once they are the same field.
+mutation CreateNetworkLayer($input: CreateNetworkLayerInput!) {
+  createNetworkLayer(input: $input) {
+    ...Layer
+  }
+}
+
+mutation UpdateNetworkLayer($input: UpdateNetworkLayerInput!) {
+  updateNetworkLayer(input: $input) {
+    ...Layer
+  }
+}
+
+
+# Retune a label layer after creation -- above all, switch or republish its colour picker.
+# The server has had this mutation since the picker landed; no document ever asked for it,
+# which is why a label layer's colouring was write-once-at-create from Python.
+mutation UpdateLabelLayer($input: UpdateLabelLayerInput!) {
+  updateLabelLayer(input: $input) {
+    ...Layer
+  }
+}
+
+# A point cloud drawn from a table dataset's coordinate columns. Its objects ARE
+# rows of that table, so a colouring by one of its own columns needs no FIELD
+# edge — which is the one way this layer differs from the other two kinds.
+mutation CreatePointLayer($input: CreatePointLayerInput!) {
+  createPointLayer(input: $input) { ...Layer }
+}
+
+# Retune it afterwards — above all, switch or republish its colour picker. The
+# pickers are replaced wholesale: `[]` clears, an omitted field leaves alone.
+mutation UpdatePointLayer($input: UpdatePointLayerInput!) {
+  updatePointLayer(input: $input) { ...Layer }
+}
+
+# Trajectories from a table dataset, one polyline per value of its TRACK_ID column.
+# The trajectory itself is the table's declaration — coordinate, track and time
+# columns are derived, never stored per layer — so the input only styles it.
+mutation CreateTrackLayer($input: CreateTrackLayerInput!) {
+  createTrackLayer(input: $input) { ...Layer }
+}
+
+mutation UpdateTrackLayer($input: UpdateTrackLayerInput!) {
+  updateTrackLayer(input: $input) { ...Layer }
+}

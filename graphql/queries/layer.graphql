@@ -1,0 +1,17 @@
+# Read a layer back. The server has had `layer` and `layers` all along; no document ever
+# asked for them, so the only way to see a layer's current picker from Python was to fire
+# `updateLabelLayer` with an empty payload and read the mutation's return value -- a write
+# used as a read, which `sparse_live.py` did precisely because this file was missing.
+query GetLayer($id: ID!) {
+  layer(id: $id) {
+    ...Layer
+  }
+}
+
+# No `ordering` variable, matching every other list query here: turms cannot parse a list
+# literal as a variable default, and the server's `ordering` already defaults to `[]`.
+query Layers($filters: LayerFilter, $pagination: OffsetPaginationInput) {
+  layers(filters: $filters, pagination: $pagination) {
+    ...Layer
+  }
+}

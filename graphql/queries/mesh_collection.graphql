@@ -1,0 +1,29 @@
+query GetMeshCollection($id: ID!) {
+  meshCollection(id: $id) {
+    ...MeshCollection
+  }
+}
+
+query GetMeshCollections(
+  $filters: MeshCollectionFilter
+  $pagination: OffsetPaginationInput
+) {
+  meshCollections(filters: $filters, pagination: $pagination) {
+    ...MeshCollection
+  }
+}
+
+query SearchMeshCollections(
+  $search: String
+  $values: [ID!]
+  $limit: Int
+  $offset: Int = 0
+) {
+  options: meshCollections(
+    filters: { version: { iContains: $search }, ids: $values }
+    pagination: { limit: $limit, offset: $offset }
+  ) {
+    value: id
+    label: version
+  }
+}

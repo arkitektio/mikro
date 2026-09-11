@@ -1,0 +1,6 @@
+mutation FromFileLike($input: FromFileLike!) {
+  fromFileLike(input: $input) {
+    ...File
+  }
+}
+

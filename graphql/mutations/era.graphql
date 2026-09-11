@@ -1,5 +1,0 @@
-mutation CreateEra($name: String, $start: DateTime, $end: DateTime) {
-  createEra(name: $name, start: $start, end: $end) {
-    ...Era
-  }
-}

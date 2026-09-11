@@ -1,0 +1,267 @@
+{
+    "schema": "http://jhnnsrs-lab/mikro/schema",
+    "documents": "graphql/**/**.graphql",
+    "extensions": {
+        "turms": {
+            "domain": null,
+            "out_dir": "mikro_next/api",
+            "dump_configuration": true,
+            "configuration_name": "project.json",
+            "dump_schema": true,
+            "schema_name": "schema.graphql",
+            "generated_name": "schema.py",
+            "documents": "graphql/**/**.graphql",
+            "verbose": false,
+            "exit_on_error": true,
+            "allow_introspection": true,
+            "object_bases": [
+                "pydantic.BaseModel"
+            ],
+            "interface_bases": null,
+            "always_resolve_interfaces": true,
+            "exclude_typenames": true,
+            "scalar_definitions": {
+                "Any": "typing.Any",
+                "JSON": "typing.Any",
+                "UUID": "str",
+                "ArrayLike": "mikro_next.scalars.ArrayLike",
+                "ParquetLike": "mikro_next.scalars.ParquetLike",
+                "FabriksLike": "mikro_next.scalars.FabriksLike",
+                "KonnektionLike": "mikro_next.scalars.KonnektionLike",
+                "SporadikLike": "mikro_next.scalars.SporadikLike",
+                "FileLike": "mikro_next.scalars.FileLike",
+                "ImageFileLike": "mikro_next.scalars.ImageFileLike",
+                "ThreeDVector": "mikro_next.scalars.ThreeDVector",
+                "GenericQuantity": "kanne.scalars.GenericQuantity",
+                "Length": "kanne.scalars.Length",
+                "Unit": "kanne.scalars.Unit",
+                "Power": "kanne.scalars.Power",
+                "Frequency": "kanne.scalars.Frequency",
+                "Temperature": "kanne.scalars.Temperature",
+                "ID": "rath.scalars.ID"
+            },
+            "coercible_scalars": {},
+            "coercible_inputs": {},
+            "graphql_default_class": null,
+            "deprecated_class": null,
+            "document_field_metadata": true,
+            "unset_type_class": null,
+            "unset_instance": null,
+            "freeze": {
+                "enabled": true,
+                "types": [
+                    "input",
+                    "fragment",
+                    "object"
+                ],
+                "exclude": null,
+                "include": null,
+                "convert_list_to_tuple": true
+            },
+            "create_catchall": true,
+            "options": {
+                "enabled": true,
+                "extra": "forbid",
+                "populate_by_name": null,
+                "from_attributes": null,
+                "use_enum_values": null,
+                "validate_assignment": null,
+                "alias_mode": "split",
+                "types": [
+                    "input"
+                ],
+                "exclude": null,
+                "include": null
+            },
+            "skip_forwards": false,
+            "min_python_version": "3.10",
+            "type_annotation_style": "auto",
+            "additional_bases": {
+                "AxisInput": [
+                    "mikro_next.traits.AxisInputTrait"
+                ],
+                "ValueHistogramInput": [
+                    "mikro_next.traits.ValueHistogramInputTrait"
+                ],
+                "TransferFunctionInput": [
+                    "mikro_next.traits.RGBAColorInputTrait"
+                ],
+                "PhasorCursorInput": [
+                    "mikro_next.traits.RGBAColorInputTrait"
+                ],
+                "CoordinateAnchorInput": [
+                    "mikro_next.traits.CoordinateAnchorInputTrait"
+                ],
+                "CreateTableDatasetInput": [
+                    "mikro_next.traits.CreateTableDatasetTrait"
+                ],
+                "CreateSparseDatasetInput": [
+                    "mikro_next.traits.CreateSparseDatasetTrait"
+                ],
+                "SparseAxisInput": [
+                    "mikro_next.traits.SparseAxisInputTrait"
+                ],
+                "SparseColorByInput": [
+                    "mikro_next.traits.SparseColorByInputTrait"
+                ],
+                "GraphColorByInput": [
+                    "mikro_next.traits.GraphColorByInputTrait"
+                ],
+                "TableDataset": [
+                    "mikro_next.traits.HasParquestStoreTrait"
+                ],
+                "ZarrStore": [
+                    "mikro_next.traits.HasZarrStoreAccessor"
+                ],
+                "ParquetStore": [
+                    "mikro_next.traits.HasParquetStoreAccesor"
+                ],
+                "BigFileStore": [
+                    "mikro_next.traits.HasDownloadAccessor"
+                ],
+                "MediaStore": [
+                    "mikro_next.traits.HasPresignedDownloadAccessor"
+                ],
+                "Lens": [
+                    "mikro_next.traits.Lensable"
+                ],
+                "ArrayDataset": [
+                    "mikro_next.traits.DatasetTrait"
+                ],
+                "Scene": [
+                    "mikro_next.traits.SceneTrait"
+                ],
+                "CoordinateSystem": [
+                    "mikro_next.traits.CoordinateSystemTrait"
+                ],
+                "ScaleTransformation": [
+                    "mikro_next.traits.TransformationTrait"
+                ],
+                "TranslationTransformation": [
+                    "mikro_next.traits.TransformationTrait"
+                ],
+                "AffineTransformation": [
+                    "mikro_next.traits.TransformationTrait"
+                ],
+                "RotationTransformation": [
+                    "mikro_next.traits.TransformationTrait"
+                ],
+                "IdentityTransformation": [
+                    "mikro_next.traits.TransformationTrait"
+                ],
+                "MapAxisTransformation": [
+                    "mikro_next.traits.TransformationTrait"
+                ],
+                "FieldTransformation": [
+                    "mikro_next.traits.TransformationTrait"
+                ],
+                "SequenceTransformation": [
+                    "mikro_next.traits.TransformationTrait"
+                ],
+                "ByDimensionTransformation": [
+                    "mikro_next.traits.TransformationTrait"
+                ],
+                "UnmappableTransformation": [
+                    "mikro_next.traits.TransformationTrait"
+                ],
+                "DataArray": [
+                    "mikro_next.traits.DataArrayTrait"
+                ],
+                "CreateArrayDatasetInput": [
+                    "mikro_next.traits.CreateADatasetTrait"
+                ],
+                "File": [
+                    "mikro_next.traits.FileTrait"
+                ]
+            },
+            "additional_config": {},
+            "force_plugin_order": true,
+            "omitted_document_rules": [
+                "no_unused_fragments"
+            ],
+            "parsers": [],
+            "plugins": [
+                {
+                    "type": "turms.plugins.enums.EnumsPlugin"
+                },
+                {
+                    "type": "turms.plugins.inputs.InputsPlugin"
+                },
+                {
+                    "type": "turms.plugins.fragments.FragmentsPlugin",
+                    "object_bases": [
+                        "mikro_next.traits.MikroFetchable"
+                    ]
+                },
+                {
+                    "type": "turms.plugins.operations.OperationsPlugin"
+                },
+                {
+                    "type": "turms.plugins.funcs.FuncsPlugin",
+                    "coercible_scalars": {
+                        "ArrayLike": "mikro_next.scalars.ArrayCoercible",
+                        "ImageFileLike": "mikro_next.scalars.ImageFileCoercible",
+                        "FileLike": "mikro_next.scalars.ImageFileCoercible",
+                        "ParquetLike": "mikro_next.scalars.ParquetCoercible",
+                        "FabriksLike": "mikro_next.scalars.FabriksCoercible",
+                        "KonnektionLike": "mikro_next.scalars.KonnektionCoercible",
+                        "SporadikLike": "mikro_next.scalars.SporadikCoercible",
+                        "ID": "rath.scalars.IDCoercible"
+                    },
+                    "coercible_inputs": {
+                        "AxisInput": "str"
+                    },
+                    "expand_input_types": [
+                        "input"
+                    ],
+                    "global_kwargs": [
+                        {
+                            "type": "mikro_next.rath.MikroNextRath",
+                            "key": "rath",
+                            "description": "The mikro rath client"
+                        }
+                    ],
+                    "definitions": [
+                        {
+                            "type": "subscription",
+                            "is_async": true,
+                            "use": "mikro_next.funcs.asubscribe"
+                        },
+                        {
+                            "type": "query",
+                            "is_async": true,
+                            "use": "mikro_next.funcs.aexecute"
+                        },
+                        {
+                            "type": "mutation",
+                            "is_async": true,
+                            "use": "mikro_next.funcs.aexecute"
+                        },
+                        {
+                            "type": "subscription",
+                            "use": "mikro_next.funcs.subscribe"
+                        },
+                        {
+                            "type": "query",
+                            "use": "mikro_next.funcs.execute"
+                        },
+                        {
+                            "type": "mutation",
+                            "use": "mikro_next.funcs.execute"
+                        }
+                    ]
+                }
+            ],
+            "processors": [],
+            "stylers": [
+                {
+                    "type": "turms.stylers.default.DefaultStyler"
+                },
+                {
+                    "type": "turms.stylers.appender.AppenderStyler",
+                    "append_fragment": ""
+                }
+            ]
+        }
+    }
+}

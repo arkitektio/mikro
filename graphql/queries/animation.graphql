@@ -1,0 +1,26 @@
+query GetAnimation($id: ID!) {
+  animation(id: $id) {
+    ...Animation
+  }
+}
+
+query GetAnimations($filters: AnimationFilter, $pagination: OffsetPaginationInput) {
+  animations(filters: $filters, pagination: $pagination) {
+    ...Animation
+  }
+}
+
+query SearchAnimations(
+  $search: String
+  $values: [ID!]
+  $limit: Int
+  $offset: Int = 0
+) {
+  options: animations(
+    filters: { search: $search, ids: $values }
+    pagination: { limit: $limit, offset: $offset }
+  ) {
+    value: id
+    label: name
+  }
+}

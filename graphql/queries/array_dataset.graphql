@@ -1,0 +1,26 @@
+query GetArrayDataset($id: ID!) {
+  arrayDataset(id: $id) {
+    ...ArrayDataset
+  }
+}
+
+query GetArrayDatasets($filters: ArrayDatasetFilter, $pagination: OffsetPaginationInput) {
+  arrayDatasets(filters: $filters, pagination: $pagination) {
+    ...ArrayDataset
+  }
+}
+
+query SearchArrayDatasets(
+  $search: String
+  $values: [ID!]
+  $limit: Int
+  $offset: Int = 0
+) {
+  options: arrayDatasets(
+    filters: { search: $search, ids: $values }
+    pagination: { limit: $limit, offset: $offset }
+  ) {
+    value: id
+    label: name
+  }
+}

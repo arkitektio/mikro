@@ -1,0 +1,16 @@
+fragment NetworkCollection on NetworkCollection {
+  id
+  version
+  specVersion
+  grid
+  encoding
+  coordinateSystem {
+    ...CoordinateSystem
+  }
+  store {
+    ...KonnektionStore
+  }
+  derivedFrom {
+    ...Transformation
+  }
+}

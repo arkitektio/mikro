@@ -1,0 +1,17 @@
+mutation CreatePhasorLayer($input: CreatePhasorLayerInput!) {
+  createPhasorLayer(input: $input) {
+    ...Layer
+  }
+}
+
+mutation CreatePhasorHistogram($input: CreatePhasorHistogramInput!) {
+  createPhasorHistogram(input: $input) {
+    ...PhasorHistogram
+  }
+}
+
+mutation CreatePhasorCalibration($input: CreatePhasorCalibrationInput!) {
+  createPhasorCalibration(input: $input) {
+    ...PhasorCalibration
+  }
+}

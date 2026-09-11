@@ -1,0 +1,40 @@
+fragment SparseArray on SparseArray {
+  id
+  indexedAxis
+  indexedAxisName
+  # Where this layout sits inside the store's prefix. Both layouts of one matrix share a store
+  # -- one matrix is one upload -- so the path is what says which of them this is.
+  path
+  store {
+    ...SparseStore
+  }
+}
+
+fragment SparseAxisReference on SparseAxisReference {
+  id
+  axis
+  references {
+    id
+    name
+  }
+}
+
+fragment SparseDataset on SparseDataset {
+  id
+  name
+  description
+  axisNames
+  shape
+  # The axes a stored layout indexes -- the questions this matrix answers in one contiguous
+  # read. An axis absent here is one it holds and can only answer about by scanning.
+  indexableAxes
+  arrays {
+    ...SparseArray
+  }
+  axisReferences {
+    ...SparseAxisReference
+  }
+  coordinateSystem {
+    ...CoordinateSystem
+  }
+}

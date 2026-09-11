@@ -1,0 +1,5 @@
+query GetLens($id: ID!) {
+  lens(id: $id) {
+    ...Lens
+  }
+}

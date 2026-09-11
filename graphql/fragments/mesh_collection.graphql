@@ -1,0 +1,16 @@
+fragment MeshCollection on MeshCollection {
+  id
+  version
+  specVersion
+  grid
+  encoding
+  coordinateSystem {
+    ...CoordinateSystem
+  }
+  store {
+    ...FabriksStore
+  }
+  derivedFrom {
+    ...Transformation
+  }
+}

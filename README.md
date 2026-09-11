@@ -1,28 +1,20 @@
 # mikro
 
-[![codecov](https://codecov.io/gh/jhnnsrs/mikro/branch/master/graph/badge.svg?token=UGXEA2THBV)](https://codecov.io/gh/jhnnsrs/mikro)
-[![PyPI version](https://badge.fury.io/py/mikro.svg)](https://pypi.org/project/mikro/)
-[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://pypi.org/project/mikro/)
+[![codecov](https://codecov.io/gh/arkitektio/mikro-next/graph/badge.svg?token=PRoouTwAGx)](https://codecov.io/gh/arkitektio/mikro-next)
+[![PyPI version](https://badge.fury.io/py/mikro-next.svg)](https://pypi.org/project/mikro-next/)
+[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://pypi.org/project/mikro-next/)
 ![Maintainer](https://img.shields.io/badge/maintainer-jhnnsrs-blue)
-[![PyPI pyversions](https://img.shields.io/pypi/pyversions/mikro.svg)](https://pypi.python.org/pypi/mikro/)
-[![PyPI status](https://img.shields.io/pypi/status/mikro.svg)](https://pypi.python.org/pypi/mikro/)
-[![PyPI download month](https://img.shields.io/pypi/dm/mikro.svg)](https://pypi.python.org/pypi/mikro/)
+[![PyPI pyversions](https://img.shields.io/pypi/pyversions/mikro-next.svg)](https://pypi.python.org/pypi/mikro-next/)
+[![PyPI status](https://img.shields.io/pypi/status/mikro-next.svg)](https://pypi.python.org/pypi/mikro-next/)
+[![PyPI download month](https://img.shields.io/pypi/dm/mikro-next.svg)](https://pypi.python.org/pypi/mikro-next/)
 
-mikro is the python client for the mikro-server environment.
+mikro-next is the python client for the next version of the mikro-server environment.
 
-# DEVELOPMENT
-
-This should not be used outside of lab conditions... OUR lab's conditions
 
 # Quick Start
 
 Let's discover **mikro in less than 5 minutes**.
 
-:::warning
-This is a very developmental build, that is currently only used to test in the IINS, Bordeaux. If you are intersteted please contact
-the authors directly!
-please
-:::
 
 ### Inspiration
 
@@ -33,7 +25,7 @@ of relations within your data and tries to make them accessible through a GraphQ
 ### Installation
 
 ```bash
-pip install mikro
+pip install mikro-next
 ```
 
 ### Design
@@ -49,29 +41,29 @@ of zarr, dask and xarray for scientific computation.
 
 ### Features
 
-- Ability to retrieve complex relationships
 - Easy to extend with custom graphql logic (together with turms can generate APIs for very complex relationship)
-- Fast
 - Interoperable and standardization (has bindings for Dataframes and Numpy arrays)
 - Fully Typed and Validated(uses pydantic for validation)
 
 ### Prerequisits
 
-You need a fully configured mikro-server running in your lab, that mikro can connect to.
+You need a fully configured mikro-server running in your lab, that mikro can connect to. The easiest way to do this is to
+use the [arkitekt.live](https://arkitekt.live) platform, which provides a fully managed mikro-server for your lab. Just
+follow the instructions on the website to get started. If you just want a local test service, check out the 
+tests/integration/docker-compose.yml file, which contains a docker-compose file to start a mikro-server
+locally with a postgres database and a minio object storage.
 
 ## Example Use case
 
 The API of Mikro is best explained on this example:
 
 ```python
-from mikro import MikroApp, get_representation
-from fakts import Fakts
+from arkitekt_next import easy
+from mikro_next.api.schema import get_random_image
 
 
-app = MikroApp()
-
-with app:
-    g = get_representation(107)
+with easy("my-app") as app:
+    g = get_random_image()
 
     maximum_intensity_l = g.data.max()
     maximum_intensity = maximum_intensity.compute()
@@ -80,9 +72,8 @@ with app:
 1. **First we construct an App**:
    App is the entrypoint of every client accessing the mikro service,
    in a more complex example here you would define the configuration of
-   the connection. If you don't specify anything here it will use `fakts` to
-   autoconfigure (searching for the fakts.yaml file in the directory). Check
-   fakts documentation for retrieving this.
+   the connection. In this example we use the `easy` function to
+   construct an arkitekt-app with a default configuration. 
 
 2. **Entering the Context**:
    This is the most important concept to learn, every interaction you have with
@@ -91,13 +82,13 @@ with app:
    ensures that every connection gets cleaned up effienctly and safely.
 
 3. **Retrieving Model**:
-   On calling `get_representation` we are calling the graphql server and retrieve
-   the metadata of an image In this case the image with id `107`. This function just
+   On calling `get_random_image` we are calling the graphql server and retrieve
+   the metadata of a reandom image. This function just
    executes a default graphqlquery and constructs a typed python model out of it.
 
 4. **Retrieving Data**:
-   Here we are actually doing operations on the image data. Every Representation
-   (Image) has a `data` attribute. This data attribute resolves to a lazily loaded
+   Here we are actually doing operations on the image data. Every Image
+   has a `data` attribute. This data attribute resolves to a lazily loaded
    xarray that connects to a zarr store on the s3 datalayer. What that means for you
    is that you can use this as a normal xarray with dask array.
 
@@ -112,23 +103,22 @@ If you dont want to use a context manager you can also choose to
 use the connect/disconnect methods:
 
 ```python
-from mikro import MikroApp, get_representation
-from fakts import Fakts
+from arkitekt_next import easy 
+from mikro_next.api.schema import get_image
 
 
-app = MikroApp()
-app.connect()
+app = easy()
+app.enter()
 
-g = get_representation(107)
+g = get_image(107)
 
 maximum_intensity = g.data.max().compute()
 
 #later
-app.disconnect()
+app.exit()
 
 
 ```
-
 :::warning
 If you choose this approach, make sure that you call disconnect in your code at some
 stage. Especially when using asynchronous links/transports (supporting subscriptions) in a sync

@@ -1,0 +1,23 @@
+mutation CreateCoordinateSystem($input: CreateCoordinateSystemInput!) {
+  createCoordinateSystem(input: $input) {
+    ...CoordinateSystem
+  }
+}
+
+mutation UpdateCoordinateSystem($input: UpdateCoordinateSystemInput!) {
+  updateCoordinateSystem(input: $input) {
+    ...CoordinateSystem
+  }
+}
+
+mutation DeleteCoordinateSystem($input: DeleteCoordinateSystemInput!) {
+  deleteCoordinateSystem(input: $input)
+}
+
+mutation ClearCoordinateSystem($input: ClearCoordinateSystemInput!) {
+  clearCoordinateSystem(input: $input)
+}
+
+mutation DeleteRegistration($input: DeleteRegistrationInput!) {
+  deleteRegistration(input: $input)
+}

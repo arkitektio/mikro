@@ -1,0 +1,20 @@
+query GetFolder($id: ID!) {
+    folder(id: $id) {
+        ...Folder
+    }
+}
+
+query SearchFolders(
+  $search: String
+  $values: [ID!]
+  $limit: Int
+  $offset: Int = 0
+) {
+  options: folders(
+    filters: { search: $search, ids: $values }
+    pagination: { limit: $limit, offset: $offset }
+  ) {
+    value: id
+    label: name
+  }
+}

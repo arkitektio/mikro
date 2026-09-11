@@ -1,0 +1,9 @@
+fragment Scene on Scene {
+  name
+  id
+  preferredView
+  backgroundColor
+  worldCoordinateSystem {
+    ...CoordinateSystem
+  }
+}

@@ -1,0 +1,10 @@
+fragment SceneSnapshot on SceneSnapshot {
+  id
+  name
+  scene {
+    ...Scene
+  }
+  store {
+    ...MediaStore
+  }
+}

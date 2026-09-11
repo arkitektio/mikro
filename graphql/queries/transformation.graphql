@@ -1,0 +1,14 @@
+query GetTransformation($id: ID!) {
+  transformation(id: $id) {
+    ...Transformation
+  }
+}
+
+query GetTransformations(
+  $filters: TransformationFilter
+  $pagination: OffsetPaginationInput
+) {
+  transformations(filters: $filters, pagination: $pagination) {
+    ...Transformation
+  }
+}
