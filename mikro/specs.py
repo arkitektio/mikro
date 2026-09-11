@@ -84,7 +84,7 @@ from typing import (
 )
 
 from rekuest.annotations import Provides, Requires
-from rekuest.api.schema import ProvidesOperator, RequiresInput, RequiresOperator
+from rekuest.api.schema import DescriptorOperator, RequiresInput
 
 from mikro.api.schema import AxisInput, AxisType, Lens
 from mikro.vocabulary import (
@@ -125,9 +125,9 @@ DescriptorKey = Literal[
 DescriptorValue = Union[int, str, bool, Sequence[int | str]]
 
 #: The matching operators, as they read back off a `RequiresInput`. A Literal
-#: rather than `RequiresOperator` because `use_enum_values=True` means the model
-#: stores the plain value — annotating a read as the enum would be a lie. The
-#: enums are still what `constrain` builds with.
+#: rather than `DescriptorOperator` because `use_enum_values=True` means the
+#: model stores the plain value — annotating a read as the enum would be a lie.
+#: The enum is still what `constrain` builds with.
 ConstraintOperator = Literal[
     "EQUALS",
     "NOT_EQUALS",
@@ -164,12 +164,12 @@ def constrain(
 
     Both directions carry the same statement so one alias serves argument and
     return positions; the port converter keeps the applicable side and drops
-    the other. The two sides take separate (identically populated) enums, so the
-    operator is named once and widened into each.
+    the other. Both sides take the same `DescriptorOperator`, so the operator is
+    named once and used for each.
     """
     return (
-        Requires(key=key, operator=RequiresOperator(operator), value=value),
-        Provides(key=key, operator=ProvidesOperator(operator), value=value),
+        Requires(key=key, operator=DescriptorOperator(operator), value=value),
+        Provides(key=key, operator=DescriptorOperator(operator), value=value),
     )
 
 
