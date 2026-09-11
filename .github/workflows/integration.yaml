@@ -6,10 +6,12 @@ on:
     branches: [main, next]
 jobs:
   test_integration:
-    # Test prerelease branches against the prerelease backend (:next) and the
-    # stable line against :latest. base_ref is set on PRs, ref_name on pushes.
+    # Pinned to :next, the only tag jhnnsrs/mikro publishes -- there has never
+    # been a :latest. The previous expression asked for it on main, so the image
+    # pull failed and every integration run on the stable line was broken.
+    # Restore the 'main -> latest' split once the backend cuts a stable image.
     env:
-      MIKRO_SERVICE_TAG: ${{ (github.base_ref || github.ref_name) == 'main' && 'latest' || 'next' }}
+      MIKRO_SERVICE_TAG: next
     strategy:
       fail-fast: false
       matrix:
