@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from arkitekt_next.service_registry import (
+from arkitekt.service_registry import (
     BaseArkitektService,
     Params,
     get_default_service_registry,

@@ -8,12 +8,12 @@ supplies what ``easy()`` would have supplied and lets each script run.
 
 What the harness substitutes:
 
-- ``arkitekt_next`` is replaced with a stub whose ``easy()`` yields nothing.
+- ``arkitekt`` is replaced with a stub whose ``easy()`` yields nothing.
   The scripts only use ``easy`` to enter the mikro context; here the
   session-scoped ``deployed_app`` fixture has already entered
   ``current_mikro_rath`` (``with mikro as mikro:`` in conftest), so every
   bare ``create_*`` call inside the script lands on the test deployment. The
-  stub is also load-bearing for a second reason: the real ``arkitekt_next`` in
+  stub is also load-bearing for a second reason: the real ``arkitekt`` in
   this venv does not import cleanly, so the scripts cannot even be loaded
   without it.
 - ``sys.argv`` is pinned to the bare script name -- no ``--dry-run``, so the
@@ -65,7 +65,7 @@ SCRIPTS = [
 
 @contextmanager
 def _stub_easy(identifier: str | None = None, **kwargs: object):
-    """Stand-in for ``arkitekt_next.easy``: the fixture already entered mikro."""
+    """Stand-in for ``arkitekt.easy``: the fixture already entered mikro."""
     yield None
 
 
@@ -74,9 +74,9 @@ def _stub_easy(identifier: str | None = None, **kwargs: object):
 def test_example_uploads(
     deployed_app: DeployedMikro, script: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    stub = types.ModuleType("arkitekt_next")
+    stub = types.ModuleType("arkitekt")
     stub.easy = _stub_easy  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "arkitekt_next", stub)
+    monkeypatch.setitem(sys.modules, "arkitekt", stub)
     monkeypatch.setattr(sys, "argv", [script])
     monkeypatch.syspath_prepend(str(EXAMPLES))
 

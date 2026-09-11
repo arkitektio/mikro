@@ -60,7 +60,7 @@ __all__ = [
     "duckdb_type",
 ]
 
-# Both of these are optional: `arkitekt-next` and `rekuest` are dev
+# Both of these are optional: `arkitekt` and `rekuest` are dev
 # dependencies, not install requirements. A name that did not import must stay
 # out of `__all__` as well, or `from mikro import *` raises on a perfectly
 # valid install. (`mikro.specs` is unexported for the same reason — it
@@ -69,7 +69,7 @@ try:
     from .arkitekt import MikroService as MikroService
 except ImportError as e:
     try:
-        import arkitekt_next  # noqa: F401 — presence is the question
+        import arkitekt  # noqa: F401 — presence is the question
 
         raise ImportError(
             "Arkitekt is installed, but the MikroService could not be imported. This may indicate a version mismatch or missing dependencies."

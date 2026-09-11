@@ -33,7 +33,7 @@ import numpy as np
 import xarray as xr
 
 from mikro import Unit, create_space
-from arkitekt_next import easy
+from arkitekt import easy
 from mikro.api.schema import (
     AxisInput,
     AxisType,

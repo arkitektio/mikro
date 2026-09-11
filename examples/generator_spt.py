@@ -35,7 +35,7 @@ import pandas as pd
 import xarray as xr
 
 from mikro import Unit, create_space, dataset_arrays
-from arkitekt_next import easy
+from arkitekt import easy
 from mikro.api.schema import (
     AxisType,
     ColorMap,

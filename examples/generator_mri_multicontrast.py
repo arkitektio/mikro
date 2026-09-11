@@ -31,7 +31,7 @@ import xarray as xr
 from scipy.ndimage import gaussian_filter
 
 from mikro import Calibration, Unit, dataset_arrays
-from arkitekt_next import easy
+from arkitekt import easy
 from mikro.api.schema import (
     AxisType,
     BootstrapLayerKind,

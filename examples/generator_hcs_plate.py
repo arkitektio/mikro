@@ -34,7 +34,7 @@ import xarray as xr
 from scipy import ndimage
 
 from mikro import Unit, space_2d
-from arkitekt_next import easy
+from arkitekt import easy
 from mikro.api.schema import (
     AxisType,
     ColorMap,

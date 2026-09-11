@@ -36,7 +36,7 @@ import xarray as xr
 
 import konnektion
 from mikro import Unit, dataset_arrays, space_3d
-from arkitekt_next import easy
+from arkitekt import easy
 from mikro.api.schema import (
     AxisInput,
     AxisType,

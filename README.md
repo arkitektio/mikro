@@ -58,7 +58,7 @@ locally with a postgres database and a minio object storage.
 The API of Mikro is best explained on this example:
 
 ```python
-from arkitekt_next import easy
+from arkitekt import easy
 from mikro.api.schema import get_random_image
 
 
@@ -103,7 +103,7 @@ If you dont want to use a context manager you can also choose to
 use the connect/disconnect methods:
 
 ```python
-from arkitekt_next import easy 
+from arkitekt import easy 
 from mikro.api.schema import get_image
 
 
