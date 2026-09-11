@@ -70,7 +70,6 @@ dev-dependencies =  [
     "fakts>=2",
     "rekuest>=3",
     "pyarrow>=24",
-    "arkitekt-next==0.17",
     "duckdb>=1.5.3",
     "basedpyright>=1.21",
     # The sparse wire format. An extra for callers (see `[project.optional-dependencies]`),
