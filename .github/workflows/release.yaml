@@ -20,11 +20,16 @@ jobs:
 
     # `uv run pytest` below has no marker filter, so it runs the integration
     # tests too, and they pull the backend from docker-compose's
-    # `jhnnsrs/mikro:${MIKRO_SERVICE_TAG:-next}`. Unset, a release off main
-    # would gate the stable line against the prerelease backend.
-    # integration.yaml pins the same expression.
+    # `jhnnsrs/mikro:${MIKRO_SERVICE_TAG:-next}`.
+    #
+    # Pinned to `next` rather than mirroring integration.yaml's
+    # `main -> latest` expression: jhnnsrs/mikro has never published a `latest`
+    # tag (only `next` and 2.0.0-rc.*), so asking for it fails the image pull
+    # and takes the release gate down with it. Switch this to that expression
+    # once the backend cuts a stable image -- integration.yaml needs the same
+    # correction, since it is already asking for `latest` on main.
     env:
-      MIKRO_SERVICE_TAG: ${{ github.ref_name == 'main' && 'latest' || 'next' }}
+      MIKRO_SERVICE_TAG: next
 
     steps:
       - uses: actions/checkout@v4
