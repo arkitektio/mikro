@@ -1,4 +1,5 @@
 import os
+import socket
 import sys
 from collections.abc import Generator
 from dataclasses import dataclass
@@ -44,7 +45,50 @@ docker_compose_file = os.path.join(project_path, "docker-compose.yml")
 # published image is the schema under test, as before.
 _local_override = os.path.join(project_path, "docker-compose.local.yml")
 compose_files = [docker_compose_file] + ([_local_override] if os.path.exists(_local_override) else [])
-private_key = os.path.join(project_path, "private_key.pem")
+
+
+def _reserve_free_ports(count: int) -> list[int]:
+    """Ask the OS for `count` distinct free TCP ports.
+
+    All sockets are held open until every port has been assigned, so the kernel
+    cannot hand out the same port twice within one call. They are released
+    before compose binds them -- a race in theory, but the ephemeral range is
+    large and this is what keeps concurrent runs (and the leftovers of a crashed
+    one) from colliding on a fixed port.
+    """
+    sockets: list[socket.socket] = []
+    try:
+        for _ in range(count):
+            sock = socket.socket()
+            sock.bind(("127.0.0.1", 0))
+            sockets.append(sock)
+        return [int(sock.getsockname()[1]) for sock in sockets]
+    finally:
+        for sock in sockets:
+            sock.close()
+
+
+@pytest.fixture(scope="session")
+def integration_ports() -> Generator[dict[str, int], None, None]:
+    """Pick this run's host ports and point compose at them.
+
+    Reserved rather than left to docker (`ports: - "80"`) because
+    `Deployment.spec` is rendered by `docker compose config`, which is static:
+    an unpublished port reads back as ``None`` and the test URLs would quietly
+    become ``http://localhost:None`` instead of failing loudly.
+    """
+    mikro_port, minio_port = _reserve_free_ports(2)
+    env = {"MIKRO_HOST_PORT": str(mikro_port), "MINIO_HOST_PORT": str(minio_port)}
+    previous = {key: os.environ.get(key) for key in env}
+    os.environ.update(env)
+    try:
+        yield {"mikro": mikro_port, "minio": minio_port}
+    finally:
+        for key, value in previous.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
 
 
 async def token_loader() -> str:
@@ -72,7 +116,7 @@ class DeployedMikro:
 
 
 @pytest.fixture(scope="session")
-def deployed_app() -> Generator[DeployedMikro, None, None]:
+def deployed_app(integration_ports: dict[str, int]) -> Generator[DeployedMikro, None, None]:
     """Fixture to deploy the MikroNext application with Docker Compose.
 
     This fixture sets up the MikroNext application using Docker Compose,
