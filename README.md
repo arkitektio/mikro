@@ -8,6 +8,10 @@
 [![PyPI status](https://img.shields.io/pypi/status/mikro.svg)](https://pypi.python.org/pypi/mikro/)
 [![PyPI download month](https://img.shields.io/pypi/dm/mikro.svg)](https://pypi.python.org/pypi/mikro/)
 
+> **Renamed.** This client was published as `mikro-next` up to 2.1.1. From 3.0.0 it is
+> published as `mikro` again, and the import root is `mikro` (`mikro_next` is gone).
+> Install `mikro>=3` and update imports.
+
 mikro is the python client for the next version of the mikro-server environment.
 
 
