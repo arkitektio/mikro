@@ -765,6 +765,21 @@ meshopt = [
 ]
 
 [[package]]
+name = "fakts"
+version = "2.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "aiohttp" },
+    { name = "certifi" },
+    { name = "koil" },
+    { name = "pydantic" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/cc/8a/51bc35d234a1513f727c7845a96cb4a4835d7f84f699808088792f147721/fakts-2.0.0.tar.gz", hash = "sha256:379c5a3479bcb8b66fd3ae940493925bffad7a970ba2f774401a2b3fa2c85af2", size = 72890, upload-time = "2026-09-11T10:31:07.199Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/86/95/9225ea24e15ebac0a3d733d89bffebed2b38361f11d374fce5f6cc0840ad/fakts-2.0.0-py3-none-any.whl", hash = "sha256:0acbca458339aed58f360009903c121f824e3ec98a9bb4cbb54646194936c065", size = 90421, upload-time = "2026-09-11T10:31:06.144Z" },
+]
+
+[[package]]
 name = "fakts-next"
 version = "4.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1155,14 +1170,14 @@ wheels = [
 
 [[package]]
 name = "koil"
-version = "3.3.1"
+version = "3.3.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f6/f2/c803075854fda0c08201a280358a694206b4dcbc1c1f19981eec73b0f107/koil-3.3.1.tar.gz", hash = "sha256:18415e55b9f87651127db9aed284fca5bdfdd8d9c5fa9e44b0acdfdccf7fccf6", size = 40936, upload-time = "2026-06-11T14:59:26.835Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c3/15/5f88e495d03f4a75a4b20ee174c34ebb4deba9c3431e8103164fa6e6683d/koil-3.3.2.tar.gz", hash = "sha256:0d8cdb2f96264d105376924a0ede2976f1c03750cef1a24519662e8f579a5257", size = 41955, upload-time = "2026-07-07T11:40:06.151Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/64/0b/af9f50f28c16a5378f23096766a7983b0904026fad24eee09a1b1eb17265/koil-3.3.1-py3-none-any.whl", hash = "sha256:603bb640c85bb70e9c9f08bbb90b2bf3196c8e15a3f287d79525539d5e34c3ab", size = 47270, upload-time = "2026-06-11T14:59:27.885Z" },
+    { url = "https://files.pythonhosted.org/packages/cc/ad/9c2553d38abcf601aa2a42c55659b84122263fc20401478407132ee89bd3/koil-3.3.2-py3-none-any.whl", hash = "sha256:4cbbebea4cf2357728ee81efd894cf63dddfb66d15805fb92f5cda8294b0cb2e", size = 48268, upload-time = "2026-07-07T11:40:05.217Z" },
 ]
 
 [[package]]
@@ -1304,17 +1319,16 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/35/b9/23259780df3097b6b70e7091970a689b677bd320b02a63fdf60493902167/meshoptimizer-0.2.30a0.tar.gz", hash = "sha256:36b18b61a95ba992de804b1e91e86be2ba185925e4e2c1481495f8c68a17f5db", size = 98795, upload-time = "2026-02-27T06:39:01.628Z" }
 
 [[package]]
-name = "mikro-next"
+name = "mikro"
 version = "2.1.1"
 source = { editable = "." }
 dependencies = [
     { name = "dask" },
-    { name = "fakts-next" },
+    { name = "fakts" },
     { name = "kanne" },
     { name = "numcodecs" },
     { name = "numpy", marker = "python_full_version >= '3.12' and python_full_version < '4'" },
     { name = "obstore" },
-    { name = "pytest" },
     { name = "rath" },
     { name = "websockets" },
     { name = "xarray" },
@@ -1365,7 +1379,7 @@ dev = [
     { name = "cryptography" },
     { name = "dokker" },
     { name = "duckdb" },
-    { name = "fakts-next" },
+    { name = "fakts" },
     { name = "janus" },
     { name = "pillow" },
     { name = "pyarrow" },
@@ -1375,7 +1389,7 @@ dev = [
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
     { name = "python-semantic-release" },
-    { name = "rekuest-next" },
+    { name = "rekuest" },
     { name = "ruff" },
     { name = "scikit-image" },
     { name = "sporadik" },
@@ -1391,7 +1405,7 @@ requires-dist = [
     { name = "fabriks", marker = "extra == 'mesh'", specifier = ">=1.0" },
     { name = "fabriks", extras = ["meshopt"], marker = "extra == 'complete'", specifier = ">=1.0" },
     { name = "fabriks", extras = ["meshopt"], marker = "extra == 'meshopt'", specifier = ">=1.0" },
-    { name = "fakts-next", specifier = ">=2" },
+    { name = "fakts", specifier = ">=2" },
     { name = "kanne", specifier = ">=2.5.0" },
     { name = "konnektion", marker = "extra == 'complete'", specifier = ">=0.1" },
     { name = "konnektion", marker = "extra == 'network'", specifier = ">=0.1" },
@@ -1405,7 +1419,6 @@ requires-dist = [
     { name = "pyarrow", marker = "extra == 'meshopt'", specifier = ">=12.0.1" },
     { name = "pyarrow", marker = "extra == 'network'", specifier = ">=12.0.1" },
     { name = "pyarrow", marker = "extra == 'table'", specifier = ">=12.0.1" },
-    { name = "pytest", specifier = ">=8.3.5" },
     { name = "rath", specifier = ">=3.12" },
     { name = "sporadik", marker = "extra == 'complete'", specifier = ">=0.1" },
     { name = "sporadik", marker = "extra == 'sparse'", specifier = ">=0.1" },
@@ -1426,7 +1439,7 @@ dev = [
     { name = "cryptography", specifier = ">=44.0.3" },
     { name = "dokker", specifier = ">=2.8" },
     { name = "duckdb", specifier = ">=1.5.3" },
-    { name = "fakts-next", specifier = ">=4" },
+    { name = "fakts", specifier = ">=2" },
     { name = "janus", specifier = ">=1.0" },
     { name = "pillow", specifier = ">=11.2.1" },
     { name = "pyarrow", specifier = ">=24" },
@@ -1436,7 +1449,7 @@ dev = [
     { name = "pytest-asyncio", specifier = ">=0.26.0" },
     { name = "pytest-cov", specifier = ">=6.1.1" },
     { name = "python-semantic-release", specifier = ">=9.21.0" },
-    { name = "rekuest-next", specifier = ">=0.12.2" },
+    { name = "rekuest", specifier = ">=3" },
     { name = "ruff", specifier = ">0.11" },
     { name = "scikit-image", specifier = ">=0.22" },
     { name = "sporadik", specifier = ">=1.1" },
@@ -2474,6 +2487,26 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/da/ef/63420fa273d059aa2c784e63af0430c3661f476c4ff27bcb5faf11c94537/rath-3.12.0.tar.gz", hash = "sha256:2360e0e24a206a473e43213b4993ecd0679d7dd0c4b3c31b8e6ef5037393fbc6", size = 37648, upload-time = "2026-06-21T08:48:08.677Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ee/af/52786ec863b2bc5eb1c5d2c04c28ed7c32ef61225d407236514eb87d0a39/rath-3.12.0-py3-none-any.whl", hash = "sha256:65435ea42835cd246d9063c69fd4170c32651a02044c50790203738f82a638e3", size = 54824, upload-time = "2026-06-21T08:48:07.7Z" },
+]
+
+[[package]]
+name = "rekuest"
+version = "3.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "docstring-parser" },
+    { name = "fieldz" },
+    { name = "inflection" },
+    { name = "janus" },
+    { name = "jsonpatch" },
+    { name = "koil" },
+    { name = "pydantic" },
+    { name = "rath" },
+    { name = "websockets" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a9/88/b732e84fe8592da00c8e7522c428d0378d731bfdd7f62b9c5871a4eede23/rekuest-3.0.0.tar.gz", hash = "sha256:87959541bb6abb3438594ee22a8e8553afcb600586779d96845df5d60d92fc8d", size = 306009, upload-time = "2026-09-11T12:58:42.812Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/93/a9/9b804104285d3aecc21f6c47abd1a1cd4c31a8f6b154f79d1cf413c0eb08/rekuest-3.0.0-py3-none-any.whl", hash = "sha256:a7effe7c994e50d0e2c4e44c5d419401a3a75f40d4b859f0be37fdf0831a6836", size = 373106, upload-time = "2026-09-11T12:58:41.49Z" },
 ]
 
 [[package]]
