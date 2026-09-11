@@ -1257,7 +1257,7 @@ sdist = { url = "https://files.pythonhosted.org/packages/35/b9/23259780df3097b6b
 
 [[package]]
 name = "mikro"
-version = "2.1.1"
+version = "3.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "dask" },
