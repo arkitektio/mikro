@@ -3,14 +3,14 @@
 The sparse counterpart of ``test_tables.py``, and it tests the same two things: the refusals,
 and the shape of the API a caller writes. There is no helper and no wrapper type -- a caller
 writes ``SparseAxisInput``s and hands them to ``create_sparse_dataset`` -- so the checks are
-exercised through :mod:`mikro_next.sparse` here, and through the input itself in
+exercised through :mod:`mikro.sparse` here, and through the input itself in
 ``test_sparse_dataset.py``.
 
 The reason this file exists at all is that the sparse path had no tests. ``SporadikLike`` was
 the only client-side gate and it was untested by construction, because ``sporadik`` was not
 installed in this package's own environment. Every case below runs without it: the checks in
-:func:`~mikro_next.sparse.check_axes` are statements about axes, and
-:func:`~mikro_next.sparse.check_against_store` reads exactly one attribute off a layout, so a
+:func:`~mikro.sparse.check_axes` are statements about axes, and
+:func:`~mikro.sparse.check_against_store` reads exactly one attribute off a layout, so a
 stub with a ``shape`` is a whole store as far as it is concerned. That split is deliberate --
 it is what keeps the refusals reachable from a plain ``pytest`` run.
 
@@ -22,12 +22,12 @@ so ``test_an_axis_may_be_keyed_and_referenced_at_once`` is what pins the predica
 
 import pytest
 
-from mikro_next.api.schema import (
+from mikro.api.schema import (
     DatasetIdentifiesInput,
     SparseAxisInput,
     TableIdentifiesInput,
 )
-from mikro_next.sparse import MIN_RANK, SparseDeclarationError, check_against_store, check_axes
+from mikro.sparse import MIN_RANK, SparseDeclarationError, check_against_store, check_axes
 
 
 class Layout:

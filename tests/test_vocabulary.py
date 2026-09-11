@@ -1,6 +1,6 @@
 """The hand-written vocabularies must not drift from the generated schema.
 
-:mod:`mikro_next.vocabulary` spells the closed vocabularies as ``Literal``
+:mod:`mikro.vocabulary` spells the closed vocabularies as ``Literal``
 unions rather than reusing the generated enums, because every generated model
 sets ``use_enum_values=True`` — a field read back off a model holds the plain
 value, not the member, so a ``Literal`` is what is actually there.
@@ -15,8 +15,8 @@ from typing import get_args
 
 import pytest
 
-from mikro_next.api.schema import AxisType, TransformInput
-from mikro_next.vocabulary import (
+from mikro.api.schema import AxisType, TransformInput
+from mikro.vocabulary import (
     AXIS_TYPE_ORDER,
     COARSENABLE_AXIS_TYPES,
     MATRIX_KINDS,

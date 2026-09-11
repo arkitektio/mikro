@@ -25,7 +25,7 @@ rather than assumed.
 import pytest
 from pydantic import ValidationError
 
-from mikro_next.api.schema import (
+from mikro.api.schema import (
     ColorMap,
     CreateSparseDatasetInput,
     DatasetIdentifiesInput,
@@ -34,10 +34,10 @@ from mikro_next.api.schema import (
     SparseColorByInput,
     TableIdentifiesInput,
 )
-from mikro_next.picker import label_render, sparse_color_by
+from mikro.picker import label_render, sparse_color_by
 
 pytest.importorskip("scipy", reason="the store cases need a real CSR matrix")
-pytest.importorskip("sporadik", reason="the sparse wire format is an extra: pip install 'mikro-next[sparse]'")
+pytest.importorskip("sporadik", reason="the sparse wire format is an extra: pip install 'mikro[sparse]'")
 
 import scipy.sparse as sp
 

@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from mikro_next.scalars import FourByFourMatrix
+from mikro.scalars import FourByFourMatrix
 
 
 def test_four_by_four_matrix() -> None:

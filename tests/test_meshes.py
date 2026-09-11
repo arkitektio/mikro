@@ -19,13 +19,13 @@ import pytest
 import trimesh
 from obstore.store import MemoryStore
 
-from mikro_next.api.schema import AxisInput, AxisType, CreateMeshCollectionInput
-from mikro_next.datalayer import DataLayer
-from mikro_next.io.errors import UploadError
-from mikro_next.io.upload import store_fabriks_collection
-from mikro_next.meshes import axis_order_to_xyz, build_mesh_collection
-from mikro_next.middleware.upload import UploadMiddleware
-from mikro_next.scalars import FabriksLike
+from mikro.api.schema import AxisInput, AxisType, CreateMeshCollectionInput
+from mikro.datalayer import DataLayer
+from mikro.io.errors import UploadError
+from mikro.io.upload import store_fabriks_collection
+from mikro.meshes import axis_order_to_xyz, build_mesh_collection
+from mikro.middleware.upload import UploadMiddleware
+from mikro.scalars import FabriksLike
 
 #: Small and cheap: the octree only has to exist, and building is the slow part of every test
 #: here. Anisotropic anyway, because a cubic cell makes a transposed writer look correct.
@@ -178,7 +178,7 @@ def test_the_whole_tree_lands_under_the_granted_prefix(
     doubles a separator on the way in, produces a tree nothing can find -- and no exception.
     """
     store = MemoryStore()
-    monkeypatch.setattr("mikro_next.io.obstore.create_s3_store", lambda *_, **__: store)
+    monkeypatch.setattr("mikro.io.obstore.create_s3_store", lambda *_, **__: store)
 
     credentials = grant()
     returned = store_fabriks_collection(
@@ -224,7 +224,7 @@ def test_the_manifest_is_written_last(
         def list(self, prefix: str | None = None) -> Any:  # noqa: ANN401
             return store.list(prefix)
 
-    monkeypatch.setattr("mikro_next.io.obstore.create_s3_store", lambda *_, **__: Recording())
+    monkeypatch.setattr("mikro.io.obstore.create_s3_store", lambda *_, **__: Recording())
 
     store_fabriks_collection(
         FabriksLike.validate(collection), grant(), SimpleNamespace(endpoint_url="http://s3.test")
@@ -250,7 +250,7 @@ def test_a_failed_write_is_reported_as_an_upload_error(
         def list(self, prefix: str | None = None) -> Any:  # noqa: ANN401
             return iter(())
 
-    monkeypatch.setattr("mikro_next.io.obstore.create_s3_store", lambda *_, **__: Refusing())
+    monkeypatch.setattr("mikro.io.obstore.create_s3_store", lambda *_, **__: Refusing())
 
     with pytest.raises(UploadError, match=GRANT_KEY):
         store_fabriks_collection(
@@ -323,7 +323,7 @@ def test_the_middleware_replaces_a_collection_with_the_store_it_uploaded_to(
     of the two-step protocol were made, since a tree written but never finished is a prefix the
     server will not register.
     """
-    monkeypatch.setattr("mikro_next.io.obstore.create_s3_store", lambda *_, **__: MemoryStore())
+    monkeypatch.setattr("mikro.io.obstore.create_s3_store", lambda *_, **__: MemoryStore())
 
     middleware = UploadMiddleware(datalayer=DataLayer(endpoint_url="http://s3.test"))
     middleware._cached_datalayer_url = "http://s3.test"  # else it resolves through koil
@@ -354,8 +354,8 @@ def test_the_parquet_parts_are_written_with_a_codec_the_viewer_can_decode() -> N
     Distinct from `build_mesh_collection`'s `compression`, which is the per-blob codec inside
     a row and is the manifest's business.
     """
-    from mikro_next.compression import MESH_CODECS
-    from mikro_next.meshes import refuse_an_unreadable_part_codec
+    from mikro.compression import MESH_CODECS
+    from mikro.meshes import refuse_an_unreadable_part_codec
 
     codec = refuse_an_unreadable_part_codec()
     assert codec.upper().replace("NONE", "UNCOMPRESSED") in MESH_CODECS
@@ -367,8 +367,8 @@ def test_an_unreadable_part_codec_is_refused_with_the_reason(monkeypatch) -> Non
 
     from fabriks import frames
 
-    from mikro_next.compression import UnreadableCodecError
-    from mikro_next.meshes import refuse_an_unreadable_part_codec
+    from mikro.compression import UnreadableCodecError
+    from mikro.meshes import refuse_an_unreadable_part_codec
 
     def gzip_default(table, *, compression="gzip"):  # noqa: ANN001
         raise AssertionError("not called")

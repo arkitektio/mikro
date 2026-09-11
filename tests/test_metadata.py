@@ -8,7 +8,7 @@ value slot, and a device carrying no settings should not be recorded at all.
 import numpy as np
 import pytest
 
-from mikro_next.metadata import device, devices, setting, settings, text
+from mikro.metadata import device, devices, setting, settings, text
 
 
 class TestText:

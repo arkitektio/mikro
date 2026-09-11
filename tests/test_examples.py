@@ -11,7 +11,7 @@ What the harness substitutes:
 - ``arkitekt_next`` is replaced with a stub whose ``easy()`` yields nothing.
   The scripts only use ``easy`` to enter the mikro context; here the
   session-scoped ``deployed_app`` fixture has already entered
-  ``current_mikro_next_rath`` (``with mikro as mikro:`` in conftest), so every
+  ``current_mikro_rath`` (``with mikro as mikro:`` in conftest), so every
   bare ``create_*`` call inside the script lands on the test deployment. The
   stub is also load-bearing for a second reason: the real ``arkitekt_next`` in
   this venv does not import cleanly, so the scripts cannot even be loaded

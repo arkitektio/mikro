@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 from kanne.scalars import Unit
 
-from mikro_next.api.schema import (
+from mikro.api.schema import (
     UNSET,
     Axis,
     CoordinateSystem,
@@ -22,13 +22,13 @@ from mikro_next.api.schema import (
     TransformationTranslationTransformation,
     TransformationUnmappableTransformation,
 )
-from mikro_next.traits import (
+from mikro.traits import (
     PathStep,
     _bfs_path,
     _compose_steps,
     _infer_transform_kind,
 )
-from mikro_next.vocabulary import Calibration
+from mikro.vocabulary import Calibration
 
 
 def make_system(id: str, name: str, axis_names: list[str]) -> CoordinateSystem:
@@ -204,7 +204,7 @@ class TestCoordinateSystemHelpers:
 
 class TestCalibrateValidation:
     def make_dataset(self, intrinsic):
-        from mikro_next.api.schema import ArrayDataset
+        from mikro.api.schema import ArrayDataset
 
         return ArrayDataset(
             id="d1",
@@ -312,7 +312,7 @@ class TestPathComposition:
 
 
 def make_dataset(axis_names):
-    from mikro_next.api.schema import ArrayDataset
+    from mikro.api.schema import ArrayDataset
 
     return ArrayDataset(
         id="d",
@@ -326,7 +326,7 @@ def make_dataset(axis_names):
 
 
 def make_scene(world_axes=("t", "z", "y", "x")):
-    from mikro_next.api.schema import Scene
+    from mikro.api.schema import Scene
 
     return Scene(
         id="s",
@@ -358,7 +358,7 @@ class TestRegister:
             seen.update(kwargs)
             return "edge"
 
-        with patch("mikro_next.api.schema.create_transformation", fake):
+        with patch("mikro.api.schema.create_transformation", fake):
             make_system("w", "world", list(world_axes)).register(source, **offsets)
         return seen
 
@@ -430,7 +430,7 @@ class TestRegisterScale:
             seen.update(kwargs)
             return "edge"
 
-        with patch("mikro_next.api.schema.create_transformation", fake):
+        with patch("mikro.api.schema.create_transformation", fake):
             make_system("w", "world", list(world_axes)).register(
                 make_dataset(dataset_axes), **kw
             )
@@ -482,12 +482,12 @@ class TestSpaceHelpers:
             seen.update(call)
             return "space"
 
-        with patch("mikro_next.api.schema.create_coordinate_system", fake):
+        with patch("mikro.api.schema.create_coordinate_system", fake):
             fn(*args, **kwargs)
         return seen
 
     def test_space_3d_is_zyx_in_one_length_unit(self):
-        from mikro_next import space_3d
+        from mikro import space_3d
 
         axes = self.create(space_3d, "stage", unit=Unit("micrometer"))["axes"]
         assert [a.name for a in axes] == ["z", "y", "x"]
@@ -495,7 +495,7 @@ class TestSpaceHelpers:
         assert {str(a.type) for a in axes} == {"SPACE"}
 
     def test_space_2d_is_yx(self):
-        from mikro_next import space_2d
+        from mikro import space_2d
 
         axes = self.create(space_2d, "slide")["axes"]
         assert [a.name for a in axes] == ["y", "x"]
@@ -503,7 +503,7 @@ class TestSpaceHelpers:
     def test_a_time_axis_sorts_ahead_of_the_spatial_ones(self):
         """RFC-5 orders axes by type, and the array's dimension order IS that
         order — a space whose axes disagree describes a different array."""
-        from mikro_next import timelapse_3d
+        from mikro import timelapse_3d
 
         seen = self.create(timelapse_3d, "movie", time_unit=Unit("second"))
         axes = seen["axes"]
@@ -515,7 +515,7 @@ class TestSpaceHelpers:
         assert seen["epoch"] is UNSET
 
     def test_create_space_infers_the_axis_type_from_the_name(self):
-        from mikro_next import create_space
+        from mikro import create_space
 
         axes = self.create(
             create_space,
@@ -531,7 +531,7 @@ class TestSpaceHelpers:
         assert [str(a.type) for a in axes] == ["TIME", "CHANNEL", "SPACE"]
 
     def test_a_space_needs_at_least_one_axis(self):
-        from mikro_next import create_space
+        from mikro import create_space
 
         with pytest.raises(ValueError, match="at least one axis"):
             create_space("empty", {})
@@ -565,7 +565,7 @@ class TestStage:
             seen.update(call)
             return "scene"
 
-        with patch("mikro_next.api.schema.create_scene_from_coordinate_system", fake):
+        with patch("mikro.api.schema.create_scene_from_coordinate_system", fake):
             make_system("w", "world", ["y", "x"]).stage(**kwargs)
         return seen
 
@@ -581,7 +581,7 @@ class TestStage:
         `exclude_unset` survives validation into `Arguments` is exactly what
         decides that.
         """
-        from mikro_next.api.schema import (
+        from mikro.api.schema import (
             CreateSceneFromCoordinateSystemMutation,
             ScenePolicyInput,
         )
@@ -622,7 +622,7 @@ class TestUnregister:
             seen.update(kwargs)
             return ()
 
-        with patch("mikro_next.api.schema.delete_registration", fake):
+        with patch("mikro.api.schema.delete_registration", fake):
             make_system("w", "world", ["y", "x"]).unregister(mesh_collection="m")
         assert seen["world"] == "w"
         assert seen["mesh_collection"] == "m"
@@ -644,35 +644,35 @@ class TestCalibrationCoercion:
     """
 
     def test_a_calibration_passes_through(self) -> None:
-        from mikro_next.traits import _as_calibration
-        from mikro_next.vocabulary import Calibration, Unit
+        from mikro.traits import _as_calibration
+        from mikro.vocabulary import Calibration, Unit
 
         value = Calibration(0.5, Unit("micrometer"))
         assert _as_calibration("z", value) is value
 
     def test_a_factor_unit_pair_is_accepted(self) -> None:
-        from mikro_next.traits import _as_calibration
+        from mikro.traits import _as_calibration
 
         calibration = _as_calibration("x", (0.2, "micrometer"))
         assert (float(calibration.factor), str(calibration.unit)) == (0.2, "micrometer")
 
     def test_the_reversed_spelling_is_refused_not_repaired(self) -> None:
         """`Calibration`'s docstring is explicit that only one ordering works."""
-        from mikro_next.traits import _as_calibration
+        from mikro.traits import _as_calibration
 
         with pytest.raises(TypeError, match="wrong way round"):
             _as_calibration("x", ("micrometer", 0.2))
 
     @pytest.mark.parametrize("bad", [(0.5, 1.0), "micrometer", (0.5,), None, 0.5])
     def test_anything_that_is_not_a_factor_and_a_unit_is_refused(self, bad: object) -> None:
-        from mikro_next.traits import _as_calibration
+        from mikro.traits import _as_calibration
 
         with pytest.raises(TypeError, match="axis 'z'"):
             _as_calibration("z", bad)
 
     def test_a_bool_is_not_a_factor(self) -> None:
         """``bool`` is an ``int`` subclass, so it would otherwise sail through."""
-        from mikro_next.traits import _as_calibration
+        from mikro.traits import _as_calibration
 
         with pytest.raises(TypeError):
             _as_calibration("z", (True, "micrometer"))

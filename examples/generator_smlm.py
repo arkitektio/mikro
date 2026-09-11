@@ -34,9 +34,9 @@ import pandas as pd
 import xarray as xr
 from scipy.ndimage import gaussian_filter
 
-from mikro_next import Unit, create_space, dataset_arrays
+from mikro import Unit, create_space, dataset_arrays
 from arkitekt_next import easy
-from mikro_next.api.schema import (
+from mikro.api.schema import (
     AxisType,
     ColorMap,
     ColumnColorByInput,
@@ -53,7 +53,7 @@ from mikro_next.api.schema import (
     create_scene,
     create_table_dataset,
 )
-from mikro_next.render import channel_graph
+from mikro.render import channel_graph
 
 # --------------------------------------------------------------------------- #
 # Configuration

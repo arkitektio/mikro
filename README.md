@@ -1,14 +1,14 @@
 # mikro
 
-[![codecov](https://codecov.io/gh/arkitektio/mikro-next/graph/badge.svg?token=PRoouTwAGx)](https://codecov.io/gh/arkitektio/mikro-next)
-[![PyPI version](https://badge.fury.io/py/mikro-next.svg)](https://pypi.org/project/mikro-next/)
-[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://pypi.org/project/mikro-next/)
+[![codecov](https://codecov.io/gh/arkitektio/mikro/graph/badge.svg?token=PRoouTwAGx)](https://codecov.io/gh/arkitektio/mikro)
+[![PyPI version](https://badge.fury.io/py/mikro.svg)](https://pypi.org/project/mikro/)
+[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://pypi.org/project/mikro/)
 ![Maintainer](https://img.shields.io/badge/maintainer-jhnnsrs-blue)
-[![PyPI pyversions](https://img.shields.io/pypi/pyversions/mikro-next.svg)](https://pypi.python.org/pypi/mikro-next/)
-[![PyPI status](https://img.shields.io/pypi/status/mikro-next.svg)](https://pypi.python.org/pypi/mikro-next/)
-[![PyPI download month](https://img.shields.io/pypi/dm/mikro-next.svg)](https://pypi.python.org/pypi/mikro-next/)
+[![PyPI pyversions](https://img.shields.io/pypi/pyversions/mikro.svg)](https://pypi.python.org/pypi/mikro/)
+[![PyPI status](https://img.shields.io/pypi/status/mikro.svg)](https://pypi.python.org/pypi/mikro/)
+[![PyPI download month](https://img.shields.io/pypi/dm/mikro.svg)](https://pypi.python.org/pypi/mikro/)
 
-mikro-next is the python client for the next version of the mikro-server environment.
+mikro is the python client for the next version of the mikro-server environment.
 
 
 # Quick Start
@@ -25,7 +25,7 @@ of relations within your data and tries to make them accessible through a GraphQ
 ### Installation
 
 ```bash
-pip install mikro-next
+pip install mikro
 ```
 
 ### Design
@@ -59,7 +59,7 @@ The API of Mikro is best explained on this example:
 
 ```python
 from arkitekt_next import easy
-from mikro_next.api.schema import get_random_image
+from mikro.api.schema import get_random_image
 
 
 with easy("my-app") as app:
@@ -104,7 +104,7 @@ use the connect/disconnect methods:
 
 ```python
 from arkitekt_next import easy 
-from mikro_next.api.schema import get_image
+from mikro.api.schema import get_image
 
 
 app = easy()

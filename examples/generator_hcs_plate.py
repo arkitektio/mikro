@@ -33,9 +33,9 @@ import pandas as pd
 import xarray as xr
 from scipy import ndimage
 
-from mikro_next import Unit, space_2d
+from mikro import Unit, space_2d
 from arkitekt_next import easy
-from mikro_next.api.schema import (
+from mikro.api.schema import (
     AxisType,
     ColorMap,
     ColumnColorByInput,

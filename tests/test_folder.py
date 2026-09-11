@@ -1,6 +1,6 @@
 import pytest
 
-from mikro_next.api.schema import (
+from mikro.api.schema import (
     create_folder,
     get_folder,
     search_folders,

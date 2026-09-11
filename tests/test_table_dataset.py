@@ -28,7 +28,7 @@ import pytest
 import xarray as xr
 from pydantic import ValidationError
 
-from mikro_next.api.schema import (
+from mikro.api.schema import (
     AxisInput,
     AxisType,
     ColumnInput,
@@ -40,8 +40,8 @@ from mikro_next.api.schema import (
     get_table_dataset,
     update_table_dataset,
 )
-from mikro_next.io.upload import _parquet_payload
-from mikro_next.scalars import ParquetLike
+from mikro.io.upload import _parquet_payload
+from mikro.scalars import ParquetLike
 
 from .conftest import DeployedMikro
 

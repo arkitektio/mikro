@@ -14,13 +14,13 @@ from obstore.store import MemoryStore
 from zarr.storage import ObjectStore as ZarrObjectStore
 from zarr.storage import StorePath
 
-from mikro_next.io.download import download_file
-from mikro_next.io.obstore import (
+from mikro.io.download import download_file
+from mikro.io.obstore import (
     ParquetDatasetViaObstore,
     awrite_dataarray_to_zarr,
     write_dataarray_to_zarr,
 )
-from mikro_next.scalars import ArrayLike
+from mikro.scalars import ArrayLike
 
 
 def test_parquet_dataset_via_obstore_reads_dataframe() -> None:
@@ -52,10 +52,10 @@ def test_download_file_reads_bytes_via_obstore(tmp_path, monkeypatch) -> None:
     obstore.put(store, credentials.key, payload)
 
     monkeypatch.setattr(
-        "mikro_next.io.download.unkoil",
+        "mikro.io.download.unkoil",
         lambda function, store_id: (credentials, "http://example.invalid"),
     )
-    monkeypatch.setattr("mikro_next.io.download.create_s3_store", lambda *_args: store)
+    monkeypatch.setattr("mikro.io.download.create_s3_store", lambda *_args: store)
 
     result = download_file("store-id", str(target))
 

@@ -34,9 +34,9 @@ import scipy.sparse as sp
 import xarray as xr
 from sporadik import SparseArray
 
-from mikro_next import Unit, create_space, dataset_arrays
+from mikro import Unit, create_space, dataset_arrays
 from arkitekt_next import easy
-from mikro_next.api.schema import (
+from mikro.api.schema import (
     AxisType,
     ColorMap,
     ColumnInput,
@@ -54,13 +54,13 @@ from mikro_next.api.schema import (
     create_sparse_dataset,
     create_table_dataset,
 )
-from mikro_next.picker import (
+from mikro.picker import (
     categorical_color_by,
     label_render,
     measure_color_by,
     sparse_color_by,
 )
-from mikro_next.render import channel_graph
+from mikro.render import channel_graph
 
 # --------------------------------------------------------------------------- #
 # Configuration

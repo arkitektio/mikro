@@ -35,9 +35,9 @@ import pandas as pd
 import xarray as xr
 
 import konnektion
-from mikro_next import Unit, dataset_arrays, space_3d
+from mikro import Unit, dataset_arrays, space_3d
 from arkitekt_next import easy
-from mikro_next.api.schema import (
+from mikro.api.schema import (
     AxisInput,
     AxisType,
     ColorMap,
@@ -58,8 +58,8 @@ from mikro_next.api.schema import (
     create_table_dataset,
     create_volume_layer,
 )
-from mikro_next.meshes import build_mesh_collection
-from mikro_next.picker import graph_color_by, graph_filter_by, measure_color_by, network_filter_by
+from mikro.meshes import build_mesh_collection
+from mikro.picker import graph_color_by, graph_filter_by, measure_color_by, network_filter_by
 
 # One ground truth, two scripts: the phantom, tracker, mesh and their checks come
 # from the TrackLayer sibling. Its module level holds only constants, so the

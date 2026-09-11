@@ -7,7 +7,7 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from mikro_next.io.duckdb_io import (
+from mikro.io.duckdb_io import (
     create_duckdb_s3_connection,
     require_duckdb,
 )

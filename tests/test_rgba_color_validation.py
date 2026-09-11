@@ -10,8 +10,8 @@ into a local error instead of a round trip.
 import pytest
 from pydantic import ValidationError
 
-from mikro_next.api.schema import PhasorCursorInput, TransferFunctionInput
-from mikro_next.render import ChannelSpec, channel_graph, composite_graph, rgb_graph
+from mikro.api.schema import PhasorCursorInput, TransferFunctionInput
+from mikro.render import ChannelSpec, channel_graph, composite_graph, rgb_graph
 
 
 def test_rgb_triple_is_completed_to_opaque_rgba() -> None:

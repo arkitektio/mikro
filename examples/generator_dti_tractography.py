@@ -41,9 +41,9 @@ from scipy.ndimage import gaussian_filter
 from scipy.spatial import cKDTree
 from skimage.measure import marching_cubes
 
-from mikro_next import Unit, dataset_arrays, space_3d
+from mikro import Unit, dataset_arrays, space_3d
 from arkitekt_next import easy
-from mikro_next.api.schema import (
+from mikro.api.schema import (
     AxisInput,
     AxisType,
     ColorMap,
@@ -61,8 +61,8 @@ from mikro_next.api.schema import (
     create_track_layer,
     create_volume_layer,
 )
-from mikro_next.meshes import build_mesh_collection
-from mikro_next.rath import current_mikro_next_rath
+from mikro.meshes import build_mesh_collection
+from mikro.rath import current_mikro_rath
 
 # --------------------------------------------------------------------------- #
 # Configuration
@@ -468,7 +468,7 @@ if __name__ == "__main__":
             raise SystemExit(f"glass brain did not reach the world: {mesh_layer.placement}")
 
         # The whole cast, read back through the interface: one of each kind, all placed.
-        result = current_mikro_next_rath.get().query(LAYERS_QUERY, {"id": scene.id})
+        result = current_mikro_rath.get().query(LAYERS_QUERY, {"id": scene.id})
         layers = result.data["scene"]["layers"]
         kinds = sorted(layer["__typename"] for layer in layers)
         if kinds != ["IntensityLayer", "MeshLayer", "TrackLayer", "VectorLayer"]:

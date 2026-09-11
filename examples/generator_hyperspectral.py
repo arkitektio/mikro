@@ -32,9 +32,9 @@ import sys
 import numpy as np
 import xarray as xr
 
-from mikro_next import Unit, create_space
+from mikro import Unit, create_space
 from arkitekt_next import easy
-from mikro_next.api.schema import (
+from mikro.api.schema import (
     AxisInput,
     AxisType,
     Blending,
@@ -51,7 +51,7 @@ from mikro_next.api.schema import (
     create_phasor_layer,
     create_scene,
 )
-from mikro_next import dataset_arrays
+from mikro import dataset_arrays
 
 # --------------------------------------------------------------------------- #
 # Configuration

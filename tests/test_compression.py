@@ -13,7 +13,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from mikro_next.compression import (
+from mikro.compression import (
     DEFAULT_COMPRESSION,
     MESH_CODECS,
     TABLE_CODECS,
@@ -21,7 +21,7 @@ from mikro_next.compression import (
     codecs_of,
     refuse_unreadable_codec,
 )
-from mikro_next.io.upload import _parquet_payload
+from mikro.io.upload import _parquet_payload
 
 
 @pytest.fixture

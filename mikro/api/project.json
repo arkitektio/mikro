@@ -1,0 +1,267 @@
+{
+    "schema": "http://jhnnsrs-lab/mikro/schema",
+    "documents": "graphql/**/**.graphql",
+    "extensions": {
+        "turms": {
+            "domain": null,
+            "out_dir": "mikro/api",
+            "dump_configuration": true,
+            "configuration_name": "project.json",
+            "dump_schema": true,
+            "schema_name": "schema.graphql",
+            "generated_name": "schema.py",
+            "documents": "graphql/**/**.graphql",
+            "verbose": false,
+            "exit_on_error": true,
+            "allow_introspection": true,
+            "object_bases": [
+                "pydantic.BaseModel"
+            ],
+            "interface_bases": null,
+            "always_resolve_interfaces": true,
+            "exclude_typenames": true,
+            "scalar_definitions": {
+                "Any": "typing.Any",
+                "JSON": "typing.Any",
+                "UUID": "str",
+                "ArrayLike": "mikro.scalars.ArrayLike",
+                "ParquetLike": "mikro.scalars.ParquetLike",
+                "FabriksLike": "mikro.scalars.FabriksLike",
+                "KonnektionLike": "mikro.scalars.KonnektionLike",
+                "SporadikLike": "mikro.scalars.SporadikLike",
+                "FileLike": "mikro.scalars.FileLike",
+                "ImageFileLike": "mikro.scalars.ImageFileLike",
+                "ThreeDVector": "mikro.scalars.ThreeDVector",
+                "GenericQuantity": "kanne.scalars.GenericQuantity",
+                "Length": "kanne.scalars.Length",
+                "Unit": "kanne.scalars.Unit",
+                "Power": "kanne.scalars.Power",
+                "Frequency": "kanne.scalars.Frequency",
+                "Temperature": "kanne.scalars.Temperature",
+                "ID": "rath.scalars.ID"
+            },
+            "coercible_scalars": {},
+            "coercible_inputs": {},
+            "graphql_default_class": null,
+            "deprecated_class": null,
+            "document_field_metadata": true,
+            "unset_type_class": null,
+            "unset_instance": null,
+            "freeze": {
+                "enabled": true,
+                "types": [
+                    "input",
+                    "fragment",
+                    "object"
+                ],
+                "exclude": null,
+                "include": null,
+                "convert_list_to_tuple": true
+            },
+            "create_catchall": true,
+            "options": {
+                "enabled": true,
+                "extra": "forbid",
+                "populate_by_name": null,
+                "from_attributes": null,
+                "use_enum_values": null,
+                "validate_assignment": null,
+                "alias_mode": "split",
+                "types": [
+                    "input"
+                ],
+                "exclude": null,
+                "include": null
+            },
+            "skip_forwards": false,
+            "min_python_version": "3.10",
+            "type_annotation_style": "auto",
+            "additional_bases": {
+                "AxisInput": [
+                    "mikro.traits.AxisInputTrait"
+                ],
+                "ValueHistogramInput": [
+                    "mikro.traits.ValueHistogramInputTrait"
+                ],
+                "TransferFunctionInput": [
+                    "mikro.traits.RGBAColorInputTrait"
+                ],
+                "PhasorCursorInput": [
+                    "mikro.traits.RGBAColorInputTrait"
+                ],
+                "CoordinateAnchorInput": [
+                    "mikro.traits.CoordinateAnchorInputTrait"
+                ],
+                "CreateTableDatasetInput": [
+                    "mikro.traits.CreateTableDatasetTrait"
+                ],
+                "CreateSparseDatasetInput": [
+                    "mikro.traits.CreateSparseDatasetTrait"
+                ],
+                "SparseAxisInput": [
+                    "mikro.traits.SparseAxisInputTrait"
+                ],
+                "SparseColorByInput": [
+                    "mikro.traits.SparseColorByInputTrait"
+                ],
+                "GraphColorByInput": [
+                    "mikro.traits.GraphColorByInputTrait"
+                ],
+                "TableDataset": [
+                    "mikro.traits.HasParquestStoreTrait"
+                ],
+                "ZarrStore": [
+                    "mikro.traits.HasZarrStoreAccessor"
+                ],
+                "ParquetStore": [
+                    "mikro.traits.HasParquetStoreAccesor"
+                ],
+                "BigFileStore": [
+                    "mikro.traits.HasDownloadAccessor"
+                ],
+                "MediaStore": [
+                    "mikro.traits.HasPresignedDownloadAccessor"
+                ],
+                "Lens": [
+                    "mikro.traits.Lensable"
+                ],
+                "ArrayDataset": [
+                    "mikro.traits.DatasetTrait"
+                ],
+                "Scene": [
+                    "mikro.traits.SceneTrait"
+                ],
+                "CoordinateSystem": [
+                    "mikro.traits.CoordinateSystemTrait"
+                ],
+                "ScaleTransformation": [
+                    "mikro.traits.TransformationTrait"
+                ],
+                "TranslationTransformation": [
+                    "mikro.traits.TransformationTrait"
+                ],
+                "AffineTransformation": [
+                    "mikro.traits.TransformationTrait"
+                ],
+                "RotationTransformation": [
+                    "mikro.traits.TransformationTrait"
+                ],
+                "IdentityTransformation": [
+                    "mikro.traits.TransformationTrait"
+                ],
+                "MapAxisTransformation": [
+                    "mikro.traits.TransformationTrait"
+                ],
+                "FieldTransformation": [
+                    "mikro.traits.TransformationTrait"
+                ],
+                "SequenceTransformation": [
+                    "mikro.traits.TransformationTrait"
+                ],
+                "ByDimensionTransformation": [
+                    "mikro.traits.TransformationTrait"
+                ],
+                "UnmappableTransformation": [
+                    "mikro.traits.TransformationTrait"
+                ],
+                "DataArray": [
+                    "mikro.traits.DataArrayTrait"
+                ],
+                "CreateArrayDatasetInput": [
+                    "mikro.traits.CreateADatasetTrait"
+                ],
+                "File": [
+                    "mikro.traits.FileTrait"
+                ]
+            },
+            "additional_config": {},
+            "force_plugin_order": true,
+            "omitted_document_rules": [
+                "no_unused_fragments"
+            ],
+            "parsers": [],
+            "plugins": [
+                {
+                    "type": "turms.plugins.enums.EnumsPlugin"
+                },
+                {
+                    "type": "turms.plugins.inputs.InputsPlugin"
+                },
+                {
+                    "type": "turms.plugins.fragments.FragmentsPlugin",
+                    "object_bases": [
+                        "mikro.traits.MikroFetchable"
+                    ]
+                },
+                {
+                    "type": "turms.plugins.operations.OperationsPlugin"
+                },
+                {
+                    "type": "turms.plugins.funcs.FuncsPlugin",
+                    "coercible_scalars": {
+                        "ArrayLike": "mikro.scalars.ArrayCoercible",
+                        "ImageFileLike": "mikro.scalars.ImageFileCoercible",
+                        "FileLike": "mikro.scalars.ImageFileCoercible",
+                        "ParquetLike": "mikro.scalars.ParquetCoercible",
+                        "FabriksLike": "mikro.scalars.FabriksCoercible",
+                        "KonnektionLike": "mikro.scalars.KonnektionCoercible",
+                        "SporadikLike": "mikro.scalars.SporadikCoercible",
+                        "ID": "rath.scalars.IDCoercible"
+                    },
+                    "coercible_inputs": {
+                        "AxisInput": "str"
+                    },
+                    "expand_input_types": [
+                        "input"
+                    ],
+                    "global_kwargs": [
+                        {
+                            "type": "mikro.rath.MikroNextRath",
+                            "key": "rath",
+                            "description": "The mikro rath client"
+                        }
+                    ],
+                    "definitions": [
+                        {
+                            "type": "subscription",
+                            "is_async": true,
+                            "use": "mikro.funcs.asubscribe"
+                        },
+                        {
+                            "type": "query",
+                            "is_async": true,
+                            "use": "mikro.funcs.aexecute"
+                        },
+                        {
+                            "type": "mutation",
+                            "is_async": true,
+                            "use": "mikro.funcs.aexecute"
+                        },
+                        {
+                            "type": "subscription",
+                            "use": "mikro.funcs.subscribe"
+                        },
+                        {
+                            "type": "query",
+                            "use": "mikro.funcs.execute"
+                        },
+                        {
+                            "type": "mutation",
+                            "use": "mikro.funcs.execute"
+                        }
+                    ]
+                }
+            ],
+            "processors": [],
+            "stylers": [
+                {
+                    "type": "turms.stylers.default.DefaultStyler"
+                },
+                {
+                    "type": "turms.stylers.appender.AppenderStyler",
+                    "append_fragment": ""
+                }
+            ]
+        }
+    }
+}

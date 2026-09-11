@@ -20,20 +20,20 @@ import pyarrow.parquet as pq
 import pytest
 from pydantic import ValidationError
 
-from mikro_next.api.schema import (
+from mikro.api.schema import (
     AxisType,
     ColumnInput,
     ColumnRole,
     CreateTableDatasetInput,
     TableIdentifiesInput,
 )
-from mikro_next.tables import (
+from mikro.tables import (
     MAX_COLUMNS,
     TableDeclarationError,
     arrow_schema_of,
     file_columns_of,
 )
-from mikro_next.vocabulary import UnknownArrowType, duckdb_type
+from mikro.vocabulary import UnknownArrowType, duckdb_type
 
 
 @pytest.fixture

@@ -20,7 +20,7 @@ services:
     ports:
     - 6580:80
     volumes:
-    - ./configs/mikro_next.yaml:/workspace/config.yaml
+    - ./configs/mikro.yaml:/workspace/config.yaml
   minio:
     command: server /data
     environment:

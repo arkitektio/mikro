@@ -1,7 +1,7 @@
 """Unit tests for the layer render-graph builders.
 
 A layer's recipe is a small tree -- a blend node over one or more channel nodes,
-each with its own transfer function -- and :mod:`mikro_next.render` is what keeps
+each with its own transfer function -- and :mod:`mikro.render` is what keeps
 callers from hand-nesting it. What is worth pinning down offline is the split: a
 flat spec mixes channel settings with transfer settings, and the builder has to
 sort each field into the right node. Colour completion itself is covered by
@@ -11,8 +11,8 @@ sort each field into the right node. Colour completion itself is covered by
 import pytest
 from pydantic import ValidationError
 
-from mikro_next.api.schema import Blending, ColorMap, ProjectionMode
-from mikro_next.render import (
+from mikro.api.schema import Blending, ColorMap, ProjectionMode
+from mikro.render import (
     FALLBACK_COLORS,
     ChannelSpec,
     channel_graph,

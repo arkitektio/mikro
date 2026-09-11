@@ -1,11 +1,12 @@
 [project]
-name = "mikro-next"
+name = "mikro"
 version = "2.1.1"
 description = "next images for arkitekt"
 authors = [{ name = "jhnnsrs", email = "jhnnsrs@gmail.com" }]
 requires-python = ">=3.11"
 readme = "README.md"
 license = "MIT"
+license-files = ["LICENSE"]
 dependencies = [
     "zarr>=3.1",
     "xarray>=2024.11.0",
@@ -14,7 +15,7 @@ dependencies = [
     "numpy>=1.26; python_version ~= '3.12'",
     "websockets>=15.0.1",
     "pytest>=8.3.5",
-    "fakts-next>=2",
+    "fakts>=2",
     "numcodecs>=0.16.1",
     "obstore>=0.10.0",
     "kanne>=2.5.0",
@@ -67,8 +68,8 @@ dev-dependencies =  [
     # The example generators (examples/) that the integration suite runs end-to-end:
     # marching_cubes for the glass-brain meshes.
     "scikit-image>=0.22",
-    "fakts-next>=4",
-    "rekuest-next>=0.12.2",
+    "fakts>=2",
+    "rekuest>=3",
     "pyarrow>=24",
     "arkitekt-next==0.17",
     "duckdb>=1.5.3",
@@ -79,21 +80,21 @@ dev-dependencies =  [
     # that path had no tests at all. >=1.1 because the example generators build their
     # matrices through `sporadik.SparseArray`, which 1.0 does not have.
     "sporadik>=1.1",
-    # rekuest-next imports `janus` without declaring it, so it never arrives
-    # transitively — and without it `mikro_next.specs` cannot be imported and
+    # rekuest imports `janus` without declaring it, so it never arrives
+    # transitively — and without it `mikro.specs` cannot be imported and
     # `tests/test_specs.py` skips itself. Drop this once rekuest declares it.
     "janus>=1.0",
 ]
 
 [tool.hatch.build.targets.sdist]
-include = ["mikro_next"]
+include = ["mikro"]
 
 [tool.hatch.build.targets.wheel]
-include = ["mikro_next"]
+include = ["mikro"]
 
 
 [tool.basedpyright]
-include = ["mikro_next"]
+include = ["mikro"]
 exclude = ["**/__pycache__", "tests"]
 typeCheckingMode = "standard"
 

@@ -25,8 +25,8 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from mikro_next import dataset_arrays
-from mikro_next.api.schema import (
+from mikro import dataset_arrays
+from mikro.api.schema import (
     AxisInput,
     AxisType,
     CoordinateAnchorInput,

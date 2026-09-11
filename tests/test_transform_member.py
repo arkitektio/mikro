@@ -16,7 +16,7 @@ models, and the assertions here are what says so.
 
 import pytest
 
-from mikro_next.api.schema import (
+from mikro.api.schema import (
     AffineTransformInput,
     ByDimensionTransformInput,
     FieldTransformInput,
@@ -27,7 +27,7 @@ from mikro_next.api.schema import (
     TranslationTransformInput,
     UnmappableTransformInput,
 )
-from mikro_next.traits import _transform_member
+from mikro.traits import _transform_member
 
 
 def test_identity_carries_only_its_discriminator() -> None:

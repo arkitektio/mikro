@@ -16,10 +16,10 @@ import pytest
 from obstore.exceptions import GenericError, NotFoundError, PermissionDeniedError
 from obstore.store import MemoryStore
 
-from mikro_next.api.schema import BigFileStore, File
-from mikro_next.io.errors import DownloadError
-from mikro_next.io.remote import GrantedObject, RemoteFile, download_to_scratch
-from mikro_next.traits import FileTrait, HasDownloadAccessor
+from mikro.api.schema import BigFileStore, File
+from mikro.io.errors import DownloadError
+from mikro.io.remote import GrantedObject, RemoteFile, download_to_scratch
+from mikro.traits import FileTrait, HasDownloadAccessor
 
 PAYLOAD = bytes(random.Random(1234).getrandbits(8) for _ in range(300_000))
 
@@ -137,7 +137,7 @@ def test_a_small_header_read_costs_few_requests(stored, monkeypatch) -> None:
         calls.append((start, end))
         return real(store_, path, start=start, end=end, length=length)
 
-    monkeypatch.setattr("mikro_next.io.remote.obstore.get_range", counting)
+    monkeypatch.setattr("mikro.io.remote.obstore.get_range", counting)
 
     handle = RemoteFile(GrantedObject.from_store(store, key), block_size=65_536)
     assert handle.read(1_024) == PAYLOAD[:1_024]
@@ -165,12 +165,12 @@ def test_refreshes_the_grant_before_it_expires(stored, monkeypatch) -> None:
         resolved.append(1)
         return _grant(key, expires_in=61), "http://example.invalid"
 
-    monkeypatch.setattr("mikro_next.io.obstore.create_s3_store", lambda *a, **k: store)
+    monkeypatch.setattr("mikro.io.obstore.create_s3_store", lambda *a, **k: store)
 
     # A clock under the test's control -- the real one starts at the machine's uptime,
     # so a hardcoded "later" is only later on a machine that booted recently.
     now = [1_000.0]
-    monkeypatch.setattr("mikro_next.io.remote.time.monotonic", lambda: now[0])
+    monkeypatch.setattr("mikro.io.remote.time.monotonic", lambda: now[0])
 
     granted = GrantedObject(resolve)
     granted.store_and_key()
@@ -195,11 +195,11 @@ def test_a_grant_without_an_expiry_is_never_refreshed(stored, monkeypatch) -> No
         resolved.append(1)
         return SimpleNamespace(**{**vars(_grant(key)), "expires_in": None}), "http://x"
 
-    monkeypatch.setattr("mikro_next.io.obstore.create_s3_store", lambda *a, **k: store)
+    monkeypatch.setattr("mikro.io.obstore.create_s3_store", lambda *a, **k: store)
     granted = GrantedObject(resolve)
 
     granted.store_and_key()
-    monkeypatch.setattr("mikro_next.io.remote.time.monotonic", lambda: 1e12)
+    monkeypatch.setattr("mikro.io.remote.time.monotonic", lambda: 1e12)
     granted.store_and_key()
 
     assert len(resolved) == 1
@@ -214,7 +214,7 @@ def test_denied_read_re_mints_the_grant_once(stored, monkeypatch) -> None:
         resolved.append(1)
         return _grant(key), "http://example.invalid"
 
-    monkeypatch.setattr("mikro_next.io.obstore.create_s3_store", lambda *a, **k: store)
+    monkeypatch.setattr("mikro.io.obstore.create_s3_store", lambda *a, **k: store)
 
     attempts = []
     real = obstore.get_range
@@ -225,7 +225,7 @@ def test_denied_read_re_mints_the_grant_once(stored, monkeypatch) -> None:
             raise PermissionDeniedError("expired")
         return real(store_, path, start=start, end=end, length=length)
 
-    monkeypatch.setattr("mikro_next.io.remote.obstore.get_range", flaky)
+    monkeypatch.setattr("mikro.io.remote.obstore.get_range", flaky)
 
     handle = RemoteFile(GrantedObject(resolve), size=len(PAYLOAD))
     assert handle.read(16) == PAYLOAD[:16]
@@ -234,9 +234,9 @@ def test_denied_read_re_mints_the_grant_once(stored, monkeypatch) -> None:
 
 def test_persistent_denial_is_reported_not_retried_forever(stored, monkeypatch) -> None:
     store, key = stored
-    monkeypatch.setattr("mikro_next.io.obstore.create_s3_store", lambda *a, **k: store)
+    monkeypatch.setattr("mikro.io.obstore.create_s3_store", lambda *a, **k: store)
     monkeypatch.setattr(
-        "mikro_next.io.remote.obstore.get_range",
+        "mikro.io.remote.obstore.get_range",
         lambda *a, **k: (_ for _ in ()).throw(PermissionDeniedError("nope")),
     )
 
@@ -260,8 +260,8 @@ def test_transient_error_is_retried(stored, monkeypatch) -> None:
             raise GenericError("503")
         return real(store_, path, start=start, end=end, length=length)
 
-    monkeypatch.setattr("mikro_next.io.remote.obstore.get_range", flaky)
-    monkeypatch.setattr("mikro_next.io.remote.BACKOFF_SECONDS", 0)
+    monkeypatch.setattr("mikro.io.remote.obstore.get_range", flaky)
+    monkeypatch.setattr("mikro.io.remote.BACKOFF_SECONDS", 0)
 
     handle = RemoteFile(GrantedObject.from_store(store, key))
     assert handle.read(16) == PAYLOAD[:16]
@@ -273,10 +273,10 @@ def test_exhausted_retries_raise_download_error(stored, monkeypatch) -> None:
     sends whoever is debugging it to look at the bytes instead of the network."""
     store, key = stored
     monkeypatch.setattr(
-        "mikro_next.io.remote.obstore.get_range",
+        "mikro.io.remote.obstore.get_range",
         lambda *a, **k: (_ for _ in ()).throw(GenericError("503")),
     )
-    monkeypatch.setattr("mikro_next.io.remote.BACKOFF_SECONDS", 0)
+    monkeypatch.setattr("mikro.io.remote.BACKOFF_SECONDS", 0)
 
     handle = RemoteFile(GrantedObject.from_store(store, key))
 
@@ -287,7 +287,7 @@ def test_exhausted_retries_raise_download_error(stored, monkeypatch) -> None:
 def test_object_vanishing_is_reported_immediately(stored, monkeypatch) -> None:
     store, key = stored
     monkeypatch.setattr(
-        "mikro_next.io.remote.obstore.get_range",
+        "mikro.io.remote.obstore.get_range",
         lambda *a, **k: (_ for _ in ()).throw(NotFoundError("gone")),
     )
 
@@ -318,7 +318,7 @@ class _File(FileTrait):
 def test_accessor_open_yields_a_handle_and_closes_it(stored, monkeypatch) -> None:
     store, key = stored
     handle = RemoteFile(GrantedObject.from_store(store, key))
-    monkeypatch.setattr("mikro_next.io.remote.open_remote_file", lambda *a, **k: handle)
+    monkeypatch.setattr("mikro.io.remote.open_remote_file", lambda *a, **k: handle)
 
     with _Store().open() as opened:
         assert opened.read(8) == PAYLOAD[:8]
@@ -341,7 +341,7 @@ def test_accessor_open_passes_the_cache_policy_through(stored, monkeypatch) -> N
         )
         return RemoteFile(GrantedObject.from_store(store, key))
 
-    monkeypatch.setattr("mikro_next.io.remote.open_remote_file", capture)
+    monkeypatch.setattr("mikro.io.remote.open_remote_file", capture)
 
     with _Store().open(cache=False, block_size=4096, max_cached_blocks=8):
         pass
@@ -357,7 +357,7 @@ def test_accessor_open_passes_the_cache_policy_through(stored, monkeypatch) -> N
 def test_file_trait_open_delegates_to_its_store(stored, monkeypatch) -> None:
     store, key = stored
     monkeypatch.setattr(
-        "mikro_next.io.remote.open_remote_file",
+        "mikro.io.remote.open_remote_file",
         lambda *a, **k: RemoteFile(GrantedObject.from_store(store, key)),
     )
 
@@ -397,7 +397,7 @@ def test_as_path_yields_a_real_file_and_removes_it(tmp_path, monkeypatch) -> Non
         target.write_bytes(PAYLOAD[:100])
         return str(target)
 
-    monkeypatch.setattr("mikro_next.io.remote.download_to_scratch", fake_download)
+    monkeypatch.setattr("mikro.io.remote.download_to_scratch", fake_download)
 
     with _real_file().as_path() as path:
         assert os.path.exists(path)
@@ -417,7 +417,7 @@ def test_as_path_keeps_the_extension(tmp_path, monkeypatch) -> None:
         target.write_bytes(b"II*\x00")
         return str(target)
 
-    monkeypatch.setattr("mikro_next.io.remote.download_to_scratch", fake_download)
+    monkeypatch.setattr("mikro.io.remote.download_to_scratch", fake_download)
 
     with _real_file("acquisition.tif").as_path() as path:
         assert os.path.basename(path) == "acquisition.tif"
@@ -431,7 +431,7 @@ def test_as_path_falls_back_to_the_key(tmp_path, monkeypatch) -> None:
         target.write_bytes(b"x")
         return str(target)
 
-    monkeypatch.setattr("mikro_next.io.remote.download_to_scratch", fake_download)
+    monkeypatch.setattr("mikro.io.remote.download_to_scratch", fake_download)
 
     with _File(_Store()).as_path() as path:
         assert os.path.basename(path) == "big.bin"
@@ -449,7 +449,7 @@ def test_download_to_scratch_honours_the_scratch_environment(tmp_path, monkeypat
         captured.update(store_id=store_id, file_name=file_name)
         return file_name
 
-    monkeypatch.setattr("mikro_next.io.download.download_file", fake_download_file)
+    monkeypatch.setattr("mikro.io.download.download_file", fake_download_file)
 
     result = download_to_scratch("store-id", "big.bin")
 
@@ -467,7 +467,7 @@ def test_download_to_scratch_takes_an_explicit_directory(tmp_path, monkeypatch) 
     named = tmp_path / "named"
     named.mkdir()
     monkeypatch.setattr(
-        "mikro_next.io.download.download_file", lambda store_id, file_name, datalayer=None: file_name
+        "mikro.io.download.download_file", lambda store_id, file_name, datalayer=None: file_name
     )
 
     result = download_to_scratch("store-id", "big.bin", directory=str(named))
@@ -487,7 +487,7 @@ def test_download_to_scratch_removes_the_directory_when_the_download_fails(
         open(file_name, "wb").write(b"half a fi")
         raise DownloadError("connection reset")
 
-    monkeypatch.setattr("mikro_next.io.download.download_file", failing)
+    monkeypatch.setattr("mikro.io.download.download_file", failing)
 
     with pytest.raises(DownloadError):
         download_to_scratch("store-id", "big.bin", directory=str(root))
@@ -532,7 +532,7 @@ def _count_requests(monkeypatch) -> "list[tuple[int, int]]":
         calls.append((start, end))
         return real(store_, path, start=start, end=end, length=length)
 
-    monkeypatch.setattr("mikro_next.io.remote.obstore.get_range", counting)
+    monkeypatch.setattr("mikro.io.remote.obstore.get_range", counting)
     return calls
 
 

@@ -35,9 +35,9 @@ import pandas as pd
 import xarray as xr
 from scipy.ndimage import gaussian_filter
 
-from mikro_next import Unit, space_2d, dataset_arrays
+from mikro import Unit, space_2d, dataset_arrays
 from arkitekt_next import easy
-from mikro_next.api.schema import (
+from mikro.api.schema import (
     AxisType,
     Blending,
     ColorMap,

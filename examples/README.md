@@ -21,7 +21,7 @@ upload nothing). Together they exercise every layer kind the API offers.
 ## Conventions the scripts share
 
 - Local generation first, `--dry-run` guard, then `with easy(identifier=...)`.
-  Import something from `mikro_next` **before** `arkitekt_next.easy` — that
+  Import something from `mikro` **before** `arkitekt_next.easy` — that
   registers the mikro service.
 - Fields and volumes are deliberately non-square/non-cubic so a y/x transpose
   fails the self-checks instead of drawing rotated.
@@ -48,7 +48,7 @@ guard fails otherwise).
 
 ## Extra dependencies
 
-Beyond `mikro_next` + numpy/xarray/pandas: `scipy` and `scikit-image`
+Beyond `mikro` + numpy/xarray/pandas: `scipy` and `scikit-image`
 (most scripts), `trimesh` + the `fabriks` checkout (mesh scripts), `sporadik`
 (sparse matrices), `konnektion` (the network tractography). The two tractography
 scripts must sit in the same directory (one imports the other's phantom).

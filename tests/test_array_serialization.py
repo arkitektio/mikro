@@ -2,7 +2,7 @@ import numpy as np
 import xarray as xr
 from pydantic import BaseModel
 
-from mikro_next.scalars import ArrayLike
+from mikro.scalars import ArrayLike
 
 
 class Arguments(BaseModel):

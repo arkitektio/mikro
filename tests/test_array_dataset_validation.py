@@ -14,7 +14,7 @@ import pytest
 import xarray as xr
 from pydantic import ValidationError
 
-from mikro_next.api.schema import (
+from mikro.api.schema import (
     AxisInput,
     AxisType,
     CoordinateAnchorInput,

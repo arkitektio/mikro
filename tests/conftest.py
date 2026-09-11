@@ -11,10 +11,10 @@ from rath.links.auth import ComposedAuthLink
 from rath.links.graphql_ws import GraphQLWSLink
 
 from graphql import OperationType
-from mikro_next.datalayer import DataLayer
-from mikro_next.middleware.upload import UploadMiddleware
-from mikro_next.mikro_next import MikroNext
-from mikro_next.rath import (
+from mikro.datalayer import DataLayer
+from mikro.middleware.upload import UploadMiddleware
+from mikro.mikro import MikroNext
+from mikro.rath import (
     MikroNextLinkComposition,
     MikroNextRath,
     SplitLink,

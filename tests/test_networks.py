@@ -21,9 +21,9 @@ import numpy as np
 import pytest
 from obstore.store import MemoryStore
 
-from mikro_next.io.errors import UploadError
-from mikro_next.io.upload import store_konnektion_collection
-from mikro_next.scalars import KonnektionLike
+from mikro.io.errors import UploadError
+from mikro.io.upload import store_konnektion_collection
+from mikro.scalars import KonnektionLike
 
 #: Anisotropic, because a cubic cell makes a transposed writer look correct.
 CELL_SIZE = (64, 64, 32)
@@ -107,7 +107,7 @@ def test_a_mesh_collection_is_refused_and_the_message_says_which_format_it_is() 
     fabriks = pytest.importorskip("fabriks")
     trimesh = pytest.importorskip("trimesh")
 
-    from mikro_next.meshes import build_mesh_collection
+    from mikro.meshes import build_mesh_collection
 
     box = trimesh.creation.box(extents=[10.0, 10.0, 10.0]).apply_translation([30.0, 30.0, 30.0])
     mesh = build_mesh_collection({1: box})
@@ -139,7 +139,7 @@ def test_the_whole_tree_lands_under_the_granted_prefix(
     produces a tree nothing can find -- and no exception.
     """
     store = MemoryStore()
-    monkeypatch.setattr("mikro_next.io.obstore.create_s3_store", lambda *_, **__: store)
+    monkeypatch.setattr("mikro.io.obstore.create_s3_store", lambda *_, **__: store)
 
     credentials = grant()
     returned = store_konnektion_collection(
@@ -182,7 +182,7 @@ def test_the_manifest_is_written_last(
         def list(self, prefix: str | None = None) -> Any:  # noqa: ANN401
             return store.list(prefix)
 
-    monkeypatch.setattr("mikro_next.io.obstore.create_s3_store", lambda *_, **__: Recording())
+    monkeypatch.setattr("mikro.io.obstore.create_s3_store", lambda *_, **__: Recording())
 
     store_konnektion_collection(
         KonnektionLike.validate(collection), grant(), SimpleNamespace(endpoint_url="http://s3.test")
@@ -208,7 +208,7 @@ def test_a_failed_write_is_reported_as_an_upload_error(
         def list(self, prefix: str | None = None) -> Any:  # noqa: ANN401
             raise OSError("nope")
 
-    monkeypatch.setattr("mikro_next.io.obstore.create_s3_store", lambda *_, **__: Refusing())
+    monkeypatch.setattr("mikro.io.obstore.create_s3_store", lambda *_, **__: Refusing())
 
     with pytest.raises(UploadError, match=GRANT_KEY):
         store_konnektion_collection(
@@ -220,6 +220,6 @@ def test_a_failed_write_is_reported_as_an_upload_error(
 
 def test_the_part_codec_is_one_the_viewer_can_decode() -> None:
     """A gzip default would upload, verify, and draw nothing, with no error anywhere."""
-    from mikro_next.networks import refuse_an_unreadable_part_codec
+    from mikro.networks import refuse_an_unreadable_part_codec
 
     assert refuse_an_unreadable_part_codec().lower() in {"zstd", "snappy", "none", "uncompressed"}

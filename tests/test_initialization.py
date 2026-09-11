@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from mikro_next.api.schema import create_array_dataset
+from mikro.api.schema import create_array_dataset
 
 from .conftest import DeployedMikro
 

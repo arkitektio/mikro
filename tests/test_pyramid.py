@@ -1,7 +1,7 @@
 """Unit tests for the array-dataset pyramid helpers.
 
 ``create_array_dataset`` takes level 0 as ``data`` and every coarser level as a
-``ScaleInput`` in ``scales``, and :mod:`mikro_next.pyramid` is what produces that
+``ScaleInput`` in ``scales``, and :mod:`mikro.pyramid` is what produces that
 pair. Everything here runs offline -- the split, the reduction, the axis
 selection and the ``ScaleMethod`` provenance are all decided client-side, which
 is exactly why they are worth pinning down without a server.
@@ -13,9 +13,9 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from mikro_next import axes_for, build_pyramid, canonical, dataset_arrays, scales_from
-from mikro_next.api.schema import ScaleMethod
-from mikro_next.vocabulary import UnknownAxisName
+from mikro import axes_for, build_pyramid, canonical, dataset_arrays, scales_from
+from mikro.api.schema import ScaleMethod
+from mikro.vocabulary import UnknownAxisName
 
 
 def _volume(dims: list[str] = ["c", "z", "y", "x"], dtype: str = "uint16") -> xr.DataArray:

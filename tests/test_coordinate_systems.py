@@ -30,8 +30,8 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from mikro_next import canonical, dataset_arrays, space_3d
-from mikro_next.api.schema import (
+from mikro import canonical, dataset_arrays, space_3d
+from mikro.api.schema import (
     AnnotationKind,
     ArrayDataset,
     AxisAnchorInput,

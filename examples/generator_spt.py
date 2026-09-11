@@ -34,9 +34,9 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from mikro_next import Unit, create_space, dataset_arrays
+from mikro import Unit, create_space, dataset_arrays
 from arkitekt_next import easy
-from mikro_next.api.schema import (
+from mikro.api.schema import (
     AxisType,
     ColorMap,
     ColumnInput,
@@ -50,7 +50,7 @@ from mikro_next.api.schema import (
     create_table_dataset,
     create_track_layer,
 )
-from mikro_next.render import channel_graph
+from mikro.render import channel_graph
 
 # --------------------------------------------------------------------------- #
 # Configuration

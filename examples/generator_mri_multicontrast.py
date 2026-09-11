@@ -30,9 +30,9 @@ import pandas as pd
 import xarray as xr
 from scipy.ndimage import gaussian_filter
 
-from mikro_next import Calibration, Unit, dataset_arrays
+from mikro import Calibration, Unit, dataset_arrays
 from arkitekt_next import easy
-from mikro_next.api.schema import (
+from mikro.api.schema import (
     AxisType,
     BootstrapLayerKind,
     ColorMap,
@@ -47,8 +47,8 @@ from mikro_next.api.schema import (
     create_label_layer,
     create_table_dataset,
 )
-from mikro_next.picker import categorical_color_by, label_render, measure_color_by
-from mikro_next.rath import current_mikro_next_rath
+from mikro.picker import categorical_color_by, label_render, measure_color_by
+from mikro.rath import current_mikro_rath
 
 # --------------------------------------------------------------------------- #
 # Configuration
@@ -273,7 +273,7 @@ if __name__ == "__main__":
         if label_layer.placement != PlacementState.PLACED:
             raise SystemExit(f"segmentation did not reach the world: {label_layer.placement}")
 
-        result = current_mikro_next_rath.get().query(LAYERS_QUERY, {"id": scene.id})
+        result = current_mikro_rath.get().query(LAYERS_QUERY, {"id": scene.id})
         layers = result.data["scene"]["layers"]
         kinds = sorted(layer["__typename"] for layer in layers)
         if kinds != ["IntensityLayer"] * len(CONTRASTS) + ["LabelLayer"]:

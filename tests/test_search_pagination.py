@@ -3,7 +3,7 @@ from collections.abc import Callable
 import pytest
 from rath.operation import GraphQLException
 
-from mikro_next.api.schema import (
+from mikro.api.schema import (
     create_folder,
     search_animations,
     search_annotation_collections,

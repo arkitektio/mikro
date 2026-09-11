@@ -1,8 +1,8 @@
 """The spec vocabulary, the descriptors it matches against, and the composer.
 
-``mikro_next.specs`` imports ``rekuest_next`` at module level, and rekuest is a
+``mikro.specs`` imports ``rekuest`` at module level, and rekuest is a
 dev dependency rather than an install requirement — hence the skip. That is also
-why the module is not exported from ``mikro_next/__init__.py``.
+why the module is not exported from ``mikro/__init__.py``.
 
 Everything here is server-free by construction: `compose` is the reference
 implementation a frontend mirrors to decide, for a dropped dataset and a port's
@@ -17,11 +17,11 @@ import pytest
 # rekuest emits a DeprecationWarning on import, which would skip the whole
 # module on every machine rather than only where rekuest is absent.
 try:
-    import rekuest_next  # noqa: F401 — presence is the question
+    import rekuest  # noqa: F401 — presence is the question
 except ImportError:  # pragma: no cover — depends on the install
-    pytest.skip("rekuest-next is an optional dev dependency", allow_module_level=True)
+    pytest.skip("rekuest is an optional dev dependency", allow_module_level=True)
 
-from mikro_next.specs import (
+from mikro.specs import (
     N_CHANNELS,
     VALUE_KIND,
     Image,

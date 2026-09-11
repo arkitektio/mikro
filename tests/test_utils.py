@@ -2,8 +2,8 @@
 
 from collections.abc import Hashable
 
-from mikro_next.errors import MikroError, NoDataLayerFound, NoMikroFound, NotQueriedError
-from mikro_next.utils import chunk_and_shard, rechunk
+from mikro.errors import MikroError, NoDataLayerFound, NoMikroFound, NotQueriedError
+from mikro.utils import chunk_and_shard, rechunk
 
 
 def test_mikro_error_classes() -> None:
