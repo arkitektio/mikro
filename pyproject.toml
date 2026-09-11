@@ -14,7 +14,6 @@ dependencies = [
     "rath>=3.12",
     "numpy>=1.26; python_version ~= '3.12'",
     "websockets>=15.0.1",
-    "pytest>=8.3.5",
     "fakts>=2",
     "numcodecs>=0.16.1",
     "obstore>=0.10.0",
