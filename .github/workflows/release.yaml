@@ -18,6 +18,14 @@ jobs:
   release:
     runs-on: ubuntu-latest
 
+    # `uv run pytest` below has no marker filter, so it runs the integration
+    # tests too, and they pull the backend from docker-compose's
+    # `jhnnsrs/mikro:${MIKRO_SERVICE_TAG:-next}`. Unset, a release off main
+    # would gate the stable line against the prerelease backend.
+    # integration.yaml pins the same expression.
+    env:
+      MIKRO_SERVICE_TAG: ${{ github.ref_name == 'main' && 'latest' || 'next' }}
+
     steps:
       - uses: actions/checkout@v4
         with:
