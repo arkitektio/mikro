@@ -27,7 +27,7 @@ s3:
     zarr: zarrnew
     parquet: parquetnew
     media: mikromedianew
-  host: minio
+  host: rustfs
   port: "9000"
   protocol: http
   secret_key: mikro_secret_key
