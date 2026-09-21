@@ -22,7 +22,7 @@ jobs:
 
     # `uv run pytest` below has no marker filter, so it runs the integration
     # tests too, and they pull the backend from docker-compose's
-    # `jhnnsrs/mikro:${MIKRO_SERVICE_TAG:-next}`.
+    # `jhnnsrs/mikro:${MIKRO_SERVICE_TAG:-latest}`.
     #
     # Pinned to `next` rather than mirroring integration.yaml's
     # `main -> latest` expression: jhnnsrs/mikro has never published a `latest`
