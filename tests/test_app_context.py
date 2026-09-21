@@ -50,7 +50,7 @@ class FakeApp:
         self.datalayer = DataLayer(endpoint_url=f"http://{name}.invalid")
         # A real client over fakes: `client_of` only follows an origin that is one.
         self.mikro = Mikro.model_construct(
-            rath=self.rath, datalayer=self.datalayer, task_token=None
+            rath=self.rath, datalayer=self.datalayer
         )
 
     def get(self, key: type) -> Any:
@@ -237,7 +237,6 @@ def test_the_client_has_exactly_its_fields() -> None:
         "datalayer",
         "federated_expansion",
         "rath",
-        "task_token",
     }
 
 
@@ -342,21 +341,6 @@ class HeaderRath(FakeRath):
         return self._answer()
 
 
-@pytest.mark.asyncio
-async def test_a_task_view_stamps_its_token_and_shares_the_clients() -> None:
-    rath = HeaderRath("shared")
-    client = Mikro.model_construct(
-        rath=rath, datalayer=DataLayer(endpoint_url="http://x.invalid"), task_token=None
-    )
-    view = client.for_task(SimpleNamespace(token="token-1"))
-
-    await client.aexecute(GetStore, {"id": "store-1"})
-    result = await view.aexecute(GetStore, {"id": "store-1"})
-
-    assert rath.headers == [None, {TASK_HEADER: "token-1"}]
-    assert view.rath is client.rath and view.datalayer is client.datalayer
-    assert client.task_token is None, "the shared client is never changed"
-    assert result.store.bound_client() is view
 
 
 # --------------------------------------------------------------------------- #
@@ -370,9 +354,7 @@ async def test_the_ambient_task_is_stamped_without_a_view() -> None:
     from rath.task import task_scope
 
     rath = HeaderRath("shared")
-    client = Mikro.model_construct(
-        rath=rath, datalayer=DataLayer(endpoint_url="http://x.invalid"), task_token=None
-    )
+    client = Mikro.model_construct(rath=rath, datalayer=DataLayer(endpoint_url="http://x.invalid"))
 
     await client.aexecute(GetStore, {"id": "store-1"})
     with task_scope(SimpleNamespace(token="token-1")):
@@ -380,7 +362,7 @@ async def test_the_ambient_task_is_stamped_without_a_view() -> None:
     await client.aexecute(GetStore, {"id": "store-1"})
 
     assert rath.headers == [None, {TASK_HEADER: "token-1"}, None]
-    assert client.task_token is None, "the shared client is never changed"
+    assert "task_token" not in Mikro.model_fields, "no per-task copy exists"
 
 
 @pytest.mark.asyncio
@@ -388,9 +370,7 @@ async def test_a_task_named_at_the_call_beats_the_ambient_one() -> None:
     from rath.task import task_scope
 
     rath = HeaderRath("shared")
-    client = Mikro.model_construct(
-        rath=rath, datalayer=DataLayer(endpoint_url="http://x.invalid"), task_token=None
-    )
+    client = Mikro.model_construct(rath=rath, datalayer=DataLayer(endpoint_url="http://x.invalid"))
 
     with task_scope(SimpleNamespace(token="ambient")):
         await client.aexecute(
@@ -406,9 +386,7 @@ async def test_a_task_without_a_token_stamps_no_header_at_all() -> None:
     from rath.task import task_scope
 
     rath = HeaderRath("shared")
-    client = Mikro.model_construct(
-        rath=rath, datalayer=DataLayer(endpoint_url="http://x.invalid"), task_token=None
-    )
+    client = Mikro.model_construct(rath=rath, datalayer=DataLayer(endpoint_url="http://x.invalid"))
 
     with task_scope(SimpleNamespace(token=None)):
         await client.aexecute(GetStore, {"id": "store-1"})

@@ -321,7 +321,7 @@ def _bound(obj):  # noqa: ANN001, ANN202
 
     from mikro.mikro import Mikro
 
-    client = Mikro.model_construct(rath=None, datalayer=None, task_token=None)
+    client = Mikro.model_construct(rath=None, datalayer=None)
     obj.__dict__[ORIGIN_KEY] = Origin(client=client)
     return obj
 
