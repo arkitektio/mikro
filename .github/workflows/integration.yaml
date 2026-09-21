@@ -6,12 +6,13 @@ on:
     branches: [main, next]
 jobs:
   test_integration:
-    # Pinned to :next, the only tag jhnnsrs/mikro publishes -- there has never
-    # been a :latest. The previous expression asked for it on main, so the image
-    # pull failed and every integration run on the stable line was broken.
-    # Restore the 'main -> latest' split once the backend cuts a stable image.
+    # The backend image is `:latest` -- the released line -- for every branch.
+    # To run against another published tag, set the repository variable of the same
+    # name (Settings -> Secrets and variables -> Actions -> Variables) to e.g. `next`;
+    # nothing here needs editing. The compose file defaults to `:latest` too, so a
+    # local `pytest -m integration` and CI agree unless you opt out.
     env:
-      MIKRO_SERVICE_TAG: next
+      MIKRO_SERVICE_TAG: ${{ vars.MIKRO_SERVICE_TAG || 'latest' }}
     strategy:
       fail-fast: false
       matrix:

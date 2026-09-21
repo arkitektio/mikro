@@ -35,15 +35,14 @@ never picks them up — `next` is a safe soak channel.
 
 ## Tag-based integration backend
 
-`integration.yaml` runs on `main` and `next` and sets `MIKRO_SERVICE_TAG`
-(`latest` on `main`, `next` elsewhere). `tests/integration/docker-compose.yml`
-resolves the mikro backend image via `jhnnsrs/mikro:${MIKRO_SERVICE_TAG:-latest}`,
-so the prerelease line is tested against the prerelease backend and the stable
-line against `:latest`.
+`tests/integration/docker-compose.yml` resolves the backend image via
+`jhnnsrs/mikro:${MIKRO_SERVICE_TAG:-latest}`, and `integration.yaml` sets the same
+default. Every branch is therefore tested against `:latest`, the released line.
 
-CI always sets the tag explicitly, so the `:-latest` fallback is what a bare local
-`pytest -m integration` gets: the released backend, not the prerelease one. Export the
-variable to override it.
+To test against another published tag, set the repository variable `MIKRO_SERVICE_TAG`
+(Settings -> Secrets and variables -> Actions -> Variables) to e.g. `next`; no workflow
+edit is needed. Locally, export the variable for the same effect. Leaving it unset is
+what keeps a developer's run and CI on the same image.
 
 ## Day-to-day
 

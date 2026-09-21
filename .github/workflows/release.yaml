@@ -20,18 +20,13 @@ jobs:
   release:
     runs-on: ubuntu-latest
 
-    # `uv run pytest` below has no marker filter, so it runs the integration
-    # tests too, and they pull the backend from docker-compose's
-    # `jhnnsrs/mikro:${MIKRO_SERVICE_TAG:-latest}`.
-    #
-    # Pinned to `next` rather than mirroring integration.yaml's
-    # `main -> latest` expression: jhnnsrs/mikro has never published a `latest`
-    # tag (only `next` and 2.0.0-rc.*), so asking for it fails the image pull
-    # and takes the release gate down with it. Switch this to that expression
-    # once the backend cuts a stable image -- integration.yaml needs the same
-    # correction, since it is already asking for `latest` on main.
+    # The backend image is `:latest` -- the released line -- for every branch.
+    # To run against another published tag, set the repository variable of the same
+    # name (Settings -> Secrets and variables -> Actions -> Variables) to e.g. `next`;
+    # nothing here needs editing. The compose file defaults to `:latest` too, so a
+    # local `pytest -m integration` and CI agree unless you opt out.
     env:
-      MIKRO_SERVICE_TAG: next
+      MIKRO_SERVICE_TAG: ${{ vars.MIKRO_SERVICE_TAG || 'latest' }}
 
     steps:
       - uses: actions/checkout@v4
