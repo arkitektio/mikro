@@ -97,7 +97,7 @@ from mikro.vocabulary import (
 # Descriptor keys, namespaced like the other @mikro structure identifiers.
 # One vocabulary drives both sides: the aliases below constrain on these keys,
 # and `lens_descriptors` computes them for a candidate lens.
-N_SPACE_AXES: Final = "@mikro/nspaceaxes"
+N_SPACE_AXES: Final = "@mikro/n_space_axes"
 N_TIME_AXES: Final = "@mikro/n_time_axes"
 N_CHANNEL_AXES: Final = "@mikro/n_channel_axes"
 N_SPECTRUM_AXES: Final = "@mikro/n_spectrum_axes"
@@ -110,7 +110,7 @@ VALUE_KIND: Final = "@mikro/value_kind"
 #: is not a typo the server will catch — nothing on either side computes it, so
 #: the constraint would simply never be satisfiable.
 DescriptorKey = Literal[
-    "@mikro/nspaceaxes",
+    "@mikro/n_space_axes",
     "@mikro/n_time_axes",
     "@mikro/n_channel_axes",
     "@mikro/n_spectrum_axes",
