@@ -208,13 +208,7 @@
                         }
                     ],
                     "reserved_from": [
-                        "koil.composition.Composition"
-                    ],
-                    "reserved_names": [
-                        "rath",
-                        "datalayer",
-                        "task_token",
-                        "for_task"
+                        "mikro.mikro.Mikro"
                     ],
                     "coercible_scalars": {
                         "ArrayLike": "mikro.scalars.ArrayCoercible",

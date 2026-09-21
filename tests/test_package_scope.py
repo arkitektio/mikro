@@ -75,3 +75,48 @@ def test_mikro_imports_with_arkitekt_unavailable() -> None:
 
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip().endswith("ok")
+
+
+# --------------------------------------------------------------------------- #
+# The generated operations must not be able to collide with the client's own names
+# --------------------------------------------------------------------------- #
+
+#: The class the generated mixin is mixed into, whose names must be reserved.
+CLIENT_CLASS = "mikro.mikro.Mikro"
+
+#: turms' dumped configuration, beside the module it generated.
+DUMPED_CONFIG = Path(__file__).resolve().parents[1] / "mikro/api/project.json"
+
+
+def test_the_client_reserves_its_own_names_by_deriving_them() -> None:
+    """``reserved_from`` names the client itself, and nothing is hand-listed.
+
+    Every operation turms generates becomes a method of a mixin the client mixes
+    in, so those methods and the client's pydantic *fields* share one namespace --
+    and pydantic lets a field hide a same-named method. turms turns that into a
+    build error, but only for the names it is told to reserve.
+
+    Pointing ``reserved_from`` at the client makes turms derive the whole set
+    (``names_reserved_by`` walks the MRO and the model fields, skipping the mixin
+    it is about to regenerate). A hand-written ``reserved_names`` drifts instead:
+    mikro's kept two names for months after they were deleted, while never
+    covering ``federated_expansion`` -- a real field it was supposed to protect.
+
+    Checked against the dumped configuration rather than the yaml, because that is
+    the configuration the checked-in module was actually generated with, and it
+    needs no yaml parser in the test environment.
+    """
+    import json
+
+    config = json.loads(DUMPED_CONFIG.read_text())
+    for plugin in config["extensions"]["turms"].get("plugins", []):
+        if not plugin["type"].endswith("client.ClientPlugin"):
+            continue
+        assert "reserved_names" not in plugin, (
+            "reserved_names is hand-maintained and drifts; let reserved_from "
+            "derive the set from the client class"
+        )
+        assert plugin.get("reserved_from") == [CLIENT_CLASS], (
+            f"reserved_from must be [{CLIENT_CLASS!r}] -- the client the "
+            "generated mixin lands in -- so its fields are reserved"
+        )
