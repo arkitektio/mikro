@@ -357,3 +357,60 @@ async def test_a_task_view_stamps_its_token_and_shares_the_clients() -> None:
     assert view.rath is client.rath and view.datalayer is client.datalayer
     assert client.task_token is None, "the shared client is never changed"
     assert result.store.bound_client() is view
+
+
+# --------------------------------------------------------------------------- #
+# The task a call is for: ambient, or named at the call
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.asyncio
+async def test_the_ambient_task_is_stamped_without_a_view() -> None:
+    """One shared client attributes each call to whatever task is running."""
+    from rath.task import task_scope
+
+    rath = HeaderRath("shared")
+    client = Mikro.model_construct(
+        rath=rath, datalayer=DataLayer(endpoint_url="http://x.invalid"), task_token=None
+    )
+
+    await client.aexecute(GetStore, {"id": "store-1"})
+    with task_scope(SimpleNamespace(token="token-1")):
+        await client.aexecute(GetStore, {"id": "store-1"})
+    await client.aexecute(GetStore, {"id": "store-1"})
+
+    assert rath.headers == [None, {TASK_HEADER: "token-1"}, None]
+    assert client.task_token is None, "the shared client is never changed"
+
+
+@pytest.mark.asyncio
+async def test_a_task_named_at_the_call_beats_the_ambient_one() -> None:
+    from rath.task import task_scope
+
+    rath = HeaderRath("shared")
+    client = Mikro.model_construct(
+        rath=rath, datalayer=DataLayer(endpoint_url="http://x.invalid"), task_token=None
+    )
+
+    with task_scope(SimpleNamespace(token="ambient")):
+        await client.aexecute(
+            GetStore, {"id": "store-1"}, task=SimpleNamespace(token="explicit")
+        )
+
+    assert rath.headers == [{TASK_HEADER: "explicit"}]
+
+
+@pytest.mark.asyncio
+async def test_a_task_without_a_token_stamps_no_header_at_all() -> None:
+    """Not a header with a `None` value -- no header."""
+    from rath.task import task_scope
+
+    rath = HeaderRath("shared")
+    client = Mikro.model_construct(
+        rath=rath, datalayer=DataLayer(endpoint_url="http://x.invalid"), task_token=None
+    )
+
+    with task_scope(SimpleNamespace(token=None)):
+        await client.aexecute(GetStore, {"id": "store-1"})
+
+    assert rath.headers == [None]

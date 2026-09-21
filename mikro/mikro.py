@@ -6,6 +6,7 @@ from koil import unkoil_gen
 from koil.composition import Composition
 from pydantic import Field
 from rath.origin import origin_context
+from rath.task import TASK_HEADER, TaskLike, current_task, token_of
 from rath.turms.fragment import afetch_fragments_via
 from rath.turms.funcs import TOperation
 
@@ -13,10 +14,6 @@ from mikro.api import schema
 from mikro.api.schema import MikroApi
 from mikro.datalayer import DataLayer
 from mikro.rath import MikroRath
-
-
-TASK_HEADER = "Rekuest-Task"
-"""The header a per-task client view stamps its provenance token under."""
 
 
 FEDERATED_EXPANSION_ENV = "MIKRO_FEDERATED_EXPANSION"
@@ -152,9 +149,15 @@ class Mikro(Composition, MikroApi):
         """
         return origin_context(client=self, rath=self.rath, datalayer=self.datalayer)
 
-    def _headers(self) -> dict[str, Any] | None:
-        """The per-call headers: the task's provenance token, on a per-task view."""
-        return {TASK_HEADER: self.task_token} if self.task_token else None
+    def _headers(self, task: "TaskLike | None" = None) -> dict[str, Any] | None:
+        """The per-call headers: the provenance token of the task this call is for.
+
+        ``task`` when the caller named one, else whichever task is running. A
+        per-task view of this client (``for_task``) still wins while it exists --
+        it is on its way out, and until then it is the more specific answer.
+        """
+        token = self.task_token if self.task_token else token_of(task)
+        return {TASK_HEADER: token} if token else None
 
     @staticmethod
     def _serialize(operation: type[TOperation], variables: dict[str, Any]) -> dict[str, Any]:
@@ -187,17 +190,27 @@ class Mikro(Composition, MikroApi):
             variables = await middleware.aprocess_variables(variables, operation, self.rath)
         return variables
 
-    def execute(self, operation: type[TOperation], variables: dict[str, Any]) -> TOperation:
+    def execute(
+        self,
+        operation: type[TOperation],
+        variables: dict[str, Any],
+        task: "TaskLike | None" = None,
+    ) -> TOperation:
         """Executes a query or mutation in a blocking way.
 
         Uses the sync middleware path (process_variables) which runs
         uploads via obstore in the calling thread.
         """
         serialized = self._apply_middlewares(self._serialize(operation, variables), operation)
-        x = self.rath.query(operation.Meta.document, serialized, headers=self._headers())
+        x = self.rath.query(operation.Meta.document, serialized, headers=self._headers(task))
         return operation.model_validate(x.data, context=self._origin())
 
-    async def aexecute(self, operation: type[TOperation], variables: dict[str, Any]) -> TOperation:
+    async def aexecute(
+        self,
+        operation: type[TOperation],
+        variables: dict[str, Any],
+        task: "TaskLike | None" = None,
+    ) -> TOperation:
         """Executes a query or mutation in a non-blocking way.
 
         Uses the async middleware path (aprocess_variables) which runs
@@ -206,17 +219,31 @@ class Mikro(Composition, MikroApi):
         serialized = await self._aapply_middlewares(
             self._serialize(operation, variables), operation
         )
-        x = await self.rath.aquery(operation.Meta.document, serialized, headers=self._headers())
+        x = await self.rath.aquery(operation.Meta.document, serialized, headers=self._headers(task))
         return operation.model_validate(x.data, context=self._origin())
 
     def subscribe(
-        self, operation: type[TOperation], variables: dict[str, Any]
+        self,
+        operation: type[TOperation],
+        variables: dict[str, Any],
+        task: "TaskLike | None" = None,
     ) -> Generator[TOperation, None, None]:
         """Subscribes to an operation in a blocking way."""
-        return unkoil_gen(self.asubscribe, operation, variables)
+        # Resolved here, on the caller's own thread, rather than after the koil
+        # hop: the ambient task is the caller's, and this does not depend on how
+        # faithfully the bridge copies context.
+        return unkoil_gen(
+            self.asubscribe,
+            operation,
+            variables,
+            task=task if task is not None else current_task.get(),
+        )
 
     async def asubscribe(
-        self, operation: type[TOperation], variables: dict[str, Any]
+        self,
+        operation: type[TOperation],
+        variables: dict[str, Any],
+        task: "TaskLike | None" = None,
     ) -> AsyncGenerator[TOperation, None]:
         """Subscribes to an operation in a non-blocking way.
 
@@ -226,6 +253,6 @@ class Mikro(Composition, MikroApi):
             self._serialize(operation, variables), operation
         )
         async for event in self.rath.asubscribe(
-            operation.Meta.document, serialized, headers=self._headers()
+            operation.Meta.document, serialized, headers=self._headers(task)
         ):
             yield operation.model_validate(event.data, context=self._origin())
