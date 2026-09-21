@@ -84,7 +84,7 @@ from typing import (
 )
 
 from rekuest.annotations import Provides, Requires
-from rekuest.api.schema import DescriptorOperator, RequiresInput
+from rekuest.protocol.schema import DescriptorOperator, RequiresInput
 
 from mikro.api.schema import AxisInput, AxisType, Lens
 from mikro.vocabulary import (
