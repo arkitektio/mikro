@@ -76,6 +76,7 @@
             "skip_forwards": false,
             "min_python_version": "3.10",
             "type_annotation_style": "auto",
+            "external_modules": [],
             "additional_bases": {
                 "AxisInput": [
                     "mikro.traits.AxisInputTrait"
@@ -199,6 +200,13 @@
                 {
                     "type": "turms.plugins.client.ClientPlugin",
                     "client_class": "MikroApi",
+                    "global_kwargs": [
+                        {
+                            "key": "task",
+                            "type": "rath.task.TaskLike",
+                            "description": "The task this call is made for; the ambient one by default."
+                        }
+                    ],
                     "reserved_from": [
                         "koil.composition.Composition"
                     ],

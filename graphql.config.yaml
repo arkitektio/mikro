@@ -37,6 +37,13 @@ projects:
             # of self, which Mikro implements over its rath (and its middlewares);
             # no call ever looks a client up.
             client_class: MikroApi
+            # Every operation takes an optional `task=`: the task its request is
+            # attributed to. Omitted, the client falls back to the ambient one
+            # (`rath.task.current_task`), which is what an action gets for free.
+            global_kwargs:
+              - key: task
+                type: rath.task.TaskLike
+                description: "The task this call is made for; the ambient one by default."
             # Mikro's own attributes, and those of its base: pydantic lets a field
             # hide a same-named method with only a warning.
             reserved_from:
