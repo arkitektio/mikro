@@ -33,8 +33,9 @@ import pandas as pd
 import xarray as xr
 from scipy import ndimage
 
-from mikro import Unit, space_2d
 from arkitekt import easy
+from mikro import Unit, space_2d, mikro_service
+from mikro.mikro import Mikro
 from mikro.api.schema import (
     AxisType,
     ColorMap,
@@ -42,11 +43,6 @@ from mikro.api.schema import (
     ColumnInput,
     ColumnRole,
     CoordinateAnchorInput,
-    create_array_dataset,
-    create_intensity_layer,
-    create_point_layer,
-    create_scene,
-    create_table_dataset,
 )
 
 # --------------------------------------------------------------------------- #
@@ -195,17 +191,17 @@ if __name__ == "__main__":
         raise SystemExit(0)
 
     # Reusing a sibling generator's cached grant (see generator_smlm.py).
-    with easy(identifier="neuron-overlay") as app:
+    with easy("neuron-overlay", mikro_service) as mikro:
         # The stage the whole plate sits on. Every well is placed into THIS one
         # space — a plate is one place, not 24.
-        world = space_2d("HCS · plate stage", unit=Unit("micrometer"))
+        world = space_2d(mikro, "HCS · plate stage", unit=Unit("micrometer"))
 
         print("Uploading and grid-placing the fields…")
         clim_max = max(float(np.percentile(w["image"].values, 99.8)) for w in wells)
         scene = None
         field_ids = []
         for well in wells:
-            field_ds = create_array_dataset(
+            field_ds = mikro.create_array_dataset(
                 data=well["image"],
                 scales=[],  # a 192x256 field needs no pyramid
                 name=f"HCS · well {well['well']}",
@@ -226,7 +222,7 @@ if __name__ == "__main__":
             field_ids.append(field_ds)
 
         print("Uploading the per-well table…")
-        table = create_table_dataset(
+        table = mikro.create_table_dataset(
             name="HCS · wells",
             data=pd.DataFrame(
                 {
@@ -258,10 +254,10 @@ if __name__ == "__main__":
         world.register(table)  # already in stage micrometers
 
         print("Composing the scene…")
-        scene = create_scene(name="HCS · synthetic plate", coordinate_system=world.id)
+        scene = mikro.create_scene(name="HCS · synthetic plate", coordinate_system=world.id)
 
         for order, (well, field_ds) in enumerate(zip(wells, field_ids)):
-            create_intensity_layer(
+            mikro.create_intensity_layer(
                 lens=field_ds.lens(),
                 scene=scene,
                 colormap=ColorMap.GREY,
@@ -271,7 +267,7 @@ if __name__ == "__main__":
             )
 
         # The plate heat-map: one dot per well over its field, coloured by count.
-        point_layer = create_point_layer(
+        point_layer = mikro.create_point_layer(
             scene=scene,
             table_dataset=table,
             point_size=30.0,  # stage micrometers

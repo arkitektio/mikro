@@ -40,10 +40,12 @@ from dask.array.core import from_zarr  # type: ignore
 from numpy.typing import NDArray
 from pydantic import BaseModel, model_validator
 from rath.scalars import ID, IDCoercible
+from rath.origin import ContextBound
 from rath.traits import FederationFetchable
 from rath.turms.utils import get_attributes_or_error
 from zarr.storage import StorePath
 
+from .client import client_of
 from .scalars import ArrayCoercible
 from .vocabulary import (
     MATRIX_KINDS,
@@ -91,7 +93,8 @@ if TYPE_CHECKING:
         ValueRelation,
     )
     from mikro.io.obstore import ParquetDatasetViaObstore
-    from mikro.rath import MikroNextRath
+    from mikro.mikro import Mikro
+    from mikro.rath import MikroRath
 
     #: What `create_transformation` hands back: the shared base of every edge
     #: kind the mutation can return, the catch-all included.
@@ -137,34 +140,29 @@ def _three_floats(values: NDArray[np.generic]) -> tuple[float, float, float]:
     return (x, y, z)
 
 
-class MikroFetchable(FederationFetchable):
+class MikroFetchable(ContextBound, FederationFetchable):
     """A trait for Mikro Fetchable objects
 
     This trait allows to fetch an object from the mikro service using its ID.
     It is used to ensure that the object can be fetched from the mikro service.
 
+    Fetched through a client (``Type.aexpand(id, client)``), an object remembers
+    it, and what it fetches later goes through that same client.
+
     """
 
     @classmethod
-    def get_rath(cls) -> MikroNextRath:
-        """Get the current Rath client from the context.
+    def fetch_origin(cls, client: "Mikro") -> dict:
+        """Bind what is fetched by id to its client, as any other result is.
 
-        Returns:
-            The active mikro rath client.
-
-        Raises:
-            NoMikroFound: If no client is active.
+        Without it an object expanded through ``_entities`` would have its rath
+        but no datalayer to read its data with, and no client to make its
+        follow-up calls through.
         """
-        from mikro.errors import NoMikroFound
-        from mikro.rath import current_mikro_rath
-
-        rath = current_mikro_rath.get()
-        if rath is None:
-            raise NoMikroFound("No rath client found in context. Please provide a rath client.")
-        return rath
+        return client._origin()
 
 
-class HasParquestStoreTrait(BaseModel):
+class HasParquestStoreTrait(ContextBound):
     """Table Trait
 
     Implements both identifier and shrinking methods.
@@ -194,7 +192,7 @@ class HasParquestStoreTrait(BaseModel):
 V = TypeVar("V")
 
 
-class HasZarrStoreAccessor(BaseModel):
+class HasZarrStoreAccessor(ContextBound):
     """Zarr Store Accessor
 
     Allows to access the python zarr store of
@@ -212,11 +210,11 @@ class HasZarrStoreAccessor(BaseModel):
 
         if self._openstore is None:
             id = get_attributes_or_error(self, "id")
-            self._openstore = open_zarr_store(id)
+            self._openstore = open_zarr_store(client_of(self), id)
         return self._openstore
 
 
-class HasParquetStoreAccesor(BaseModel):
+class HasParquetStoreAccesor(ContextBound):
     """Parquet Store Accessor"""
 
     _dataset: ParquetDatasetViaObstore | None = None
@@ -230,7 +228,9 @@ class HasParquetStoreAccesor(BaseModel):
 
         dataset = self._dataset
         if dataset is None:
-            dataset = open_parquet_filesystem(get_attributes_or_error(self, "id"))
+            dataset = open_parquet_filesystem(
+                client_of(self), get_attributes_or_error(self, "id")
+            )
             self._dataset = dataset
         return dataset
 
@@ -247,13 +247,13 @@ class HasParquetStoreAccesor(BaseModel):
         relation = self._duckdb_rel
         if relation is None:
             self._duckdb_con, relation = open_parquet_duckdb(
-                get_attributes_or_error(self, "id")
+                client_of(self), get_attributes_or_error(self, "id")
             )
             self._duckdb_rel = relation
         return relation
 
 
-class HasDownloadAccessor(BaseModel):
+class HasDownloadAccessor(ContextBound):
     """Download Accessor"""
 
     _dataset: str | None = None
@@ -270,7 +270,7 @@ class HasDownloadAccessor(BaseModel):
         from mikro.io.download import download_file
 
         store_id, key = get_attributes_or_error(self, "id", "key")
-        return download_file(store_id, file_name=file_name or key)
+        return download_file(client_of(self), store_id, file_name or key)
 
     @contextmanager
     def open(
@@ -322,6 +322,7 @@ class HasDownloadAccessor(BaseModel):
 
         store_id = get_attributes_or_error(self, "id")
         handle = open_remote_file(
+            client_of(self),
             store_id,
             block_size=block_size,
             cache=cache,
@@ -333,7 +334,7 @@ class HasDownloadAccessor(BaseModel):
             handle.close()
 
 
-class HasPresignedDownloadAccessor(BaseModel):
+class HasPresignedDownloadAccessor(ContextBound):
     """Presigned Download Accessor
 
     TODO: THis should probablry bre refactored to a more generic download accessor
@@ -354,7 +355,7 @@ class HasPresignedDownloadAccessor(BaseModel):
         from mikro.io.download import download_presigned_file
 
         url, key = get_attributes_or_error(self, "presigned_url", "key")
-        return download_presigned_file(url, file_name=file_name or key)
+        return download_presigned_file(client_of(self), url, file_name or key)
 
 
 class FileTrait:
@@ -420,7 +421,8 @@ class FileTrait:
         # vendor file handed to it as `a3f9c2e1` that it would have opened as
         # `a3f9c2e1.tif`. The name is what the file was uploaded as.
         name = getattr(self, "name", None) or os.path.basename(key) or "download"
-        path = download_to_scratch(store_id, file_name=name)
+        # The File's own origin: it fetched the store it names.
+        path = download_to_scratch(client_of(self), store_id, file_name=name)
         try:
             yield path
         finally:
@@ -533,7 +535,7 @@ class DatasetTrait:
         translation: Sequence[float] | None = None,
         affine: Sequence[Sequence[float]] | None = None,
         epoch: datetime | None = None,
-        rath: MikroNextRath | None = None,
+        mikro: "Mikro | None" = None,
     ) -> CoordinateSystem:
         """Give this dataset a physical size: a coordinate system carrying the
         units, and the edge registering the dataset's pixel grid into it.
@@ -560,7 +562,6 @@ class DatasetTrait:
             UNSET,
             PhysicalAxisInput,
             RegistrationPathInput,
-            create_coordinate_system,
         )
 
         intrinsic = get_attributes_or_error(self, "intrinsic_system")
@@ -627,17 +628,16 @@ class DatasetTrait:
             ),
         )
 
-        return create_coordinate_system(
+        return client_of(self, mikro).create_coordinate_system(
             name=name,
             axes=calibrated_axes,
             registrations=[registration],
             epoch=epoch if epoch is not None else UNSET,
-            rath=rath,
         )
 
     def lens(
         self,
-        rath: MikroNextRath | None = None,
+        mikro: "Mikro | None" = None,
         **selections: AxisSelection,
     ) -> Lens:
         """Create a lens on this dataset from pythonic per-axis selections.
@@ -651,7 +651,7 @@ class DatasetTrait:
         ``crop.lens(z=16, y=32)`` is the row through (z=16, y=32);
         ``source.lens(x=(0, 128))`` is the left half.
         """
-        from mikro.api.schema import SliceInput, create_lens
+        from mikro.api.schema import SliceInput
 
         axis_names = getattr(self, "axis_names", None)
         slices: list[SliceInput] = []
@@ -663,8 +663,8 @@ class DatasetTrait:
             start, stop, step = normalize_selection(axis, selection)
             slices.append(SliceInput(axis=axis, start=start, stop=stop, step=step))
 
-        return create_lens(
-            dataset=get_attributes_or_error(self, "id"), slices=slices, rath=rath
+        return client_of(self, mikro).create_lens(
+            dataset=get_attributes_or_error(self, "id"), slices=slices
         )
 
     def key_table(
@@ -673,7 +673,7 @@ class DatasetTrait:
         *,
         name: str | None = None,
         validity: PlacementValidity | None = None,
-        rath: MikroNextRath | None = None,
+        mikro: "Mikro | None" = None,
     ) -> CreatedTransformation:
         """Register this label dataset's voxels as the FIELD edge keying `table`.
 
@@ -703,7 +703,7 @@ class DatasetTrait:
         Returns:
             The created FIELD transformation.
         """
-        from mikro.api.schema import UNSET, create_transformation
+        from mikro.api.schema import UNSET
 
         # The mixin has no fields of its own; the model it is mixed into has
         # `intrinsic_system`, which is what makes a dataset registrable.
@@ -723,13 +723,12 @@ class DatasetTrait:
             output_axes=_axis_names_in_order(target),
         )
 
-        return create_transformation(
+        return client_of(self, mikro).create_transformation(
             input=get_attributes_or_error(intrinsic, "id"),
             output=get_attributes_or_error(target, "id"),
             transform=transform,
             name=name if name is not None else UNSET,
             validity=validity if validity is not None else UNSET,
-            rath=rath,
         )
 
 
@@ -746,33 +745,13 @@ class CreateADatasetTrait:
     @model_validator(mode="after")
     def _validate_dims_match_axes(self) -> Self:
         """Ensure the axes (and scale arrays) match the data array dims."""
+        from mikro.checks.arrays import check_dims_match_axes
+
         data = getattr(self, "data", None)
         axes = getattr(self, "axes", None)
         if data is None or axes is None:
             return self
-
-        array = getattr(data, "value", data)
-        array_dims = tuple(str(dim) for dim in array.dims)
-        axis_names = tuple(axis.name for axis in axes)
-
-        if set(array_dims) != set(axis_names):
-            raise ValueError(
-                f"axes {axis_names} do not match the data array dimensions "
-                f"{array_dims}. Every array dimension must have exactly one "
-                f"matching axis (and vice versa)."
-            )
-
-        for scale in getattr(self, "scales", ()) or ():
-            scale_array = getattr(getattr(scale, "array", None), "value", None)
-            if scale_array is None:
-                continue
-            scale_dims = tuple(str(dim) for dim in scale_array.dims)
-            if set(scale_dims) != set(array_dims):
-                raise ValueError(
-                    f"Scale level {getattr(scale, 'level', '?')} array dimensions "
-                    f"{scale_dims} do not match the data array dimensions {array_dims}."
-                )
-
+        check_dims_match_axes(data, axes, getattr(self, "scales", None))
         return self
 
 
@@ -802,19 +781,12 @@ class CreateTableDatasetTrait(BaseModel):
     @model_validator(mode="after")
     def _resolve_columns(self) -> Self:
         """Derive the declaration, merge the caller's onto it, and refuse what cannot describe this frame."""
-        from mikro.compression import refuse_unreadable_codec
-        from mikro.tables import TableDeclarationError, file_columns_of, resolve_columns
+        from mikro.checks.tables import TableDeclarationError, file_columns_of, resolve_columns
 
         data = getattr(self, "data", None)
         if data is None:
             return self
         value = getattr(data, "value", data)
-
-        # A path is streamed to the object store byte for byte, so its codec is the caller's
-        # and this is the last place anything looks at it. Footer only -- a 4 GB file must not
-        # enter the process, which is the whole reason that branch exists.
-        if isinstance(value, Path):
-            refuse_unreadable_codec(value)
 
         try:
             file_columns = file_columns_of(value)
@@ -829,7 +801,7 @@ class CreateTableDatasetTrait(BaseModel):
 
         columns = resolve_columns(file_columns, self.columns or ())
         object.__setattr__(self, "columns", columns)
-        # `object.__setattr__` does not touch `fields_set`, and `funcs.execute` dumps with
+        # `object.__setattr__` does not touch `fields_set`, and `Mikro.execute` dumps with
         # `exclude_unset=True` -- so without this the resolved list would be dropped on the
         # way out for any caller who did not pass `columns` themselves.
         self.__pydantic_fields_set__.add("columns")
@@ -841,8 +813,8 @@ class CreateSparseDatasetTrait(BaseModel):
 
     The sparse counterpart of :class:`CreateTableDatasetTrait`, and it makes the same argument
     for the same reason -- two statements about the same bytes, the caller's and the arrived
-    one's -- with one difference in its favour. ``funcs.execute`` validates at ``:94`` and
-    hands the variables to the upload middleware at ``:97``, so every refusal below fires
+    one's -- with one difference in its favour. ``Mikro.execute`` validates (``_serialize``) and
+    then hands the variables to the upload middleware, so every refusal below fires
     before a byte leaves the process. The server's copy of each fires after.
 
     One of them the server cannot make first at all: it compares the declared axis count
@@ -860,7 +832,7 @@ class CreateSparseDatasetTrait(BaseModel):
     @model_validator(mode="after")
     def _check_declaration(self) -> Self:
         """Check the axes, then check them against the matrix if one is in hand."""
-        from mikro.sparse import check_against_store, check_axes
+        from mikro.checks.sparse import check_against_store, check_axes
 
         # `axes` is `... | None` with a GraphQL default of `[]`, and `()` is what the first
         # refusal is about -- so it is coerced rather than treated as "nothing to check",
@@ -935,7 +907,7 @@ class SparseColorByInputTrait(BaseModel):
     colormap over its range. Nothing stores categories sparsely -- the zeros would be a
     category too -- which is why a qualitative colormap is refused rather than reinterpreted.
 
-    On the input rather than in :func:`mikro.picker.sparse_color_by`, because
+    On the input rather than in :func:`mikro.inputs.picker.sparse_color_by`, because
     ``label_render`` accepts entries that were built some other way and a guard in the builder
     is one anybody can walk past. The rest of what a sparse colouring can get wrong -- whether
     ``at`` names the axes this matrix identifies, whether a position is inside its extent,
@@ -975,7 +947,7 @@ class GraphColorByInputTrait(BaseModel):
     collection's manifest and stays server-side, exactly as a sparse entry's reachability
     does -- this input carries only a name.
 
-    On the input rather than in :func:`mikro.picker.graph_color_by`, for
+    On the input rather than in :func:`mikro.inputs.picker.graph_color_by`, for
     :class:`SparseColorByInputTrait`'s reason: entries built some other way still pass
     through here.
     """
@@ -1280,8 +1252,6 @@ class Lensable:
             CoordinateSystemDerivedFromInput,
             IdentityTransformInput,
             Slice,
-            create_annotation,
-            create_annotation_collection,
         )
 
         if collection is not None and scene is not None:
@@ -1307,7 +1277,7 @@ class Lensable:
             # lens', so it is created with the lens' axes and an identity edge
             # back to it: the shapes are drawn on that very grid, without the
             # two systems being made one.
-            collection = create_annotation_collection(
+            collection = client_of(self).create_annotation_collection(
                 name=name or f"Drawings on {coordinate_system.name}",
                 axes=[
                     AxisInput(
@@ -1323,7 +1293,7 @@ class Lensable:
                 ],
             ).id
 
-        return create_annotation(
+        return client_of(self).create_annotation(
             collection=collection,
             scene=scene,
             vectors=vectors,
@@ -1797,26 +1767,26 @@ class TransformationTrait:
         """Map points from the output system back to the input system."""
         return _apply_homogeneous(self.inverse_matrix(), points)
 
-    def resolve_matrix(self, rath: MikroNextRath | None = None) -> NDArray[np.float64]:
+    def resolve_matrix(self, mikro: "Mikro | None" = None) -> NDArray[np.float64]:
         """Like `as_matrix()`, but resolves SEQUENCE transformations by fetching
         each child from the server and composing them first-to-last."""
         kind = _normalize_kind(get_attributes_or_error(self, "kind"))
         if kind != "SEQUENCE":
             return self.as_matrix()
 
-        from mikro.api.schema import get_transformation
+        pass
 
         children = get_attributes_or_error(self, "sequence_children")
         matrix: np.ndarray | None = None
         for child in children:
-            full = get_transformation(child.id, rath=rath)
+            full = client_of(self, mikro).get_transformation(child.id)
             resolve = getattr(full, "resolve_matrix", None)
             if resolve is None:
                 raise ValueError(
                     f"Child transformation {child.id} came back as a kind this "
                     f"client does not model, so its matrix cannot be composed"
                 )
-            child_matrix = resolve(rath=rath)
+            child_matrix = resolve(mikro=mikro)
             matrix = child_matrix if matrix is None else child_matrix @ matrix
         if matrix is None:
             raise ValueError(
@@ -1892,7 +1862,7 @@ def _compose_steps(
     steps: Sequence[PathStep],
     identity_ndim: int | None = None,
     allow_fetch: bool = False,
-    rath: MikroNextRath | None = None,
+    mikro: "Mikro | None" = None,
 ) -> NDArray[np.float64]:
     """Compose a path of steps into one homogeneous matrix, applied first-to-last
     (the newest matrix multiplies on the left). Inverted steps are inverted first."""
@@ -1901,7 +1871,7 @@ def _compose_steps(
         t = step.transformation
         kind = _normalize_kind(get_attributes_or_error(t, "kind"))
         if kind == "SEQUENCE" and allow_fetch:
-            step_matrix = t.resolve_matrix(rath=rath)
+            step_matrix = t.resolve_matrix(mikro=mikro)
         else:
             step_matrix = t.as_matrix()
         if step.inverted:
@@ -1980,37 +1950,37 @@ class SceneTrait:
             "world sees it"
         )
 
-    def clear(self, rath: MikroNextRath | None = None) -> Scene:
+    def clear(self, mikro: "Mikro | None" = None) -> Scene:
         """Delete every layer of this scene, keeping the scene itself.
 
         A pure view-state reset: no coordinate system, registration or dataset
         is touched, and other scenes over the same world never notice.
 
         Args:
-            rath: The mikro rath client.
+            mikro: The client to call through; defaults to the one that fetched this object.
 
         Returns:
             This scene, now empty.
         """
-        from mikro.api.schema import clear_scene
+        pass
 
-        return clear_scene(id=get_attributes_or_error(self, "id"), rath=rath)
+        return client_of(self, mikro).clear_scene(id=get_attributes_or_error(self, "id"))
 
-    def delete(self, rath: MikroNextRath | None = None) -> ID:
+    def delete(self, mikro: "Mikro | None" = None) -> ID:
         """Delete this scene.
 
         Its world survives — a scene adopts a space, never owns it. Sweep the
         spaces nothing is left over with `delete_orphaned_coordinate_systems`.
 
         Args:
-            rath: The mikro rath client.
+            mikro: The client to call through; defaults to the one that fetched this object.
 
         Returns:
             The id of the deleted scene.
         """
-        from mikro.api.schema import delete_scene
+        pass
 
-        return delete_scene(id=get_attributes_or_error(self, "id"), rath=rath)
+        return client_of(self, mikro).delete_scene(id=get_attributes_or_error(self, "id"))
 
 
 class CoordinateSystemTrait:
@@ -2040,7 +2010,7 @@ class CoordinateSystemTrait:
         scale: Mapping[str, float] | Sequence[float] | None = None,
         name: str | None = None,
         validity: PlacementValidity | None = None,
-        rath: MikroNextRath | None = None,
+        mikro: "Mikro | None" = None,
         **offsets: float,
     ) -> CreatedTransformation:
         """Register `source` into this space, scaled and translated.
@@ -2080,7 +2050,7 @@ class CoordinateSystemTrait:
                 space's, by axis name or positional against the shared axes.
             name: An optional name for the edge.
             validity: How far the claim is to be trusted.
-            rath: The mikro rath client.
+            mikro: The client to call through; defaults to the one that fetched this object.
             **offsets: The per-axis offset in this space's coordinates.
 
         Returns:
@@ -2142,7 +2112,7 @@ class CoordinateSystemTrait:
             name=name
             or f"{getattr(source, 'name', 'source')} -> {getattr(self, 'name', 'space')}",
             validity=validity,
-            rath=rath,
+            mikro=mikro,
         )
 
     def grid_cell(
@@ -2198,7 +2168,7 @@ class CoordinateSystemTrait:
         mesh_collection: IDCoercible | None = None,
         annotation_collection: IDCoercible | None = None,
         coordinate_system: IDCoercible | None = None,
-        rath: MikroNextRath | None = None,
+        mikro: "Mikro | None" = None,
     ) -> tuple[ID, ...]:
         """Un-register a source from this space, by naming the source.
 
@@ -2215,7 +2185,7 @@ class CoordinateSystemTrait:
             mesh_collection: The mesh collection to un-register.
             annotation_collection: The annotation collection to un-register.
             coordinate_system: The coordinate system to un-register.
-            rath: The mikro rath client.
+            mikro: The client to call through; defaults to the one that fetched this object.
 
         Returns:
             The ids of the deleted edges.
@@ -2223,7 +2193,7 @@ class CoordinateSystemTrait:
         Raises:
             ValueError: If other than exactly one source is named.
         """
-        from mikro.api.schema import delete_registration
+        pass
 
         sources: dict[str, IDCoercible | None] = {
             "dataset": dataset,
@@ -2239,8 +2209,8 @@ class CoordinateSystemTrait:
                 f"Choose from {sorted(sources)}."
             )
 
-        return delete_registration(
-            world=get_attributes_or_error(self, "id"), rath=rath, **named
+        return client_of(self, mikro).delete_registration(
+            world=get_attributes_or_error(self, "id"), **named
         )
 
     def stage(
@@ -2248,7 +2218,7 @@ class CoordinateSystemTrait:
         *,
         name: str | None = None,
         policy: ScenePolicyInput | None = None,
-        rath: MikroNextRath | None = None,
+        mikro: "Mikro | None" = None,
     ) -> Scene:
         """Bootstrap a renderable scene over this space.
 
@@ -2266,25 +2236,20 @@ class CoordinateSystemTrait:
         Args:
             name: An optional name for the scene.
             policy: A `ScenePolicyInput`. Omit to let the server choose.
-            rath: The mikro rath client.
+            mikro: The client to call through; defaults to the one that fetched this object.
 
         Returns:
             The created scene.
         """
-        from mikro.api.schema import (
-            UNSET,
-            ScenePolicyInput,
-            create_scene_from_coordinate_system,
-        )
+        from mikro.api.schema import UNSET, ScenePolicyInput
 
-        return create_scene_from_coordinate_system(
+        return client_of(self, mikro).create_scene_from_coordinate_system(
             coordinate_system=get_attributes_or_error(self, "id"),
             policy=policy if policy is not None else ScenePolicyInput(),
             name=name if name is not None else UNSET,
-            rath=rath,
         )
 
-    def clear(self, rath: MikroNextRath | None = None) -> tuple[ID, ...]:
+    def clear(self, mikro: "Mikro | None" = None) -> tuple[ID, ...]:
         """Delete every registration *into* this space, returning the edge ids.
 
         The space itself survives, so do the scenes composing over it (their
@@ -2293,15 +2258,15 @@ class CoordinateSystemTrait:
         clearing a space is the space-owner's act.
 
         Args:
-            rath: The mikro rath client.
+            mikro: The client to call through; defaults to the one that fetched this object.
 
         Returns:
             The ids of the deleted edges.
         """
-        from mikro.api.schema import clear_coordinate_system
+        pass
 
-        return clear_coordinate_system(
-            id=get_attributes_or_error(self, "id"), rath=rath
+        return client_of(self, mikro).clear_coordinate_system(
+            id=get_attributes_or_error(self, "id")
         )
 
     @property
@@ -2345,7 +2310,7 @@ class CoordinateSystemTrait:
         output_axes: Sequence[str] | None = None,
         reason: str | None = None,
         validity: PlacementValidity | None = None,
-        rath: MikroNextRath | None = None,
+        mikro: "Mikro | None" = None,
     ) -> CreatedTransformation:
         """Create a transformation edge from this system to `other`.
 
@@ -2358,7 +2323,7 @@ class CoordinateSystemTrait:
         "these two spaces are the same grid". `reason` is recorded only on an
         UNMAPPABLE edge.
         """
-        from mikro.api.schema import UNSET, create_transformation
+        from mikro.api.schema import UNSET
 
         other_id = (
             other if isinstance(other, str) else get_attributes_or_error(other, "id")
@@ -2407,33 +2372,31 @@ class CoordinateSystemTrait:
             reason=reason,
         )
 
-        return create_transformation(
+        return client_of(self, mikro).create_transformation(
             input=get_attributes_or_error(self, "id"),
             output=other_id,
             transform=transform,
             name=name if name is not None else UNSET,
             validity=validity if validity is not None else UNSET,
-            rath=rath,
         )
 
     def graph(
-        self, max_depth: int | None = None, rath: MikroNextRath | None = None
+        self, max_depth: int | None = None, mikro: "Mikro | None" = None
     ) -> GetCoordinateGraphQueryCoordinateGraph:
         """Fetch the coordinate graph reachable from this system.
 
         Args:
             max_depth: How many edges out to walk. Omit for the server's default.
-            rath: The mikro rath client.
+            mikro: The client to call through; defaults to the one that fetched this object.
 
         Returns:
             The reachable systems and the edges between them.
         """
-        from mikro.api.schema import UNSET, get_coordinate_graph
+        from mikro.api.schema import UNSET
 
-        return get_coordinate_graph(
+        return client_of(self, mikro).get_coordinate_graph(
             coordinate_system=get_attributes_or_error(self, "id"),
             max_depth=max_depth if max_depth is not None else UNSET,
-            rath=rath,
         )
 
     def path_to(
@@ -2443,7 +2406,7 @@ class CoordinateSystemTrait:
         max_depth: int | None = None,
         allow_fetch: bool = False,
         graph: GetCoordinateGraphQueryCoordinateGraph | None = None,
-        rath: MikroNextRath | None = None,
+        mikro: "Mikro | None" = None,
     ) -> list[PathStep]:
         """The shortest composable path of transformation edges to `other`.
 
@@ -2458,7 +2421,7 @@ class CoordinateSystemTrait:
         if my_id == other_id:
             return []
         if graph is None:
-            graph = self.graph(max_depth=max_depth, rath=rath)
+            graph = self.graph(max_depth=max_depth, mikro=mikro)
         return _bfs_path(graph.transformations, my_id, other_id, allow_fetch)
 
     def matrix_to(
@@ -2468,15 +2431,15 @@ class CoordinateSystemTrait:
         max_depth: int | None = None,
         allow_fetch: bool = False,
         graph: GetCoordinateGraphQueryCoordinateGraph | None = None,
-        rath: MikroNextRath | None = None,
+        mikro: "Mikro | None" = None,
     ) -> NDArray[np.float64]:
         """The composed homogeneous matrix mapping points of this system into
         `other`, found via the coordinate graph."""
         steps = self.path_to(
-            other, max_depth=max_depth, allow_fetch=allow_fetch, graph=graph, rath=rath
+            other, max_depth=max_depth, allow_fetch=allow_fetch, graph=graph, mikro=mikro
         )
         return _compose_steps(
-            steps, identity_ndim=self.ndim, allow_fetch=allow_fetch, rath=rath
+            steps, identity_ndim=self.ndim, allow_fetch=allow_fetch, mikro=mikro
         )
 
     def transform_points_to(
@@ -2487,7 +2450,7 @@ class CoordinateSystemTrait:
         max_depth: int | None = None,
         allow_fetch: bool = False,
         graph: GetCoordinateGraphQueryCoordinateGraph | None = None,
-        rath: MikroNextRath | None = None,
+        mikro: "Mikro | None" = None,
     ) -> NDArray[np.float64]:
         """Map points given in this system's axis order into `other`.
 
@@ -2495,6 +2458,6 @@ class CoordinateSystemTrait:
         shape in `other`'s axis order.
         """
         matrix = self.matrix_to(
-            other, max_depth=max_depth, allow_fetch=allow_fetch, graph=graph, rath=rath
+            other, max_depth=max_depth, allow_fetch=allow_fetch, graph=graph, mikro=mikro
         )
         return _apply_homogeneous(matrix, points)

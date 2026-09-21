@@ -4,13 +4,11 @@ import logging
 
 from kanne.scalars import Unit
 
-from .compression import DEFAULT_COMPRESSION, MESH_CODECS, TABLE_CODECS, UnreadableCodecError
-from .mikro import MikroNext
+from .checks import ArrayDeclarationError, SparseDeclarationError, TableDeclarationError
+from .inputs.spaces import create_space, space_2d, space_3d, timelapse_3d
+from .io.chunking import rechunk
+from .mikro import Mikro
 from .pyramid import axes_for, build_pyramid, canonical, dataset_arrays, scales_from
-from .spaces import create_space, space_2d, space_3d, timelapse_3d
-from .sparse import SparseDeclarationError
-from .tables import TableDeclarationError
-from .utils import rechunk
 from .vocabulary import (
     AxisSelection,
     AxisTypeName,
@@ -25,7 +23,7 @@ from .vocabulary import (
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "MikroNext",
+    "Mikro",
     "axes_for",
     "build_pyramid",
     "canonical",
@@ -36,19 +34,15 @@ __all__ = [
     "space_3d",
     "timelapse_3d",
     "rechunk",
-    # The declaration a caller writes against is the generated `ColumnInput`;
-    # what lives here is the refusal it can raise and the codec vocabulary,
-    # which is this client's own and stated nowhere else.
+    # The declaration a caller writes against is the generated input; what lives
+    # here is the refusal each create path can raise before its bytes move.
+    "ArrayDeclarationError",
     "SparseDeclarationError",
     "TableDeclarationError",
-    "UnreadableCodecError",
-    "DEFAULT_COMPRESSION",
-    "TABLE_CODECS",
-    "MESH_CODECS",
     # The vocabularies a caller writes against. `ChannelSpec` is deliberately not
-    # here: `render` imports the generated schema at module level, and pulling
-    # that into every `import mikro` is what `pyramid` and `spaces` avoid
-    # with function-local imports. Reach for `from mikro.render import ...`.
+    # here: `inputs.render` imports the generated schema at module level, and
+    # pulling that into every `import mikro` is what `pyramid` and `spaces` avoid
+    # with function-local imports. Reach for `from mikro.inputs.render import ...`.
     "AxisSelection",
     "AxisTypeName",
     "Calibration",
@@ -60,37 +54,20 @@ __all__ = [
     "duckdb_type",
 ]
 
-# Both of these are optional: `arkitekt` and `rekuest` are dev
-# dependencies, not install requirements. A name that did not import must stay
-# out of `__all__` as well, or `from mikro import *` raises on a perfectly
-# valid install. (`mikro.specs` is unexported for the same reason — it
-# imports `rekuest.annotations` at module level.)
 try:
-    from .arkitekt import MikroService as MikroService
+    from .arkitekt import mikro as mikro_service
 except ImportError as e:
+    # Only "rekuest is not installed" may pass silently. Anything else that fails
+    # to import here (a renamed query, a rekuest too old for what the module
+    # needs) is a bug, and hiding it makes this package's service vanish
+    # without a word. Whether it is installed is asked the plain way.
     try:
-        import arkitekt  # noqa: F401 — presence is the question
-
-        raise ImportError(
-            "Arkitekt is installed, but the MikroService could not be imported. This may indicate a version mismatch or missing dependencies."
-        ) from e
+        import rekuest  # noqa: F401 -- presence is the question
     except ImportError:
         pass
+    else:
+        raise e
 else:
-    __all__.append("MikroService")
+    __all__ += ["mikro_service"]
 
 
-try:
-    from .rekuest import structure_reg as structure_reg
-
-except ImportError as e:
-    try:
-        import rekuest  # noqa: F401 — presence is the question
-
-        raise ImportError(
-            "Rekuest is installed, but the structure_reg could not be imported. This may indicate a version mismatch or missing dependencies."
-        ) from e
-    except ImportError:
-        pass
-else:
-    __all__.append("structure_reg")

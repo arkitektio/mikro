@@ -617,6 +617,12 @@ class FabriksLike:
     server's check came a round trip too late; now the artifact carries its own declarations and
     the only client-side mistake left to catch is handing over something that is not a
     collection at all.
+
+    **Declare ``axes`` in the collection's own component order, which is ``(x, y, z)``.**
+    Vertex and node components are stored x, y, z, and ``axes`` is positional: declaring a
+    ``(z, y, x)`` image's order over them registers cleanly, reports PLACED, and draws every
+    object transposed. State the reversal on the derivation edge instead, as a MAP_AXIS naming
+    each axis on both sides.
     """
 
     def __init__(self, value: MeshCollection) -> None:
@@ -661,7 +667,7 @@ class FabriksLike:
         raise ValueError(
             f"This is uploaded as a fabriks collection -- one prefix holding the manifest, both "
             f"catalogs and every octree level -- so it takes a `fabriks.MeshCollection`, not a "
-            f"{type(v).__name__}. Build one with `mikro.meshes.build_mesh_collection(objects)`."
+            f"{type(v).__name__}. Build one with `fabriks.build_collection(objects)`."
         )
 
     def __repr__(self) -> str:
@@ -675,7 +681,7 @@ class FabriksLike:
 
 
 #: What a caller may hand to a `FabriksLike` field. Deliberately narrow: everything a collection
-#: could be built *from* is an argument to `build_mesh_collection`, not a value on the wire.
+#: could be built *from* is an argument to `fabriks.build_collection`, not a value on the wire.
 SporadikCoercible: TypeAlias = "Any | SporadikLike"
 """What :class:`SporadikLike` accepts: a `scipy.sparse` CSR or CSC matrix, or one already wrapped."""
 
@@ -696,6 +702,12 @@ class KonnektionLike:
     blob is a triangle list, and reading either as the other raises nothing at any layer.
     Keeping them apart at the type level is what makes that mistake impossible to make by
     accident rather than merely unlikely.
+
+    **Declare ``axes`` in the collection's own component order, which is ``(x, y, z)``.**
+    Vertex and node components are stored x, y, z, and ``axes`` is positional: declaring a
+    ``(z, y, x)`` image's order over them registers cleanly, reports PLACED, and draws every
+    object transposed. State the reversal on the derivation edge instead, as a MAP_AXIS naming
+    each axis on both sides.
     """
 
     def __init__(self, value: NetworkCollection) -> None:

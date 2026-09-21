@@ -31,7 +31,21 @@ projects:
             object_bases:
               - mikro.traits.MikroFetchable
           - type: turms.plugins.operations.OperationsPlugin
-          - type: turms.plugins.funcs.FuncsPlugin
+          - type: turms.plugins.client.ClientPlugin
+            # Every operation is a method of MikroApi, which Mikro mixes in. Each
+            # method hands its operation to execute/aexecute/subscribe/asubscribe
+            # of self, which Mikro implements over its rath (and its middlewares);
+            # no call ever looks a client up.
+            client_class: MikroApi
+            # Mikro's own attributes, and those of its base: pydantic lets a field
+            # hide a same-named method with only a warning.
+            reserved_from:
+              - koil.composition.Composition
+            reserved_names:
+              - rath
+              - datalayer
+              - task_token
+              - for_task
             coercible_scalars:
               ArrayLike: mikro.scalars.ArrayCoercible
               ImageFileLike: mikro.scalars.ImageFileCoercible
@@ -45,26 +59,6 @@ projects:
               AxisInput: str
             expand_input_types:
               - input
-            global_kwargs:
-              - type: mikro.rath.MikroNextRath
-                key: rath
-                description: The mikro rath client
-            definitions:
-              - type: subscription
-                is_async: true
-                use: mikro.funcs.asubscribe
-              - type: query
-                is_async: true
-                use: mikro.funcs.aexecute
-              - type: mutation
-                is_async: true
-                use: mikro.funcs.aexecute
-              - type: subscription
-                use: mikro.funcs.subscribe
-              - type: query
-                use: mikro.funcs.execute
-              - type: mutation
-                use: mikro.funcs.execute
         scalar_definitions:
           Any: typing.Any
           JSON: typing.Any

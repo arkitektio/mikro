@@ -35,8 +35,9 @@ import pandas as pd
 import xarray as xr
 
 import konnektion
-from mikro import Unit, dataset_arrays, space_3d
 from arkitekt import easy
+from mikro import Unit, dataset_arrays, space_3d, mikro_service
+from mikro.mikro import Mikro
 from mikro.api.schema import (
     AxisInput,
     AxisType,
@@ -49,17 +50,9 @@ from mikro.api.schema import (
     PlacementState,
     ProjectionMode,
     ValueRelation,
-    create_array_dataset,
-    create_mesh_collection,
-    create_mesh_layer,
-    create_network_collection,
-    create_network_layer,
-    create_scene,
-    create_table_dataset,
-    create_volume_layer,
 )
-from mikro.meshes import build_mesh_collection
-from mikro.picker import graph_color_by, graph_filter_by, measure_color_by, network_filter_by
+from fabriks import build_collection
+from mikro.inputs.picker import graph_color_by, graph_filter_by, measure_color_by, network_filter_by
 
 # One ground truth, two scripts: the phantom, tracker, mesh and their checks come
 # from the TrackLayer sibling. Its module level holds only constants, so the
@@ -173,13 +166,13 @@ if __name__ == "__main__":
         raise SystemExit(0)
 
     # Reusing a sibling generator's cached grant (see generator_smlm.py).
-    with easy(identifier="neuron-overlay") as app:
-        world = space_3d("DTI · head (network)", unit=Unit("millimeter"))
+    with easy("neuron-overlay", mikro_service) as mikro:
+        world = space_3d(mikro, "DTI · head (network)", unit=Unit("millimeter"))
 
         print("Uploading FA map…")
         fa_xr = xr.DataArray((fa * 255).astype(np.uint8), dims=("z", "y", "x"), name="fa")
         fa_data, fa_scales = dataset_arrays(fa_xr, levels=LEVELS, method="mean")
-        fa_ds = create_array_dataset(
+        fa_ds = mikro.create_array_dataset(
             data=fa_data,
             scales=fa_scales,
             name="DTI · FA map (network scene)",
@@ -190,8 +183,8 @@ if __name__ == "__main__":
 
         # No vector layer this time, so no bootstrap dance: every layer is authored.
         print("Composing the scene…")
-        scene = create_scene(name="DTI · tractography (network)", coordinate_system=world.id)
-        create_volume_layer(
+        scene = mikro.create_scene(name="DTI · tractography (network)", coordinate_system=world.id)
+        mikro.create_volume_layer(
             lens=fa_ds.lens(),
             scene=scene.id,
             mode=ProjectionMode.MIP,
@@ -206,7 +199,7 @@ if __name__ == "__main__":
         # The MAP_AXIS derivation is the load-bearing line: the collection is
         # (x, y, z) over a (z, y, x) source — an IDENTITY would pass the rank
         # check and draw every streamline transposed.
-        collection = create_network_collection(
+        collection = mikro.create_network_collection(
             version=f"v20260901-dti-streamlines-seed{SEED}",
             store=built,
             axes=list(COLLECTION_AXES),
@@ -225,7 +218,7 @@ if __name__ == "__main__":
         )
 
         print("Attaching the per-streamline table…")
-        table = create_table_dataset(
+        table = mikro.create_table_dataset(
             name="DTI · streamline stats",
             data=streamline_stats,
             description="One row per streamline; object_id scopes into the collection.",
@@ -242,7 +235,7 @@ if __name__ == "__main__":
             ],
         )
 
-        network_layer = create_network_layer(
+        network_layer = mikro.create_network_layer(
             scene=scene.id,
             network_collection=collection.id,
             material_color=[255, 200, 80, 255],
@@ -275,8 +268,8 @@ if __name__ == "__main__":
             raise SystemExit(f"layer offers {len(published)} colourings, expected 4")
 
         print("Uploading glass brain…")
-        built_mesh = build_mesh_collection({1: mesh}, levels=LEVELS)
-        mesh_collection = create_mesh_collection(
+        built_mesh = build_collection({1: mesh}, levels=LEVELS)
+        mesh_collection = mikro.create_mesh_collection(
             version=f"v20260901-dti-glass-brain-network-seed{SEED}",
             store=built_mesh,
             axes=[AxisInput(name=d, type=AxisType.SPACE) for d in COLLECTION_AXES],
@@ -288,7 +281,7 @@ if __name__ == "__main__":
                 )
             ],
         )
-        mesh_layer = create_mesh_layer(
+        mesh_layer = mikro.create_mesh_layer(
             scene=scene.id,
             mesh_collection=mesh_collection.id,
             material_color=[205, 215, 255, 255],

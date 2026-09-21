@@ -14,7 +14,7 @@ from zarr.storage import ObjectStore as ZarrObjectStore
 from zarr.storage import StorePath
 
 from mikro.scalars import is_dask_array
-from mikro.utils import INNER_CHUNK_BYTES, SHARD_BYTES, chunk_and_shard, rechunk
+from mikro.io.chunking import INNER_CHUNK_BYTES, SHARD_BYTES, chunk_and_shard, rechunk
 
 if TYPE_CHECKING:
     from obstore.store import ClientConfig, RetryConfig

@@ -27,7 +27,7 @@ from mikro.api.schema import (
     CreateTableDatasetInput,
     TableIdentifiesInput,
 )
-from mikro.tables import (
+from mikro.checks.tables import (
     MAX_COLUMNS,
     TableDeclarationError,
     arrow_schema_of,

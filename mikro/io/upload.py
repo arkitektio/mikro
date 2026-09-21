@@ -18,7 +18,6 @@ from typing import TYPE_CHECKING
 
 import obstore
 
-from mikro.compression import DEFAULT_COMPRESSION
 from mikro.scalars import (
     ArrayLike,
     FabriksLike,
@@ -32,6 +31,13 @@ from mikro.scalars import (
 from .errors import UploadError
 
 logger = logging.getLogger(__name__)
+
+#: What this library writes every Parquet with -- tables, and the parts of a mesh or network
+#: collection alike. Explicit because pyarrow's default is SNAPPY and the collection writers'
+#: default is theirs to change; ZSTD is what every viewer the server serves decodes, and the
+#: server refuses a codec outside that set at the finish of the upload. The upload is
+#: network-bound, so bytes are the thing worth spending CPU on.
+DEFAULT_COMPRESSION = "zstd"
 
 if TYPE_CHECKING:
     from mikro.api.schema import (
@@ -257,7 +263,6 @@ async def astore_fabriks_collection(
     from fabriks import awrite_collection
 
     from mikro.io.obstore import create_s3_store
-    from mikro.meshes import refuse_an_unreadable_part_codec
 
     endpoint_url = await datalayer.get_endpoint_url()
     store = create_s3_store(endpoint_url, credentials)
@@ -266,8 +271,9 @@ async def astore_fabriks_collection(
         logger.debug(
             f"Uploading fabriks collection to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
         )
-        refuse_an_unreadable_part_codec()
-        manifest = await awrite_collection(collection.value, store, credentials.key)
+        manifest = await awrite_collection(
+            collection.value, store, credentials.key, parquet_compression=DEFAULT_COMPRESSION
+        )
         logger.info(
             f"Successfully uploaded fabriks collection to s3://{credentials.bucket}/{credentials.key} "
             f"at {endpoint_url} ({manifest.counts})"
@@ -455,7 +461,6 @@ async def astore_konnektion_collection(
     from konnektion import awrite_collection
 
     from mikro.io.obstore import create_s3_store
-    from mikro.networks import refuse_an_unreadable_part_codec
 
     endpoint_url = await datalayer.get_endpoint_url()
     store = create_s3_store(endpoint_url, credentials)
@@ -464,8 +469,9 @@ async def astore_konnektion_collection(
         logger.debug(
             f"Uploading konnektion collection to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
         )
-        refuse_an_unreadable_part_codec()
-        manifest = await awrite_collection(collection.value, store, credentials.key)
+        manifest = await awrite_collection(
+            collection.value, store, credentials.key, parquet_compression=DEFAULT_COMPRESSION
+        )
         logger.info(
             f"Successfully uploaded konnektion collection to s3://{credentials.bucket}/{credentials.key} "
             f"at {endpoint_url} ({manifest.counts})"
@@ -645,7 +651,6 @@ def store_fabriks_collection(
     from fabriks import write_collection
 
     from mikro.io.obstore import create_s3_store
-    from mikro.meshes import refuse_an_unreadable_part_codec
 
     endpoint_url = datalayer.endpoint_url
     store = create_s3_store(endpoint_url, credentials)
@@ -654,8 +659,9 @@ def store_fabriks_collection(
         logger.debug(
             f"Uploading fabriks collection to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
         )
-        refuse_an_unreadable_part_codec()
-        manifest = write_collection(collection.value, store, credentials.key)
+        manifest = write_collection(
+            collection.value, store, credentials.key, parquet_compression=DEFAULT_COMPRESSION
+        )
         logger.info(
             f"Successfully uploaded fabriks collection to s3://{credentials.bucket}/{credentials.key} "
             f"at {endpoint_url} ({manifest.counts})"
@@ -681,7 +687,6 @@ def store_konnektion_collection(
     from konnektion import write_collection
 
     from mikro.io.obstore import create_s3_store
-    from mikro.networks import refuse_an_unreadable_part_codec
 
     endpoint_url = datalayer.endpoint_url
     store = create_s3_store(endpoint_url, credentials)
@@ -690,8 +695,9 @@ def store_konnektion_collection(
         logger.debug(
             f"Uploading konnektion collection to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
         )
-        refuse_an_unreadable_part_codec()
-        manifest = write_collection(collection.value, store, credentials.key)
+        manifest = write_collection(
+            collection.value, store, credentials.key, parquet_compression=DEFAULT_COMPRESSION
+        )
         logger.info(
             f"Successfully uploaded konnektion collection to s3://{credentials.bucket}/{credentials.key} "
             f"at {endpoint_url} ({manifest.counts})"

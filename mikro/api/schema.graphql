@@ -700,7 +700,9 @@ input ArrayDatasetFilter {
   """Filter by list of IDs"""
   ids: [ID!]
 
-  """Search by name (case-insensitive substring)"""
+  """
+  Search by name (case-insensitive substring) or by the meaning of the query against name and description. Substring matches rank first, then by similarity; an explicit `ordering` replaces that ranking
+  """
   search: String
 
   """Filter for items created before this datetime"""
@@ -3647,7 +3649,9 @@ input FolderFilter {
   """Filter by list of IDs"""
   ids: [ID!]
 
-  """Search by name (full-text search)"""
+  """
+  Search by name (full-text) or by the meaning of the query against name and description. Textual matches rank first, then by similarity; an explicit `ordering` replaces that ranking
+  """
   search: String
 
   """Filter for items created before this datetime"""
@@ -9053,7 +9057,9 @@ input TableDatasetFilter {
   """Filter by list of IDs"""
   ids: [ID!]
 
-  """Search by name (case-insensitive substring)"""
+  """
+  Search by name (case-insensitive substring) or by the meaning of the query against name and description. Substring matches rank first, then by similarity; an explicit `ordering` replaces that ranking
+  """
   search: String
 
   """Filter for items created before this datetime"""

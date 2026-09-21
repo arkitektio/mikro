@@ -32,8 +32,9 @@ import sys
 import numpy as np
 import xarray as xr
 
-from mikro import Unit, create_space
 from arkitekt import easy
+from mikro import Unit, create_space, mikro_service
+from mikro.mikro import Mikro
 from mikro.api.schema import (
     AxisInput,
     AxisType,
@@ -45,11 +46,6 @@ from mikro.api.schema import (
     PhysicalAxisInput,
     ScaleInput,
     TransferFunctionInput,
-    create_array_dataset,
-    create_intensity_layer,
-    create_phasor_histogram,
-    create_phasor_layer,
-    create_scene,
 )
 from mikro import dataset_arrays
 
@@ -294,11 +290,11 @@ if __name__ == "__main__":
         raise SystemExit(0)
 
     # Reusing a sibling generator's cached grant (see generator_smlm.py).
-    with easy(identifier="neuron-overlay") as app:
+    with easy("neuron-overlay", mikro_service) as mikro:
         # One world with a real wavelength axis. The 5 nm bin width AND the 500 nm
         # origin live on the cube's registration edge (scale + offset), which is what
         # makes the scene's `l` read in absolute nanometers.
-        world = create_space(
+        world = create_space(mikro, 
             "Hyperspectral · field",
             [
                 PhysicalAxisInput(name="l", type=AxisType.SPECTRUM, unit=Unit("nanometer")),
@@ -309,7 +305,7 @@ if __name__ == "__main__":
 
         print("Uploading lambda stack…")
         pyramid = spectral_pyramid(cube, LEVELS)
-        cube_ds = create_array_dataset(
+        cube_ds = mikro.create_array_dataset(
             data=pyramid[0],
             scales=[ScaleInput(level=i, array=level) for i, level in enumerate(pyramid) if i > 0],
             name="Hyperspectral · lambda stack (500-655 nm)",
@@ -331,7 +327,7 @@ if __name__ == "__main__":
         # the cube — the first SPECTRUM-axis phasor histogram (the server's
         # `_assert_phasor_axis` allows MICROTIME or SPECTRUM; only MICROTIME ever ran).
         print("Attaching spectral phasor histogram…")
-        histogram = create_phasor_histogram(
+        histogram = mikro.create_phasor_histogram(
             dataset=cube_ds,
             axis="l",
             harmonic=HARMONIC,
@@ -343,7 +339,7 @@ if __name__ == "__main__":
         print("Uploading unmixed abundances…")
         unmixed = xr.DataArray(estimated, dims=("c", "y", "x"), name="unmixed")
         unmixed_data, unmixed_scales = dataset_arrays(unmixed, levels=LEVELS, method="max")
-        unmixed_ds = create_array_dataset(
+        unmixed_ds = mikro.create_array_dataset(
             data=unmixed_data,
             scales=unmixed_scales,
             name="Hyperspectral · unmixed abundances",
@@ -353,11 +349,11 @@ if __name__ == "__main__":
         world.register(unmixed_ds, scale={"y": PIXEL_UM, "x": PIXEL_UM})
 
         print("Composing the scene…")
-        scene = create_scene(name="Hyperspectral · synthetic", coordinate_system=world.id)
+        scene = mikro.create_scene(name="Hyperspectral · synthetic", coordinate_system=world.id)
 
         # The spectral phasor overlay: phase = spectral centre of mass, mapped over
         # the emission window, faded out where too few photons back it.
-        create_phasor_layer(
+        mikro.create_phasor_layer(
             lens=cube_ds.lens(),
             scene=scene,
             phasor_axis="l",
@@ -378,7 +374,7 @@ if __name__ == "__main__":
         # fluorophore, and each gets its own layer, never a packed composite.
         clim = float(np.percentile(estimated, 99.5))
         for index, (name, _peak, _sigma, colormap) in enumerate(FLUOROPHORES):
-            create_intensity_layer(
+            mikro.create_intensity_layer(
                 lens=unmixed_ds.lens(),
                 scene=scene,
                 intensity_axis="c",

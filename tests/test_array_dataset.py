@@ -35,10 +35,6 @@ from mikro.api.schema import (
     ScaleInput,
     ScaleMethod,
     SourceFileInput,
-    create_array_dataset,
-    create_folder,
-    from_file_like,
-    get_array_dataset,
 )
 
 from .conftest import DeployedMikro
@@ -70,7 +66,7 @@ def _axes() -> list[AxisInput]:
 def test_create_array_dataset(deployed_app: DeployedMikro) -> None:
     """Create a dataset from a single arbitrarily-labelled array."""
     data = _make_volume()
-    dataset = create_array_dataset(
+    dataset = deployed_app.mikro.create_array_dataset(
         data=data,
         # ``data`` *is* level 0; listing it in ``scales`` too would upload it
         # twice, which the server rejects (one_data_array_per_level).
@@ -90,7 +86,7 @@ def test_create_array_dataset(deployed_app: DeployedMikro) -> None:
 def test_create_array_dataset_from_bare_axis_names(deployed_app: DeployedMikro) -> None:
     """The common case needs no ``AxisInput`` at all: a bare name carries its
     own conventional type (``c`` -> CHANNEL, everything spatial -> SPACE)."""
-    dataset = create_array_dataset(
+    dataset = deployed_app.mikro.create_array_dataset(
         data=_make_volume(),
         scales=[],
         name="array_dataset_bare_axes",
@@ -109,7 +105,7 @@ def test_create_array_dataset_with_pyramid(deployed_app: DeployedMikro) -> None:
     """
     data, scales = dataset_arrays(_make_volume(), levels=3, method="mean")
 
-    dataset = create_array_dataset(
+    dataset = deployed_app.mikro.create_array_dataset(
         data=data,
         scales=scales,
         name="array_dataset_pyramid",
@@ -132,7 +128,7 @@ def test_create_array_dataset_with_a_hand_built_scale(deployed_app: DeployedMikr
     data = _make_volume()
     coarse = data.coarsen(z=2, y=2, x=2, boundary="trim").mean().astype(data.dtype)  # type: ignore[attr-defined]
 
-    dataset = create_array_dataset(
+    dataset = deployed_app.mikro.create_array_dataset(
         data=data,
         scales=[ScaleInput(level=1, array=coarse, scaleMethod=ScaleMethod.AREA)],
         name="array_dataset_manual_scale",
@@ -151,7 +147,7 @@ def test_create_array_dataset_with_anchors(deployed_app: DeployedMikro) -> None:
     neither.
     """
     data = _make_volume()
-    dataset = create_array_dataset(
+    dataset = deployed_app.mikro.create_array_dataset(
         data=data,
         scales=[],
         name="array_dataset_anchored",
@@ -167,8 +163,8 @@ def test_create_array_dataset_with_anchors(deployed_app: DeployedMikro) -> None:
 @pytest.mark.integration
 def test_create_array_dataset_in_a_folder(deployed_app: DeployedMikro) -> None:
     """A dataset can be filed at creation rather than moved afterwards."""
-    folder = create_folder(name="array_dataset_folder")
-    dataset = create_array_dataset(
+    folder = deployed_app.mikro.create_folder(name="array_dataset_folder")
+    dataset = deployed_app.mikro.create_array_dataset(
         data=_make_volume(),
         scales=[],
         name="array_dataset_filed",
@@ -176,7 +172,7 @@ def test_create_array_dataset_in_a_folder(deployed_app: DeployedMikro) -> None:
         folder=folder.id,
     )
     assert dataset.id
-    assert get_array_dataset(id=dataset.id).id == dataset.id
+    assert deployed_app.mikro.get_array_dataset(id=dataset.id).id == dataset.id
 
 
 @pytest.mark.integration
@@ -192,9 +188,9 @@ def test_create_array_dataset_recording_the_file_it_came_from(
     with tempfile.TemporaryDirectory() as scratch:
         source = Path(scratch) / "acquisition.txt"
         source.write_bytes(b"not really a microscope file, but it is bytes")
-        uploaded = from_file_like(file=str(source), file_name=source.name)
+        uploaded = deployed_app.mikro.from_file_like(file=str(source), file_name=source.name)
 
-    dataset = create_array_dataset(
+    dataset = deployed_app.mikro.create_array_dataset(
         data=_make_volume(),
         scales=[],
         name="array_dataset_from_file",
@@ -210,11 +206,11 @@ def test_a_derived_dataset_records_the_dataset_it_came_from(
 ) -> None:
     """A segmentation of a volume shares that volume's grid, so its lineage edge
     is an identity transform: same grid, different values."""
-    source = create_array_dataset(
+    source = deployed_app.mikro.create_array_dataset(
         data=_make_volume(), scales=[], name="array_dataset_lineage_source", axes=_axes()
     )
 
-    derived = create_array_dataset(
+    derived = deployed_app.mikro.create_array_dataset(
         data=xr.DataArray(
             np.zeros((2, 4, 64, 64), dtype="uint16"), dims=["c", "z", "y", "x"]
         ),
@@ -236,7 +232,7 @@ def test_create_array_dataset_rejects_mismatched_axes(
     """The model-level trait rejects axes that don't cover the data dims."""
     data = _make_volume()
     with pytest.raises(Exception):
-        create_array_dataset(
+        deployed_app.mikro.create_array_dataset(
             data=data,
             scales=[],
             name="array_dataset_bad",

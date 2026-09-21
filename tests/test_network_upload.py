@@ -107,10 +107,8 @@ def test_a_mesh_collection_is_refused_and_the_message_says_which_format_it_is() 
     fabriks = pytest.importorskip("fabriks")
     trimesh = pytest.importorskip("trimesh")
 
-    from mikro.meshes import build_mesh_collection
-
     box = trimesh.creation.box(extents=[10.0, 10.0, 10.0]).apply_translation([30.0, 30.0, 30.0])
-    mesh = build_mesh_collection({1: box})
+    mesh = fabriks.build_collection({1: box})
 
     with pytest.raises(ValueError, match="MeshCollection"):
         KonnektionLike.validate(mesh)
@@ -217,9 +215,3 @@ def test_a_failed_write_is_reported_as_an_upload_error(
             SimpleNamespace(endpoint_url="http://s3.test"),
         )
 
-
-def test_the_part_codec_is_one_the_viewer_can_decode() -> None:
-    """A gzip default would upload, verify, and draw nothing, with no error anywhere."""
-    from mikro.networks import refuse_an_unreadable_part_codec
-
-    assert refuse_an_unreadable_part_codec().lower() in {"zstd", "snappy", "none", "uncompressed"}

@@ -29,16 +29,10 @@ Example:
 
 """
 
-import contextvars
 from types import TracebackType
-from typing import Optional
 
+from fakts import Alias
 from koil.composition import KoiledModel
-
-current_next_datalayer: contextvars.ContextVar[Optional["DataLayer"]] = contextvars.ContextVar(
-    "current_next_datalayer", default=None
-)
-
 
 class DataLayer(KoiledModel):
     """Implements a S3 DataLayer
@@ -54,13 +48,28 @@ class DataLayer(KoiledModel):
 
     endpoint_url: str = ""
 
+    @classmethod
+    def from_alias(cls, alias: "Alias") -> "DataLayer":
+        """Point a datalayer at a resolved address.
+
+        Args:
+            alias: Where the store is, resolved when the run connected.
+
+        Returns:
+            The datalayer, ready to use.
+        """
+        return cls(endpoint_url=alias.to_http_path())
+
     async def get_endpoint_url(self) -> str:
         """Return the configured S3 endpoint URL."""
         return self.endpoint_url
 
     async def __aenter__(self) -> "DataLayer":
-        """Enter the DataLayer context and register it as the active instance."""
-        current_next_datalayer.set(self)
+        """Enter the DataLayer context.
+
+        Entering does not make it "the current datalayer": only the mikro service
+        that owns it is current while entered (see :class:`mikro.mikro.Mikro`).
+        """
         return self
 
     async def __aexit__(
@@ -69,5 +78,5 @@ class DataLayer(KoiledModel):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        """Exit the DataLayer context and deregister the active instance."""
-        current_next_datalayer.set(None)
+        """Exit the DataLayer context."""
+        return None

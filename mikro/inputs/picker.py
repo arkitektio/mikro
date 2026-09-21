@@ -33,7 +33,7 @@ an omitted window leaves the viewer to stretch the map over whatever it happens 
 and a gene maxing at 3 sharing an inherited range with one maxing at 400 renders black.
 
 Not exported from the package root, for the same reason `render` is not: this imports the
-generated schema at module level. Reach for ``from mikro.picker import ...``.
+generated schema at module level. Reach for ``from mikro.inputs.picker import ...``.
 """
 
 from __future__ import annotations

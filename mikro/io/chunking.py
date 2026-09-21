@@ -1,3 +1,9 @@
+"""Chunk and shard shapes for the Zarr arrays this library writes.
+
+A shard is a whole number of inner chunks, which is a Zarr v3 reader rule, and the byte budgets
+are tuned to the frontend's coalesce window. Used by :mod:`mikro.io.obstore` on the way out.
+"""
+
 import math
 from collections.abc import Hashable, Mapping
 from typing import cast

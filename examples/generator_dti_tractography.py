@@ -41,8 +41,9 @@ from scipy.ndimage import gaussian_filter
 from scipy.spatial import cKDTree
 from skimage.measure import marching_cubes
 
-from mikro import Unit, dataset_arrays, space_3d
 from arkitekt import easy
+from mikro import Unit, dataset_arrays, space_3d, mikro_service
+from mikro.mikro import Mikro
 from mikro.api.schema import (
     AxisInput,
     AxisType,
@@ -54,15 +55,8 @@ from mikro.api.schema import (
     ProjectionMode,
     ScenePolicyInput,
     ValueRelation,
-    create_array_dataset,
-    create_mesh_collection,
-    create_mesh_layer,
-    create_table_dataset,
-    create_track_layer,
-    create_volume_layer,
 )
-from mikro.meshes import build_mesh_collection
-from mikro.rath import current_mikro_rath
+from fabriks import build_collection
 
 # --------------------------------------------------------------------------- #
 # Configuration
@@ -358,12 +352,12 @@ if __name__ == "__main__":
         raise SystemExit(0)
 
     # Reusing a sibling generator's cached grant (see generator_smlm.py).
-    with easy(identifier="neuron-overlay") as app:
-        world = space_3d("DTI · head", unit=Unit("millimeter"))
+    with easy("neuron-overlay", mikro_service) as mikro:
+        world = space_3d(mikro, "DTI · head", unit=Unit("millimeter"))
 
         print("Uploading principal-direction field…")
         pdd = (direction * fa[None]).astype(np.float32)
-        pdd_ds = create_array_dataset(
+        pdd_ds = mikro.create_array_dataset(
             data=xr.DataArray(pdd, dims=("v", "z", "y", "x"), name="pdd"),
             scales=[],  # how a pyramid treats a DISPLACEMENT store is deliberately unresolved
             name="DTI · principal diffusion direction",
@@ -388,7 +382,7 @@ if __name__ == "__main__":
         print("Uploading FA map…")
         fa_xr = xr.DataArray((fa * 255).astype(np.uint8), dims=("z", "y", "x"), name="fa")
         fa_data, fa_scales = dataset_arrays(fa_xr, levels=LEVELS, method="mean")
-        fa_ds = create_array_dataset(
+        fa_ds = mikro.create_array_dataset(
             data=fa_data,
             scales=fa_scales,
             name="DTI · FA map",
@@ -396,7 +390,7 @@ if __name__ == "__main__":
             anchors=[CoordinateAnchorInput.histogram_anchor(fa_xr)],
         )
         world.register(fa_ds, scale={"z": VOX_MM, "y": VOX_MM, "x": VOX_MM})
-        create_volume_layer(
+        mikro.create_volume_layer(
             lens=fa_ds.lens(),
             scene=scene.id,
             mode=ProjectionMode.MIP,
@@ -408,7 +402,7 @@ if __name__ == "__main__":
         )
 
         print("Uploading streamlines…")
-        table = create_table_dataset(
+        table = mikro.create_table_dataset(
             name="DTI · streamlines",
             data=tracks,
             description=(
@@ -427,7 +421,7 @@ if __name__ == "__main__":
         )
         world.register(table)
 
-        track_layer = create_track_layer(
+        track_layer = mikro.create_track_layer(
             scene=scene,
             table_dataset=table,
             color_by_column="fa",
@@ -442,8 +436,8 @@ if __name__ == "__main__":
             raise SystemExit(f"track layer derived {derived} — the 3D declaration did not land")
 
         print("Uploading glass brain…")
-        built = build_mesh_collection({1: mesh}, levels=LEVELS)
-        collection = create_mesh_collection(
+        built = build_collection({1: mesh}, levels=LEVELS)
+        collection = mikro.create_mesh_collection(
             version=f"v20260901-dti-glass-brain-seed{SEED}",
             store=built,
             axes=[AxisInput(name=d, type=AxisType.SPACE) for d in ("x", "y", "z")],
@@ -456,7 +450,7 @@ if __name__ == "__main__":
             ],
             provenance_metadata={"generator": "generator_dti_tractography.py", "seed": SEED},
         )
-        mesh_layer = create_mesh_layer(
+        mesh_layer = mikro.create_mesh_layer(
             scene=scene.id,
             mesh_collection=collection.id,
             material_color=[205, 215, 255, 255],
@@ -468,7 +462,7 @@ if __name__ == "__main__":
             raise SystemExit(f"glass brain did not reach the world: {mesh_layer.placement}")
 
         # The whole cast, read back through the interface: one of each kind, all placed.
-        result = current_mikro_rath.get().query(LAYERS_QUERY, {"id": scene.id})
+        result = mikro.rath.query(LAYERS_QUERY, {"id": scene.id})
         layers = result.data["scene"]["layers"]
         kinds = sorted(layer["__typename"] for layer in layers)
         if kinds != ["IntensityLayer", "MeshLayer", "TrackLayer", "VectorLayer"]:

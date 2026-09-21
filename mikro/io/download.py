@@ -1,3 +1,11 @@
+"""Reading what mikro stores: zarr arrays, parquet tables, big files.
+
+Every function takes the client first (``open_zarr_store(mikro, store_id)``):
+the access grant is requested through it, and the datalayer that serves the
+bytes is its own. An object's accessors (``dataset.data``, ``file.download()``)
+pass the client that fetched the object. Nothing is looked up.
+"""
+
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -11,11 +19,7 @@ from mikro.api.schema import (
     BigFileAccessGrant,
     ParquetAccessGrant,
     ZarrAccessGrant,
-    arequest_bigfile_access,
-    arequest_parquet_access,
-    arequest_zarr_access,
 )
-from mikro.datalayer import DataLayer, current_next_datalayer
 from mikro.io.obstore import (
     ParquetDatasetViaObstore,
     create_s3_store,
@@ -25,84 +29,72 @@ from mikro.io.obstore import (
 if TYPE_CHECKING:
     from duckdb import DuckDBPyConnection, DuckDBPyRelation
 
+    from mikro.mikro import Mikro
+
 
 async def aget_zarr_credentials_and_endpoint(
-    store: str,
+    mikro: "Mikro", store: str
 ) -> tuple[ZarrAccessGrant, str]:
     """Fetch zarr access credentials and the datalayer endpoint URL."""
-    datalayer = current_next_datalayer.get()
-    if not datalayer:
-        raise ValueError("Datalayer is not set")
-    credentials = await arequest_zarr_access(ID.validate(store))
-
-    endpoint_url = await datalayer.get_endpoint_url()
-    return credentials, endpoint_url
+    credentials = await mikro.arequest_zarr_access(ID.validate(store))
+    return credentials, await mikro.datalayer.get_endpoint_url()
 
 
 async def aget_table_credentials_and_endpoint(
-    store: str,
+    mikro: "Mikro", store: str
 ) -> tuple[ParquetAccessGrant, str]:
     """Fetch parquet access credentials and the datalayer endpoint URL."""
-    datalayer = current_next_datalayer.get()
-    if not datalayer:
-        raise ValueError("Datalayer is not set")
-
-    credentials = await arequest_parquet_access(ID.validate(store))
-    endpoint_url = await datalayer.get_endpoint_url()
-    return credentials, endpoint_url
+    credentials = await mikro.arequest_parquet_access(ID.validate(store))
+    return credentials, await mikro.datalayer.get_endpoint_url()
 
 
 async def aget_bigfile_credentials_and_endpoint(
-    store: str,
+    mikro: "Mikro", store: str
 ) -> tuple[BigFileAccessGrant, str]:
     """Fetch big-file access credentials and the datalayer endpoint URL."""
-    datalayer = current_next_datalayer.get()
-    if not datalayer:
-        raise ValueError("Datalayer is not set")
-
-    credentials = await arequest_bigfile_access(ID.validate(store))
-    endpoint_url = await datalayer.get_endpoint_url()
-    return credentials, endpoint_url
+    credentials = await mikro.arequest_bigfile_access(ID.validate(store))
+    return credentials, await mikro.datalayer.get_endpoint_url()
 
 
-async def aopen_zarr_store(store_id: str, cache: int = 2**30) -> StorePath:
+async def aopen_zarr_store(mikro: "Mikro", store_id: str, cache: int = 2**30) -> StorePath:
     """Open a zarr store for the given store ID asynchronously."""
-    credentials, endpoint_url = await aget_zarr_credentials_and_endpoint(store_id)
+    credentials, endpoint_url = await aget_zarr_credentials_and_endpoint(mikro, store_id)
     return create_zarr_store_path(endpoint_url, credentials)
 
 
-def open_zarr_store(store_id: str, cache: int = 2**30) -> StorePath:
+def open_zarr_store(mikro: "Mikro", store_id: str, cache: int = 2**30) -> StorePath:
     """Open a zarr store for the given store ID synchronously."""
-    credentials, endpoint_url = unkoil(aget_zarr_credentials_and_endpoint, store_id)
+    credentials, endpoint_url = unkoil(aget_zarr_credentials_and_endpoint, mikro, store_id)
     return create_zarr_store_path(endpoint_url, credentials)
 
 
-async def aopen_parquet_filesytem(store_id: str) -> ParquetDatasetViaObstore:
-    """Open a parquet dataset for the given store ID asynchronously."""
+def _require_pyarrow() -> None:
     try:
         import pyarrow.parquet as pq  # type: ignore # noqa: F401
     except ImportError as e:
         raise ImportError("You need to install pyarrow to use this function") from e
-    credentials, endpoint_url = await aget_table_credentials_and_endpoint(store_id)
+
+
+async def aopen_parquet_filesytem(mikro: "Mikro", store_id: str) -> ParquetDatasetViaObstore:
+    """Open a parquet dataset for the given store ID asynchronously."""
+    _require_pyarrow()
+    credentials, endpoint_url = await aget_table_credentials_and_endpoint(mikro, store_id)
     return ParquetDatasetViaObstore(
         create_s3_store(endpoint_url, credentials), credentials.key
     )
 
 
-def open_parquet_filesystem(store_id: str) -> ParquetDatasetViaObstore:
+def open_parquet_filesystem(mikro: "Mikro", store_id: str) -> ParquetDatasetViaObstore:
     """Open a parquet dataset for the given store ID synchronously."""
-    try:
-        import pyarrow.parquet as pq  # type: ignore # noqa: F401
-    except ImportError as e:
-        raise ImportError("You need to install pyarrow to use this function") from e
-    credentials, endpoint_url = unkoil(aget_table_credentials_and_endpoint, store_id)
+    _require_pyarrow()
+    credentials, endpoint_url = unkoil(aget_table_credentials_and_endpoint, mikro, store_id)
     return ParquetDatasetViaObstore(
         create_s3_store(endpoint_url, credentials), credentials.key
     )
 
 
 async def aopen_parquet_duckdb(
-    store_id: str,
+    mikro: "Mikro", store_id: str
 ) -> tuple["DuckDBPyConnection", "DuckDBPyRelation"]:
     """Open a lazy DuckDB relation over the parquet object asynchronously.
 
@@ -115,21 +107,21 @@ async def aopen_parquet_duckdb(
         read_parquet_relation,
     )
 
-    credentials, endpoint_url = await aget_table_credentials_and_endpoint(store_id)
+    credentials, endpoint_url = await aget_table_credentials_and_endpoint(mikro, store_id)
     con = create_duckdb_s3_connection(endpoint_url, credentials)
     relation = read_parquet_relation(con, credentials.bucket, credentials.key)
     return con, relation
 
 
 def open_parquet_duckdb(
-    store_id: str,
+    mikro: "Mikro", store_id: str
 ) -> tuple["DuckDBPyConnection", "DuckDBPyRelation"]:
     """Open a lazy DuckDB relation over the parquet object synchronously.
 
     Returns ``(connection, relation)``; keep a reference to the connection for as
     long as the relation is used (the relation is bound to it).
     """
-    return unkoil(aopen_parquet_duckdb, store_id)
+    return unkoil(aopen_parquet_duckdb, mikro, store_id)
 
 
 def _ensure_parent_directory(file_name: str) -> None:
@@ -139,25 +131,14 @@ def _ensure_parent_directory(file_name: str) -> None:
 
 
 async def adownload_presigned_file(
-    presigned_url: str,
-    file_name: str,
-    datalayer: DataLayer | None = None,
+    mikro: "Mikro", presigned_url: str, file_name: str
 ) -> str:
-    """Download a file from a presigned URL and save it to file_name asynchronously.
-
-    Args:
-        presigned_url: The presigned URL path (appended to the endpoint URL).
-        file_name: Local path to write the downloaded file to.
-        datalayer: Optional DataLayer override; falls back to the active context instance.
+    """Download a file from a presigned URL (a path on ``mikro``'s datalayer).
 
     Returns:
         The local path where the file was saved.
     """
-    datalayer = datalayer or current_next_datalayer.get()
-    if not datalayer:
-        raise ValueError("Datalayer is not set")
-
-    endpoint_url = await datalayer.get_endpoint_url()
+    endpoint_url = await mikro.datalayer.get_endpoint_url()
     _ensure_parent_directory(file_name)
 
     # Stream the file in 1 MiB chunks to avoid per-read syscall overhead.
@@ -174,54 +155,18 @@ async def adownload_presigned_file(
     return file_name
 
 
-def download_presigned_file(
-    presigned_url: str, file_name: str, datalayer: DataLayer | None = None
-) -> str:
-    """Download a file from a presigned URL and save it to file_name synchronously.
+def download_presigned_file(mikro: "Mikro", presigned_url: str, file_name: str) -> str:
+    """Download a file from a presigned URL synchronously (see the async twin)."""
+    return unkoil(adownload_presigned_file, mikro, presigned_url, file_name)
 
-    Args:
-        presigned_url: The presigned URL path (appended to the endpoint URL).
-        file_name: Local path to write the downloaded file to.
-        datalayer: Optional DataLayer override; falls back to the active context instance.
+
+async def adownload_file(mikro: "Mikro", store_id: str, file_name: str) -> str:
+    """Download a big file from the store and save it to ``file_name``.
 
     Returns:
         The local path where the file was saved.
     """
-    return unkoil(
-        adownload_presigned_file,
-        presigned_url,
-        file_name=file_name,
-        datalayer=datalayer,
-    )
-
-
-async def adownload_file(
-    store_id: str,
-    file_name: str,
-    datalayer: DataLayer | None = None,
-) -> str:
-    """Download a big file from the store and save it to file_name asynchronously.
-
-    Args:
-        store_id: The ID of the big-file store to download from.
-        file_name: Local path to write the downloaded file to.
-        datalayer: Optional DataLayer override; uses the active context instance otherwise.
-
-    Returns:
-        The local path where the file was saved.
-    """
-    if datalayer is not None:
-        token = current_next_datalayer.set(datalayer)
-    else:
-        token = None
-
-    try:
-        credentials, endpoint_url = await aget_bigfile_credentials_and_endpoint(
-            store_id
-        )
-    finally:
-        if token is not None:
-            current_next_datalayer.reset(token)
+    credentials, endpoint_url = await aget_bigfile_credentials_and_endpoint(mikro, store_id)
 
     _ensure_parent_directory(file_name)
     store = create_s3_store(endpoint_url, credentials)
@@ -235,18 +180,9 @@ async def adownload_file(
     return file_name
 
 
-def download_file(store_id: str, file_name: str, datalayer: DataLayer | None = None) -> str:
-    """Download a big file from the store and save it to file_name synchronously.
-
-    Args:
-        store_id: The ID of the big-file store to download from.
-        file_name: Local path to write the downloaded file to.
-        datalayer: Optional DataLayer override; uses the active context instance otherwise.
-
-    Returns:
-        The local path where the file was saved.
-    """
-    credentials, endpoint_url = unkoil(aget_bigfile_credentials_and_endpoint, store_id)
+def download_file(mikro: "Mikro", store_id: str, file_name: str) -> str:
+    """Download a big file from the store synchronously (see the async twin)."""
+    credentials, endpoint_url = unkoil(aget_bigfile_credentials_and_endpoint, mikro, store_id)
 
     _ensure_parent_directory(file_name)
     store = create_s3_store(endpoint_url, credentials)

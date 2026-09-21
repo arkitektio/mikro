@@ -3,14 +3,14 @@
 The sparse counterpart of ``test_tables.py``, and it tests the same two things: the refusals,
 and the shape of the API a caller writes. There is no helper and no wrapper type -- a caller
 writes ``SparseAxisInput``s and hands them to ``create_sparse_dataset`` -- so the checks are
-exercised through :mod:`mikro.sparse` here, and through the input itself in
+exercised through :mod:`mikro.checks.sparse` here, and through the input itself in
 ``test_sparse_dataset.py``.
 
 The reason this file exists at all is that the sparse path had no tests. ``SporadikLike`` was
 the only client-side gate and it was untested by construction, because ``sporadik`` was not
 installed in this package's own environment. Every case below runs without it: the checks in
-:func:`~mikro.sparse.check_axes` are statements about axes, and
-:func:`~mikro.sparse.check_against_store` reads exactly one attribute off a layout, so a
+:func:`~mikro.checks.sparse.check_axes` are statements about axes, and
+:func:`~mikro.checks.sparse.check_against_store` reads exactly one attribute off a layout, so a
 stub with a ``shape`` is a whole store as far as it is concerned. That split is deliberate --
 it is what keeps the refusals reachable from a plain ``pytest`` run.
 
@@ -27,7 +27,7 @@ from mikro.api.schema import (
     SparseAxisInput,
     TableIdentifiesInput,
 )
-from mikro.sparse import MIN_RANK, SparseDeclarationError, check_against_store, check_axes
+from mikro.checks.sparse import MIN_RANK, SparseDeclarationError, check_against_store, check_axes
 
 
 class Layout:
@@ -115,16 +115,6 @@ def test_an_axis_declared_twice_is_refused():
     with pytest.raises(SparseDeclarationError, match="declared more than once"):
         check_axes([axis("gene", mask()), axis("gene", table())])
 
-
-def test_an_axis_identifying_nothing_is_refused():
-    """An axis nothing identifies is one no source could ever key.
-
-    Refused by :func:`check_axes` as well as by the axis input's own trait, because a model
-    built some other way still reaches the create input.
-    """
-    axes = [axis("object", mask()), SparseAxisInput.model_construct(name="gene", identified_by=())]
-    with pytest.raises(SparseDeclarationError, match="empty `identifiedBy`"):
-        check_axes(axes)
 
 
 def test_a_matrix_nothing_keys_is_refused():

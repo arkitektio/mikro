@@ -30,8 +30,9 @@ import pandas as pd
 import xarray as xr
 from scipy.ndimage import gaussian_filter
 
-from mikro import Calibration, Unit, dataset_arrays
 from arkitekt import easy
+from mikro import Calibration, Unit, dataset_arrays, mikro_service
+from mikro.mikro import Mikro
 from mikro.api.schema import (
     AxisType,
     BootstrapLayerKind,
@@ -43,12 +44,8 @@ from mikro.api.schema import (
     PlacementState,
     ScenePolicyInput,
     ValueRelation,
-    create_array_dataset,
-    create_label_layer,
-    create_table_dataset,
 )
-from mikro.picker import categorical_color_by, label_render, measure_color_by
-from mikro.rath import current_mikro_rath
+from mikro.inputs.picker import categorical_color_by, label_render, measure_color_by
 
 # --------------------------------------------------------------------------- #
 # Configuration
@@ -189,10 +186,10 @@ if __name__ == "__main__":
         raise SystemExit(0)
 
     # Reusing a sibling generator's cached grant (see generator_smlm.py).
-    with easy(identifier="neuron-overlay") as app:
+    with easy("neuron-overlay", mikro_service) as mikro:
         print("Uploading the exam…")
         data, scales = dataset_arrays(exam, levels=LEVELS, method="mean")
-        source = create_array_dataset(
+        source = mikro.create_array_dataset(
             data=data,
             scales=scales,
             name="MRI · T1/T2/FLAIR exam",
@@ -216,7 +213,7 @@ if __name__ == "__main__":
         )
 
         print("Uploading the segmentation…")
-        labels_ds = create_array_dataset(
+        labels_ds = mikro.create_array_dataset(
             data=xr.DataArray(tissues, dims=("z", "y", "x")),
             scales=[],  # the average of two tissue ids is a third tissue
             name="MRI · tissue segmentation",
@@ -233,7 +230,7 @@ if __name__ == "__main__":
         )
 
         print("Uploading per-tissue stats…")
-        table = create_table_dataset(
+        table = mikro.create_table_dataset(
             name="MRI · tissue stats",
             data=stats,
             columns=[
@@ -251,7 +248,7 @@ if __name__ == "__main__":
             ],
         )
 
-        label_layer = create_label_layer(
+        label_layer = mikro.create_label_layer(
             lens=labels_ds.lens().id,
             scene=scene.id,
             render=label_render(
@@ -273,7 +270,7 @@ if __name__ == "__main__":
         if label_layer.placement != PlacementState.PLACED:
             raise SystemExit(f"segmentation did not reach the world: {label_layer.placement}")
 
-        result = current_mikro_rath.get().query(LAYERS_QUERY, {"id": scene.id})
+        result = mikro.rath.query(LAYERS_QUERY, {"id": scene.id})
         layers = result.data["scene"]["layers"]
         kinds = sorted(layer["__typename"] for layer in layers)
         if kinds != ["IntensityLayer"] * len(CONTRASTS) + ["LabelLayer"]:

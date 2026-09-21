@@ -1,7 +1,7 @@
 """Superseded. Not in any composed link chain -- `middleware/upload.py` is the live path.
 
-Upload moved out of the link chain and up to the funcs level, where `UploadMiddleware` walks the
-*serialized* variables before rath is entered at all; `MikroNextLinkComposition` says so and does
+Upload moved out of the link chain and up to the operation level, where `UploadMiddleware` walks the
+*serialized* variables before rath is entered at all; `MikroLinkComposition` says so and does
 not list this link. Nothing constructs `UploadLink`.
 
 Nothing imports this module either -- it is reachable only by name. It is kept as the readable

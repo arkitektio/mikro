@@ -4,18 +4,12 @@ The scripts in ``examples/`` are not importable libraries -- each is a
 ``__main__``-guarded program that generates a synthetic dataset, checks its own
 ground truth, uploads it, and then asserts the round trip (layer kinds,
 placements, colorBys). Those built-in assertions ARE the test; this module only
-supplies what ``easy()`` would have supplied and lets each script run.
+supplies what ``easy(..., mikro_service)`` would have supplied and lets each script run.
 
 What the harness substitutes:
 
-- ``arkitekt`` is replaced with a stub whose ``easy()`` yields nothing.
-  The scripts only use ``easy`` to enter the mikro context; here the
-  session-scoped ``deployed_app`` fixture has already entered
-  ``current_mikro_rath`` (``with mikro as mikro:`` in conftest), so every
-  bare ``create_*`` call inside the script lands on the test deployment. The
-  stub is also load-bearing for a second reason: the real ``arkitekt`` in
-  this venv does not import cleanly, so the scripts cannot even be loaded
-  without it.
+- ``arkitekt.easy`` is replaced with a stub that yields the deployment's client,
+  which the scripts then call every operation on.
 - ``sys.argv`` is pinned to the bare script name -- no ``--dry-run``, so the
   upload and read-back paths actually run.
 - The examples directory goes on ``sys.path`` because
@@ -34,7 +28,6 @@ in ``tests/integration/configs`` exist for them.
 
 import runpy
 import sys
-import types
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -63,10 +56,13 @@ SCRIPTS = [
 ]
 
 
-@contextmanager
-def _stub_easy(identifier: str | None = None, **kwargs: object):
-    """Stand-in for ``arkitekt.easy``: the fixture already entered mikro."""
-    yield None
+def _stub_easy_for(mikro: object):  # noqa: ANN202
+    @contextmanager
+    def _stub_easy(identifier: object = None, *services: object, **kwargs: object):
+        """Stand-in for ``arkitekt.easy``: a run handing out the deployment's client."""
+        yield mikro
+
+    return _stub_easy
 
 
 @pytest.mark.integration
@@ -74,9 +70,12 @@ def _stub_easy(identifier: str | None = None, **kwargs: object):
 def test_example_uploads(
     deployed_app: DeployedMikro, script: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    stub = types.ModuleType("arkitekt")
-    stub.easy = _stub_easy  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "arkitekt", stub)
+    # The scripts do `from arkitekt import easy` and `with easy("...", mikro_service) as mikro:`;
+    # the stub hands them the deployment's client instead of connecting anywhere.
+    # They bind `easy` when they run, after this patch.
+    import arkitekt
+
+    monkeypatch.setattr(arkitekt, "easy", _stub_easy_for(deployed_app.mikro))
     monkeypatch.setattr(sys, "argv", [script])
     monkeypatch.syspath_prepend(str(EXAMPLES))
 

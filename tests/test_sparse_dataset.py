@@ -7,11 +7,11 @@ assertions are on the wrapped message.
 
 Two things are under test that the function-level file cannot reach.
 
-The first is **ordering**. ``funcs.execute`` validates the arguments at ``:94`` and hands them
-to the upload middleware at ``:97``. A trait on the input therefore fires before a byte moves,
+The first is **ordering**. ``Mikro.execute`` validates the arguments (``_serialize``) and hands them
+to the upload middleware next. A trait on the input therefore fires before a byte moves,
 which is the whole argument for putting the checks there rather than only on the server -- and
 the reason the tests construct the input directly rather than calling
-``create_sparse_dataset``, which raises ``NoMikroFound`` at ``funcs.py:89`` first, for the
+``create_sparse_dataset``, which would fail on a missing client first, for the
 wrong reason.
 
 The second is that ``SparseColorByInput`` is a member of a **discriminated union**
@@ -34,7 +34,7 @@ from mikro.api.schema import (
     SparseColorByInput,
     TableIdentifiesInput,
 )
-from mikro.picker import label_render, sparse_color_by
+from mikro.inputs.picker import label_render, sparse_color_by
 
 pytest.importorskip("scipy", reason="the store cases need a real CSR matrix")
 pytest.importorskip("sporadik", reason="the sparse wire format is an extra: pip install 'mikro[sparse]'")

@@ -4,7 +4,6 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from mikro.api.schema import create_array_dataset
 
 from .conftest import DeployedMikro
 
@@ -17,7 +16,7 @@ def test_create_array(deployed_app: DeployedMikro) -> None:
     the mutation, the upload middleware and the object store all have to be
     working for ``level_data`` to return anything at all.
     """
-    dataset = create_array_dataset(
+    dataset = deployed_app.mikro.create_array_dataset(
         data=xr.DataArray(np.zeros((10, 256, 256)), dims=["z", "y", "x"]),
         scales=[],
         name="initialization_volume",

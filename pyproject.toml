@@ -27,21 +27,23 @@ table = ["pyarrow>=12.0.1", "pandas>=2.2", "duckdb>=1.0"]
 # in everything that takes part in building a collection (trimesh, shapely, scipy,
 # fast-simplification). Its `[meshopt]` extra is deliberately *not* here: `codec` defaults to
 # `NONE`, so nothing on the default path needs a decoder on either side of the wire.
-mesh = ["fabriks>=1.0", "pyarrow>=12.0.1"]
+# The upload passes `parquet_compression=` to the writers, which landed on fabriks and
+# konnektion main on 2026-09-21 and is unreleased: raise these to the tags that carry it.
+mesh = ["fabriks>=1.2", "pyarrow>=12.0.1"]
 # `konnektion` is the graph wire format: it owns the octree, the codecs and the coarsening, the
 # way `fabriks` owns them for surfaces. A separate extra rather than a widening of `mesh`,
 # because they are separate formats and a client that only ever uploads meshes should not carry
 # the other one. Its dependency list is much shorter than fabriks's -- numpy and pyarrow, no
 # geometry stack -- because a graph is cut by assigning nodes rather than by intersecting.
-network = ["konnektion>=0.1", "pyarrow>=12.0.1"]
+network = ["konnektion>=1.1", "pyarrow>=12.0.1"]
 # `codec="MESHOPT"`, for a caller whose renderer ships the EXT_meshopt_compression decoder.
-meshopt = ["fabriks[meshopt]>=1.0", "pyarrow>=12.0.1"]
+meshopt = ["fabriks[meshopt]>=1.2", "pyarrow>=12.0.1"]
 # `sporadik` is the sparse wire format, and an extra for the same reason `fabriks` is: it owns the
 # layout, the block and the invariants, and a client that never uploads a sparse dataset should not
 # carry them. It needs nothing beyond numpy and zarr, both of which are core dependencies here
 # already, so this extra costs a caller one small pure-Python package and no transitive weight.
 sparse = ["sporadik>=0.1"]
-complete = ["fabriks[meshopt]>=1.0", "konnektion>=0.1", "sporadik>=0.1", "pyarrow>=12.0.1", "pandas>=2.2", "duckdb>=1.0"]
+complete = ["fabriks[meshopt]>=1.2", "konnektion>=1.1", "sporadik>=0.1", "pyarrow>=12.0.1", "pandas>=2.2", "duckdb>=1.0"]
 
 
 [tool.uv]

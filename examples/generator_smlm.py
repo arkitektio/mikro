@@ -34,8 +34,9 @@ import pandas as pd
 import xarray as xr
 from scipy.ndimage import gaussian_filter
 
-from mikro import Unit, create_space, dataset_arrays
 from arkitekt import easy
+from mikro import Unit, create_space, dataset_arrays, mikro_service
+from mikro.mikro import Mikro
 from mikro.api.schema import (
     AxisType,
     ColorMap,
@@ -45,15 +46,8 @@ from mikro.api.schema import (
     CoordinateAnchorInput,
     LabelFilterByInput,
     ProjectionMode,
-    create_array_dataset,
-    create_intensity_layer,
-    create_layer,
-    create_lens,
-    create_point_layer,
-    create_scene,
-    create_table_dataset,
 )
-from mikro.render import channel_graph
+from mikro.inputs.render import channel_graph
 
 # --------------------------------------------------------------------------- #
 # Configuration
@@ -289,18 +283,18 @@ if __name__ == "__main__":
     # Reusing a sibling generator's identifier, the established pattern (see
     # generator_flow_volume / generator_turbulence): its grant is cached, so the
     # run needs no device-code round.
-    with easy(identifier="neuron-overlay") as app:
+    with easy("neuron-overlay", mikro_service) as mikro:
         # One world for all of it. Each grid's pixel size is a fact about its
         # registration edge, not about the space — which is the only way a 100 nm
         # movie, a 10 nm render and a table in micrometers share one frame.
-        world = create_space(
+        world = create_space(mikro, 
             "SMLM · field",
             {"t": Unit("second"), "y": Unit("micrometer"), "x": Unit("micrometer")},
         )
 
         print("Uploading raw movie…")
         raw_data, raw_scales = dataset_arrays(movie, levels=3, method="max")
-        raw_ds = create_array_dataset(
+        raw_ds = mikro.create_array_dataset(
             data=raw_data,
             scales=raw_scales,
             name="SMLM · raw blinking movie",
@@ -313,7 +307,7 @@ if __name__ == "__main__":
         # MAX pyramid: the render is sparse dots on black, and an averaged level
         # dims them out of existence long before it runs out of resolution.
         sr_data, sr_scales = dataset_arrays(sr, levels=6, method="max")
-        sr_ds = create_array_dataset(
+        sr_ds = mikro.create_array_dataset(
             data=sr_data,
             scales=sr_scales,
             name="SMLM · reconstruction (10 nm)",
@@ -323,7 +317,7 @@ if __name__ == "__main__":
         world.register(sr_ds, scale={"y": SR_PX, "x": SR_PX})
 
         print("Uploading localization table…")
-        table = create_table_dataset(
+        table = mikro.create_table_dataset(
             name="SMLM · localizations",
             data=locs,
             description=(
@@ -352,14 +346,14 @@ if __name__ == "__main__":
         world.register(table)
 
         print("Composing the scene…")
-        scene = create_scene(name="SMLM · synthetic", coordinate_system=world.id)
+        scene = mikro.create_scene(name="SMLM · synthetic", coordinate_system=world.id)
 
         # Bottom: the raw movie. The time slider walks t; MIP is what a projection
         # over the *scrubbed* axis would look like elsewhere — here intensity_axis
         # stays null because a TIME axis is not a CHANNEL axis.
-        create_layer(
+        mikro.create_layer(
             scene=scene,
-            lens=create_lens(raw_ds, slices=[]),
+            lens=mikro.create_lens(raw_ds, slices=[]),
             render_graph=channel_graph(
                 colormap=ColorMap.GREY,
                 intensity_axis=None,
@@ -370,8 +364,8 @@ if __name__ == "__main__":
             order=0,
         )
 
-        create_intensity_layer(
-            lens=create_lens(sr_ds, slices=[]),
+        mikro.create_intensity_layer(
+            lens=mikro.create_lens(sr_ds, slices=[]),
             scene=scene,
             colormap=ColorMap.MAGMA,
             clim_min=0.0,
@@ -380,7 +374,7 @@ if __name__ == "__main__":
             visible=False,  # start on points over raw; the render is one click away
         )
 
-        point_layer = create_point_layer(
+        point_layer = mikro.create_point_layer(
             scene=scene,
             table_dataset=table,
             point_size=0.05,  # scene units = µm; 50 nm dots

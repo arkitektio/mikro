@@ -20,9 +20,10 @@ upload nothing). Together they exercise every layer kind the API offers.
 
 ## Conventions the scripts share
 
-- Local generation first, `--dry-run` guard, then `with easy(identifier=...)`.
-  Import something from `mikro` **before** `arkitekt.easy` — that
-  registers the mikro service.
+- Local generation first, `--dry-run` guard, then
+  `with connect(App(..., services=[mikro_service])) as rt: mikro = rt.require(Mikro)`.
+  The service object (`from mikro import mikro_service`) is registered on the
+  app explicitly; nothing is registered by importing.
 - Fields and volumes are deliberately non-square/non-cubic so a y/x transpose
   fails the self-checks instead of drawing rotated.
 - One shared world per scene; each dataset's pixel/voxel/frame size lives on its
@@ -36,7 +37,7 @@ upload nothing). Together they exercise every layer kind the API offers.
 ## Testing
 
 The integration suite runs every script end-to-end against the dokker test
-stack — `tests/test_examples.py` stubs `arkitekt.easy` and lets each
+stack — `tests/test_examples.py` stubs `arkitekt.App`/`arkitekt.connect` and lets each
 script's own self-checks and round-trip assertions do the judging:
 
 ```bash

@@ -3,7 +3,7 @@
 from collections.abc import Hashable
 
 from mikro.errors import MikroError, NoDataLayerFound, NoMikroFound, NotQueriedError
-from mikro.utils import chunk_and_shard, rechunk
+from mikro.io.chunking import chunk_and_shard, rechunk
 
 
 def test_mikro_error_classes() -> None:

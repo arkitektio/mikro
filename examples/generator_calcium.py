@@ -34,8 +34,9 @@ import scipy.sparse as sp
 import xarray as xr
 from sporadik import SparseArray
 
-from mikro import Unit, create_space, dataset_arrays
 from arkitekt import easy
+from mikro import Unit, create_space, dataset_arrays, mikro_service
+from mikro.mikro import Mikro
 from mikro.api.schema import (
     AxisType,
     ColorMap,
@@ -46,21 +47,14 @@ from mikro.api.schema import (
     ProjectionMode,
     SparseAxisInput,
     TableIdentifiesInput,
-    create_array_dataset,
-    create_label_layer,
-    create_layer,
-    create_lens,
-    create_scene,
-    create_sparse_dataset,
-    create_table_dataset,
 )
-from mikro.picker import (
+from mikro.inputs.picker import (
     categorical_color_by,
     label_render,
     measure_color_by,
     sparse_color_by,
 )
-from mikro.render import channel_graph
+from mikro.inputs.render import channel_graph
 
 # --------------------------------------------------------------------------- #
 # Configuration
@@ -263,15 +257,15 @@ if __name__ == "__main__":
         raise SystemExit(0)
 
     # Reusing a sibling generator's cached grant (see generator_smlm.py).
-    with easy(identifier="neuron-overlay") as app:
-        world = create_space(
+    with easy("neuron-overlay", mikro_service) as mikro:
+        world = create_space(mikro, 
             "Calcium · field",
             {"t": Unit("second"), "y": Unit("micrometer"), "x": Unit("micrometer")},
         )
 
         print("Uploading movie…")
         movie_data, movie_scales = dataset_arrays(movie, levels=3, method="max")
-        movie_ds = create_array_dataset(
+        movie_ds = mikro.create_array_dataset(
             data=movie_data,
             scales=movie_scales,
             name="Calcium · movie",
@@ -281,7 +275,7 @@ if __name__ == "__main__":
         world.register(movie_ds, scale={"t": DT, "y": PIXEL_UM, "x": PIXEL_UM})
 
         print("Uploading cell masks…")
-        labels_ds = create_array_dataset(
+        labels_ds = mikro.create_array_dataset(
             data=xr.DataArray(mask, dims=("y", "x")),
             # No pyramid: the average of two cell ids is a third cell's id.
             scales=[],
@@ -291,7 +285,7 @@ if __name__ == "__main__":
         world.register(labels_ds, scale={"y": PIXEL_UM, "x": PIXEL_UM})
 
         print("Uploading per-cell stats…")
-        stats = create_table_dataset(
+        stats = mikro.create_table_dataset(
             name="Calcium · per-cell stats",
             data=pd.DataFrame(
                 {
@@ -316,7 +310,7 @@ if __name__ == "__main__":
         )
 
         print("Uploading frame table + ΔF/F matrix…")
-        frame_table = create_table_dataset(
+        frame_table = mikro.create_table_dataset(
             name="Calcium · frames",
             data={
                 "frame": np.arange(FRAMES, dtype=np.int64),
@@ -327,7 +321,7 @@ if __name__ == "__main__":
                 ColumnInput(name="time_s", role=ColumnRole.ATTRIBUTE, long_name="time (s)"),
             ],
         )
-        expression = create_sparse_dataset(
+        expression = mikro.create_sparse_dataset(
             name="Calcium · ΔF/F",
             store=matrix,
             axes=[
@@ -346,11 +340,11 @@ if __name__ == "__main__":
         )
 
         print("Composing the scene…")
-        scene = create_scene(name="Calcium · synthetic", coordinate_system=world.id)
+        scene = mikro.create_scene(name="Calcium · synthetic", coordinate_system=world.id)
 
-        create_layer(
+        mikro.create_layer(
             scene=scene,
-            lens=create_lens(movie_ds, slices=[]),
+            lens=mikro.create_lens(movie_ds, slices=[]),
             render_graph=channel_graph(
                 colormap=ColorMap.GREY,
                 intensity_axis=None,
@@ -364,7 +358,7 @@ if __name__ == "__main__":
         # The label layer carries the whole functional picker: static per-cell
         # measures from the stats table, the categorical ensembles, and — the first
         # time anywhere — sparse slices whose position axis is *time*.
-        label_layer = create_label_layer(
+        label_layer = mikro.create_label_layer(
             lens=labels_ds.lens().id,
             scene=scene.id,
             render=label_render(

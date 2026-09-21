@@ -350,16 +350,16 @@ class TestRegister:
     """
 
     def register(self, source, world_axes=("t", "z", "y", "x"), **offsets):
-        from unittest.mock import patch
-
         seen = {}
 
         def fake(**kwargs):
             seen.update(kwargs)
             return "edge"
 
-        with patch("mikro.api.schema.create_transformation", fake):
-            make_system("w", "world", list(world_axes)).register(source, **offsets)
+        client = SimpleNamespace(create_transformation=fake)
+        make_system("w", "world", list(world_axes)).register(
+            source, mikro=client, **offsets
+        )
         return seen
 
     def place(self, dataset_axes, world_axes=("t", "z", "y", "x"), **offsets):
@@ -422,18 +422,16 @@ class TestRegisterScale:
     thing worth pinning down is that they stay aligned with each other."""
 
     def register(self, world_axes=("z", "y", "x"), dataset_axes=("c", "z", "y", "x"), **kw):
-        from unittest.mock import patch
-
         seen = {}
 
         def fake(**kwargs):
             seen.update(kwargs)
             return "edge"
 
-        with patch("mikro.api.schema.create_transformation", fake):
-            make_system("w", "world", list(world_axes)).register(
-                make_dataset(dataset_axes), **kw
-            )
+        client = SimpleNamespace(create_transformation=fake)
+        make_system("w", "world", list(world_axes)).register(
+            make_dataset(dataset_axes), mikro=client, **kw
+        )
         return seen["transform"]
 
     def test_scale_and_translation_line_up_with_the_named_axes(self):
@@ -474,16 +472,13 @@ class TestSpaceHelpers:
     edge, authored by `register`."""
 
     def create(self, fn, *args, **kwargs):
-        from unittest.mock import patch
-
         seen = {}
 
         def fake(**call):
             seen.update(call)
             return "space"
 
-        with patch("mikro.api.schema.create_coordinate_system", fake):
-            fn(*args, **kwargs)
+        fn(SimpleNamespace(create_coordinate_system=fake), *args, **kwargs)
         return seen
 
     def test_space_3d_is_zyx_in_one_length_unit(self):
@@ -534,7 +529,7 @@ class TestSpaceHelpers:
         from mikro import create_space
 
         with pytest.raises(ValueError, match="at least one axis"):
-            create_space("empty", {})
+            create_space(SimpleNamespace(), "empty", {})
 
 
 class TestSceneIsNotASpace:
@@ -557,16 +552,14 @@ class TestStage:
     authors no edges."""
 
     def stage(self, **kwargs):
-        from unittest.mock import patch
-
         seen = {}
 
         def fake(**call):
             seen.update(call)
             return "scene"
 
-        with patch("mikro.api.schema.create_scene_from_coordinate_system", fake):
-            make_system("w", "world", ["y", "x"]).stage(**kwargs)
+        client = SimpleNamespace(create_scene_from_coordinate_system=fake)
+        make_system("w", "world", ["y", "x"]).stage(mikro=client, **kwargs)
         return seen
 
     def test_the_space_is_the_scenes_world(self):
@@ -614,16 +607,16 @@ class TestUnregister:
             )
 
     def test_the_named_source_is_passed_with_this_space_as_the_world(self):
-        from unittest.mock import patch
-
         seen = {}
 
         def fake(**kwargs):
             seen.update(kwargs)
             return ()
 
-        with patch("mikro.api.schema.delete_registration", fake):
-            make_system("w", "world", ["y", "x"]).unregister(mesh_collection="m")
+        client = SimpleNamespace(delete_registration=fake)
+        make_system("w", "world", ["y", "x"]).unregister(
+            mesh_collection="m", mikro=client
+        )
         assert seen["world"] == "w"
         assert seen["mesh_collection"] == "m"
         assert "dataset" not in seen

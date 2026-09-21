@@ -1,6 +1,6 @@
 """The spec vocabulary, the descriptors it matches against, and the composer.
 
-``mikro.specs`` imports ``rekuest`` at module level, and rekuest is a
+``mikro.arkitekt.specs`` imports ``rekuest`` at module level, and rekuest is a
 dev dependency rather than an install requirement — hence the skip. That is also
 why the module is not exported from ``mikro/__init__.py``.
 
@@ -21,7 +21,7 @@ try:
 except ImportError:  # pragma: no cover — depends on the install
     pytest.skip("rekuest is an optional dev dependency", allow_module_level=True)
 
-from mikro.specs import (
+from mikro.arkitekt.specs import (
     N_CHANNELS,
     VALUE_KIND,
     Image,

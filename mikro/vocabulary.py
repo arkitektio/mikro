@@ -389,7 +389,7 @@ def duckdb_type(arrow_type: object) -> str:
 #: nothing from ``mikro`` -- that is what lets :mod:`mikro.traits` use it, and an
 #: enum tuple would come from :mod:`mikro.api.schema`, which imports ``traits`` back.
 #: ``use_enum_values=True`` means a field holds the value anyway, so nothing is lost.
-#: :data:`mikro.picker.QUALITATIVE_COLORMAPS` is the same set as members.
+#: :data:`mikro.inputs.picker.QUALITATIVE_COLORMAPS` is the same set as members.
 QUALITATIVE_COLORMAP_VALUES: Final[frozenset[str]] = frozenset({"HUES", "DISTINCT", "PASTEL", "VIVID"})
 
 

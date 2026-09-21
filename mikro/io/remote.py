@@ -27,7 +27,7 @@ import logging
 import threading
 import time
 from collections.abc import Callable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import obstore
 from obstore.exceptions import (
@@ -44,9 +44,8 @@ from mikro.io.errors import DownloadError
 if TYPE_CHECKING:
     from obstore.store import S3Store
 
-    from mikro.datalayer import DataLayer
     from mikro.io.obstore import S3UploadGrantLike
-    from mikro.rath import MikroNextRath
+    from mikro.mikro import Mikro
 
 
 logger = logging.getLogger(__name__)
@@ -361,50 +360,33 @@ class RemoteFile(AbstractBufferedFile):
         raise NotImplementedError("RemoteFile is read-only")
 
 
-def _bigfile_granted_object(
-    store_id: str,
-    *,
-    rath: MikroNextRath | None = None,
-    datalayer: DataLayer | None = None,
-) -> GrantedObject:
+def _bigfile_granted_object(mikro: "Mikro", store_id: str) -> GrantedObject:
     """Build a :class:`GrantedObject` for a big-file store.
 
-    The rath client and datalayer are captured here rather than read from the context
-    at refresh time. A refresh happens inside a read, and a read runs wherever the
-    caller put it -- typically a worker thread, because a blocking read has no business
-    on the event loop -- so the ambient context the handle was opened in is not reliably
-    the one the refresh sees.
+    The client is captured here: a refresh happens inside a read, and a read runs
+    wherever the caller put it -- typically a worker thread -- so it is handed the
+    client rather than left to find one.
 
     The endpoint URL is resolved once, eagerly: it is a property of the datalayer, not
     of the grant, so re-fetching it per refresh would buy nothing.
     """
     from koil import unkoil
 
-    from mikro.api.schema import request_bigfile_access
-    from mikro.datalayer import current_next_datalayer
-    from mikro.rath import current_mikro_rath
-
-    resolved_rath = rath if rath is not None else current_mikro_rath.get(None)
-    resolved_datalayer = datalayer if datalayer is not None else current_next_datalayer.get()
-    if resolved_datalayer is None:
-        raise ValueError("Datalayer is not set")
-
-    endpoint_url: str = unkoil(resolved_datalayer.get_endpoint_url)
+    endpoint_url: str = unkoil(mikro.datalayer.get_endpoint_url)
 
     def resolve() -> tuple[S3UploadGrantLike, str]:
-        return request_bigfile_access(store_id, rath=resolved_rath), endpoint_url
+        return mikro.request_bigfile_access(store_id), endpoint_url
 
     return GrantedObject(resolve)
 
 
 def open_remote_file(
+    mikro: "Mikro",
     store_id: str,
     *,
     block_size: int | None = None,
     cache: bool | str = True,
     max_cached_blocks: int = 32,
-    rath: MikroNextRath | None = None,
-    datalayer: DataLayer | None = None,
 ) -> RemoteFile:
     """Open a big-file store as a seekable, read-only binary file.
 
@@ -414,20 +396,19 @@ def open_remote_file(
     are better served by :func:`mikro.io.download.download_file`.
 
     Args:
+        mikro: The client the access grant is requested through.
         store_id: The ID of the big-file store to read.
         block_size: Bytes fetched per request, and the cache's granularity.
         cache: ``True`` (default) keeps fetched blocks in a bounded LRU; ``False``
             keeps nothing; a string names an fsspec policy directly.
         max_cached_blocks: LRU size when caching. Memory ceiling is this times
             ``block_size``.
-        rath: Optional rath client override; the active one is captured otherwise.
-        datalayer: Optional DataLayer override; the active one is captured otherwise.
 
     The cache lives on the handle and dies with it -- two `open()` calls for the same
     object share nothing. Reading one object repeatedly means keeping one handle open,
     not opening it again.
     """
-    granted = _bigfile_granted_object(store_id, rath=rath, datalayer=datalayer)
+    granted = _bigfile_granted_object(mikro, store_id)
     return RemoteFile(
         granted,
         block_size=block_size,
@@ -437,13 +418,12 @@ def open_remote_file(
 
 
 async def aopen_remote_file(
+    mikro: "Mikro",
     store_id: str,
     *,
     block_size: int | None = None,
     cache: bool | str = True,
     max_cached_blocks: int = 32,
-    rath: MikroNextRath | None = None,
-    datalayer: DataLayer | None = None,
 ) -> RemoteFile:
     """Open a big-file store as a seekable file, without blocking the event loop.
 
@@ -456,16 +436,16 @@ async def aopen_remote_file(
 
     return await asyncio.to_thread(
         open_remote_file,
+        mikro,
         store_id,
         block_size=block_size,
         cache=cache,
         max_cached_blocks=max_cached_blocks,
-        rath=rath,
-        datalayer=datalayer,
     )
 
 
 def download_to_scratch(
+    mikro: "Mikro",
     store_id: str,
     file_name: str | None = None,
     *,
@@ -500,7 +480,7 @@ def download_to_scratch(
     directory = tempfile.mkdtemp(prefix=prefix, dir=root)
     try:
         return download_file(
-            store_id, file_name=os.path.join(directory, file_name or "download")
+            mikro, store_id, os.path.join(directory, file_name or "download")
         )
     except BaseException:
         # A download that dies partway leaves a partial file behind, and the caller

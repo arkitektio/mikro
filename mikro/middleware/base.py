@@ -1,6 +1,6 @@
-"""Base middleware classes for the funcs API.
+"""Base middleware classes for the operations.
 
-Defines the abstract FuncsMiddleware interface that middleware implementations
+Defines the abstract OperationMiddleware interface that middleware implementations
 must follow. Each middleware can intercept execute and subscribe calls, process
 the serialized arguments, and pass through to the next middleware in the chain.
 
@@ -17,13 +17,13 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel
 
 if TYPE_CHECKING:
-    from mikro.rath import MikroNextRath
+    from mikro.rath import MikroRath
 
 from rath.turms.funcs import TOperation
 
 
-class FuncsMiddleware(BaseModel, abc.ABC):
-    """Base class for funcs-level middleware.
+class OperationMiddleware(BaseModel, abc.ABC):
+    """Base class for operation-level middleware.
 
     Middleware intercepts operations between the user-facing API functions
     (execute/subscribe) and the rath link chain. This allows pre-processing
@@ -45,7 +45,7 @@ class FuncsMiddleware(BaseModel, abc.ABC):
         self,
         variables: dict[str, Any],
         operation: type[TOperation],
-        rath: MikroNextRath,
+        rath: MikroRath,
     ) -> dict[str, Any]:
         """Process the serialized variables dict synchronously.
 
@@ -67,7 +67,7 @@ class FuncsMiddleware(BaseModel, abc.ABC):
         self,
         variables: dict[str, Any],
         operation: type[TOperation],
-        rath: MikroNextRath,
+        rath: MikroRath,
     ) -> dict[str, Any]:
         """Process the serialized variables dict asynchronously.
 

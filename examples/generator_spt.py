@@ -34,8 +34,9 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from mikro import Unit, create_space, dataset_arrays
 from arkitekt import easy
+from mikro import Unit, create_space, dataset_arrays, mikro_service
+from mikro.mikro import Mikro
 from mikro.api.schema import (
     AxisType,
     ColorMap,
@@ -43,14 +44,8 @@ from mikro.api.schema import (
     ColumnRole,
     CoordinateAnchorInput,
     ProjectionMode,
-    create_array_dataset,
-    create_layer,
-    create_lens,
-    create_scene,
-    create_table_dataset,
-    create_track_layer,
 )
-from mikro.render import channel_graph
+from mikro.inputs.render import channel_graph
 
 # --------------------------------------------------------------------------- #
 # Configuration
@@ -293,15 +288,15 @@ if __name__ == "__main__":
         raise SystemExit(0)
 
     # Reusing a sibling generator's cached grant (see generator_smlm.py).
-    with easy(identifier="neuron-overlay") as app:
-        world = create_space(
+    with easy("neuron-overlay", mikro_service) as mikro:
+        world = create_space(mikro, 
             "SPT · field",
             {"t": Unit("second"), "y": Unit("micrometer"), "x": Unit("micrometer")},
         )
 
         print("Uploading raw movie…")
         raw_data, raw_scales = dataset_arrays(movie, levels=3, method="max")
-        raw_ds = create_array_dataset(
+        raw_ds = mikro.create_array_dataset(
             data=raw_data,
             scales=raw_scales,
             name="SPT · raw particle movie",
@@ -311,7 +306,7 @@ if __name__ == "__main__":
         world.register(raw_ds, scale={"t": EXPOSURE, "y": CAM_PX, "x": CAM_PX})
 
         print("Uploading track table…")
-        table = create_table_dataset(
+        table = mikro.create_table_dataset(
             name="SPT · tracks",
             data=obs,
             description=(
@@ -341,11 +336,11 @@ if __name__ == "__main__":
         world.register(table)
 
         print("Composing the scene…")
-        scene = create_scene(name="SPT · synthetic", coordinate_system=world.id)
+        scene = mikro.create_scene(name="SPT · synthetic", coordinate_system=world.id)
 
-        create_layer(
+        mikro.create_layer(
             scene=scene,
-            lens=create_lens(raw_ds, slices=[]),
+            lens=mikro.create_lens(raw_ds, slices=[]),
             render_graph=channel_graph(
                 colormap=ColorMap.GREY,
                 intensity_axis=None,
@@ -356,7 +351,7 @@ if __name__ == "__main__":
             order=0,
         )
 
-        track_layer = create_track_layer(
+        track_layer = mikro.create_track_layer(
             scene=scene,
             table_dataset=table,
             color_by_column="speed",

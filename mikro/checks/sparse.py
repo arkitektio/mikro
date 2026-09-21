@@ -2,7 +2,7 @@
 
 ``create_sparse_dataset`` takes the generated inputs directly -- ``SparseAxisInput`` per axis,
 each carrying its own ``identifiedBy`` -- and this module is what checks them, the way
-:mod:`mikro.tables` checks a table's. Nothing about the *matrix* is declared: its shape,
+:mod:`mikro.checks.tables` checks a table's. Nothing about the *matrix* is declared: its shape,
 each layout's encoding and its chunking are read off the artifact when the upload is finished.
 What a caller writes is one statement per axis of what its positions are::
 
@@ -18,27 +18,29 @@ What a caller writes is one statement per axis of what its positions are::
 Every refusal below mirrors one the server already makes, and none is stricter -- the client's
 copy is what the caller wrote and the server's is what arrived, and the pair is worth more than
 either alone. What the pair buys here that it does not buy on the table path is *order*.
-``funcs.execute`` validates at ``:94`` and uploads at ``:97``, so a refusal raised here comes
+``Mikro.execute`` validates first and uploads next, so a refusal raised here comes
 before the bytes move; the server's comes after. On a matrix that is measured in gigabytes that
 is the whole difference.
 
-One of the six is not merely earlier here, it is **only** possible here:
+One of them is not merely earlier here, it is **only** possible here:
 
 * :func:`check_against_store` compares the declared axis count against the matrix's own shape.
-  The server does the same at ``core/mutations/sparse_dataset.py:130`` -- but it reads that
-  shape off a row recorded at ``finishSparseUpload``, so it has nothing to compare against
-  until the upload has already happened. This side is holding the matrix. It is also the
-  refusal with the worst silent failure: a declaration that disagrees with the bytes "places
-  every lookup one position out and raises nothing".
+  The server does the same in ``_assert_store_agrees`` of its ``create_sparse_dataset``
+  mutation -- but it reads that shape off a row recorded at ``finishSparseUpload``, so it has
+  nothing to compare against until the upload has already happened. This side is holding the
+  matrix. It is also the refusal with the worst silent failure: a declaration that disagrees
+  with the bytes "places every lookup one position out and raises nothing".
 
 Two entry points rather than one, and the split is not cosmetic. Only the shape check needs the
-store; the other five are statements about the axes alone. Keeping them separable is what lets
+store; the others are statements about the axes alone. Keeping them separable is what lets
 the trait run them *above* its store guard -- and what lets them be tested without the optional
 ``sporadik`` extra installed.
 
 Deliberately not re-checked here: two layouts compressing the same axis, and layouts of
 differing shape. ``sporadik.layouts_of`` already refuses both, inside ``SporadikLike.validate``,
-which runs before any of this. Stating the same refusal twice is how two copies drift apart.
+which runs before any of this. Nor an axis whose ``identifiedBy`` is empty: the axis input's
+own trait refuses that one line earlier, where the mistake is made. Stating the same refusal
+twice is how two copies drift apart.
 """
 
 from __future__ import annotations
@@ -52,8 +54,8 @@ if TYPE_CHECKING:
     from mikro.api.schema import SparseAxisInput
 
 #: The lowest rank a sparse dataset can have. Two, because a single compressed axis needs at
-#: least one other axis to hold the positions. Mirrors the server's ``_MIN_RANK``
-#: (``core/mutations/sparse_dataset.py:56``); ``sporadik.spec.MIN_RANK`` is the third copy, and
+#: least one other axis to hold the positions. Mirrors the server's ``_MIN_RANK`` in its
+#: ``create_sparse_dataset`` mutation; ``sporadik.spec.MIN_RANK`` is the third copy, and
 #: the three are one number because the format, the wire and this check are one rule.
 #:
 #: **There is no highest.** A layout is one axis made contiguous, so an array of rank *n* has up
@@ -71,11 +73,11 @@ def _enum_value(value: object) -> str:
     The generated models set ``use_enum_values=True``, so a model constructed with an enum
     member holds the plain string. The normalizer stays because a field can also be read off a
     model built some other way, and the cost of being wrong here is a check that silently
-    passes. A local copy on purpose: :mod:`mikro.tables`, :mod:`mikro.traits` and
-    :mod:`mikro.specs` each carry their own, and sharing it is a change to five call sites
-    rather than to this one.
+    passes. A local copy on purpose: :mod:`mikro.checks.tables`, :mod:`mikro.traits` and
+    :mod:`mikro.arkitekt.specs` each carry their own, and sharing it is a change to five call
+    sites rather than to this one.
     """
-    # ``str(...)`` where :mod:`mikro.tables` returns the attribute directly. The same
+    # ``str(...)`` where :mod:`mikro.checks.tables` returns the attribute directly. The same
     # answer for every input this sees, and it type-checks, where that copy carries a standing
     # ``reportReturnType`` complaint.
     return str(getattr(value, "value", value) or "")
@@ -96,19 +98,22 @@ def _identifications(axis: SparseAxisInput) -> tuple:
 def check_axes(axes: Sequence[SparseAxisInput]) -> None:
     """Refuse a set of axes that could not describe any matrix.
 
-    Five refusals, in the order the server makes them, none of which needs the store:
+    Four refusals, in the order the server makes them, none of which needs the store:
 
-    1. fewer than :data:`MIN_RANK` axes (``sparse_dataset.py:204``);
-    2. a duplicate axis name (``:209``);
-    3. an axis whose ``identifiedBy`` is empty (``:170``);
-    4. nothing anywhere that keys the matrix (``:187``);
-    5. more than one table identifying one axis (``core/logic/identification.py:81``).
+    1. fewer than :data:`MIN_RANK` axes (``create_sparse_dataset``);
+    2. a duplicate axis name (``create_sparse_dataset``);
+    3. nothing anywhere that keys the matrix (``_resolve_identifications``);
+    4. more than one table identifying one axis (``core/logic/identification.py``,
+       ``split_identifications``).
+
+    An axis whose ``identifiedBy`` is empty is refused by the axis input itself
+    (:class:`mikro.traits.SparseAxisInputTrait`), one model earlier.
 
     Args:
         axes: The declared axes, in the order the store's shape is written.
 
     Raises:
-        SparseDeclarationError: If any of the five holds.
+        SparseDeclarationError: If any of the four holds.
     """
     names = [axis.name for axis in axes]
 
@@ -127,19 +132,11 @@ def check_axes(axes: Sequence[SparseAxisInput]) -> None:
             "colouring names a position along it, so it has to pick one axis."
         )
 
-    empty = [axis.name for axis in axes if not _identifications(axis)]
-    if empty:
-        raise SparseDeclarationError(
-            f"The axes {empty} have an empty `identifiedBy`. An axis of a sparse matrix is "
-            "positions and nothing else, so one that does not say what they are is one no "
-            "source could ever key -- there is no FIELD edge onto it and no colouring along "
-            "it. Name a mask, a collection, or the table whose rows the positions are."
-        )
-
     # `keyed` is not "the axes with no table on them". Fan-in is legal -- one axis may carry a
     # mask *and* the table its positions enumerate -- so an axis can have a table and still be
     # keyed. The server's own predicate is over every identification on every axis, and the
-    # kinds that key are the kinds that author an edge (`core/inputs/identification.py:67`).
+    # kinds that key are the kinds that author an edge (`AUTHORS_EDGE` on the server's
+    # identification inputs).
     if not any(_enum_value(entry.kind) != "TABLE" for axis in axes for entry in _identifications(axis)):
         raise SparseDeclarationError(
             "Every axis is identified by a table, so nothing keys this matrix: no FIELD edge "

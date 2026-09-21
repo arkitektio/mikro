@@ -14,10 +14,10 @@ from rath.links.graphql_ws import GraphQLWSLink
 from graphql import OperationType
 from mikro.datalayer import DataLayer
 from mikro.middleware.upload import UploadMiddleware
-from mikro.mikro import MikroNext
+from mikro.mikro import Mikro
 from mikro.rath import (
-    MikroNextLinkComposition,
-    MikroNextRath,
+    MikroLinkComposition,
+    MikroRath,
     SplitLink,
 )
 
@@ -77,12 +77,12 @@ def integration_ports() -> Generator[dict[str, int], None, None]:
     an unpublished port reads back as ``None`` and the test URLs would quietly
     become ``http://localhost:None`` instead of failing loudly.
     """
-    mikro_port, minio_port = _reserve_free_ports(2)
-    env = {"MIKRO_HOST_PORT": str(mikro_port), "MINIO_HOST_PORT": str(minio_port)}
+    mikro_port, rustfs_port = _reserve_free_ports(2)
+    env = {"MIKRO_HOST_PORT": str(mikro_port), "RUSTFS_HOST_PORT": str(rustfs_port)}
     previous = {key: os.environ.get(key) for key in env}
     os.environ.update(env)
     try:
-        yield {"mikro": mikro_port, "minio": minio_port}
+        yield {"mikro": mikro_port, "rustfs": rustfs_port}
     finally:
         for key, value in previous.items():
             if value is None:
@@ -107,25 +107,25 @@ async def token_loader() -> str:
 
 @dataclass
 class DeployedMikro:
-    """Dataclass to hold the deployed MikroNext application and its components."""
+    """Dataclass to hold the deployed Mikro application and its components."""
 
     deployment: Deployment
     mikro_watcher: LogWatcher
-    minio_watcher: LogWatcher
-    mikro: MikroNext
+    rustfs_watcher: LogWatcher
+    mikro: Mikro
 
 
 @pytest.fixture(scope="session")
 def deployed_app(integration_ports: dict[str, int]) -> Generator[DeployedMikro, None, None]:
-    """Fixture to deploy the MikroNext application with Docker Compose.
+    """Fixture to deploy the Mikro application with Docker Compose.
 
-    This fixture sets up the MikroNext application using Docker Compose,
-    configures health checks, and provides a deployed instance of MikroNext
-    for testing purposes. It also includes watchers for the Mikro and MinIO
+    This fixture sets up the Mikro application using Docker Compose,
+    configures health checks, and provides a deployed instance of Mikro
+    for testing purposes. It also includes watchers for the Mikro and RustFS
     services to monitor their logs, when performing requests against the application.
 
     Yields:
-        DeployedMikro: An instance containing the deployment, watchers, and MikroNext instance
+        DeployedMikro: An instance containing the deployment, watchers, and Mikro instance
 
     """
     setup = testing(compose_files)
@@ -139,7 +139,7 @@ def deployed_app(integration_ports: dict[str, int]) -> Generator[DeployedMikro, 
     )
 
     watcher = setup.create_watcher("mikro")
-    minio_watcher = setup.create_watcher("minio")
+    rustfs_watcher = setup.create_watcher("rustfs")
 
     with setup:
         # dokker >= 2.6 does nothing on enter: the spec below has to be resolved
@@ -151,16 +151,16 @@ def deployed_app(integration_ports: dict[str, int]) -> Generator[DeployedMikro, 
         setup.pull()
         setup.inspect()
 
-        minio_url = f"http://localhost:{setup.spec.find_service('minio').get_port_for_internal(9000).published}"
+        rustfs_url = f"http://localhost:{setup.spec.find_service('rustfs').get_port_for_internal(9000).published}"
         mikro_http_url = f"http://localhost:{setup.spec.find_service('mikro').get_port_for_internal(80).published}/graphql"
         mikro_ws_url = f"ws://localhost:{setup.spec.find_service('mikro').get_port_for_internal(80).published}/graphql"
 
         datalayer = DataLayer(
-            endpoint_url=minio_url,
+            endpoint_url=rustfs_url,
         )
 
-        y = MikroNextRath(
-            link=MikroNextLinkComposition(
+        y = MikroRath(
+            link=MikroLinkComposition(
                 auth=ComposedAuthLink(token_loader=token_loader, token_refresher=token_loader),
                 split=SplitLink(
                     left=AIOHttpLink(endpoint_url=mikro_http_url),
@@ -173,7 +173,7 @@ def deployed_app(integration_ports: dict[str, int]) -> Generator[DeployedMikro, 
             ],
         )
 
-        mikro = MikroNext(
+        mikro = Mikro(
             datalayer=datalayer,
             rath=y,
         )
@@ -188,8 +188,14 @@ def deployed_app(integration_ports: dict[str, int]) -> Generator[DeployedMikro, 
             deployed = DeployedMikro(
                 deployment=setup,
                 mikro_watcher=watcher,
-                minio_watcher=minio_watcher,
+                rustfs_watcher=rustfs_watcher,
                 mikro=mikro,
             )
 
             yield deployed
+
+
+@pytest.fixture(scope="session")
+def mikro(deployed_app: DeployedMikro) -> Mikro:
+    """The deployment's client: API calls are its methods, nothing is ambient."""
+    return deployed_app.mikro

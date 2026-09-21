@@ -1,4 +1,4 @@
-"""Upload middleware for the funcs API.
+"""Upload middleware for the operations.
 
 This middleware intercepts serialized operation variables and uploads
 uploadable types (ArrayLike, ParquetLike, SporadikLike, etc.) to the datalayer
@@ -40,7 +40,7 @@ from mikro.io.upload import (
     # Sync paths (obstore)
     upload_xarray,
 )
-from mikro.middleware.base import FuncsMiddleware
+from mikro.middleware.base import OperationMiddleware
 from mikro.scalars import (
     ArrayLike,
     FabriksLike,
@@ -60,7 +60,7 @@ if TYPE_CHECKING:
         SparseUploadGrant,
         ZarrUploadGrant,
     )
-    from mikro.rath import MikroNextRath
+    from mikro.rath import MikroRath
 
 from rath.turms.funcs import TOperation
 
@@ -112,7 +112,7 @@ def _apply_recursive_sync(
         return obj
 
 
-class UploadMiddleware(FuncsMiddleware):
+class UploadMiddleware(OperationMiddleware):
     """Middleware that uploads supported data types to the datalayer.
 
     This middleware walks the serialized variables dict, finds instances of
@@ -153,7 +153,7 @@ class UploadMiddleware(FuncsMiddleware):
     # ====================================================================
 
     def _get_zarr_credentials(
-        self, key: str, datalayer: str, rath: "MikroNextRath"
+        self, key: str, datalayer: str, rath: "MikroRath"
     ) -> "ZarrUploadGrant":
         """Get zarr upload credentials synchronously."""
         from mikro.api.schema import (
@@ -169,7 +169,7 @@ class UploadMiddleware(FuncsMiddleware):
         )
         return RequestZarrUploadMutation(**x.data).request_zarr_upload
 
-    def _finish_zarr_upload(self, store_id: str, rath: "MikroNextRath") -> None:
+    def _finish_zarr_upload(self, store_id: str, rath: "MikroRath") -> None:
         """Finish zarr upload synchronously."""
         from mikro.api.schema import (
             FinishZarrUploadInput,
@@ -184,7 +184,7 @@ class UploadMiddleware(FuncsMiddleware):
         )
 
     def _get_fabriks_credentials(
-        self, key: str, datalayer: str, rath: "MikroNextRath"
+        self, key: str, datalayer: str, rath: "MikroRath"
     ) -> "FabriksUploadGrant":
         """Get fabriks upload credentials synchronously.
 
@@ -204,7 +204,7 @@ class UploadMiddleware(FuncsMiddleware):
         )
         return RequestFabriksUploadMutation(**x.data).request_fabriks_upload
 
-    def _finish_fabriks_upload(self, store_id: str, rath: "MikroNextRath") -> None:
+    def _finish_fabriks_upload(self, store_id: str, rath: "MikroRath") -> None:
         """Finish a fabriks upload synchronously.
 
         The completion protocol, not a formality: the server reads the prefix's `fabriks.json`
@@ -224,7 +224,7 @@ class UploadMiddleware(FuncsMiddleware):
         )
 
     def _get_konnektion_credentials(
-        self, key: str, datalayer: str, rath: "MikroNextRath"
+        self, key: str, datalayer: str, rath: "MikroRath"
     ) -> "KonnektionUploadGrant":
         """Get konnektion upload credentials synchronously.
 
@@ -244,7 +244,7 @@ class UploadMiddleware(FuncsMiddleware):
         )
         return RequestKonnektionUploadMutation(**x.data).request_konnektion_upload
 
-    def _finish_konnektion_upload(self, store_id: str, rath: "MikroNextRath") -> None:
+    def _finish_konnektion_upload(self, store_id: str, rath: "MikroRath") -> None:
         """Finish a konnektion upload synchronously.
 
         The completion protocol, not a formality: the server reads the prefix's `konnektion.json`
@@ -264,7 +264,7 @@ class UploadMiddleware(FuncsMiddleware):
         )
 
     def _get_sparse_credentials(
-        self, key: str, datalayer: str, rath: "MikroNextRath"
+        self, key: str, datalayer: str, rath: "MikroRath"
     ) -> "SparseUploadGrant":
         """Get sparse upload credentials synchronously.
 
@@ -284,7 +284,7 @@ class UploadMiddleware(FuncsMiddleware):
         )
         return RequestSparseUploadMutation(**x.data).request_sparse_upload
 
-    def _finish_sparse_upload(self, store_id: str, rath: "MikroNextRath") -> None:
+    def _finish_sparse_upload(self, store_id: str, rath: "MikroRath") -> None:
         """Finish a sparse upload synchronously.
 
         Where the server reads the group back: the encoding, the shape, the nnz and the chunking
@@ -305,7 +305,7 @@ class UploadMiddleware(FuncsMiddleware):
         )
 
     def _get_table_credentials(
-        self, key: str, datalayer: str, rath: "MikroNextRath"
+        self, key: str, datalayer: str, rath: "MikroRath"
     ) -> "ParquetUploadGrant":
         """Get table upload credentials synchronously."""
         from mikro.api.schema import (
@@ -322,7 +322,7 @@ class UploadMiddleware(FuncsMiddleware):
         return RequestParquetUploadMutation(**x.data).request_parquet_upload
 
     def _get_bigfile_credentials(
-        self, file: FileLike, datalayer: str, rath: "MikroNextRath"
+        self, file: FileLike, datalayer: str, rath: "MikroRath"
     ) -> "BigFileUploadGrant":
         """Get big file upload credentials synchronously."""
         from mikro.api.schema import (
@@ -341,7 +341,7 @@ class UploadMiddleware(FuncsMiddleware):
         return RequestBigfileUploadMutation(**x.data).request_bigfile_upload
 
     def _request_media_credentials(
-        self, file_name: str, datalayer: str, rath: "MikroNextRath"
+        self, file_name: str, datalayer: str, rath: "MikroRath"
     ) -> "MediaUploadGrant":
         """Get media upload credentials synchronously."""
         from mikro.api.schema import (
@@ -362,7 +362,7 @@ class UploadMiddleware(FuncsMiddleware):
     # ====================================================================
 
     async def _aget_zarr_credentials(
-        self, key: str, datalayer: str, rath: "MikroNextRath"
+        self, key: str, datalayer: str, rath: "MikroRath"
     ) -> "ZarrUploadGrant":
         """Get zarr upload credentials asynchronously."""
         from mikro.api.schema import (
@@ -378,7 +378,7 @@ class UploadMiddleware(FuncsMiddleware):
         )
         return RequestZarrUploadMutation(**x.data).request_zarr_upload
 
-    async def _afinish_zarr_upload(self, store_id: str, rath: "MikroNextRath") -> None:
+    async def _afinish_zarr_upload(self, store_id: str, rath: "MikroRath") -> None:
         """Finish zarr upload asynchronously."""
         from mikro.api.schema import (
             FinishZarrUploadInput,
@@ -393,7 +393,7 @@ class UploadMiddleware(FuncsMiddleware):
         )
 
     async def _aget_fabriks_credentials(
-        self, key: str, datalayer: str, rath: "MikroNextRath"
+        self, key: str, datalayer: str, rath: "MikroRath"
     ) -> "FabriksUploadGrant":
         """Get fabriks upload credentials asynchronously."""
         from mikro.api.schema import (
@@ -409,7 +409,7 @@ class UploadMiddleware(FuncsMiddleware):
         )
         return RequestFabriksUploadMutation(**x.data).request_fabriks_upload
 
-    async def _afinish_fabriks_upload(self, store_id: str, rath: "MikroNextRath") -> None:
+    async def _afinish_fabriks_upload(self, store_id: str, rath: "MikroRath") -> None:
         """Finish a fabriks upload asynchronously."""
         from mikro.api.schema import (
             FinishFabriksUploadInput,
@@ -424,7 +424,7 @@ class UploadMiddleware(FuncsMiddleware):
         )
 
     async def _aget_konnektion_credentials(
-        self, key: str, datalayer: str, rath: "MikroNextRath"
+        self, key: str, datalayer: str, rath: "MikroRath"
     ) -> "KonnektionUploadGrant":
         """Get konnektion upload credentials asynchronously."""
         from mikro.api.schema import (
@@ -440,7 +440,7 @@ class UploadMiddleware(FuncsMiddleware):
         )
         return RequestKonnektionUploadMutation(**x.data).request_konnektion_upload
 
-    async def _afinish_konnektion_upload(self, store_id: str, rath: "MikroNextRath") -> None:
+    async def _afinish_konnektion_upload(self, store_id: str, rath: "MikroRath") -> None:
         """Finish a konnektion upload asynchronously."""
         from mikro.api.schema import (
             FinishKonnektionUploadInput,
@@ -455,7 +455,7 @@ class UploadMiddleware(FuncsMiddleware):
         )
 
     async def _aget_sparse_credentials(
-        self, key: str, datalayer: str, rath: "MikroNextRath"
+        self, key: str, datalayer: str, rath: "MikroRath"
     ) -> "SparseUploadGrant":
         """Get sparse upload credentials asynchronously."""
         from mikro.api.schema import (
@@ -471,7 +471,7 @@ class UploadMiddleware(FuncsMiddleware):
         )
         return RequestSparseUploadMutation(**x.data).request_sparse_upload
 
-    async def _afinish_sparse_upload(self, store_id: str, rath: "MikroNextRath") -> None:
+    async def _afinish_sparse_upload(self, store_id: str, rath: "MikroRath") -> None:
         """Finish a sparse upload asynchronously."""
         from mikro.api.schema import (
             FinishSparseUploadInput,
@@ -486,7 +486,7 @@ class UploadMiddleware(FuncsMiddleware):
         )
 
     async def _aget_table_credentials(
-        self, key: str, datalayer: str, rath: "MikroNextRath"
+        self, key: str, datalayer: str, rath: "MikroRath"
     ) -> "ParquetUploadGrant":
         """Get table upload credentials asynchronously."""
         from mikro.api.schema import (
@@ -503,7 +503,7 @@ class UploadMiddleware(FuncsMiddleware):
         return RequestParquetUploadMutation(**x.data).request_parquet_upload
 
     async def _aget_bigfile_credentials(
-        self, file: FileLike, datalayer: str, rath: "MikroNextRath"
+        self, file: FileLike, datalayer: str, rath: "MikroRath"
     ) -> "BigFileUploadGrant":
         """Get big file upload credentials asynchronously."""
         from mikro.api.schema import (
@@ -522,7 +522,7 @@ class UploadMiddleware(FuncsMiddleware):
         return RequestBigfileUploadMutation(**x.data).request_bigfile_upload
 
     async def _arequest_media_credentials(
-        self, file_name: str, datalayer: str, rath: "MikroNextRath"
+        self, file_name: str, datalayer: str, rath: "MikroRath"
     ) -> "MediaUploadGrant":
         """Get media upload credentials asynchronously."""
         from mikro.api.schema import (
@@ -549,7 +549,7 @@ class UploadMiddleware(FuncsMiddleware):
         return self._cached_datalayer_url
 
     def _upload_xarray(
-        self, datalayer: "DataLayer", rath: "MikroNextRath", xarray: ArrayLike
+        self, datalayer: "DataLayer", rath: "MikroRath", xarray: ArrayLike
     ) -> str:
         """Upload an xarray synchronously via obstore."""
         endpoint_url = self.get_datalayer_url()
@@ -562,7 +562,7 @@ class UploadMiddleware(FuncsMiddleware):
     def _upload_parquet(
         self,
         datalayer: "DataLayer",
-        rath: "MikroNextRath",
+        rath: "MikroRath",
         parquet_input: ParquetLike,
     ) -> str:
         """Upload a Parquet file synchronously."""
@@ -571,7 +571,7 @@ class UploadMiddleware(FuncsMiddleware):
         credentials = self._get_table_credentials(parquet_input.key, endpoint_url, rath)
         return upload_parquet(parquet_input, credentials, datalayer)
 
-    def _upload_bigfile(self, datalayer: "DataLayer", rath: "MikroNextRath", file: FileLike) -> str:
+    def _upload_bigfile(self, datalayer: "DataLayer", rath: "MikroRath", file: FileLike) -> str:
         """Upload a big file synchronously via obstore."""
         endpoint_url = self.get_datalayer_url()
 
@@ -579,7 +579,7 @@ class UploadMiddleware(FuncsMiddleware):
         return upload_bigfile(file, credentials, datalayer)
 
     def _upload_mediafile(
-        self, datalayer: "DataLayer", rath: "MikroNextRath", file: ImageFileLike
+        self, datalayer: "DataLayer", rath: "MikroRath", file: ImageFileLike
     ) -> str:
         """Upload a media file synchronously via obstore."""
         endpoint_url = self.get_datalayer_url()
@@ -588,7 +588,7 @@ class UploadMiddleware(FuncsMiddleware):
         return store_media_file(file, credentials, datalayer)
 
     def _store_fabriks(
-        self, datalayer: "DataLayer", rath: "MikroNextRath", collection: FabriksLike
+        self, datalayer: "DataLayer", rath: "MikroRath", collection: FabriksLike
     ) -> str:
         """Write a fabriks collection into a granted prefix and register it as complete."""
         endpoint_url = self.get_datalayer_url()
@@ -599,7 +599,7 @@ class UploadMiddleware(FuncsMiddleware):
         return store_id
 
     def _store_konnektion(
-        self, datalayer: "DataLayer", rath: "MikroNextRath", collection: KonnektionLike
+        self, datalayer: "DataLayer", rath: "MikroRath", collection: KonnektionLike
     ) -> str:
         """Write a konnektion collection into a granted prefix and register it as complete."""
         endpoint_url = self.get_datalayer_url()
@@ -610,7 +610,7 @@ class UploadMiddleware(FuncsMiddleware):
         return store_id
 
     def _store_sparse(
-        self, datalayer: "DataLayer", rath: "MikroNextRath", sparse: SporadikLike
+        self, datalayer: "DataLayer", rath: "MikroRath", sparse: SporadikLike
     ) -> str:
         """Write a sparse matrix into a granted prefix and register it as complete."""
         endpoint_url = self.get_datalayer_url()
@@ -625,7 +625,7 @@ class UploadMiddleware(FuncsMiddleware):
     # ====================================================================
 
     async def _aupload_xarray(
-        self, datalayer: "DataLayer", rath: "MikroNextRath", xarray: ArrayLike
+        self, datalayer: "DataLayer", rath: "MikroRath", xarray: ArrayLike
     ) -> str:
         """Upload an xarray asynchronously."""
         endpoint_url = await datalayer.get_endpoint_url()
@@ -638,7 +638,7 @@ class UploadMiddleware(FuncsMiddleware):
     async def _aupload_parquet(
         self,
         datalayer: "DataLayer",
-        rath: "MikroNextRath",
+        rath: "MikroRath",
         parquet_input: ParquetLike,
     ) -> str:
         """Upload a Parquet file asynchronously."""
@@ -648,7 +648,7 @@ class UploadMiddleware(FuncsMiddleware):
         return await aupload_parquet(parquet_input, credentials, datalayer, self._executor_session)
 
     async def _aupload_bigfile(
-        self, datalayer: "DataLayer", rath: "MikroNextRath", file: FileLike
+        self, datalayer: "DataLayer", rath: "MikroRath", file: FileLike
     ) -> str:
         """Upload a big file asynchronously."""
         endpoint_url = await datalayer.get_endpoint_url()
@@ -657,7 +657,7 @@ class UploadMiddleware(FuncsMiddleware):
         return await aupload_bigfile(file, credentials, datalayer)
 
     async def _aupload_mediafile(
-        self, datalayer: "DataLayer", rath: "MikroNextRath", file: ImageFileLike
+        self, datalayer: "DataLayer", rath: "MikroRath", file: ImageFileLike
     ) -> str:
         """Upload a media file asynchronously."""
         endpoint_url = await datalayer.get_endpoint_url()
@@ -666,7 +666,7 @@ class UploadMiddleware(FuncsMiddleware):
         return await astore_media_file(file, credentials, datalayer)
 
     async def _astore_fabriks(
-        self, datalayer: "DataLayer", rath: "MikroNextRath", collection: FabriksLike
+        self, datalayer: "DataLayer", rath: "MikroRath", collection: FabriksLike
     ) -> str:
         """Write a fabriks collection into a granted prefix and register it as complete."""
         endpoint_url = await datalayer.get_endpoint_url()
@@ -677,7 +677,7 @@ class UploadMiddleware(FuncsMiddleware):
         return store_id
 
     async def _astore_konnektion(
-        self, datalayer: "DataLayer", rath: "MikroNextRath", collection: KonnektionLike
+        self, datalayer: "DataLayer", rath: "MikroRath", collection: KonnektionLike
     ) -> str:
         """Write a konnektion collection into a granted prefix and register it as complete."""
         endpoint_url = await datalayer.get_endpoint_url()
@@ -688,7 +688,7 @@ class UploadMiddleware(FuncsMiddleware):
         return store_id
 
     async def _astore_sparse(
-        self, datalayer: "DataLayer", rath: "MikroNextRath", sparse: SporadikLike
+        self, datalayer: "DataLayer", rath: "MikroRath", sparse: SporadikLike
     ) -> str:
         """Write a sparse matrix into a granted prefix and register it as complete."""
         endpoint_url = await datalayer.get_endpoint_url()
@@ -706,7 +706,7 @@ class UploadMiddleware(FuncsMiddleware):
         self,
         variables: dict[str, Any],
         operation: type[TOperation],
-        rath: "MikroNextRath",
+        rath: "MikroRath",
     ) -> dict[str, Any]:
         """Process serialized variables synchronously (obstore path).
 
@@ -765,7 +765,7 @@ class UploadMiddleware(FuncsMiddleware):
         self,
         variables: dict[str, Any],
         operation: type[TOperation],
-        rath: "MikroNextRath",
+        rath: "MikroRath",
     ) -> dict[str, Any]:
         """Process serialized variables asynchronously (obstore path).
 

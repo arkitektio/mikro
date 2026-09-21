@@ -36,8 +36,9 @@ import xarray as xr
 from scipy.stats import gamma
 from sporadik import SparseArray
 
-from mikro import Unit, create_space, dataset_arrays
 from arkitekt import easy
+from mikro import Unit, create_space, dataset_arrays, mikro_service
+from mikro.mikro import Mikro
 from mikro.api.schema import (
     AxisType,
     Blending,
@@ -51,17 +52,9 @@ from mikro.api.schema import (
     SparseAxisInput,
     TableIdentifiesInput,
     ValueRelation,
-    create_array_dataset,
-    create_label_layer,
-    create_layer,
-    create_lens,
-    create_scene,
-    create_sparse_dataset,
-    create_table_dataset,
-    create_volume_layer,
 )
-from mikro.picker import label_render, measure_color_by, sparse_color_by
-from mikro.render import channel_graph
+from mikro.inputs.picker import label_render, measure_color_by, sparse_color_by
+from mikro.inputs.render import channel_graph
 
 # --------------------------------------------------------------------------- #
 # Configuration
@@ -228,15 +221,15 @@ if __name__ == "__main__":
         raise SystemExit(0)
 
     # Reusing a sibling generator's cached grant (see generator_smlm.py).
-    with easy(identifier="neuron-overlay") as app:
-        world = create_space(
+    with easy("neuron-overlay", mikro_service) as mikro:
+        world = create_space(mikro, 
             "fMRI · head",
             {"t": Unit("second"), "z": Unit("millimeter"), "y": Unit("millimeter"), "x": Unit("millimeter")},
         )
 
         print("Uploading BOLD…")
         bold_data, bold_scales = dataset_arrays(bold, levels=2, method="max")
-        bold_ds = create_array_dataset(
+        bold_ds = mikro.create_array_dataset(
             data=bold_data,
             scales=bold_scales,
             name="fMRI · BOLD",
@@ -246,7 +239,7 @@ if __name__ == "__main__":
         world.register(bold_ds, scale={"t": TR, "z": VOX_MM, "y": VOX_MM, "x": VOX_MM})
 
         print("Uploading z-map and regions…")
-        zmap_ds = create_array_dataset(
+        zmap_ds = mikro.create_array_dataset(
             data=xr.DataArray(zmap, dims=("z", "y", "x"), name="zmap"),
             scales=[],
             name="fMRI · activation z-map",
@@ -260,7 +253,7 @@ if __name__ == "__main__":
                 )
             ],
         )
-        labels_ds = create_array_dataset(
+        labels_ds = mikro.create_array_dataset(
             data=xr.DataArray(labels, dims=("z", "y", "x")),
             scales=[],
             name="fMRI · regions",
@@ -284,7 +277,7 @@ if __name__ == "__main__":
                 "amplitude_pct": [amp for *_, amp in REGIONS.values()],
             }
         )
-        table = create_table_dataset(
+        table = mikro.create_table_dataset(
             name="fMRI · ROI stats",
             data=stats,
             columns=[
@@ -295,7 +288,7 @@ if __name__ == "__main__":
                 ColumnInput(name="amplitude_pct", role=ColumnRole.ATTRIBUTE, long_name="response amplitude (%)"),
             ],
         )
-        frame_table = create_table_dataset(
+        frame_table = mikro.create_table_dataset(
             name="fMRI · frames",
             data={"frame": np.arange(FRAMES, dtype=np.int64),
                   "time_s": (np.arange(FRAMES) * TR).astype(np.float64),
@@ -306,7 +299,7 @@ if __name__ == "__main__":
                 ColumnInput(name="task_on", role=ColumnRole.ATTRIBUTE, long_name="task block"),
             ],
         )
-        psc_matrix = create_sparse_dataset(
+        psc_matrix = mikro.create_sparse_dataset(
             name="fMRI · percent signal change",
             store=matrix,
             axes=[
@@ -319,13 +312,13 @@ if __name__ == "__main__":
         )
 
         print("Composing the scene…")
-        scene = create_scene(name="fMRI · block design", coordinate_system=world.id)
+        scene = mikro.create_scene(name="fMRI · block design", coordinate_system=world.id)
 
         # The anatomy underlay: the BOLD series itself, grey, MIP through z while
         # the time slider walks t (the timelapse-3D pattern).
-        create_layer(
+        mikro.create_layer(
             scene=scene,
-            lens=create_lens(bold_ds, slices=[]),
+            lens=mikro.create_lens(bold_ds, slices=[]),
             render_graph=channel_graph(
                 colormap=ColorMap.GREY,
                 intensity_axis=None,
@@ -337,7 +330,7 @@ if __name__ == "__main__":
         )
         # The activation overlay: thresholded by its contrast window — clim_min at
         # the significance cutoff is what a layer has instead of a z threshold.
-        create_volume_layer(
+        mikro.create_volume_layer(
             lens=zmap_ds.lens(),
             scene=scene.id,
             mode=ProjectionMode.MIP,
@@ -348,7 +341,7 @@ if __name__ == "__main__":
             opacity=0.9,
             order=1,
         )
-        label_layer = create_label_layer(
+        label_layer = mikro.create_label_layer(
             lens=labels_ds.lens().id,
             scene=scene.id,
             render=label_render(

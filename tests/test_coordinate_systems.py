@@ -30,6 +30,7 @@ import numpy as np
 import pytest
 import xarray as xr
 
+from mikro.mikro import Mikro
 from mikro import canonical, dataset_arrays, space_3d
 from mikro.api.schema import (
     AnnotationKind,
@@ -44,9 +45,6 @@ from mikro.api.schema import (
     ScenePolicyInput,
     TransformKind,
     ValueRelation,
-    create_array_dataset,
-    get_coordinate_graph,
-    get_scene,
 )
 
 from .conftest import DeployedMikro
@@ -92,7 +90,7 @@ def _ome(name: str) -> OmeMetadataInput:
     )
 
 
-def _upload(data: xr.DataArray, name: str) -> ArrayDataset:
+def _upload(mikro: Mikro, data: xr.DataArray, name: str) -> ArrayDataset:
     """A two-level dataset with one contrast window per channel.
 
     ``dataset_arrays`` returns level 0 and the coarser levels already split the
@@ -100,7 +98,7 @@ def _upload(data: xr.DataArray, name: str) -> ArrayDataset:
     ``scales`` as well would upload it twice.
     """
     pyramid, scales = dataset_arrays(data, levels=2, method="mean")
-    return create_array_dataset(
+    return mikro.create_array_dataset(
         data=pyramid,
         scales=scales,
         name=name,
@@ -156,17 +154,17 @@ class Placed(NamedTuple):
 
 
 @pytest.fixture(scope="module")
-def registered_dataset(deployed_app: DeployedMikro) -> Placed:
+def registered_dataset(mikro: Mikro, deployed_app: DeployedMikro) -> Placed:
     """One world, one dataset in it -- uploaded once for the tests below."""
-    world = space_3d("registered world (micrometers)", unit="micrometer")
+    world = space_3d(deployed_app.mikro, "registered world (micrometers)", unit="micrometer")
     data = _volume(seed=0)
-    dataset = _upload(data, "coordsys_registered")
+    dataset = _upload(mikro, data, "coordsys_registered")
     world.register(dataset, scale={d: VOXEL_UM for d in ("z", "y", "x")})
     return Placed(world=world, dataset=dataset, data=data)
 
 
 @pytest.fixture(scope="module")
-def derived_dataset(registered_dataset: Placed) -> tuple[ArrayDataset, ArrayDataset]:
+def derived_dataset(mikro: Mikro, registered_dataset: Placed) -> tuple[ArrayDataset, ArrayDataset]:
     """A thresholded child hung off the source's lens by an identity edge.
 
     ``isel(c=0)`` drops the singleton channel axis so the threshold walks the
@@ -183,7 +181,7 @@ def derived_dataset(registered_dataset: Placed) -> tuple[ArrayDataset, ArrayData
     # The segmentation shares the source's grid exactly, so its edge back to the
     # lens is an IDENTITY and it carries no physical space of its own; that is
     # reached by composing this edge with the source's registration.
-    derived = create_array_dataset(
+    derived = mikro.create_array_dataset(
         data=data,
         scales=[],
         name="coordsys_thresholded",
@@ -202,7 +200,7 @@ def derived_dataset(registered_dataset: Placed) -> tuple[ArrayDataset, ArrayData
 @pytest.mark.integration
 def test_space_3d_creates_a_physical_space(deployed_app: DeployedMikro) -> None:
     """A physical space is ordinary and ownerless: (z, y, x) in one length unit."""
-    world = space_3d("a micrometer world", unit="micrometer")
+    world = space_3d(deployed_app.mikro, "a micrometer world", unit="micrometer")
 
     assert world.id, "Space should have an ID"
     assert world.name == "a micrometer world"
@@ -212,18 +210,18 @@ def test_space_3d_creates_a_physical_space(deployed_app: DeployedMikro) -> None:
 
 
 @pytest.mark.integration
-def test_register_places_a_dataset_in_the_world(deployed_app: DeployedMikro) -> None:
+def test_register_places_a_dataset_in_the_world(mikro: Mikro, deployed_app: DeployedMikro) -> None:
     """`register` authors one BY_DIMENSION edge over the axes the spaces share.
 
     The channel axis is deliberately not claimed: it is not a position, and a
     physical space has no business naming it.
     """
-    world = space_3d("placement world (micrometers)", unit="micrometer")
-    dataset = _upload(_volume(seed=1), "coordsys_placed")
+    world = space_3d(deployed_app.mikro, "placement world (micrometers)", unit="micrometer")
+    dataset = _upload(mikro, _volume(seed=1), "coordsys_placed")
 
     world.register(dataset, scale={d: VOXEL_UM for d in ("z", "y", "x")})
 
-    graph = get_coordinate_graph(coordinate_system=world.id)
+    graph = deployed_app.mikro.get_coordinate_graph(coordinate_system=world.id)
     intrinsic = dataset.intrinsic_system
     assert intrinsic is not None, "Dataset should carry its own pixel grid"
     assert str(intrinsic.id) in {str(s.id) for s in graph.systems}, (
@@ -270,7 +268,7 @@ def test_histogram_anchors_splits_on_the_channel_axis(
     assert [a.axis_anchors[0].value for a in anchors] == [0, 1]
     assert {a.axis_anchors[0].axis for a in anchors} == {"c"}
 
-    dataset = create_array_dataset(
+    dataset = deployed_app.mikro.create_array_dataset(
         data=two_channels,
         scales=[],
         name="coordsys_two_channel",
@@ -291,15 +289,15 @@ def test_histogram_anchors_splits_on_the_channel_axis(
 
 
 @pytest.mark.integration
-def test_stage_composes_registered_datasets(deployed_app: DeployedMikro) -> None:
+def test_stage_composes_registered_datasets(mikro: Mikro, deployed_app: DeployedMikro) -> None:
     """A scene composes over a space; what can be drawn was decided by `register`.
 
     Both datasets are registered before staging -- staging in between would
     simply miss the second one.
     """
-    world = space_3d("staged world (micrometers)", unit="micrometer")
+    world = space_3d(deployed_app.mikro, "staged world (micrometers)", unit="micrometer")
     for index in (4, 5):
-        dataset = _upload(_volume(seed=index), f"coordsys_staged_{index}")
+        dataset = _upload(mikro, _volume(seed=index), f"coordsys_staged_{index}")
         world.register(dataset, scale={d: VOXEL_UM for d in ("z", "y", "x")})
 
     # Z-stacks, so the layer recipe is a max-intensity projection over z.
@@ -312,11 +310,12 @@ def test_stage_composes_registered_datasets(deployed_app: DeployedMikro) -> None
     assert str(scene.world_coordinate_system.id) == str(world.id), (
         "The scene adopts the space it was staged from as its world"
     )
-    assert str(get_scene(id=scene.id).id) == str(scene.id), "Scene should round-trip"
+    assert str(deployed_app.mikro.get_scene(id=scene.id).id) == str(scene.id), "Scene should round-trip"
 
 
 @pytest.mark.integration
 def test_the_multiscale_edge_parses_with_its_children(
+    mikro: Mikro,
     registered_dataset: Placed,
 ) -> None:
     """Every edge in the graph resolves to its concrete type, children included.
@@ -326,7 +325,7 @@ def test_the_multiscale_edge_parses_with_its_children(
     down with it -- the pyramid's own downscale edge used to come back as a
     fieldless CatchAll. This is the regression test for that.
     """
-    graph = get_coordinate_graph(coordinate_system=registered_dataset.world.id)
+    graph = mikro.get_coordinate_graph(coordinate_system=registered_dataset.world.id)
     # Typed loosely on purpose: these are heterogeneous unions whose useful
     # fields live on the variants, exactly as in ``_edge`` above.
     edges: list[Any] = list(graph.transformations)
@@ -367,7 +366,7 @@ def test_lens_reads_back_the_volume(registered_dataset: Placed) -> None:
 
 
 @pytest.mark.integration
-def test_draw_annotates_the_lens(registered_dataset: Placed) -> None:
+def test_draw_annotates_the_lens(mikro: Mikro, registered_dataset: Placed) -> None:
     """Vectors are read in the lens' own coordinate system; the last axis is (z, y, x).
 
     The drawing is not filed *in* the lens' space -- it gets a space of its own,
@@ -392,7 +391,7 @@ def test_draw_annotates_the_lens(registered_dataset: Placed) -> None:
         "The drawing space mirrors the axes of the surface it was drawn on"
     )
 
-    edge = _edge(get_coordinate_graph(coordinate_system=drawing.id), drawing.id, surface.id)
+    edge = _edge(mikro.get_coordinate_graph(coordinate_system=drawing.id), drawing.id, surface.id)
     assert edge.kind == TransformKind.IDENTITY, (
         "Same axes, same voxels: the drawing sits exactly on the surface"
     )

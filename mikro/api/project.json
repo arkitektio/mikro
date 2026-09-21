@@ -197,7 +197,17 @@
                     "type": "turms.plugins.operations.OperationsPlugin"
                 },
                 {
-                    "type": "turms.plugins.funcs.FuncsPlugin",
+                    "type": "turms.plugins.client.ClientPlugin",
+                    "client_class": "MikroApi",
+                    "reserved_from": [
+                        "koil.composition.Composition"
+                    ],
+                    "reserved_names": [
+                        "rath",
+                        "datalayer",
+                        "task_token",
+                        "for_task"
+                    ],
                     "coercible_scalars": {
                         "ArrayLike": "mikro.scalars.ArrayCoercible",
                         "ImageFileLike": "mikro.scalars.ImageFileCoercible",
@@ -213,42 +223,6 @@
                     },
                     "expand_input_types": [
                         "input"
-                    ],
-                    "global_kwargs": [
-                        {
-                            "type": "mikro.rath.MikroNextRath",
-                            "key": "rath",
-                            "description": "The mikro rath client"
-                        }
-                    ],
-                    "definitions": [
-                        {
-                            "type": "subscription",
-                            "is_async": true,
-                            "use": "mikro.funcs.asubscribe"
-                        },
-                        {
-                            "type": "query",
-                            "is_async": true,
-                            "use": "mikro.funcs.aexecute"
-                        },
-                        {
-                            "type": "mutation",
-                            "is_async": true,
-                            "use": "mikro.funcs.aexecute"
-                        },
-                        {
-                            "type": "subscription",
-                            "use": "mikro.funcs.subscribe"
-                        },
-                        {
-                            "type": "query",
-                            "use": "mikro.funcs.execute"
-                        },
-                        {
-                            "type": "mutation",
-                            "use": "mikro.funcs.execute"
-                        }
                     ]
                 }
             ],

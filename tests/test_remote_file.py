@@ -315,12 +315,23 @@ class _File(FileTrait):
         self.store = store
 
 
+def _bound(obj):  # noqa: ANN001, ANN202
+    """Give a hand-built object the origin a fetched one has: the client it came from."""
+    from rath.origin import ORIGIN_KEY, Origin
+
+    from mikro.mikro import Mikro
+
+    client = Mikro.model_construct(rath=None, datalayer=None, task_token=None)
+    obj.__dict__[ORIGIN_KEY] = Origin(client=client)
+    return obj
+
+
 def test_accessor_open_yields_a_handle_and_closes_it(stored, monkeypatch) -> None:
     store, key = stored
     handle = RemoteFile(GrantedObject.from_store(store, key))
     monkeypatch.setattr("mikro.io.remote.open_remote_file", lambda *a, **k: handle)
 
-    with _Store().open() as opened:
+    with _bound(_Store()).open() as opened:
         assert opened.read(8) == PAYLOAD[:8]
 
     assert handle.closed
@@ -332,7 +343,7 @@ def test_accessor_open_passes_the_cache_policy_through(stored, monkeypatch) -> N
     store, key = stored
     seen: dict[str, object] = {}
 
-    def capture(store_id, *, block_size=None, cache=True, max_cached_blocks=32, **kwargs):
+    def capture(mikro, store_id, *, block_size=None, cache=True, max_cached_blocks=32, **kwargs):
         seen.update(
             store_id=store_id,
             block_size=block_size,
@@ -343,7 +354,7 @@ def test_accessor_open_passes_the_cache_policy_through(stored, monkeypatch) -> N
 
     monkeypatch.setattr("mikro.io.remote.open_remote_file", capture)
 
-    with _Store().open(cache=False, block_size=4096, max_cached_blocks=8):
+    with _bound(_Store()).open(cache=False, block_size=4096, max_cached_blocks=8):
         pass
 
     assert seen == {
@@ -361,7 +372,7 @@ def test_file_trait_open_delegates_to_its_store(stored, monkeypatch) -> None:
         lambda *a, **k: RemoteFile(GrantedObject.from_store(store, key)),
     )
 
-    with _File(_Store()).open() as handle:
+    with _bound(_File(_bound(_Store()))).open() as handle:
         assert handle.read(4) == PAYLOAD[:4]
 
 
@@ -373,7 +384,7 @@ def _real_file(name: str = "acquisition.tif") -> File:
     carries `FileTrait`, its store is a frozen `BigFileStore`, and the field names have
     to line up for any of this to work in production.
     """
-    return File(
+    return _bound(File(
         id="file-id",
         name=name,
         store=BigFileStore(
@@ -383,7 +394,7 @@ def _real_file(name: str = "acquisition.tif") -> File:
             path="bucket/a3f9c2e1",
             presignedUrl="http://example.invalid/a3f9c2e1",
         ),
-    )
+    ))
 
 
 def test_as_path_yields_a_real_file_and_removes_it(tmp_path, monkeypatch) -> None:
@@ -392,7 +403,7 @@ def test_as_path_yields_a_real_file_and_removes_it(tmp_path, monkeypatch) -> Non
     directory = tmp_path / "scratch"
     directory.mkdir()
 
-    def fake_download(store_id, file_name=None, prefix="mikro_file_"):
+    def fake_download(mikro, store_id, file_name=None, prefix="mikro_file_"):
         target = directory / (file_name or "download")
         target.write_bytes(PAYLOAD[:100])
         return str(target)
@@ -411,7 +422,7 @@ def test_as_path_keeps_the_extension(tmp_path, monkeypatch) -> None:
     the suffix would refuse the file under that name, so the file's own name wins."""
     seen: dict[str, object] = {}
 
-    def fake_download(store_id, file_name=None, prefix="mikro_file_"):
+    def fake_download(mikro, store_id, file_name=None, prefix="mikro_file_"):
         seen["file_name"] = file_name
         target = tmp_path / str(file_name)
         target.write_bytes(b"II*\x00")
@@ -426,14 +437,14 @@ def test_as_path_keeps_the_extension(tmp_path, monkeypatch) -> None:
 
 
 def test_as_path_falls_back_to_the_key(tmp_path, monkeypatch) -> None:
-    def fake_download(store_id, file_name=None, prefix="mikro_file_"):
+    def fake_download(mikro, store_id, file_name=None, prefix="mikro_file_"):
         target = tmp_path / str(file_name)
         target.write_bytes(b"x")
         return str(target)
 
     monkeypatch.setattr("mikro.io.remote.download_to_scratch", fake_download)
 
-    with _File(_Store()).as_path() as path:
+    with _bound(_File(_bound(_Store()))).as_path() as path:
         assert os.path.basename(path) == "big.bin"
 
 
@@ -445,13 +456,13 @@ def test_download_to_scratch_honours_the_scratch_environment(tmp_path, monkeypat
     monkeypatch.setenv("MIKRO_SCRATCH_DIR", str(tmp_path))
     captured: dict[str, object] = {}
 
-    def fake_download_file(store_id, file_name, datalayer=None):
+    def fake_download_file(mikro, store_id, file_name):
         captured.update(store_id=store_id, file_name=file_name)
         return file_name
 
     monkeypatch.setattr("mikro.io.download.download_file", fake_download_file)
 
-    result = download_to_scratch("store-id", "big.bin")
+    result = download_to_scratch(object(), "store-id", "big.bin")
 
     # A directory of its own under the named root, so nothing collides and the whole
     # thing can be removed at once.
@@ -467,10 +478,10 @@ def test_download_to_scratch_takes_an_explicit_directory(tmp_path, monkeypatch) 
     named = tmp_path / "named"
     named.mkdir()
     monkeypatch.setattr(
-        "mikro.io.download.download_file", lambda store_id, file_name, datalayer=None: file_name
+        "mikro.io.download.download_file", lambda mikro, store_id, file_name: file_name
     )
 
-    result = download_to_scratch("store-id", "big.bin", directory=str(named))
+    result = download_to_scratch(object(), "store-id", "big.bin", directory=str(named))
 
     assert os.path.dirname(os.path.dirname(result)) == str(named)
 
@@ -483,14 +494,14 @@ def test_download_to_scratch_removes_the_directory_when_the_download_fails(
     root = tmp_path / "scratch"
     root.mkdir()
 
-    def failing(store_id, file_name, datalayer=None):
+    def failing(mikro, store_id, file_name):
         open(file_name, "wb").write(b"half a fi")
         raise DownloadError("connection reset")
 
     monkeypatch.setattr("mikro.io.download.download_file", failing)
 
     with pytest.raises(DownloadError):
-        download_to_scratch("store-id", "big.bin", directory=str(root))
+        download_to_scratch(object(), "store-id", "big.bin", directory=str(root))
 
     # The root the caller named survives; the directory made inside it does not.
     assert os.path.exists(root)

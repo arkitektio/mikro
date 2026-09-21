@@ -35,8 +35,9 @@ import pandas as pd
 import xarray as xr
 from scipy.ndimage import gaussian_filter
 
-from mikro import Unit, space_2d, dataset_arrays
 from arkitekt import easy
+from mikro import Unit, space_2d, dataset_arrays, mikro_service
+from mikro.mikro import Mikro
 from mikro.api.schema import (
     AxisType,
     Blending,
@@ -44,11 +45,6 @@ from mikro.api.schema import (
     ColumnInput,
     ColumnRole,
     CoordinateAnchorInput,
-    create_array_dataset,
-    create_intensity_layer,
-    create_point_layer,
-    create_scene,
-    create_table_dataset,
 )
 
 # --------------------------------------------------------------------------- #
@@ -277,12 +273,12 @@ if __name__ == "__main__":
         raise SystemExit(0)
 
     # Reusing a sibling generator's cached grant (see generator_smlm.py).
-    with easy(identifier="neuron-overlay") as app:
-        world = space_2d("CLEM · specimen", unit=Unit("micrometer"))
+    with easy("neuron-overlay", mikro_service) as mikro:
+        world = space_2d(mikro, "CLEM · specimen", unit=Unit("micrometer"))
 
         print("Uploading EM…")
         em_data, em_scales = dataset_arrays(em, levels=EM_LEVELS, method="mean")
-        em_ds = create_array_dataset(
+        em_ds = mikro.create_array_dataset(
             data=em_data,
             scales=em_scales,
             name="CLEM · EM (5 nm)",
@@ -295,7 +291,7 @@ if __name__ == "__main__":
         print("Uploading LM channels…")
         lm_ids = []
         for arr, label in ((lm_mito, "mito marker"), (lm_cyto, "cytoplasm")):
-            lm_ds = create_array_dataset(
+            lm_ds = mikro.create_array_dataset(
                 data=arr,
                 scales=[],
                 name=f"CLEM · LM {label} (80 nm)",
@@ -315,7 +311,7 @@ if __name__ == "__main__":
             lm_ids.append(lm_ds)
 
         print("Uploading fiducials…")
-        beads = create_table_dataset(
+        beads = mikro.create_table_dataset(
             name="CLEM · fiducials",
             data=pd.DataFrame({"y": fiducials[:, 0], "x": fiducials[:, 1],
                                "bead": np.arange(1, N_FIDUCIALS + 1, dtype=np.int64)}),
@@ -329,19 +325,19 @@ if __name__ == "__main__":
         world.register(beads)
 
         print("Composing the scene…")
-        scene = create_scene(name="CLEM · synthetic", coordinate_system=world.id)
+        scene = mikro.create_scene(name="CLEM · synthetic", coordinate_system=world.id)
 
-        create_intensity_layer(
+        mikro.create_intensity_layer(
             lens=em_ds.lens(), scene=scene, colormap=ColorMap.GREY,
             clim_min=0.0, clim_max=255.0, blending=Blending.NORMAL, order=0,
         )
         for order, (lm_ds, colormap) in enumerate(zip(lm_ids, (ColorMap.GREEN, ColorMap.MAGENTA)), start=1):
-            create_intensity_layer(
+            mikro.create_intensity_layer(
                 lens=lm_ds.lens(), scene=scene, colormap=colormap,
                 clim_min=100.0, clim_max=float(np.percentile(lm_mito.values, 99.8)),
                 blending=Blending.ADDITIVE, opacity=0.7, order=order,
             )
-        point_layer = create_point_layer(
+        point_layer = mikro.create_point_layer(
             scene=scene, table_dataset=beads, point_size=0.25, colormap=ColorMap.YELLOW,
             opacity=0.9, order=3,
         )

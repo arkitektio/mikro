@@ -8,7 +8,7 @@ written as two steps::
     from kanne.scalars import Unit
     from mikro import space_3d
 
-    world = space_3d("stage", unit=Unit("micrometer"))
+    world = space_3d(mikro, "stage", unit=Unit("micrometer"))
     world.register(dataset, scale={"z": 1.0, "y": 0.2, "x": 0.2})
 
 The space outlives every dataset registered into it and every scene composed
@@ -29,7 +29,7 @@ from typing import TYPE_CHECKING, Any, Union
 
 from kanne.scalars import Unit
 
-from .vocabulary import AxisTypeName, axis_type_rank, default_axis_type
+from mikro.vocabulary import AxisTypeName, axis_type_rank, default_axis_type
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -39,7 +39,7 @@ if TYPE_CHECKING:
         PhysicalAxisInput,
         RegistrationPathInput,
     )
-    from mikro.rath import MikroNextRath
+    from mikro.mikro import Mikro
 
 #: How `create_space` will take its axes: name-to-unit, or the inputs themselves.
 AxisSpec = Union[Mapping[str, Unit], Sequence["PhysicalAxisInput"]]
@@ -64,12 +64,12 @@ def _canonical_axes(axes: Sequence[PhysicalAxisInput]) -> list[PhysicalAxisInput
 
 
 def create_space(
+    mikro: "Mikro",
     name: str,
     axes: AxisSpec,
     *,
     epoch: datetime | None = None,
     registrations: Sequence[RegistrationPathInput] | None = None,
-    rath: MikroNextRath | None = None,
 ) -> CoordinateSystem:
     """Create a shared coordinate system: a reference frame owned by nobody.
 
@@ -88,7 +88,7 @@ def create_space(
         registrations: `RegistrationPathInput` entries to author in the same
             call. Usually left out — `space.register(source, ...)` afterwards
             says the same thing with the source in hand.
-        rath: The mikro rath client.
+        mikro: The client to create it through.
 
     Returns:
         The created coordinate system.
@@ -100,7 +100,6 @@ def create_space(
         UNSET,
         AxisType,
         PhysicalAxisInput,
-        create_coordinate_system,
     )
 
     axis_inputs: list[PhysicalAxisInput]
@@ -119,21 +118,20 @@ def create_space(
     if not axis_inputs:
         raise ValueError(f"A coordinate system needs at least one axis, {name!r} has none")
 
-    return create_coordinate_system(
+    return mikro.create_coordinate_system(
         name=name,
         axes=_canonical_axes(axis_inputs),
         registrations=list(registrations) if registrations is not None else [],
         epoch=epoch if epoch is not None else UNSET,
-        rath=rath,
     )
 
 
 def space_2d(
+    mikro: "Mikro",
     name: str = "space",
     *,
     unit: Unit = Unit("micrometer"),
     axes: Sequence[str] = ("y", "x"),
-    rath: MikroNextRath | None = None,
 ) -> CoordinateSystem:
     """A flat physical space: ``(y, x)``, one length unit for both axes.
 
@@ -144,20 +142,20 @@ def space_2d(
         name: What to call the space.
         unit: The length unit both axes carry.
         axes: The axis names, in array order.
-        rath: The mikro rath client.
+        mikro: The client to create it through.
 
     Returns:
         The created coordinate system.
     """
-    return create_space(name, {axis: unit for axis in axes}, rath=rath)
+    return create_space(mikro, name, {axis: unit for axis in axes})
 
 
 def space_3d(
+    mikro: "Mikro",
     name: str = "space",
     *,
     unit: Unit = Unit("micrometer"),
     axes: Sequence[str] = ("z", "y", "x"),
-    rath: MikroNextRath | None = None,
 ) -> CoordinateSystem:
     """A volumetric physical space: ``(z, y, x)``, one length unit for all three.
 
@@ -165,29 +163,29 @@ def space_3d(
     property of the space — every axis here is in the same unit — it is the
     per-axis scale of the edge that registers the data::
 
-        world = space_3d("stage", unit=Unit("micrometer"))
+        world = space_3d(mikro, "stage", unit=Unit("micrometer"))
         world.register(dataset, scale={"z": 1.0, "y": 0.2, "x": 0.2})
 
     Args:
         name: What to call the space.
         unit: The length unit all three axes carry.
         axes: The axis names, in array order.
-        rath: The mikro rath client.
+        mikro: The client to create it through.
 
     Returns:
         The created coordinate system.
     """
-    return create_space(name, {axis: unit for axis in axes}, rath=rath)
+    return create_space(mikro, name, {axis: unit for axis in axes})
 
 
 def timelapse_3d(
+    mikro: "Mikro",
     name: str = "space",
     *,
     unit: Unit = Unit("micrometer"),
     time_unit: Unit = Unit("second"),
     axes: Sequence[str] = ("z", "y", "x"),
     epoch: datetime | None = None,
-    rath: MikroNextRath | None = None,
 ) -> CoordinateSystem:
     """A volumetric space with a time axis: ``(t, z, y, x)``.
 
@@ -201,16 +199,16 @@ def timelapse_3d(
         time_unit: The duration unit the time axis carries.
         axes: The spatial axis names, in array order.
         epoch: The wall-clock instant ``t = 0`` denotes.
-        rath: The mikro rath client.
+        mikro: The client to create it through.
 
     Returns:
         The created coordinate system.
     """
     return create_space(
+        mikro,
         name,
         {"t": time_unit, **{axis: unit for axis in axes}},
         epoch=epoch,
-        rath=rath,
     )
 
 

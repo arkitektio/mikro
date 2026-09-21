@@ -11,7 +11,7 @@ import pytest
 from pydantic import ValidationError
 
 from mikro.api.schema import PhasorCursorInput, TransferFunctionInput
-from mikro.render import ChannelSpec, channel_graph, composite_graph, rgb_graph
+from mikro.inputs.render import ChannelSpec, channel_graph, composite_graph, rgb_graph
 
 
 def test_rgb_triple_is_completed_to_opaque_rgba() -> None:

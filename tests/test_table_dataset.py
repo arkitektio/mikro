@@ -35,10 +35,6 @@ from mikro.api.schema import (
     ColumnRole,
     CreateTableDatasetInput,
     DatasetIdentifiesInput,
-    create_array_dataset,
-    create_table_dataset,
-    get_table_dataset,
-    update_table_dataset,
 )
 from mikro.io.upload import _parquet_payload
 from mikro.scalars import ParquetLike
@@ -398,7 +394,7 @@ def test_a_failed_write_leaves_no_scratch_file_behind() -> None:
 @pytest.mark.integration
 def test_create_a_measurement_table(deployed_app: DeployedMikro) -> None:
     """A table with no axis columns: its rows enumerate objects."""
-    table = create_table_dataset(
+    table = deployed_app.mikro.create_table_dataset(
         name="measurements_basic",
         data=_measurements(),
         columns=_MEASUREMENT_COLUMNS,
@@ -421,7 +417,7 @@ def test_a_measurement_table_reads_back_out_of_its_store(
     """The rows come off the Parquet store directly, not through GraphQL: the
     store hands out an access grant and DuckDB queries the object in place."""
     frame = _measurements()
-    table = create_table_dataset(
+    table = deployed_app.mikro.create_table_dataset(
         name="measurements_readback",
         data=frame,
         columns=_MEASUREMENT_COLUMNS,
@@ -443,7 +439,7 @@ def test_axis_columns_become_the_axes_of_the_tables_own_space(
     """This is the whole point of declaring an `axisType`: the axis columns -- and
     only those -- turn into a coordinate system the table owns, which is what
     makes a localization table placeable next to the volume it came from."""
-    table = create_table_dataset(
+    table = deployed_app.mikro.create_table_dataset(
         name="localizations_spaced",
         data=_localizations(),
         columns=_localization_columns(),
@@ -469,14 +465,14 @@ def test_a_table_is_keyed_by_the_mask_it_measures(deployed_app: DeployedMikro) -
     for object_id in range(1, 9):
         labels[object_id % 4, object_id : object_id + 2, object_id : object_id + 2] = object_id
 
-    mask = create_array_dataset(
+    mask = deployed_app.mikro.create_array_dataset(
         data=xr.DataArray(labels, dims=["z", "y", "x"]),
         scales=[],
         name="keyed_mask",
         axes=[AxisInput(name=axis, type=AxisType.SPACE) for axis in ("z", "y", "x")],
     )
 
-    table = create_table_dataset(
+    table = deployed_app.mikro.create_table_dataset(
         name="keyed_measurements",
         data=_measurements(),
         columns=[
@@ -493,18 +489,18 @@ def test_a_table_is_keyed_by_the_mask_it_measures(deployed_app: DeployedMikro) -
     assert tuple(table.axis_names) == ("object_id",), (
         "The column the mask keys into should be the table's axis"
     )
-    assert get_table_dataset(id=table.id).id == table.id
+    assert deployed_app.mikro.get_table_dataset(id=table.id).id == table.id
 
 
 @pytest.mark.integration
 def test_a_table_can_be_renamed_and_redescribed(deployed_app: DeployedMikro) -> None:
     """The whole of what is editable. Its store, columns and coordinate system
     are fixed at creation -- a recomputation is a new table."""
-    table = create_table_dataset(
+    table = deployed_app.mikro.create_table_dataset(
         name="renamable", data=_measurements(), columns=_MEASUREMENT_COLUMNS
     )
 
-    updated = update_table_dataset(
+    updated = deployed_app.mikro.update_table_dataset(
         id=table.id, name="renamed", description="now with a description"
     )
     assert updated.name == "renamed"
@@ -523,7 +519,7 @@ def test_a_declared_schema_that_does_not_match_the_data_is_rejected(
     reads the file on every create, so the check is not something a caller can decline.
     """
     with pytest.raises(Exception):
-        create_table_dataset(
+        deployed_app.mikro.create_table_dataset(
             name="mismatched",
             data=_measurements(),
             columns=[*_MEASUREMENT_COLUMNS, ColumnInput(name="not_a_real_column")],

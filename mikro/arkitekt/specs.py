@@ -4,7 +4,7 @@ An action that convolves a z-stack does not accept "a Lens" — it accepts a
 volume. These aliases say so in the signature, in the same vocabulary
 ``ArrayDatasetSpec`` uses server-side::
 
-    from mikro.specs import Volume, TimelapseVolume
+    from mikro.arkitekt.specs import Volume, TimelapseVolume
 
     @register
     def deconvolve(image: Volume) -> Volume: ...
@@ -97,7 +97,7 @@ from mikro.vocabulary import (
 # Descriptor keys, namespaced like the other @mikro structure identifiers.
 # One vocabulary drives both sides: the aliases below constrain on these keys,
 # and `lens_descriptors` computes them for a candidate lens.
-N_SPACE_AXES: Final = "@mikro/n_space_axes"
+N_SPACE_AXES: Final = "@mikro/nspaceaxes"
 N_TIME_AXES: Final = "@mikro/n_time_axes"
 N_CHANNEL_AXES: Final = "@mikro/n_channel_axes"
 N_SPECTRUM_AXES: Final = "@mikro/n_spectrum_axes"
@@ -110,7 +110,7 @@ VALUE_KIND: Final = "@mikro/value_kind"
 #: is not a typo the server will catch — nothing on either side computes it, so
 #: the constraint would simply never be satisfiable.
 DescriptorKey = Literal[
-    "@mikro/n_space_axes",
+    "@mikro/nspaceaxes",
     "@mikro/n_time_axes",
     "@mikro/n_channel_axes",
     "@mikro/n_spectrum_axes",
@@ -389,7 +389,9 @@ def axes_of_type(lens: Lens, axis_type: AxisType | AxisTypeName) -> tuple[str, .
     """
     wanted = str(getattr(axis_type, "value", axis_type))
     return tuple(
-        name for name, found in zip(lens.axis_names, axis_types(lens)) if found == wanted
+        name
+        for name, found in zip(lens.axis_names, axis_types(lens))
+        if found == wanted
     )
 
 
@@ -548,13 +550,15 @@ def _describe(
     present: bool,
 ) -> str:
     """One unsatisfied constraint, human-readable."""
-    detail = f"actual {actual!r}" if present else "key absent — declare it if it is provenance"
+    detail = (
+        f"actual {actual!r}"
+        if present
+        else "key absent — declare it if it is provenance"
+    )
     return f"{constraint.key} {operator} {constraint.value!r} ({detail})"
 
 
-def fulfills(
-    lens: Lens, spec: Spec, declares: Declarations | None = None
-) -> bool:
+def fulfills(lens: Lens, spec: Spec, declares: Declarations | None = None) -> bool:
     """Whether a lens satisfies every constraint of a spec."""
     return not unfulfilled(lens, spec, declares)
 
@@ -685,7 +689,9 @@ def _selected_extent(choice: AxisSelection, extent: int, axis: str) -> int:
     """
     if isinstance(choice, int) and not isinstance(choice, bool):
         if not 0 <= choice < extent:
-            raise ValueError(f"Index {choice} out of range for axis {axis!r} (extent {extent})")
+            raise ValueError(
+                f"Index {choice} out of range for axis {axis!r} (extent {extent})"
+            )
     start, stop, step = normalize_selection(axis, choice)
     return len(range(*slice(start, stop, step).indices(extent)))
 
@@ -715,7 +721,11 @@ def selections_for(
             _selected_extent(picked[name], extent, name) if name in picked else extent
             for name, extent in pin.axes
         )
-        fits = achieved == pin.target if pin.operator == "EQUALS" else achieved <= pin.target
+        fits = (
+            achieved == pin.target
+            if pin.operator == "EQUALS"
+            else achieved <= pin.target
+        )
         if not fits:
             raise ValueError(
                 f"Choices leave {pin.key} at {achieved}, need {pin.operator} {pin.target}"

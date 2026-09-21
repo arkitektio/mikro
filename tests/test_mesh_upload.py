@@ -23,7 +23,6 @@ from mikro.api.schema import AxisInput, AxisType, CreateMeshCollectionInput
 from mikro.datalayer import DataLayer
 from mikro.io.errors import UploadError
 from mikro.io.upload import store_fabriks_collection
-from mikro.meshes import axis_order_to_xyz, build_mesh_collection
 from mikro.middleware.upload import UploadMiddleware
 from mikro.scalars import FabriksLike
 
@@ -39,7 +38,7 @@ GRANT_KEY = "f3068f8f055245278c31994582675357"
 @pytest.fixture(scope="module")
 def collection() -> fabriks.MeshCollection:
     """Two boxes that disagree under a permutation of the axes, cut into a small octree."""
-    return build_mesh_collection(
+    return fabriks.build_collection(
         {
             7: trimesh.creation.box(extents=[90.0, 50.0, 30.0]).apply_translation([70.0, 60.0, 25.0]),
             3: trimesh.creation.box(extents=[20.0, 12.0, 8.0]).apply_translation([30.0, 25.0, 15.0]),
@@ -104,7 +103,7 @@ def test_a_bare_catalog_table_is_refused_and_the_message_says_what_to_build(
     with pytest.raises(ValueError, match="MeshCollection") as raised:
         FabriksLike.validate(collection.cell_catalog)
 
-    assert "build_mesh_collection" in str(raised.value), "the error should name the way out"
+    assert "fabriks.build_collection" in str(raised.value), "the error should name the way out"
 
 
 def test_the_input_type_coerces_a_collection_on_the_way_in(
@@ -150,18 +149,6 @@ def test_the_ids_it_was_given_are_the_ids_it_writes(collection: fabriks.MeshColl
     assert set(collection.object_catalog.column("object_id").to_pylist()) == {3, 7}
 
 
-def test_the_axis_reversal_is_the_one_place_the_transposition_happens() -> None:
-    """``(z, y, x)`` in, ``(x, y, z)`` out -- and a rank that is not 3 is refused.
-
-    The server validates rank only, so a permutation done by hand anywhere else is a mistake
-    with no downstream symptom: the collection registers, the layer reports PLACED, and every
-    object draws in the wrong place.
-    """
-    assert axis_order_to_xyz((64, 256, 512)) == (512.0, 256.0, 64.0)
-
-    with pytest.raises(ValueError, match="three-dimensional"):
-        axis_order_to_xyz((256, 512))
-
 
 # ---------------------------------------------------------------------------
 # The upload: a grant, a tree, and the prefix it has to land under
@@ -192,6 +179,18 @@ def test_the_whole_tree_lands_under_the_granted_prefix(
     assert all(path.startswith(f"{GRANT_KEY}/") for path in paths), paths
     assert not any("//" in path for path in paths), paths
     assert f"{GRANT_KEY}/fabriks.json" in paths, "the manifest is the completion protocol"
+
+    # The parts carry the codec this library states rather than the writer's default: the
+    # server refuses anything the scene viewer cannot decode at the finish, and ZSTD is what
+    # it decodes.
+    import io
+
+    import obstore
+    import pyarrow.parquet as pq
+
+    part = next(path for path in paths if path.endswith(".parquet"))
+    footer = pq.ParquetFile(io.BytesIO(bytes(obstore.get(store, part).bytes()))).metadata
+    assert footer.row_group(0).column(0).compression == "ZSTD"
 
     # The server reads the grid and the encoding off the artifact rather than being told, so
     # what matters is that the artifact reads back as the collection that went in.
@@ -341,42 +340,3 @@ def test_the_middleware_replaces_a_collection_with_the_store_it_uploaded_to(
     assert asked == ["request", "finish"], asked
     assert rath.variables[-1]["input"] == {"storeId": "42", "valid": True}
 
-
-def test_the_parquet_parts_are_written_with_a_codec_the_viewer_can_decode() -> None:
-    """A mesh collection's *file* compression is fabriks's, not this library's -- and three
-    of the six codecs fabriks can select are ones the viewer cannot decode.
-
-    It reads meshes with hyparquet, whose built-ins are UNCOMPRESSED and SNAPPY, plus the
-    ZSTD the frontend registers by hand out of `fzstd`; `hyparquet-compressors` is not a
-    dependency there. So gzip, brotli or lz4 would upload cleanly, verify cleanly and draw
-    nothing. Today the default is zstd; this is what notices if that ever changes.
-
-    Distinct from `build_mesh_collection`'s `compression`, which is the per-blob codec inside
-    a row and is the manifest's business.
-    """
-    from mikro.compression import MESH_CODECS
-    from mikro.meshes import refuse_an_unreadable_part_codec
-
-    codec = refuse_an_unreadable_part_codec()
-    assert codec.upper().replace("NONE", "UNCOMPRESSED") in MESH_CODECS
-
-
-def test_an_unreadable_part_codec_is_refused_with_the_reason(monkeypatch) -> None:
-    """The failure it prevents has no error attached to it anywhere else."""
-    import inspect
-
-    from fabriks import frames
-
-    from mikro.compression import UnreadableCodecError
-    from mikro.meshes import refuse_an_unreadable_part_codec
-
-    def gzip_default(table, *, compression="gzip"):  # noqa: ANN001
-        raise AssertionError("not called")
-
-    monkeypatch.setattr(frames, "table_to_parquet", gzip_default)
-    assert inspect.signature(frames.table_to_parquet).parameters["compression"].default == "gzip"
-
-    with pytest.raises(UnreadableCodecError) as raised:
-        refuse_an_unreadable_part_codec()
-    assert "hyparquet" in str(raised.value)
-    assert "draw nothing" in str(raised.value)

@@ -51,13 +51,20 @@ def test_download_file_reads_bytes_via_obstore(tmp_path, monkeypatch) -> None:
 
     obstore.put(store, credentials.key, payload)
 
-    monkeypatch.setattr(
-        "mikro.io.download.unkoil",
-        lambda function, store_id: (credentials, "http://example.invalid"),
-    )
+    seen: dict[str, object] = {}
+
+    def fake_unkoil(function, mikro, store_id):
+        seen.update(mikro=mikro)
+        return credentials, "http://example.invalid"
+
+    monkeypatch.setattr("mikro.io.download.unkoil", fake_unkoil)
     monkeypatch.setattr("mikro.io.download.create_s3_store", lambda *_args: store)
 
-    result = download_file("store-id", str(target))
+    # The client is handed over explicitly; nothing ambient is involved.
+    mikro = object()
+    result = download_file(mikro, "store-id", str(target))
+
+    assert seen == {"mikro": mikro}
 
     assert result == str(target)
     assert target.read_bytes() == payload

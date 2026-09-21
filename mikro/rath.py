@@ -1,6 +1,4 @@
-import contextvars
 from types import TracebackType
-from typing import Optional
 
 from pydantic import Field
 from rath import rath
@@ -10,20 +8,15 @@ from rath.links.dictinglink import DictingLink
 from rath.links.file import FileExtraction
 from rath.links.split import SplitLink
 
-from mikro.middleware.base import FuncsMiddleware
+from mikro.middleware.base import OperationMiddleware
 
-current_mikro_rath: contextvars.ContextVar[Optional["MikroNextRath"]] = (
-    contextvars.ContextVar("current_mikro_rath")
-)
-
-
-class MikroNextLinkComposition(TypedComposedLink):
-    """The MikroNextLinkComposition
+class MikroLinkComposition(TypedComposedLink):
+    """The MikroLinkComposition
 
     This is a composition of links that are traversed before a request is sent to the
     mikro api. This link composition contains the default links for mikro.
 
-    Upload logic has been moved to the UploadMiddleware, which runs at the funcs
+    Upload logic has been moved to the UploadMiddleware, which runs at the operation
     level before the rath link chain is entered.
 
     You shouldn't need to create this directly.
@@ -39,7 +32,7 @@ class MikroNextLinkComposition(TypedComposedLink):
     """ A link that splits the request into a http and a websocket request"""
 
 
-class MikroNextRath(rath.Rath):
+class MikroRath(rath.Rath):
     """Mikro Rath
 
     Mikro Rath is the GraphQL client for mikro It is a thin wrapper around Rath
@@ -51,20 +44,24 @@ class MikroNextRath(rath.Rath):
     the graphql multipart request spec.
 
     Attributes:
-        middlewares: A list of FuncsMiddleware instances that process serialized
+        middlewares: A list of OperationMiddleware instances that process serialized
             variables before they reach the rath link chain. Middleware runs in
             order: first middleware processes first, then passes to the next.
     """
 
-    middlewares: list[FuncsMiddleware] = Field(default_factory=list)
-    """Middleware chain applied to serialized variables in funcs.execute/subscribe."""
+    middlewares: list[OperationMiddleware] = Field(default_factory=list)
+    """Middleware chain applied to serialized variables in Mikro.execute/subscribe."""
 
-    async def __aenter__(self) -> "MikroNextRath":
-        """Sets the current mikro rath to this instance"""
+    async def __aenter__(self) -> "MikroRath":
+        """Enter the client and its middlewares.
+
+        Entering does not make it "the current client": only the mikro service
+        that owns it is current while entered (see :class:`mikro.mikro.Mikro`).
+        A rath used on its own is passed where it is needed, as ``rath=``.
+        """
         await super().__aenter__()
         for mw in self.middlewares:
             await mw.aenter()
-        current_mikro_rath.set(self)
         return self
 
     async def __aexit__(
@@ -73,8 +70,13 @@ class MikroNextRath(rath.Rath):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        """Resets the current mikro rath to None"""
+        """Exit the middlewares and the client"""
         for mw in self.middlewares:
             await mw.aexit()
         await super().__aexit__(exc_type, exc_val, exc_tb)
-        current_mikro_rath.set(None)
+
+
+#: The name the generated ``mikro.api.schema`` still imports. That module is
+#: generated and is not edited by hand, so the old spelling has to resolve until
+#: the next ``turms gen`` — ``graphql.config.yaml`` already names ``MikroRath``,
+#: so the regen drops it and this alias can go with it.
