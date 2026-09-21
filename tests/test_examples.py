@@ -35,6 +35,13 @@ import pytest
 
 from .conftest import DeployedMikro
 
+# The example scripts are arkitekt apps -- they do `from arkitekt import easy`,
+# and the harness below stubs that out. mikro cannot depend on arkitekt to get
+# it: arkitekt depends on mikro, so declaring it here would close a cycle. So
+# these run wherever arkitekt happens to be importable (a dev checkout) and skip
+# where it is not (mikro's own CI), the same way alpaka guards its rekuest tests.
+pytest.importorskip("arkitekt", reason="the example scripts are arkitekt apps")
+
 EXAMPLES = Path(__file__).parent.parent / "examples"
 
 # Explicit list rather than a glob: the suite should fail loudly when a new
