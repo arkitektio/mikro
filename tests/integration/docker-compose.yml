@@ -2,7 +2,7 @@ services:
   redis:
     image: redis:latest
   db:
-    image: jhnnsrs/daten:next
+    image: jhnnsrs/daten:latest
     restart: always
     environment:
       POSTGRES_MULTIPLE_DATABASES: mikro
@@ -14,7 +14,7 @@ services:
     - db
     - rustfs
     - initc
-    image: jhnnsrs/mikro:${MIKRO_SERVICE_TAG:-next}
+    image: jhnnsrs/mikro:${MIKRO_SERVICE_TAG:-latest}
     command: bash run-debug.sh
     stop_grace_period: 1s
     ports:
@@ -38,7 +38,7 @@ services:
       RUSTFS_HOST: http://rustfs:9000
       RUSTFS_SECRET_KEY: e8821a29d189789e39c9922a3bfcfb4a
       RUSTFS_ACCESS_KEY: crappygreysetter
-    image: jhnnsrs/init:next
+    image: jhnnsrs/init:latest
     volumes:
     - ./configs/rustfs.yaml:/workspace/config.yaml
 
