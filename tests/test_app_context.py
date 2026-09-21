@@ -323,7 +323,7 @@ async def test_rekuest_expands_through_the_client_its_registry_was_bound_to(
 
 
 # --------------------------------------------------------------------------- #
-# A per-task view
+# Attributing a shared client's calls to the running task
 # --------------------------------------------------------------------------- #
 
 

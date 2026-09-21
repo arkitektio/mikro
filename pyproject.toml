@@ -78,10 +78,6 @@ dev-dependencies =  [
     # that path had no tests at all. >=1.1 because the example generators build their
     # matrices through `sporadik.SparseArray`, which 1.0 does not have.
     "sporadik>=1.1",
-    # rekuest imports `janus` without declaring it, so it never arrives
-    # transitively — and without it `mikro.specs` cannot be imported and
-    # `tests/test_specs.py` skips itself. Drop this once rekuest declares it.
-    "janus>=1.0",
 ]
 
 [tool.hatch.build.targets.sdist]
