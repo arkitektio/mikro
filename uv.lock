@@ -1107,14 +1107,14 @@ wheels = [
 
 [[package]]
 name = "koil"
-version = "3.3.3"
+version = "3.3.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/87/3f/a10d2ae7ae8d6d07e24751e58a01a976e2ea461d8ffe9424cc52db36d486/koil-3.3.3.tar.gz", hash = "sha256:f36cb49b8478749c7727937aa7d2876fccac252003a3ac9b7cedbf96c108bd0e", size = 42200, upload-time = "2026-09-21T22:16:56.367Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f8/2a/5830d2c0fb9536a057d439da06e86297ef9310c437feb92ad572e55a5399/koil-3.3.4.tar.gz", hash = "sha256:ed4f3c7db1470c656561bc28602ea94d9ee8b16dc32a01045e47b2a6a7178c74", size = 42202, upload-time = "2026-09-21T22:54:00.23Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e9/dd/d43c9816e35b91146dc6c5aef8ac2b3a2085583951d31f63d8b121dd4e8c/koil-3.3.3-py3-none-any.whl", hash = "sha256:f41eba8afb31b26f925a6b5a514570559cc201882eef7a2e9437bb7f1f2ef4c1", size = 48565, upload-time = "2026-09-21T22:16:55.194Z" },
+    { url = "https://files.pythonhosted.org/packages/ee/28/8d7a04530b3521fa09b43cd735f991f3c214242eeb09e6901852c17a157f/koil-3.3.4-py3-none-any.whl", hash = "sha256:dfe91f333a3cdcbaaca36606c33160c22f51df53c40788615eb0e969ea7b345d", size = 48568, upload-time = "2026-09-21T22:53:59.286Z" },
 ]
 
 [[package]]
@@ -2396,21 +2396,21 @@ wheels = [
 
 [[package]]
 name = "rath"
-version = "4.0.0"
+version = "4.0.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "graphql-core" },
     { name = "koil" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/03/c8/c346d796d6176da2ab9de79f44ce11710d068e607d41a3c3f6040c21891a/rath-4.0.0.tar.gz", hash = "sha256:c7c6676b8eeecbd1118f82e2bd6290fc9f6979180bf07cce81f424b3f6c9f097", size = 44634, upload-time = "2026-09-21T22:25:05.687Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/90/01/6a7090fe9e996668b524b9d6aae8f5c2b23475948740e7634a293fd25a32/rath-4.0.2.tar.gz", hash = "sha256:825eda87cb8c6a3712ce2ede0be2c8c9d1ff392aa124004ba2c183c35c4f07c9", size = 44644, upload-time = "2026-09-22T14:24:21.536Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2d/8e/d811168cfc4d853ef98e6c2a03100bf3a55945ed4f9514d0cb19bc2face2/rath-4.0.0-py3-none-any.whl", hash = "sha256:e551082d3ea87fa675ae0ea2a02778dfb7889410dc757a7f01c95476e6d95a4c", size = 63009, upload-time = "2026-09-21T22:25:04.529Z" },
+    { url = "https://files.pythonhosted.org/packages/0a/3c/4c5ca2b52f06bb4bdece60f8ac8f9fb0235c5924ed9ad827dcaee7e1c7da/rath-4.0.2-py3-none-any.whl", hash = "sha256:a9191ea4282632dc35aa7c6001df0c237c68dbd3adca9578b8c8a176f174650c", size = 63023, upload-time = "2026-09-22T14:24:20.553Z" },
 ]
 
 [[package]]
 name = "rekuest"
-version = "4.0.0"
+version = "5.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "docstring-parser" },
@@ -2424,9 +2424,9 @@ dependencies = [
     { name = "rath" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/68/62/ad248f91671e27619e00c7def2f830836cbe3b2c71d460243b88a75a2509/rekuest-4.0.0.tar.gz", hash = "sha256:e31268d7245bcdcbe6d2b23278d2ce0c61b0f8c027594fe16312717585696f71", size = 365226, upload-time = "2026-09-21T22:36:50.034Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ed/03/c43b0d10819740b24c6c4e303ca81f937052f4e6504019e5754347dd22d5/rekuest-5.0.0.tar.gz", hash = "sha256:1809c7542b75f60587fd7e11f4e564dc114796f069d099b74d6b670b56c4741a", size = 367249, upload-time = "2026-09-22T14:26:46.48Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/59/c7/ddb02a421e94f9fe25688af10071fd74c74e89484ab85a8858bb9743c857/rekuest-4.0.0-py3-none-any.whl", hash = "sha256:269ef2af9e9b2fdd2a0f6852271fe9f02deb3a08edb156d5d5f7eca676f9a69d", size = 439182, upload-time = "2026-09-21T22:36:48.947Z" },
+    { url = "https://files.pythonhosted.org/packages/3d/8e/acb68a614b9b03d8a0a571d766cad74c9b6aceed850d787969d14be73a38/rekuest-5.0.0-py3-none-any.whl", hash = "sha256:77933bbb577feb01c4a4a1baa199fcce88370caf039cf8679ee5da2bd9a408d9", size = 441775, upload-time = "2026-09-22T14:26:45.258Z" },
 ]
 
 [[package]]
@@ -2788,16 +2788,16 @@ wheels = [
 
 [[package]]
 name = "sporadik"
-version = "1.1.0"
+version = "1.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy" },
     { name = "zarr", version = "3.1.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "zarr", version = "3.2.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/3d/e4/998167175d6f490c00cedda31b3f7adcab39220a1f8d956e13109f7bf422/sporadik-1.1.0.tar.gz", hash = "sha256:5d76f1ea635d832285fdb99b0716a4667daae22287c31c2955e896d9c1fb1ada", size = 41188, upload-time = "2026-08-23T11:10:52.811Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/5e/ea/e492344d618d3169ad28b107a6c985fb9702a1c47d6603a3ee3e3eb80e88/sporadik-1.1.1.tar.gz", hash = "sha256:f907168db172be917a3a2c7c3cf8fc3bb844379b877efa9ef71dee86a559f1cd", size = 41452, upload-time = "2026-09-22T14:18:36.252Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ac/32/56ef6d796e38bb3ae6a68878665b373396a7aabfb83929384ad78a4393f9/sporadik-1.1.0-py3-none-any.whl", hash = "sha256:c97e7a215883093347c6ee7c36de1b49c0ed83bc80b67135ba4d68b17f741698", size = 45216, upload-time = "2026-08-23T11:10:51.837Z" },
+    { url = "https://files.pythonhosted.org/packages/53/05/919558dbbdd389659aec56104b80fce9a92d4fb054db02d2b8b6bc7f1862/sporadik-1.1.1-py3-none-any.whl", hash = "sha256:3a3fac3d8800571086f7d53fc44c47abcd9f9c5b31aa320d628026ecab6ce220", size = 45333, upload-time = "2026-09-22T14:18:35.365Z" },
 ]
 
 [[package]]
