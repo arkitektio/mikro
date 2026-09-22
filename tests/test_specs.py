@@ -30,7 +30,6 @@ from mikro.arkitekt.specs import (
     SingleChannelVolume,
     SpecMismatch,
     Volume,
-    axis_types,
     compose,
     exactly,
     fulfills,
@@ -40,6 +39,11 @@ from mikro.arkitekt.specs import (
     spec_constraints,
     unfulfilled,
 )
+
+# `axis_types` moved onto `mikro.traits` with the lens/dataset traits, which is
+# also where `Lens.axis_types` now reads it from. It stays a function as well as
+# a property because the candidates below are `SimpleNamespace`, not models.
+from mikro.traits import axis_types
 
 
 def candidate(names, shape, types=None):

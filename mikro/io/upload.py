@@ -17,8 +17,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import obstore
+import zarr
 
 from mikro.scalars import (
+    _sporadik,
     ArrayLike,
     FabriksLike,
     KonnektionLike,
@@ -213,11 +215,7 @@ def _store_sparse_into_grant(
     cannot fetch. A prefix that got this far and no further reads back as zeros, silently, which
     is the failure the block exists to convert into a refusal.
     """
-    import zarr
-
     from mikro.io.obstore import create_zarr_store_path
-    from mikro.scalars import _sporadik
-
     write_store_into = _sporadik().write_store_into
 
     layouts = sparse.layouts

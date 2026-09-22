@@ -11,7 +11,7 @@ import mimetypes
 import uuid
 from collections.abc import Mapping
 from pathlib import Path
-from typing import IO, TYPE_CHECKING, Any, TypeAlias
+from typing import IO, TYPE_CHECKING, Any, Protocol, TypeAlias
 
 import numpy as np
 import xarray as xr
@@ -21,6 +21,7 @@ from pydantic_core import CoreSchema, core_schema
 
 if TYPE_CHECKING:
     import pandas as pd
+    import pyarrow as pa
     from fabriks import MeshCollection
     from konnektion import NetworkCollection
 
@@ -43,7 +44,9 @@ ArrayCoercible: TypeAlias = xr.DataArray | OneDArray | list[float] | list[list[f
 ImageFileCoercible: TypeAlias = str | bytes | Path | io.BufferedReader
 """ A type alias for image file-like structures that can be coerced into an xarray DataArray."""
 
-ParquetCoercible: TypeAlias = "Mapping[str, Any] | pd.DataFrame | str | Path | Any"
+ParquetCoercible: TypeAlias = (
+    "Mapping[str, Any] | pd.DataFrame | str | Path | pa.Table | pa.RecordBatchReader | ParquetLike"
+)
 """ A type alias for parquet-like structures: a dict of ``{column: values}``, an
 in-memory DataFrame, a path to a parquet file already on disk, or a pyarrow
 ``Table``/``RecordBatchReader``."""
@@ -153,10 +156,6 @@ class RGBAColor(list[float]):
 class XArrayConversionException(Exception):
     """An exception that is raised when a conversion to xarray fails."""
 
-
-
-MetricValue = Any
-FeatureValue = Any
 
 
 class Micrometers(float):
@@ -680,11 +679,47 @@ class FabriksLike:
         return f"FabriksLike({manifest.counts}, cellSize={manifest.grid.cell_size}, levels={manifest.grid.levels})"
 
 
+class SparseMatrixLike(Protocol):
+    """The structure a sparse matrix must have to be written as a sporadik store.
+
+    Spelled structurally rather than as `scipy.sparse.csr_matrix | csc_matrix` because scipy is
+    not a mikro dependency and `sporadik.layouts_of` only ever reads these five members -- so
+    anndata's own matrix wrappers, and a rank-three array's `sporadik.Layout`, satisfy it too.
+
+    Members are read-only properties because a mutable attribute is invariant, and a matrix's
+    `NDArray[float64]` would then not satisfy a declared `NDArray[generic]`. ``.shape`` is
+    deliberately absent: scipy's stubs do not expose it as a readable property, so declaring it
+    here would make every real matrix fail the check. ``sporadik.validate_layout`` checks it at
+    runtime regardless.
+    """
+
+    @property
+    def data(self) -> OneDArray:
+        """The stored values, in the order the layout's encoding puts them."""
+        ...
+
+    @property
+    def indices(self) -> OneDArray:
+        """The index within each compressed slice of every value in :attr:`data`."""
+        ...
+
+    @property
+    def indptr(self) -> OneDArray:
+        """Where each compressed slice starts in :attr:`data`; one longer than the slice count."""
+        ...
+
+    @property
+    def format(self) -> str:
+        """The encoding, ``"csr"`` or ``"csc"`` -- which axis the matrix makes contiguous."""
+        ...
+
+
+SporadikCoercible: TypeAlias = "SparseMatrixLike | list[SparseMatrixLike] | SporadikLike"
+"""What :class:`SporadikLike` accepts: a `scipy.sparse` CSR or CSC matrix, a list of them for an
+array of rank three or more, or one already wrapped."""
+
 #: What a caller may hand to a `FabriksLike` field. Deliberately narrow: everything a collection
 #: could be built *from* is an argument to `fabriks.build_collection`, not a value on the wire.
-SporadikCoercible: TypeAlias = "Any | SporadikLike"
-"""What :class:`SporadikLike` accepts: a `scipy.sparse` CSR or CSC matrix, or one already wrapped."""
-
 FabriksCoercible: TypeAlias = "MeshCollection | FabriksLike"
 
 

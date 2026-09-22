@@ -6,7 +6,7 @@ volume. These aliases say so in the signature, in the same vocabulary
 
     from mikro.arkitekt.specs import Volume, TimelapseVolume
 
-    @register
+    @app.action
     def deconvolve(image: Volume) -> Volume: ...
 
 Each alias wraps :class:`~mikro.api.schema.Lens` in a mirrored
@@ -86,11 +86,12 @@ from typing import (
 from rekuest.annotations import Provides, Requires
 from rekuest.protocol.schema import DescriptorOperator, RequiresInput
 
-from mikro.api.schema import AxisInput, AxisType, Lens
+from mikro.api.schema import Lens
+from mikro.traits import AxisSource, axis_table
 from mikro.vocabulary import (
     AxisSelection,
     AxisTypeName,
-    default_axis_type,
+    enum_value,
     normalize_selection,
 )
 
@@ -280,84 +281,16 @@ that requires it will be offered them."""
 
 
 # --- The candidate side: the same vocabulary, computed from a lens. ---------
+#
+# Most of it lives in `mikro.traits` now: `axis_table` computes the per-axis
+# (name, type, extent) table for a lens or a dataset, `AxisSource` is the
+# structural contract it needs, and `Lens.axes_of_type` / `Lens.carried_axes`
+# are methods there. They moved because they use no rekuest, and this module
+# cannot be imported without it — while `mikro.traits` is on the core import
+# path of every `import mikro`. Only what reads a `Spec` stayed behind.
 
 
-class _TypedAxis(Protocol):
-    """One axis of a coordinate system, as `_axis_table` reads it."""
-
-    @property
-    def order(self) -> int: ...
-
-    @property
-    def type(self) -> AxisType: ...
-
-
-class _HasCoordinateSystem(Protocol):
-    """A lens: it names the space it frames its data in its *coordinate* system."""
-
-    @property
-    def axis_names(self) -> Sequence[str]: ...
-
-    @property
-    def shape(self) -> Sequence[int]: ...
-
-    @property
-    def coordinate_system(self) -> _HasAxes | None: ...
-
-
-class _HasIntrinsicSystem(Protocol):
-    """A dataset: it calls the space of its own pixel grid *intrinsic*."""
-
-    @property
-    def axis_names(self) -> Sequence[str]: ...
-
-    @property
-    def shape(self) -> Sequence[int]: ...
-
-    @property
-    def intrinsic_system(self) -> _HasAxes | None: ...
-
-
-class _HasAxes(Protocol):
-    """Whichever system a candidate carries, all this side needs is its axes."""
-
-    @property
-    def axes(self) -> Sequence[_TypedAxis]: ...
-
-
-Candidate = Union[_HasCoordinateSystem, _HasIntrinsicSystem]
-"""Anything with ``axis_names``, ``shape`` and a typed system — a Lens
-(``coordinate_system``) or an ArrayDataset (``intrinsic_system``)."""
-
-
-def _axis_table(candidate: Candidate) -> tuple[tuple[str, AxisTypeName, int], ...]:
-    """``(name, axis_type, extent)`` per axis, in array order.
-
-    Types come from the candidate's coordinate system when it was fetched with
-    one; otherwise the bare-name convention (t/time -> TIME, c/channel ->
-    CHANNEL, else SPACE).
-    """
-    names = tuple(candidate.axis_names)
-    shape = tuple(candidate.shape)
-    system = getattr(candidate, "coordinate_system", None) or getattr(
-        candidate, "intrinsic_system", None
-    )
-    types: tuple[AxisTypeName, ...]
-    if system is not None:
-        axes = sorted(system.axes, key=lambda axis: axis.order)
-        # `use_enum_values` means the field may hold either the enum or its value.
-        types = tuple(str(getattr(axis.type, "value", axis.type)) for axis in axes)  # type: ignore[assignment]
-    else:
-        types = tuple(default_axis_type(name) for name in names)
-    return tuple(zip(names, types, shape))
-
-
-def axis_types(candidate: Candidate) -> tuple[AxisTypeName, ...]:
-    """Per-axis semantic types in array order, as AxisType value strings."""
-    return tuple(axis_type for _, axis_type, _ in _axis_table(candidate))
-
-
-def lens_descriptors(candidate: Candidate) -> dict[DescriptorKey, DescriptorValue]:
+def lens_descriptors(candidate: AxisSource) -> dict[DescriptorKey, DescriptorValue]:
     """The descriptor key/value pairs a lens (or dataset) carries as a match
     candidate.
 
@@ -367,7 +300,7 @@ def lens_descriptors(candidate: Candidate) -> dict[DescriptorKey, DescriptorValu
     ``VALUE_KIND`` is deliberately absent: it is provenance, carried only by a
     producer's ``Provides``.
     """
-    table = _axis_table(candidate)
+    table = axis_table(candidate)
     counts = Counter(axis_type for _, axis_type, _ in table)
     descriptors: dict[DescriptorKey, DescriptorValue] = {
         key: counts.get(axis_type, 0) for axis_type, key in _KEY_BY_AXIS_TYPE.items()
@@ -377,42 +310,6 @@ def lens_descriptors(candidate: Candidate) -> dict[DescriptorKey, DescriptorValu
             extent for _, axis_type, extent in table if axis_type == wanted
         )
     return descriptors
-
-
-def axes_of_type(lens: Lens, axis_type: AxisType | AxisTypeName) -> tuple[str, ...]:
-    """The names of the lens' axes of one AxisType, in array order.
-
-    The runtime counterpart of the spec vocabulary: a function typed over
-    ``TimelapseVolume`` should reduce over ``axes_of_type(movie, AxisType.TIME)``
-    rather than hard-coding ``"t"`` — the spec guarantees the axis exists, not
-    what it is called.
-    """
-    wanted = str(getattr(axis_type, "value", axis_type))
-    return tuple(
-        name
-        for name, found in zip(lens.axis_names, axis_types(lens))
-        if found == wanted
-    )
-
-
-def carried_axes(lens: Lens, dims: Sequence[str]) -> list[AxisInput]:
-    """AxisInput for a derived array's dims, types carried from the source lens.
-
-    For ``create_array_dataset(axes=...)`` on a dataset computed from this lens:
-    an axis that survived the computation keeps the semantic type it had at
-    the source instead of being re-guessed from its name, so the derived
-    dataset's descriptors — and with them the action's Provides — stay true
-    even for unconventionally named axes. A genuinely new dim falls back to
-    the bare-name convention.
-    """
-    types = dict(zip(lens.axis_names, axis_types(lens)))
-    return [
-        AxisInput(
-            name=dim,
-            type=AxisType(types[dim] if dim in types else default_axis_type(dim)),
-        )
-        for dim in dims
-    ]
 
 
 # --- The fulfilment side: guarding a Provides before returning. -------------
@@ -463,7 +360,7 @@ def _constraint_operator(constraint: RequiresInput) -> ConstraintOperator:
     value, so both spellings have to be unwrapped the same way.
     """
     operator = constraint.operator
-    return str(getattr(operator, "value", operator))  # type: ignore[return-value]
+    return enum_value(operator)
 
 
 def _holds(
@@ -628,7 +525,7 @@ class CompositionPlan:
 
 
 def compose(
-    candidate: Candidate, spec: Spec, declares: Declarations | None = None
+    candidate: AxisSource, spec: Spec, declares: Declarations | None = None
 ) -> CompositionPlan:
     """Plan how a dataset (or lens) could fit a spec — the reference composer.
 
@@ -639,7 +536,7 @@ def compose(
     reachable by shrinking (each axis keeps at least one position); anything
     else that fails is a hard failure — extents never grow, axes never vanish.
     """
-    table = _axis_table(candidate)
+    table = axis_table(candidate)
     descriptors = lens_descriptors(candidate)
     if declares:
         descriptors.update(declares)
@@ -739,7 +636,7 @@ def selections_for(
     return selections
 
 
-class LensableDataset(_HasIntrinsicSystem, Protocol):
+class LensableDataset(AxisSource, Protocol):
     """A dataset `fit_lens` can both measure and lens: `DatasetTrait` satisfies it."""
 
     def lens(self, **selections: AxisSelection) -> Lens:
@@ -780,7 +677,6 @@ __all__ = [
     "N_TIMEPOINTS",
     "N_TIME_AXES",
     "VALUE_KIND",
-    "Candidate",
     "CompositionPlan",
     "ConstraintOperator",
     "Declarations",
@@ -811,9 +707,6 @@ __all__ = [
     "Volume",
     "at_least",
     "at_most",
-    "axes_of_type",
-    "axis_types",
-    "carried_axes",
     "compose",
     "constrain",
     "ensure",

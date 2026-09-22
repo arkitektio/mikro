@@ -40,6 +40,30 @@ from mikro.io.upload import (
     # Sync paths (obstore)
     upload_xarray,
 )
+from mikro.api.schema import (
+    FinishFabriksUploadInput,
+    FinishFabriksUploadMutation,
+    FinishKonnektionUploadInput,
+    FinishKonnektionUploadMutation,
+    FinishSparseUploadInput,
+    FinishSparseUploadMutation,
+    FinishZarrUploadInput,
+    FinishZarrUploadMutation,
+    RequestBigFileUploadInput,
+    RequestBigfileUploadMutation,
+    RequestFabriksUploadInput,
+    RequestFabriksUploadMutation,
+    RequestKonnektionUploadInput,
+    RequestKonnektionUploadMutation,
+    RequestMediaUploadInput,
+    RequestMediaUploadMutation,
+    RequestParquetUploadInput,
+    RequestParquetUploadMutation,
+    RequestSparseUploadInput,
+    RequestSparseUploadMutation,
+    RequestZarrUploadInput,
+    RequestZarrUploadMutation,
+)
 from mikro.middleware.base import OperationMiddleware
 from mikro.scalars import (
     ArrayLike,
@@ -156,11 +180,6 @@ class UploadMiddleware(OperationMiddleware):
         self, key: str, datalayer: str, rath: "MikroRath"
     ) -> "ZarrUploadGrant":
         """Get zarr upload credentials synchronously."""
-        from mikro.api.schema import (
-            RequestZarrUploadInput,
-            RequestZarrUploadMutation,
-        )
-
         x = rath.query(
             RequestZarrUploadMutation.Meta.document,
             RequestZarrUploadMutation.Arguments(input=RequestZarrUploadInput()).model_dump(
@@ -171,11 +190,6 @@ class UploadMiddleware(OperationMiddleware):
 
     def _finish_zarr_upload(self, store_id: str, rath: "MikroRath") -> None:
         """Finish zarr upload synchronously."""
-        from mikro.api.schema import (
-            FinishZarrUploadInput,
-            FinishZarrUploadMutation,
-        )
-
         rath.query(
             FinishZarrUploadMutation.Meta.document,
             FinishZarrUploadMutation.Arguments(
@@ -191,11 +205,6 @@ class UploadMiddleware(OperationMiddleware):
         One grant for the whole prefix -- the manifest, both catalogs and every level -- because
         a fabriks store is a tree rather than an object.
         """
-        from mikro.api.schema import (
-            RequestFabriksUploadInput,
-            RequestFabriksUploadMutation,
-        )
-
         x = rath.query(
             RequestFabriksUploadMutation.Meta.document,
             RequestFabriksUploadMutation.Arguments(input=RequestFabriksUploadInput()).model_dump(
@@ -211,11 +220,6 @@ class UploadMiddleware(OperationMiddleware):
         and refuses one that has none, which is exactly what an interrupted write looks like
         since the manifest is written last.
         """
-        from mikro.api.schema import (
-            FinishFabriksUploadInput,
-            FinishFabriksUploadMutation,
-        )
-
         rath.query(
             FinishFabriksUploadMutation.Meta.document,
             FinishFabriksUploadMutation.Arguments(
@@ -231,11 +235,6 @@ class UploadMiddleware(OperationMiddleware):
         One grant for the whole prefix -- the manifest, both catalogs and every level -- because
         a konnektion store is a tree rather than an object.
         """
-        from mikro.api.schema import (
-            RequestKonnektionUploadInput,
-            RequestKonnektionUploadMutation,
-        )
-
         x = rath.query(
             RequestKonnektionUploadMutation.Meta.document,
             RequestKonnektionUploadMutation.Arguments(input=RequestKonnektionUploadInput()).model_dump(
@@ -251,11 +250,6 @@ class UploadMiddleware(OperationMiddleware):
         and refuses one that has none, which is exactly what an interrupted write looks like
         since the manifest is written last.
         """
-        from mikro.api.schema import (
-            FinishKonnektionUploadInput,
-            FinishKonnektionUploadMutation,
-        )
-
         rath.query(
             FinishKonnektionUploadMutation.Meta.document,
             FinishKonnektionUploadMutation.Arguments(
@@ -271,11 +265,6 @@ class UploadMiddleware(OperationMiddleware):
         One grant for the whole prefix, as for fabriks: a sparse matrix is a zarr *group* --
         three arrays and the attributes that say what they mean -- not a single object.
         """
-        from mikro.api.schema import (
-            RequestSparseUploadInput,
-            RequestSparseUploadMutation,
-        )
-
         x = rath.query(
             RequestSparseUploadMutation.Meta.document,
             RequestSparseUploadMutation.Arguments(input=RequestSparseUploadInput()).model_dump(
@@ -292,11 +281,6 @@ class UploadMiddleware(OperationMiddleware):
         A prefix missing `encoding-type` or any of the three arrays is refused at this point --
         which is what an interrupted write looks like.
         """
-        from mikro.api.schema import (
-            FinishSparseUploadInput,
-            FinishSparseUploadMutation,
-        )
-
         rath.query(
             FinishSparseUploadMutation.Meta.document,
             FinishSparseUploadMutation.Arguments(
@@ -308,11 +292,6 @@ class UploadMiddleware(OperationMiddleware):
         self, key: str, datalayer: str, rath: "MikroRath"
     ) -> "ParquetUploadGrant":
         """Get table upload credentials synchronously."""
-        from mikro.api.schema import (
-            RequestParquetUploadInput,
-            RequestParquetUploadMutation,
-        )
-
         x = rath.query(
             RequestParquetUploadMutation.Meta.document,
             RequestParquetUploadMutation.Arguments(input=RequestParquetUploadInput()).model_dump(
@@ -325,11 +304,6 @@ class UploadMiddleware(OperationMiddleware):
         self, file: FileLike, datalayer: str, rath: "MikroRath"
     ) -> "BigFileUploadGrant":
         """Get big file upload credentials synchronously."""
-        from mikro.api.schema import (
-            RequestBigFileUploadInput,
-            RequestBigfileUploadMutation,
-        )
-
         original_file_name = getattr(file, "file_name", getattr(file, "key", "upload"))
 
         x = rath.query(
@@ -344,11 +318,6 @@ class UploadMiddleware(OperationMiddleware):
         self, file_name: str, datalayer: str, rath: "MikroRath"
     ) -> "MediaUploadGrant":
         """Get media upload credentials synchronously."""
-        from mikro.api.schema import (
-            RequestMediaUploadInput,
-            RequestMediaUploadMutation,
-        )
-
         x = rath.query(
             RequestMediaUploadMutation.Meta.document,
             RequestMediaUploadMutation.Arguments(
@@ -365,11 +334,6 @@ class UploadMiddleware(OperationMiddleware):
         self, key: str, datalayer: str, rath: "MikroRath"
     ) -> "ZarrUploadGrant":
         """Get zarr upload credentials asynchronously."""
-        from mikro.api.schema import (
-            RequestZarrUploadInput,
-            RequestZarrUploadMutation,
-        )
-
         x = await rath.aquery(
             RequestZarrUploadMutation.Meta.document,
             RequestZarrUploadMutation.Arguments(input=RequestZarrUploadInput()).model_dump(
@@ -380,11 +344,6 @@ class UploadMiddleware(OperationMiddleware):
 
     async def _afinish_zarr_upload(self, store_id: str, rath: "MikroRath") -> None:
         """Finish zarr upload asynchronously."""
-        from mikro.api.schema import (
-            FinishZarrUploadInput,
-            FinishZarrUploadMutation,
-        )
-
         await rath.aquery(
             FinishZarrUploadMutation.Meta.document,
             FinishZarrUploadMutation.Arguments(
@@ -396,11 +355,6 @@ class UploadMiddleware(OperationMiddleware):
         self, key: str, datalayer: str, rath: "MikroRath"
     ) -> "FabriksUploadGrant":
         """Get fabriks upload credentials asynchronously."""
-        from mikro.api.schema import (
-            RequestFabriksUploadInput,
-            RequestFabriksUploadMutation,
-        )
-
         x = await rath.aquery(
             RequestFabriksUploadMutation.Meta.document,
             RequestFabriksUploadMutation.Arguments(input=RequestFabriksUploadInput()).model_dump(
@@ -411,11 +365,6 @@ class UploadMiddleware(OperationMiddleware):
 
     async def _afinish_fabriks_upload(self, store_id: str, rath: "MikroRath") -> None:
         """Finish a fabriks upload asynchronously."""
-        from mikro.api.schema import (
-            FinishFabriksUploadInput,
-            FinishFabriksUploadMutation,
-        )
-
         await rath.aquery(
             FinishFabriksUploadMutation.Meta.document,
             FinishFabriksUploadMutation.Arguments(
@@ -427,11 +376,6 @@ class UploadMiddleware(OperationMiddleware):
         self, key: str, datalayer: str, rath: "MikroRath"
     ) -> "KonnektionUploadGrant":
         """Get konnektion upload credentials asynchronously."""
-        from mikro.api.schema import (
-            RequestKonnektionUploadInput,
-            RequestKonnektionUploadMutation,
-        )
-
         x = await rath.aquery(
             RequestKonnektionUploadMutation.Meta.document,
             RequestKonnektionUploadMutation.Arguments(input=RequestKonnektionUploadInput()).model_dump(
@@ -442,11 +386,6 @@ class UploadMiddleware(OperationMiddleware):
 
     async def _afinish_konnektion_upload(self, store_id: str, rath: "MikroRath") -> None:
         """Finish a konnektion upload asynchronously."""
-        from mikro.api.schema import (
-            FinishKonnektionUploadInput,
-            FinishKonnektionUploadMutation,
-        )
-
         await rath.aquery(
             FinishKonnektionUploadMutation.Meta.document,
             FinishKonnektionUploadMutation.Arguments(
@@ -458,11 +397,6 @@ class UploadMiddleware(OperationMiddleware):
         self, key: str, datalayer: str, rath: "MikroRath"
     ) -> "SparseUploadGrant":
         """Get sparse upload credentials asynchronously."""
-        from mikro.api.schema import (
-            RequestSparseUploadInput,
-            RequestSparseUploadMutation,
-        )
-
         x = await rath.aquery(
             RequestSparseUploadMutation.Meta.document,
             RequestSparseUploadMutation.Arguments(input=RequestSparseUploadInput()).model_dump(
@@ -473,11 +407,6 @@ class UploadMiddleware(OperationMiddleware):
 
     async def _afinish_sparse_upload(self, store_id: str, rath: "MikroRath") -> None:
         """Finish a sparse upload asynchronously."""
-        from mikro.api.schema import (
-            FinishSparseUploadInput,
-            FinishSparseUploadMutation,
-        )
-
         await rath.aquery(
             FinishSparseUploadMutation.Meta.document,
             FinishSparseUploadMutation.Arguments(
@@ -489,11 +418,6 @@ class UploadMiddleware(OperationMiddleware):
         self, key: str, datalayer: str, rath: "MikroRath"
     ) -> "ParquetUploadGrant":
         """Get table upload credentials asynchronously."""
-        from mikro.api.schema import (
-            RequestParquetUploadInput,
-            RequestParquetUploadMutation,
-        )
-
         x = await rath.aquery(
             RequestParquetUploadMutation.Meta.document,
             RequestParquetUploadMutation.Arguments(input=RequestParquetUploadInput()).model_dump(
@@ -506,11 +430,6 @@ class UploadMiddleware(OperationMiddleware):
         self, file: FileLike, datalayer: str, rath: "MikroRath"
     ) -> "BigFileUploadGrant":
         """Get big file upload credentials asynchronously."""
-        from mikro.api.schema import (
-            RequestBigFileUploadInput,
-            RequestBigfileUploadMutation,
-        )
-
         original_file_name = getattr(file, "file_name", getattr(file, "key", "upload"))
 
         x = await rath.aquery(
@@ -525,11 +444,6 @@ class UploadMiddleware(OperationMiddleware):
         self, file_name: str, datalayer: str, rath: "MikroRath"
     ) -> "MediaUploadGrant":
         """Get media upload credentials asynchronously."""
-        from mikro.api.schema import (
-            RequestMediaUploadInput,
-            RequestMediaUploadMutation,
-        )
-
         x = await rath.aquery(
             RequestMediaUploadMutation.Meta.document,
             RequestMediaUploadMutation.Arguments(

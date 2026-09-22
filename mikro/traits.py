@@ -13,7 +13,6 @@ If you want to add your own traits to the graphql type, you can do so by adding 
 
 from __future__ import annotations
 
-"""A context manager to download the file and delete it after use"""
 import os
 from collections import deque
 from collections.abc import Generator, Mapping, Sequence
@@ -47,14 +46,24 @@ from zarr.storage import StorePath
 
 from .client import client_of
 from .scalars import ArrayCoercible
+from mikro.checks.arrays import check_dims_match_axes
+from mikro.checks.sparse import check_against_store
+from mikro.checks.sparse import check_axes
+from mikro.checks.tables import TableDeclarationError
+from mikro.checks.tables import file_columns_of
+from mikro.checks.tables import resolve_columns
+import shutil
 from .vocabulary import (
     MATRIX_KINDS,
+    QUALITATIVE_COLORMAP_VALUES,
     AxisSelection,
+    AxisTypeName,
     Calibration,
     ResolvedTransformKind,
     TransformKind,
     Unit,
     default_axis_type,
+    enum_value,
     normalize_selection,
 )
 
@@ -77,6 +86,8 @@ if TYPE_CHECKING:
         Annotation,
         AnnotationKind,
         Axis,
+        AxisInput,
+        AxisType,
         CoordinateAnchorInput,
         CoordinateSystem,
         CreateTransformationMutationCreateTransformationBase,
@@ -126,6 +137,92 @@ class _LivesInASpace(Protocol):
 #: generates are different classes with the same shape — what matters is that
 #: the source can name its space, not which query returned it.
 Registrable = Union[_LivesInItsOwnGrid, _LivesInASpace, "CoordinateSystemTrait"]
+
+
+class AxisSource(Protocol):
+    """A lens or a dataset: named axes, a shape, and a space that types them.
+
+    Structural rather than a union of the concrete models, for the same reason
+    `Registrable` is: the operation-specific variants turms generates are
+    different classes with the same shape. It is also what lets a caller plan
+    against a candidate it built itself — `mikro.arkitekt.specs` does, and its
+    tests stand in `SimpleNamespace` for a lens.
+
+    Which field names the space is *not* part of the protocol: `_space_or_none`
+    finds it whether it is called `space`, `coordinate_system` or
+    `intrinsic_system`, and a source that names none is typed by the bare-name
+    convention instead.
+    """
+
+    @property
+    def axis_names(self) -> Sequence[str]:
+        """The axis names, in array order."""
+        ...
+
+    @property
+    def shape(self) -> Sequence[int]:
+        """The extent of each axis, in array order."""
+        ...
+
+
+class HasNamedAxes:
+    """A lens or a dataset: something whose axes have names, types and extents.
+
+    `Lensable` and `DatasetTrait` both mix this in. They differ only in which
+    field names the space their axes are typed by — `coordinate_system` on a
+    lens, `intrinsic_system` on a dataset — and the `space` property each
+    defines is the whole of that difference; everything here is written once
+    against it.
+
+    Every method reads `axis_names` and `shape`, which a partial fragment may
+    not have selected. `get_attributes_or_error` names the missing field rather
+    than failing with an `AttributeError` further in — the same contract
+    `CoordinateSystemTrait.ndim` and `.units` already keep.
+    """
+
+    @property
+    def axis_table(self) -> tuple[tuple[str, AxisTypeName, int], ...]:
+        """``(name, axis_type, extent)`` per axis, in array order."""
+        return axis_table(cast("AxisSource", self))
+
+    @property
+    def axis_types(self) -> tuple[AxisTypeName, ...]:
+        """Per-axis semantic types in array order, as AxisType value strings."""
+        return axis_types(cast("AxisSource", self))
+
+    def axes_of_type(self, axis_type: AxisType | AxisTypeName) -> tuple[str, ...]:
+        """The names of this object's axes of one AxisType, in array order.
+
+        The runtime counterpart of the spec vocabulary: a function typed over
+        ``TimelapseVolume`` should reduce over ``movie.axes_of_type(AxisType.TIME)``
+        rather than hard-coding ``"t"`` — the spec guarantees the axis exists,
+        not what it is called.
+        """
+        wanted = enum_value(axis_type)
+        return tuple(
+            name for name, found, _ in self.axis_table if found == wanted
+        )
+
+    def carried_axes(self, dims: Sequence[str]) -> list[AxisInput]:
+        """AxisInput for a derived array's dims, types carried from this source.
+
+        For ``create_array_dataset(axes=...)`` on a dataset computed from this
+        lens: an axis that survived the computation keeps the semantic type it
+        had at the source instead of being re-guessed from its name, so the
+        derived dataset's descriptors — and with them the action's Provides —
+        stay true even for unconventionally named axes. A genuinely new dim
+        falls back to the bare-name convention.
+        """
+        from mikro.api.schema import AxisInput, AxisType
+
+        types = {name: found for name, found, _ in self.axis_table}
+        return [
+            AxisInput(
+                name=dim,
+                type=AxisType(types[dim] if dim in types else default_axis_type(dim)),
+            )
+            for dim in dims
+        ]
 
 
 def _three_floats(values: NDArray[np.generic]) -> tuple[float, float, float]:
@@ -408,8 +505,6 @@ class FileTrait:
         carries a size -- so a caller who does should set that variable rather than find
         out that ``/tmp`` was a tmpfs by filling memory partway through.
         """
-        import shutil
-
         from mikro.io.remote import download_to_scratch
 
         store_id, key = get_attributes_or_error(
@@ -492,10 +587,19 @@ def _as_calibration(axis: str, value: Any) -> Calibration:
     return Calibration(float(factor), Unit(str(unit)))
 
 
-class DatasetTrait:
+class DatasetTrait(HasNamedAxes):
     """A trait for dataset-like objects that can be downloaded
     because they have a big file store attached to them.
     """
+
+    @property
+    def space(self) -> CoordinateSystem | None:
+        """The space this dataset's axes are typed by: its own pixel grid.
+
+        `None` when the query did not select `intrinsicSystem` — see
+        `_space_or_none` for why that is an answer rather than a failure.
+        """
+        return getattr(self, "intrinsic_system", None)
 
     def level_data(self, level: int = 0) -> xr.DataArray:
         """One pyramid level of this dataset, with its axes named.
@@ -745,8 +849,6 @@ class CreateADatasetTrait:
     @model_validator(mode="after")
     def _validate_dims_match_axes(self) -> Self:
         """Ensure the axes (and scale arrays) match the data array dims."""
-        from mikro.checks.arrays import check_dims_match_axes
-
         data = getattr(self, "data", None)
         axes = getattr(self, "axes", None)
         if data is None or axes is None:
@@ -781,8 +883,6 @@ class CreateTableDatasetTrait(BaseModel):
     @model_validator(mode="after")
     def _resolve_columns(self) -> Self:
         """Derive the declaration, merge the caller's onto it, and refuse what cannot describe this frame."""
-        from mikro.checks.tables import TableDeclarationError, file_columns_of, resolve_columns
-
         data = getattr(self, "data", None)
         if data is None:
             return self
@@ -832,8 +932,6 @@ class CreateSparseDatasetTrait(BaseModel):
     @model_validator(mode="after")
     def _check_declaration(self) -> Self:
         """Check the axes, then check them against the matrix if one is in hand."""
-        from mikro.checks.sparse import check_against_store, check_axes
-
         # `axes` is `... | None` with a GraphQL default of `[]`, and `()` is what the first
         # refusal is about -- so it is coerced rather than treated as "nothing to check",
         # which would skip the rank rule exactly where it applies.
@@ -918,10 +1016,8 @@ class SparseColorByInputTrait(BaseModel):
     @model_validator(mode="after")
     def _a_slice_is_measured(self) -> Self:
         """Refuse a qualitative colormap, and an inverted window."""
-        from mikro.vocabulary import QUALITATIVE_COLORMAP_VALUES
-
         colormap = getattr(self, "colormap", None)
-        name = getattr(colormap, "value", colormap)
+        name = enum_value(colormap)
         if name in QUALITATIVE_COLORMAP_VALUES:
             raise ValueError(
                 f"A sparse colouring is measured -- a slice is a value per object, and "
@@ -955,10 +1051,8 @@ class GraphColorByInputTrait(BaseModel):
     @model_validator(mode="after")
     def _a_metric_is_measured(self) -> Self:
         """Refuse a qualitative colormap, and an inverted window."""
-        from mikro.vocabulary import QUALITATIVE_COLORMAP_VALUES
-
         colormap = getattr(self, "colormap", None)
-        name = getattr(colormap, "value", colormap)
+        name = enum_value(colormap)
         if name in QUALITATIVE_COLORMAP_VALUES:
             raise ValueError(
                 f"A graph colouring is measured -- a per-node metric is an ordered value -- "
@@ -1173,10 +1267,19 @@ class CoordinateAnchorInputTrait(BaseModel):
         ]
 
 
-class Lensable:
+class Lensable(HasNamedAxes):
     """A trait for file-like objects that can be downloaded
     because they have a big file store attached to them.
     """
+
+    @property
+    def space(self) -> CoordinateSystem | None:
+        """The space this lens' axes are typed by: the one its slices cut out.
+
+        `None` when the query did not select `coordinateSystem` — see
+        `_space_or_none` for why that is an answer rather than a failure.
+        """
+        return getattr(self, "coordinate_system", None)
 
     @property
     def data(self) -> xr.DataArray:
@@ -1423,13 +1526,42 @@ def _normalize_kind(kind: ResolvedTransformKind | Enum) -> ResolvedTransformKind
     `use_enum_values=True` means a kind read off a model may be either the enum
     or its value, and the two compare unequal against a bare literal.
     """
-    return str(getattr(kind, "value", kind))  # type: ignore[return-value]
+    return enum_value(kind)
 
 
 def _axis_names_in_order(system: CoordinateSystemTrait) -> list[str]:
     """The axis names of a coordinate system, ordered by their `order` field."""
     axes = get_attributes_or_error(system, "axes")
     return [a.name for a in sorted(axes, key=lambda a: a.order)]
+
+
+def _space_or_none(source: Registrable | AxisSource) -> CoordinateSystem | None:
+    """The coordinate system a source lives in, or None when it names none.
+
+    The *optional* half of the pair: a missing system is an answer here, not a
+    failure. `axis_table` depends on that — a lens whose query did not select
+    `coordinateSystem` still has axis names, and the bare-name convention types
+    them. `_space_of` is the raising half, for the callers that genuinely
+    cannot proceed without a space.
+
+    `source.space` is the answer whenever the source carries a trait that
+    defines it. The `getattr` chain behind it is not dead code: a mesh
+    collection and an annotation collection are `Registrable` and name their
+    space in `coordinate_system`, but carry no trait at all, and so have no
+    `space`. `coordinate_system` is tried first, which is the order
+    `axis_table` has always used; no type carries both fields non-None.
+    """
+    space = getattr(source, "space", None)
+    if space is not None:
+        return cast("CoordinateSystem", space)
+    for field in ("coordinate_system", "intrinsic_system"):
+        found = getattr(source, field, None)
+        if found is not None:
+            return cast("CoordinateSystem", found)
+    # A system passed directly: it has axes, and it is not a container.
+    if getattr(source, "axes", None) is not None:
+        return cast("CoordinateSystem", source)
+    return None
 
 
 def _space_of(source: Registrable) -> CoordinateSystem:
@@ -1443,18 +1575,44 @@ def _space_of(source: Registrable) -> CoordinateSystem:
     Raises:
         ValueError: If the source has no space, or the query did not select it.
     """
-    for field in ("intrinsic_system", "coordinate_system"):
-        space = getattr(source, field, None)
-        if space is not None:
-            return space
-    # A system passed directly: it has axes, and it is not a container.
-    if getattr(source, "axes", None) is not None:
-        return cast("CoordinateSystem", source)
+    space = _space_or_none(source)
+    if space is not None:
+        return space
     raise ValueError(
         f"{getattr(source, 'name', source)!r} has no coordinate system, so there "
         f"is nothing to register. Either it genuinely lives in no space, or the "
         f"query did not select `intrinsicSystem` / `coordinateSystem` on it."
     )
+
+
+def axis_table(source: AxisSource) -> tuple[tuple[str, AxisTypeName, int], ...]:
+    """``(name, axis_type, extent)`` per axis of a lens or a dataset, in array order.
+
+    Types come from the source's coordinate system when it was fetched with
+    one; otherwise the bare-name convention (t/time -> TIME, c/channel ->
+    CHANNEL, else SPACE).
+
+    A function as well as `HasNamedAxes.axis_table` because callers outside the
+    model hierarchy use it structurally — `mikro.arkitekt.specs` plans against
+    candidates that need only name a space, and its tests build them out of
+    `SimpleNamespace`.
+    """
+    names = tuple(get_attributes_or_error(source, "axis_names"))
+    shape = tuple(get_attributes_or_error(source, "shape"))
+    system = _space_or_none(source)
+    types: tuple[AxisTypeName, ...]
+    if system is not None:
+        axes = sorted(system.axes, key=lambda axis: axis.order)
+        # `use_enum_values` means the field may hold either the enum or its value.
+        types = tuple(enum_value(axis.type) for axis in axes)
+    else:
+        types = tuple(default_axis_type(name) for name in names)
+    return tuple(zip(names, types, shape))
+
+
+def axis_types(source: AxisSource) -> tuple[AxisTypeName, ...]:
+    """Per-axis semantic types in array order, as AxisType value strings."""
+    return tuple(axis_type for _, axis_type, _ in axis_table(source))
 
 
 def _homogeneous_from_rows(rows: np.ndarray, ndim_in: int | None) -> np.ndarray:
@@ -2268,6 +2426,11 @@ class CoordinateSystemTrait:
         return client_of(self, mikro).clear_coordinate_system(
             id=get_attributes_or_error(self, "id")
         )
+
+    @property
+    def space(self) -> CoordinateSystem:
+        """A coordinate system is its own space."""
+        return cast("CoordinateSystem", self)
 
     @property
     def ndim(self) -> int:

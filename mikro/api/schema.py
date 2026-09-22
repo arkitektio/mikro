@@ -1,3 +1,4 @@
+import builtins
 from datetime import datetime
 from enum import Enum
 from kanne.scalars import Frequency, GenericQuantity, Length, Power, Temperature, Unit
@@ -7043,8 +7044,8 @@ Args:
 Returns:
     Animation
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['scene'] = scene
         _input['name'] = name
         if description is not UNSET:
@@ -7068,8 +7069,8 @@ Args:
 Returns:
     Animation
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['scene'] = scene
         _input['name'] = name
         if description is not UNSET:
@@ -7093,8 +7094,8 @@ Args:
 Returns:
     Animation
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         if name is not UNSET:
             _input['name'] = name
@@ -7120,8 +7121,8 @@ Args:
 Returns:
     Animation
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         if name is not UNSET:
             _input['name'] = name
@@ -7144,8 +7145,8 @@ Args:
 Returns:
     ID
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         variables['input'] = _input
         return (await self.aexecute(DeleteAnimationMutation, variables, task=task)).delete_animation
@@ -7162,8 +7163,8 @@ Args:
 Returns:
     ID
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         variables['input'] = _input
         return self.execute(DeleteAnimationMutation, variables, task=task).delete_animation
@@ -7190,8 +7191,8 @@ Args:
 Returns:
     Annotation
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['kind'] = kind
         _input['vectors'] = vectors
         if stroke_color is not UNSET:
@@ -7237,8 +7238,8 @@ Args:
 Returns:
     Annotation
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['kind'] = kind
         _input['vectors'] = vectors
         if stroke_color is not UNSET:
@@ -7276,8 +7277,8 @@ Args:
 Returns:
     list[Annotation]
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         if collection is not UNSET:
             _input['collection'] = collection
         if scene is not UNSET:
@@ -7300,8 +7301,8 @@ Args:
 Returns:
     list[Annotation]
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         if collection is not UNSET:
             _input['collection'] = collection
         if scene is not UNSET:
@@ -7331,8 +7332,8 @@ Args:
 Returns:
     Annotation
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         if kind is not UNSET:
             _input['kind'] = kind
         if vectors is not UNSET:
@@ -7376,8 +7377,8 @@ Args:
 Returns:
     Annotation
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         if kind is not UNSET:
             _input['kind'] = kind
         if vectors is not UNSET:
@@ -7412,8 +7413,8 @@ Args:
 Returns:
     ID
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         variables['input'] = _input
         return (await self.aexecute(DeleteAnnotationMutation, variables, task=task)).delete_annotation
@@ -7430,8 +7431,8 @@ Args:
 Returns:
     ID
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         variables['input'] = _input
         return self.execute(DeleteAnnotationMutation, variables, task=task).delete_annotation
@@ -7453,8 +7454,8 @@ Args:
 Returns:
     AnnotationCollection
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['name'] = name
         if description is not UNSET:
             _input['description'] = description
@@ -7485,8 +7486,8 @@ Args:
 Returns:
     AnnotationCollection
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['name'] = name
         if description is not UNSET:
             _input['description'] = description
@@ -7512,8 +7513,8 @@ Args:
 Returns:
     ID
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         variables['input'] = _input
         return (await self.aexecute(DeleteAnnotationCollectionMutation, variables, task=task)).delete_annotation_collection
@@ -7530,8 +7531,8 @@ Args:
 Returns:
     ID
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         variables['input'] = _input
         return self.execute(DeleteAnnotationCollectionMutation, variables, task=task).delete_annotation_collection
@@ -7555,8 +7556,8 @@ Args:
 Returns:
     ArrayDataset
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['data'] = data
         _input['scales'] = scales
         _input['name'] = name
@@ -7591,8 +7592,8 @@ Args:
 Returns:
     ArrayDataset
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['data'] = data
         _input['scales'] = scales
         _input['name'] = name
@@ -7623,8 +7624,8 @@ Args:
 Returns:
     CoordinateSystem
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['name'] = name
         _input['axes'] = axes
         if epoch is not UNSET:
@@ -7648,8 +7649,8 @@ Args:
 Returns:
     CoordinateSystem
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['name'] = name
         _input['axes'] = axes
         if epoch is not UNSET:
@@ -7672,8 +7673,8 @@ Args:
 Returns:
     CoordinateSystem
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         if name is not UNSET:
             _input['name'] = name
@@ -7696,8 +7697,8 @@ Args:
 Returns:
     CoordinateSystem
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         if name is not UNSET:
             _input['name'] = name
@@ -7718,8 +7719,8 @@ Args:
 Returns:
     ID
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         variables['input'] = _input
         return (await self.aexecute(DeleteCoordinateSystemMutation, variables, task=task)).delete_coordinate_system
@@ -7736,8 +7737,8 @@ Args:
 Returns:
     ID
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         variables['input'] = _input
         return self.execute(DeleteCoordinateSystemMutation, variables, task=task).delete_coordinate_system
@@ -7754,8 +7755,8 @@ Args:
 Returns:
     list[ID]
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         variables['input'] = _input
         return (await self.aexecute(ClearCoordinateSystemMutation, variables, task=task)).clear_coordinate_system
@@ -7772,8 +7773,8 @@ Args:
 Returns:
     list[ID]
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         variables['input'] = _input
         return self.execute(ClearCoordinateSystemMutation, variables, task=task).clear_coordinate_system
@@ -7795,8 +7796,8 @@ Args:
 Returns:
     list[ID]
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         if dataset is not UNSET:
             _input['dataset'] = dataset
         if table_dataset is not UNSET:
@@ -7828,8 +7829,8 @@ Args:
 Returns:
     list[ID]
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         if dataset is not UNSET:
             _input['dataset'] = dataset
         if table_dataset is not UNSET:
@@ -7860,8 +7861,8 @@ Args:
 Returns:
     BigFileUploadGrant
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['originalFileName'] = original_file_name
         if file_size is not UNSET:
             _input['fileSize'] = file_size
@@ -7890,8 +7891,8 @@ Args:
 Returns:
     BigFileUploadGrant
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['originalFileName'] = original_file_name
         if file_size is not UNSET:
             _input['fileSize'] = file_size
@@ -7917,8 +7918,8 @@ Args:
 Returns:
     BigFileStore
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
         _input['valid'] = valid
         variables['input'] = _input
@@ -7937,8 +7938,8 @@ Args:
 Returns:
     BigFileStore
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
         _input['valid'] = valid
         variables['input'] = _input
@@ -7956,8 +7957,8 @@ Args:
 Returns:
     BigFileAccessGrant
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
         variables['input'] = _input
         return (await self.aexecute(RequestBigfileAccessMutation, variables, task=task)).request_bigfile_access
@@ -7974,8 +7975,8 @@ Args:
 Returns:
     BigFileAccessGrant
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
         variables['input'] = _input
         return self.execute(RequestBigfileAccessMutation, variables, task=task).request_bigfile_access
@@ -7993,8 +7994,8 @@ Args:
 Returns:
     FabriksUploadGrant
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         if host is not UNSET:
             _input['host'] = host
         if port is not UNSET:
@@ -8015,8 +8016,8 @@ Args:
 Returns:
     FabriksUploadGrant
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         if host is not UNSET:
             _input['host'] = host
         if port is not UNSET:
@@ -8038,8 +8039,8 @@ Args:
 Returns:
     FabriksStore
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
         _input['valid'] = valid
         variables['input'] = _input
@@ -8059,8 +8060,8 @@ Args:
 Returns:
     FabriksStore
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
         _input['valid'] = valid
         variables['input'] = _input
@@ -8078,8 +8079,8 @@ Args:
 Returns:
     FabriksAccessGrant
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
         variables['input'] = _input
         return (await self.aexecute(RequestFabriksAccessMutation, variables, task=task)).request_fabriks_access
@@ -8096,8 +8097,8 @@ Args:
 Returns:
     FabriksAccessGrant
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
         variables['input'] = _input
         return self.execute(RequestFabriksAccessMutation, variables, task=task).request_fabriks_access
@@ -8115,8 +8116,8 @@ Args:
 Returns:
     KonnektionUploadGrant
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         if host is not UNSET:
             _input['host'] = host
         if port is not UNSET:
@@ -8137,8 +8138,8 @@ Args:
 Returns:
     KonnektionUploadGrant
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         if host is not UNSET:
             _input['host'] = host
         if port is not UNSET:
@@ -8160,8 +8161,8 @@ Args:
 Returns:
     KonnektionStore
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
         _input['valid'] = valid
         variables['input'] = _input
@@ -8181,8 +8182,8 @@ Args:
 Returns:
     KonnektionStore
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
         _input['valid'] = valid
         variables['input'] = _input
@@ -8200,8 +8201,8 @@ Args:
 Returns:
     KonnektionAccessGrant
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
         variables['input'] = _input
         return (await self.aexecute(RequestKonnektionAccessMutation, variables, task=task)).request_konnektion_access
@@ -8218,8 +8219,8 @@ Args:
 Returns:
     KonnektionAccessGrant
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
         variables['input'] = _input
         return self.execute(RequestKonnektionAccessMutation, variables, task=task).request_konnektion_access
@@ -8238,8 +8239,8 @@ Args:
 Returns:
     MediaUploadGrant
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['originalFileName'] = original_file_name
         if file_size is not UNSET:
             _input['fileSize'] = file_size
@@ -8262,8 +8263,8 @@ Args:
 Returns:
     MediaUploadGrant
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['originalFileName'] = original_file_name
         if file_size is not UNSET:
             _input['fileSize'] = file_size
@@ -8285,8 +8286,8 @@ Args:
 Returns:
     MediaStore
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
         _input['valid'] = valid
         variables['input'] = _input
@@ -8305,8 +8306,8 @@ Args:
 Returns:
     MediaStore
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
         _input['valid'] = valid
         variables['input'] = _input
@@ -8324,8 +8325,8 @@ Args:
 Returns:
     MediaAccessGrant
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
         variables['input'] = _input
         return (await self.aexecute(RequestMediaAccessMutation, variables, task=task)).request_media_access
@@ -8342,8 +8343,8 @@ Args:
 Returns:
     MediaAccessGrant
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
         variables['input'] = _input
         return self.execute(RequestMediaAccessMutation, variables, task=task).request_media_access
@@ -8362,8 +8363,8 @@ Args:
 Returns:
     ParquetUploadGrant
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         if content_type is not UNSET:
             _input['contentType'] = content_type
         if host is not UNSET:
@@ -8387,8 +8388,8 @@ Args:
 Returns:
     ParquetUploadGrant
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         if content_type is not UNSET:
             _input['contentType'] = content_type
         if host is not UNSET:
@@ -8411,8 +8412,8 @@ Args:
 Returns:
     ParquetStore
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
         _input['valid'] = valid
         variables['input'] = _input
@@ -8431,8 +8432,8 @@ Args:
 Returns:
     ParquetStore
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
         _input['valid'] = valid
         variables['input'] = _input
@@ -8450,8 +8451,8 @@ Args:
 Returns:
     ParquetAccessGrant
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
         variables['input'] = _input
         return (await self.aexecute(RequestParquetAccessMutation, variables, task=task)).request_parquet_access
@@ -8468,8 +8469,8 @@ Args:
 Returns:
     ParquetAccessGrant
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
         variables['input'] = _input
         return self.execute(RequestParquetAccessMutation, variables, task=task).request_parquet_access
@@ -8487,8 +8488,8 @@ Args:
 Returns:
     SparseUploadGrant
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         if host is not UNSET:
             _input['host'] = host
         if port is not UNSET:
@@ -8509,8 +8510,8 @@ Args:
 Returns:
     SparseUploadGrant
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         if host is not UNSET:
             _input['host'] = host
         if port is not UNSET:
@@ -8531,8 +8532,8 @@ Args:
 Returns:
     SparseStore
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
         _input['valid'] = valid
         variables['input'] = _input
@@ -8551,8 +8552,8 @@ Args:
 Returns:
     SparseStore
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
         _input['valid'] = valid
         variables['input'] = _input
@@ -8574,8 +8575,8 @@ Args:
 Returns:
     ZarrUploadGrant
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         if shape is not UNSET:
             _input['shape'] = shape
         if chunks is not UNSET:
@@ -8605,8 +8606,8 @@ Args:
 Returns:
     ZarrUploadGrant
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         if shape is not UNSET:
             _input['shape'] = shape
         if chunks is not UNSET:
@@ -8633,8 +8634,8 @@ Args:
 Returns:
     ZarrStore
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
         _input['valid'] = valid
         variables['input'] = _input
@@ -8653,8 +8654,8 @@ Args:
 Returns:
     ZarrStore
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
         _input['valid'] = valid
         variables['input'] = _input
@@ -8672,8 +8673,8 @@ Args:
 Returns:
     ZarrAccessGrant
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
         variables['input'] = _input
         return (await self.aexecute(RequestZarrAccessMutation, variables, task=task)).request_zarr_access
@@ -8690,8 +8691,8 @@ Args:
 Returns:
     ZarrAccessGrant
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
         variables['input'] = _input
         return self.execute(RequestZarrAccessMutation, variables, task=task).request_zarr_access
@@ -8711,8 +8712,8 @@ Args:
 Returns:
     File
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['file'] = file
         _input['fileName'] = file_name
         if folder is not UNSET:
@@ -8737,8 +8738,8 @@ Args:
 Returns:
     File
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['file'] = file
         _input['fileName'] = file_name
         if folder is not UNSET:
@@ -8761,8 +8762,8 @@ Args:
 Returns:
     Folder
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['name'] = name
         if parent is not UNSET:
             _input['parent'] = parent
@@ -8782,8 +8783,8 @@ Args:
 Returns:
     Folder
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['name'] = name
         if parent is not UNSET:
             _input['parent'] = parent
@@ -8803,8 +8804,8 @@ Args:
 Returns:
     Folder
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['name'] = name
         if parent is not UNSET:
             _input['parent'] = parent
@@ -8824,8 +8825,8 @@ Args:
 Returns:
     Folder
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['name'] = name
         if parent is not UNSET:
             _input['parent'] = parent
@@ -8846,8 +8847,8 @@ Args:
 Returns:
     Folder
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['name'] = name
         if parent is not UNSET:
             _input['parent'] = parent
@@ -8869,8 +8870,8 @@ Args:
 Returns:
     Folder
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['name'] = name
         if parent is not UNSET:
             _input['parent'] = parent
@@ -8891,8 +8892,8 @@ Args:
 Returns:
     Folder
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         _input['historyId'] = history_id
         variables['input'] = _input
@@ -8911,8 +8912,8 @@ Args:
 Returns:
     Folder
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         _input['historyId'] = history_id
         variables['input'] = _input
@@ -8936,8 +8937,8 @@ Args:
 Returns:
     LayerImageLayer
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['lens'] = lens
         _input['scene'] = scene
         if blending is not UNSET:
@@ -8970,8 +8971,8 @@ Args:
 Returns:
     LayerImageLayer
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['lens'] = lens
         _input['scene'] = scene
         if blending is not UNSET:
@@ -9011,8 +9012,8 @@ Args:
 Returns:
     LayerIntensityLayer
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['lens'] = lens
         _input['scene'] = scene
         if intensity_axis is not UNSET:
@@ -9065,8 +9066,8 @@ Args:
 Returns:
     LayerIntensityLayer
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['lens'] = lens
         _input['scene'] = scene
         if intensity_axis is not UNSET:
@@ -9120,8 +9121,8 @@ Args:
 Returns:
     LayerIntensityLayer
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['lens'] = lens
         _input['scene'] = scene
         if mode is not UNSET:
@@ -9177,8 +9178,8 @@ Args:
 Returns:
     LayerIntensityLayer
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['lens'] = lens
         _input['scene'] = scene
         if mode is not UNSET:
@@ -9233,8 +9234,8 @@ Args:
 Returns:
     LayerRgbLayer
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['lens'] = lens
         _input['scene'] = scene
         if intensity_axis is not UNSET:
@@ -9283,8 +9284,8 @@ Args:
 Returns:
     LayerRgbLayer
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['lens'] = lens
         _input['scene'] = scene
         if intensity_axis is not UNSET:
@@ -9325,8 +9326,8 @@ Args:
 Returns:
     LayerLabelLayer
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['lens'] = lens
         _input['scene'] = scene
         if render is not UNSET:
@@ -9357,8 +9358,8 @@ Args:
 Returns:
     LayerLabelLayer
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['lens'] = lens
         _input['scene'] = scene
         if render is not UNSET:
@@ -9397,8 +9398,8 @@ Args:
 Returns:
     LayerMeshLayer
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['scene'] = scene
         _input['meshCollection'] = mesh_collection
         if material_color is not UNSET:
@@ -9453,8 +9454,8 @@ Args:
 Returns:
     LayerMeshLayer
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['scene'] = scene
         _input['meshCollection'] = mesh_collection
         if material_color is not UNSET:
@@ -9508,8 +9509,8 @@ Args:
 Returns:
     LayerMeshLayer
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         if material_color is not UNSET:
             _input['materialColor'] = material_color
@@ -9562,8 +9563,8 @@ Args:
 Returns:
     LayerMeshLayer
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         if material_color is not UNSET:
             _input['materialColor'] = material_color
@@ -9622,8 +9623,8 @@ Args:
 Returns:
     LayerNetworkLayer
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['scene'] = scene
         _input['networkCollection'] = network_collection
         if material_color is not UNSET:
@@ -9689,8 +9690,8 @@ Args:
 Returns:
     LayerNetworkLayer
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['scene'] = scene
         _input['networkCollection'] = network_collection
         if material_color is not UNSET:
@@ -9753,8 +9754,8 @@ Args:
 Returns:
     LayerNetworkLayer
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         if material_color is not UNSET:
             _input['materialColor'] = material_color
@@ -9816,8 +9817,8 @@ Args:
 Returns:
     LayerNetworkLayer
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         if material_color is not UNSET:
             _input['materialColor'] = material_color
@@ -9869,8 +9870,8 @@ Args:
 Returns:
     LayerLabelLayer
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         if render is not UNSET:
             _input['render'] = render
@@ -9900,8 +9901,8 @@ Args:
 Returns:
     LayerLabelLayer
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         if render is not UNSET:
             _input['render'] = render
@@ -9940,8 +9941,8 @@ Args:
 Returns:
     LayerPointLayer
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['scene'] = scene
         _input['tableDataset'] = table_dataset
         if color_bys is not UNSET:
@@ -9997,8 +9998,8 @@ Args:
 Returns:
     LayerPointLayer
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['scene'] = scene
         _input['tableDataset'] = table_dataset
         if color_bys is not UNSET:
@@ -10050,8 +10051,8 @@ Args:
 Returns:
     LayerPointLayer
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         if color_bys is not UNSET:
             _input['colorBys'] = color_bys
@@ -10098,8 +10099,8 @@ Args:
 Returns:
     LayerPointLayer
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         if color_bys is not UNSET:
             _input['colorBys'] = color_bys
@@ -10145,8 +10146,8 @@ Args:
 Returns:
     LayerTrackLayer
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['scene'] = scene
         _input['tableDataset'] = table_dataset
         if color_by_column is not UNSET:
@@ -10187,8 +10188,8 @@ Args:
 Returns:
     LayerTrackLayer
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['scene'] = scene
         _input['tableDataset'] = table_dataset
         if color_by_column is not UNSET:
@@ -10227,8 +10228,8 @@ Args:
 Returns:
     LayerTrackLayer
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         if color_by_column is not UNSET:
             _input['colorByColumn'] = color_by_column
@@ -10266,8 +10267,8 @@ Args:
 Returns:
     LayerTrackLayer
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         if color_by_column is not UNSET:
             _input['colorByColumn'] = color_by_column
@@ -10299,8 +10300,8 @@ Args:
 Returns:
     Lens
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['dataset'] = dataset
         _input['slices'] = slices
         variables['input'] = _input
@@ -10319,8 +10320,8 @@ Args:
 Returns:
     Lens
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['dataset'] = dataset
         _input['slices'] = slices
         variables['input'] = _input
@@ -10344,8 +10345,8 @@ Args:
 Returns:
     MeshCollection
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['version'] = version
         _input['store'] = store
         _input['axes'] = axes
@@ -10378,8 +10379,8 @@ Args:
 Returns:
     MeshCollection
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['version'] = version
         _input['store'] = store
         _input['axes'] = axes
@@ -10406,8 +10407,8 @@ Args:
 Returns:
     ID
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         variables['input'] = _input
         return (await self.aexecute(DeleteMeshCollectionMutation, variables, task=task)).delete_mesh_collection
@@ -10424,8 +10425,8 @@ Args:
 Returns:
     ID
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         variables['input'] = _input
         return self.execute(DeleteMeshCollectionMutation, variables, task=task).delete_mesh_collection
@@ -10448,8 +10449,8 @@ Args:
 Returns:
     NetworkCollection
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['version'] = version
         _input['store'] = store
         _input['axes'] = axes
@@ -10482,8 +10483,8 @@ Args:
 Returns:
     NetworkCollection
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['version'] = version
         _input['store'] = store
         _input['axes'] = axes
@@ -10510,8 +10511,8 @@ Args:
 Returns:
     ID
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         variables['input'] = _input
         return (await self.aexecute(DeleteNetworkCollectionMutation, variables, task=task)).delete_network_collection
@@ -10528,8 +10529,8 @@ Args:
 Returns:
     ID
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         variables['input'] = _input
         return self.execute(DeleteNetworkCollectionMutation, variables, task=task).delete_network_collection
@@ -10556,8 +10557,8 @@ Args:
 Returns:
     LayerPhasorLayer
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['lens'] = lens
         _input['scene'] = scene
         if phasor_axis is not UNSET:
@@ -10603,8 +10604,8 @@ Args:
 Returns:
     LayerPhasorLayer
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['lens'] = lens
         _input['scene'] = scene
         if phasor_axis is not UNSET:
@@ -10652,8 +10653,8 @@ Args:
 Returns:
     PhasorHistogram
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['axis'] = axis
         _input['counts'] = counts
         if harmonic is not UNSET:
@@ -10704,8 +10705,8 @@ Args:
 Returns:
     PhasorHistogram
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['axis'] = axis
         _input['counts'] = counts
         if harmonic is not UNSET:
@@ -10750,8 +10751,8 @@ Args:
 Returns:
     PhasorCalibration
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['axis'] = axis
         if harmonic is not UNSET:
             _input['harmonic'] = harmonic
@@ -10785,8 +10786,8 @@ Args:
 Returns:
     PhasorCalibration
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['axis'] = axis
         if harmonic is not UNSET:
             _input['harmonic'] = harmonic
@@ -10821,8 +10822,8 @@ Args:
 Returns:
     Scene
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['name'] = name
         if blending is not UNSET:
             _input['blending'] = blending
@@ -10860,8 +10861,8 @@ Args:
 Returns:
     Scene
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['name'] = name
         if blending is not UNSET:
             _input['blending'] = blending
@@ -10895,8 +10896,8 @@ Args:
 Returns:
     Scene
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['coordinateSystem'] = coordinate_system
         if name is not UNSET:
             _input['name'] = name
@@ -10921,8 +10922,8 @@ Args:
 Returns:
     Scene
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['coordinateSystem'] = coordinate_system
         if name is not UNSET:
             _input['name'] = name
@@ -10946,8 +10947,8 @@ Args:
 Returns:
     Scene
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         if preferred_view is not UNSET:
             _input['preferredView'] = preferred_view
@@ -10970,8 +10971,8 @@ Args:
 Returns:
     Scene
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         if preferred_view is not UNSET:
             _input['preferredView'] = preferred_view
@@ -10992,8 +10993,8 @@ Args:
 Returns:
     Scene
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         variables['input'] = _input
         return (await self.aexecute(ClearSceneMutation, variables, task=task)).clear_scene
@@ -11010,8 +11011,8 @@ Args:
 Returns:
     Scene
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         variables['input'] = _input
         return self.execute(ClearSceneMutation, variables, task=task).clear_scene
@@ -11028,8 +11029,8 @@ Args:
 Returns:
     ID
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         variables['input'] = _input
         return (await self.aexecute(DeleteSceneMutation, variables, task=task)).delete_scene
@@ -11046,8 +11047,8 @@ Args:
 Returns:
     ID
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         variables['input'] = _input
         return self.execute(DeleteSceneMutation, variables, task=task).delete_scene
@@ -11066,8 +11067,8 @@ Args:
 Returns:
     SceneSnapshot
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['file'] = file
         _input['scene'] = scene
         if name is not UNSET:
@@ -11089,8 +11090,8 @@ Args:
 Returns:
     SceneSnapshot
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['file'] = file
         _input['scene'] = scene
         if name is not UNSET:
@@ -11110,8 +11111,8 @@ Args:
 Returns:
     ID
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         variables['input'] = _input
         return (await self.aexecute(DeleteSceneSnapshotMutation, variables, task=task)).delete_scene_snapshot
@@ -11128,8 +11129,8 @@ Args:
 Returns:
     ID
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         variables['input'] = _input
         return self.execute(DeleteSceneSnapshotMutation, variables, task=task).delete_scene_snapshot
@@ -11147,8 +11148,8 @@ Args:
 Returns:
     SceneSnapshot
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         _input['pin'] = pin
         variables['input'] = _input
@@ -11167,8 +11168,8 @@ Args:
 Returns:
     SceneSnapshot
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         _input['pin'] = pin
         variables['input'] = _input
@@ -11192,8 +11193,8 @@ Args:
 Returns:
     SparseDataset
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['name'] = name
         _input['store'] = store
         _input['axes'] = axes
@@ -11226,8 +11227,8 @@ Args:
 Returns:
     SparseDataset
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['name'] = name
         _input['store'] = store
         _input['axes'] = axes
@@ -11256,8 +11257,8 @@ Args:
 Returns:
     SparseDataset
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         if name is not UNSET:
             _input['name'] = name
@@ -11280,8 +11281,8 @@ Args:
 Returns:
     SparseDataset
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         if name is not UNSET:
             _input['name'] = name
@@ -11302,8 +11303,8 @@ Args:
 Returns:
     ID
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         variables['input'] = _input
         return (await self.aexecute(DeleteSparseDatasetMutation, variables, task=task)).delete_sparse_dataset
@@ -11320,8 +11321,8 @@ Args:
 Returns:
     ID
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         variables['input'] = _input
         return self.execute(DeleteSparseDatasetMutation, variables, task=task).delete_sparse_dataset
@@ -11344,8 +11345,8 @@ Args:
 Returns:
     TableDataset
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['name'] = name
         _input['data'] = data
         _input['columns'] = columns
@@ -11378,8 +11379,8 @@ Args:
 Returns:
     TableDataset
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['name'] = name
         _input['data'] = data
         _input['columns'] = columns
@@ -11408,8 +11409,8 @@ Args:
 Returns:
     TableDataset
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         if name is not UNSET:
             _input['name'] = name
@@ -11432,8 +11433,8 @@ Args:
 Returns:
     TableDataset
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         if name is not UNSET:
             _input['name'] = name
@@ -11454,8 +11455,8 @@ Args:
 Returns:
     ID
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         variables['input'] = _input
         return (await self.aexecute(DeleteTableDatasetMutation, variables, task=task)).delete_table_dataset
@@ -11472,8 +11473,8 @@ Args:
 Returns:
     ID
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         variables['input'] = _input
         return self.execute(DeleteTableDatasetMutation, variables, task=task).delete_table_dataset
@@ -11496,8 +11497,8 @@ Args:
 Returns:
     Transformation
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['input'] = input
         _input['output'] = output
         _input['transform'] = transform
@@ -11530,8 +11531,8 @@ Args:
 Returns:
     Transformation
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['input'] = input
         _input['output'] = output
         _input['transform'] = transform
@@ -11563,8 +11564,8 @@ Args:
 Returns:
     Transformation
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         if name is not UNSET:
             _input['name'] = name
@@ -11596,8 +11597,8 @@ Args:
 Returns:
     Transformation
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         if name is not UNSET:
             _input['name'] = name
@@ -11624,8 +11625,8 @@ Args:
 Returns:
     ID
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         variables['input'] = _input
         return (await self.aexecute(DeleteTransformationMutation, variables, task=task)).delete_transformation
@@ -11642,8 +11643,8 @@ Args:
 Returns:
     ID
 """
-        variables: dict[str, Any] = {}
-        _input: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
         _input['id'] = id
         variables['input'] = _input
         return self.execute(DeleteTransformationMutation, variables, task=task).delete_transformation
@@ -11660,7 +11661,7 @@ Args:
 Returns:
     Animation
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['id'] = id
         return (await self.aexecute(GetAnimationQuery, variables, task=task)).animation
 
@@ -11676,7 +11677,7 @@ Args:
 Returns:
     Animation
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['id'] = id
         return self.execute(GetAnimationQuery, variables, task=task).animation
 
@@ -11693,7 +11694,7 @@ Args:
 Returns:
     list[Animation]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if filters is not UNSET:
             variables['filters'] = filters
         if pagination is not UNSET:
@@ -11713,7 +11714,7 @@ Args:
 Returns:
     list[Animation]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if filters is not UNSET:
             variables['filters'] = filters
         if pagination is not UNSET:
@@ -11735,7 +11736,7 @@ Args:
 Returns:
     list[SearchAnimationsQueryAnimations]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if search is not UNSET:
             variables['search'] = search
         if values is not UNSET:
@@ -11761,7 +11762,7 @@ Args:
 Returns:
     list[SearchAnimationsQueryAnimations]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if search is not UNSET:
             variables['search'] = search
         if values is not UNSET:
@@ -11784,7 +11785,7 @@ Args:
 Returns:
     Annotation
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['id'] = id
         return (await self.aexecute(GetAnnotationQuery, variables, task=task)).annotation
 
@@ -11800,7 +11801,7 @@ Args:
 Returns:
     Annotation
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['id'] = id
         return self.execute(GetAnnotationQuery, variables, task=task).annotation
 
@@ -11817,7 +11818,7 @@ Args:
 Returns:
     list[Annotation]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if filters is not UNSET:
             variables['filters'] = filters
         if pagination is not UNSET:
@@ -11837,7 +11838,7 @@ Args:
 Returns:
     list[Annotation]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if filters is not UNSET:
             variables['filters'] = filters
         if pagination is not UNSET:
@@ -11856,7 +11857,7 @@ Args:
 Returns:
     AnnotationCollection
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['id'] = id
         return (await self.aexecute(GetAnnotationCollectionQuery, variables, task=task)).annotation_collection
 
@@ -11872,7 +11873,7 @@ Args:
 Returns:
     AnnotationCollection
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['id'] = id
         return self.execute(GetAnnotationCollectionQuery, variables, task=task).annotation_collection
 
@@ -11889,7 +11890,7 @@ Args:
 Returns:
     list[AnnotationCollection]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if filters is not UNSET:
             variables['filters'] = filters
         if pagination is not UNSET:
@@ -11909,7 +11910,7 @@ Args:
 Returns:
     list[AnnotationCollection]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if filters is not UNSET:
             variables['filters'] = filters
         if pagination is not UNSET:
@@ -11931,7 +11932,7 @@ Args:
 Returns:
     list[SearchAnnotationCollectionsQueryAnnotationCollections]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if search is not UNSET:
             variables['search'] = search
         if values is not UNSET:
@@ -11957,7 +11958,7 @@ Args:
 Returns:
     list[SearchAnnotationCollectionsQueryAnnotationCollections]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if search is not UNSET:
             variables['search'] = search
         if values is not UNSET:
@@ -11980,7 +11981,7 @@ Args:
 Returns:
     ArrayDataset
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['id'] = id
         return (await self.aexecute(GetArrayDatasetQuery, variables, task=task)).array_dataset
 
@@ -11996,7 +11997,7 @@ Args:
 Returns:
     ArrayDataset
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['id'] = id
         return self.execute(GetArrayDatasetQuery, variables, task=task).array_dataset
 
@@ -12013,7 +12014,7 @@ Args:
 Returns:
     list[ArrayDataset]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if filters is not UNSET:
             variables['filters'] = filters
         if pagination is not UNSET:
@@ -12033,7 +12034,7 @@ Args:
 Returns:
     list[ArrayDataset]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if filters is not UNSET:
             variables['filters'] = filters
         if pagination is not UNSET:
@@ -12055,7 +12056,7 @@ Args:
 Returns:
     list[SearchArrayDatasetsQueryArrayDatasets]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if search is not UNSET:
             variables['search'] = search
         if values is not UNSET:
@@ -12081,7 +12082,7 @@ Args:
 Returns:
     list[SearchArrayDatasetsQueryArrayDatasets]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if search is not UNSET:
             variables['search'] = search
         if values is not UNSET:
@@ -12115,7 +12116,7 @@ Args:
 Returns:
     list[AttributePlansQueryAttributePlans]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['system'] = system
         if max_depth is not UNSET:
             variables['maxDepth'] = max_depth
@@ -12146,7 +12147,7 @@ Args:
 Returns:
     list[AttributePlansQueryAttributePlans]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['system'] = system
         if max_depth is not UNSET:
             variables['maxDepth'] = max_depth
@@ -12168,7 +12169,7 @@ Args:
 Returns:
     list[ColorByOption]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['lens'] = lens
         if filters is not UNSET:
             variables['filters'] = filters
@@ -12192,7 +12193,7 @@ Args:
 Returns:
     list[ColorByOption]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['lens'] = lens
         if filters is not UNSET:
             variables['filters'] = filters
@@ -12217,7 +12218,7 @@ Args:
 Returns:
     list[FilterByOption]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['lens'] = lens
         if filters is not UNSET:
             variables['filters'] = filters
@@ -12242,7 +12243,7 @@ Args:
 Returns:
     list[FilterByOption]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['lens'] = lens
         if filters is not UNSET:
             variables['filters'] = filters
@@ -12266,7 +12267,7 @@ Args:
 Returns:
     list[ColorByOption]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['meshCollection'] = mesh_collection
         if filters is not UNSET:
             variables['filters'] = filters
@@ -12290,7 +12291,7 @@ Args:
 Returns:
     list[ColorByOption]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['meshCollection'] = mesh_collection
         if filters is not UNSET:
             variables['filters'] = filters
@@ -12315,7 +12316,7 @@ Args:
 Returns:
     list[FilterByOption]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['meshCollection'] = mesh_collection
         if filters is not UNSET:
             variables['filters'] = filters
@@ -12340,7 +12341,7 @@ Args:
 Returns:
     list[FilterByOption]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['meshCollection'] = mesh_collection
         if filters is not UNSET:
             variables['filters'] = filters
@@ -12369,7 +12370,7 @@ Args:
 Returns:
     list[ColorByOption]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['networkCollection'] = network_collection
         if filters is not UNSET:
             variables['filters'] = filters
@@ -12398,7 +12399,7 @@ Args:
 Returns:
     list[ColorByOption]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['networkCollection'] = network_collection
         if filters is not UNSET:
             variables['filters'] = filters
@@ -12423,7 +12424,7 @@ Args:
 Returns:
     list[FilterByOption]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['networkCollection'] = network_collection
         if filters is not UNSET:
             variables['filters'] = filters
@@ -12448,7 +12449,7 @@ Args:
 Returns:
     list[FilterByOption]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['networkCollection'] = network_collection
         if filters is not UNSET:
             variables['filters'] = filters
@@ -12471,7 +12472,7 @@ Args:
 Returns:
     GetCoordinateGraphQueryCoordinateGraph
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['coordinateSystem'] = coordinate_system
         if max_depth is not UNSET:
             variables['maxDepth'] = max_depth
@@ -12490,7 +12491,7 @@ Args:
 Returns:
     GetCoordinateGraphQueryCoordinateGraph
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['coordinateSystem'] = coordinate_system
         if max_depth is not UNSET:
             variables['maxDepth'] = max_depth
@@ -12508,7 +12509,7 @@ Args:
 Returns:
     CoordinateSystem
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['id'] = id
         return (await self.aexecute(GetCoordinateSystemQuery, variables, task=task)).coordinate_system
 
@@ -12524,7 +12525,7 @@ Args:
 Returns:
     CoordinateSystem
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['id'] = id
         return self.execute(GetCoordinateSystemQuery, variables, task=task).coordinate_system
 
@@ -12541,7 +12542,7 @@ Args:
 Returns:
     list[CoordinateSystem]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if filters is not UNSET:
             variables['filters'] = filters
         if pagination is not UNSET:
@@ -12561,7 +12562,7 @@ Args:
 Returns:
     list[CoordinateSystem]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if filters is not UNSET:
             variables['filters'] = filters
         if pagination is not UNSET:
@@ -12583,7 +12584,7 @@ Args:
 Returns:
     list[SearchCoordinateSystemsQueryCoordinateSystems]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if search is not UNSET:
             variables['search'] = search
         if values is not UNSET:
@@ -12609,7 +12610,7 @@ Args:
 Returns:
     list[SearchCoordinateSystemsQueryCoordinateSystems]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if search is not UNSET:
             variables['search'] = search
         if values is not UNSET:
@@ -12632,7 +12633,7 @@ Args:
 Returns:
     File
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['id'] = id
         return (await self.aexecute(GetFileQuery, variables, task=task)).file
 
@@ -12648,7 +12649,7 @@ Args:
 Returns:
     File
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['id'] = id
         return self.execute(GetFileQuery, variables, task=task).file
 
@@ -12667,7 +12668,7 @@ Args:
 Returns:
     list[SearchFilesQueryFiles]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if search is not UNSET:
             variables['search'] = search
         if values is not UNSET:
@@ -12693,7 +12694,7 @@ Args:
 Returns:
     list[SearchFilesQueryFiles]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if search is not UNSET:
             variables['search'] = search
         if values is not UNSET:
@@ -12716,7 +12717,7 @@ Args:
 Returns:
     Folder
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['id'] = id
         return (await self.aexecute(GetFolderQuery, variables, task=task)).folder
 
@@ -12732,7 +12733,7 @@ Args:
 Returns:
     Folder
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['id'] = id
         return self.execute(GetFolderQuery, variables, task=task).folder
 
@@ -12751,7 +12752,7 @@ Args:
 Returns:
     list[SearchFoldersQueryFolders]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if search is not UNSET:
             variables['search'] = search
         if values is not UNSET:
@@ -12777,7 +12778,7 @@ Args:
 Returns:
     list[SearchFoldersQueryFolders]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if search is not UNSET:
             variables['search'] = search
         if values is not UNSET:
@@ -12802,7 +12803,7 @@ Args:
 Returns:
     Layer
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['id'] = id
         return (await self.aexecute(GetLayerQuery, variables, task=task)).layer
 
@@ -12820,7 +12821,7 @@ Args:
 Returns:
     Layer
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['id'] = id
         return self.execute(GetLayerQuery, variables, task=task).layer
 
@@ -12837,7 +12838,7 @@ Args:
 Returns:
     list[Layer]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if filters is not UNSET:
             variables['filters'] = filters
         if pagination is not UNSET:
@@ -12857,7 +12858,7 @@ Args:
 Returns:
     list[Layer]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if filters is not UNSET:
             variables['filters'] = filters
         if pagination is not UNSET:
@@ -12876,7 +12877,7 @@ Args:
 Returns:
     Lens
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['id'] = id
         return (await self.aexecute(GetLensQuery, variables, task=task)).lens
 
@@ -12892,7 +12893,7 @@ Args:
 Returns:
     Lens
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['id'] = id
         return self.execute(GetLensQuery, variables, task=task).lens
 
@@ -12908,7 +12909,7 @@ Args:
 Returns:
     MeshCollection
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['id'] = id
         return (await self.aexecute(GetMeshCollectionQuery, variables, task=task)).mesh_collection
 
@@ -12924,7 +12925,7 @@ Args:
 Returns:
     MeshCollection
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['id'] = id
         return self.execute(GetMeshCollectionQuery, variables, task=task).mesh_collection
 
@@ -12941,7 +12942,7 @@ Args:
 Returns:
     list[MeshCollection]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if filters is not UNSET:
             variables['filters'] = filters
         if pagination is not UNSET:
@@ -12961,7 +12962,7 @@ Args:
 Returns:
     list[MeshCollection]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if filters is not UNSET:
             variables['filters'] = filters
         if pagination is not UNSET:
@@ -12983,7 +12984,7 @@ Args:
 Returns:
     list[SearchMeshCollectionsQueryMeshCollections]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if search is not UNSET:
             variables['search'] = search
         if values is not UNSET:
@@ -13009,7 +13010,7 @@ Args:
 Returns:
     list[SearchMeshCollectionsQueryMeshCollections]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if search is not UNSET:
             variables['search'] = search
         if values is not UNSET:
@@ -13032,7 +13033,7 @@ Args:
 Returns:
     Scene
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['id'] = id
         return (await self.aexecute(GetSceneQuery, variables, task=task)).scene
 
@@ -13048,7 +13049,7 @@ Args:
 Returns:
     Scene
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['id'] = id
         return self.execute(GetSceneQuery, variables, task=task).scene
 
@@ -13067,7 +13068,7 @@ Args:
 Returns:
     list[SearchScenesQueryScenes]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if search is not UNSET:
             variables['search'] = search
         if values is not UNSET:
@@ -13093,7 +13094,7 @@ Args:
 Returns:
     list[SearchScenesQueryScenes]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if search is not UNSET:
             variables['search'] = search
         if values is not UNSET:
@@ -13116,7 +13117,7 @@ Args:
 Returns:
     SceneSnapshot
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['id'] = id
         return (await self.aexecute(GetSceneSnapshotQuery, variables, task=task)).scene_snapshot
 
@@ -13132,7 +13133,7 @@ Args:
 Returns:
     SceneSnapshot
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['id'] = id
         return self.execute(GetSceneSnapshotQuery, variables, task=task).scene_snapshot
 
@@ -13149,7 +13150,7 @@ Args:
 Returns:
     list[SceneSnapshot]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if filters is not UNSET:
             variables['filters'] = filters
         if pagination is not UNSET:
@@ -13169,7 +13170,7 @@ Args:
 Returns:
     list[SceneSnapshot]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if filters is not UNSET:
             variables['filters'] = filters
         if pagination is not UNSET:
@@ -13191,7 +13192,7 @@ Args:
 Returns:
     list[SearchSceneSnapshotsQuerySceneSnapshots]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if search is not UNSET:
             variables['search'] = search
         if values is not UNSET:
@@ -13217,7 +13218,7 @@ Args:
 Returns:
     list[SearchSceneSnapshotsQuerySceneSnapshots]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if search is not UNSET:
             variables['search'] = search
         if values is not UNSET:
@@ -13240,7 +13241,7 @@ Args:
 Returns:
     SparseDataset
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['id'] = id
         return (await self.aexecute(GetSparseDatasetQuery, variables, task=task)).sparse_dataset
 
@@ -13256,7 +13257,7 @@ Args:
 Returns:
     SparseDataset
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['id'] = id
         return self.execute(GetSparseDatasetQuery, variables, task=task).sparse_dataset
 
@@ -13273,7 +13274,7 @@ Args:
 Returns:
     list[SearchSparseDatasetsQuerySparseDatasets]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if search is not UNSET:
             variables['search'] = search
         if values is not UNSET:
@@ -13293,7 +13294,7 @@ Args:
 Returns:
     list[SearchSparseDatasetsQuerySparseDatasets]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if search is not UNSET:
             variables['search'] = search
         if values is not UNSET:
@@ -13312,7 +13313,7 @@ Args:
 Returns:
     TableDataset
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['id'] = id
         return (await self.aexecute(GetTableDatasetQuery, variables, task=task)).table_dataset
 
@@ -13328,7 +13329,7 @@ Args:
 Returns:
     TableDataset
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['id'] = id
         return self.execute(GetTableDatasetQuery, variables, task=task).table_dataset
 
@@ -13345,7 +13346,7 @@ Args:
 Returns:
     list[TableDataset]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if filters is not UNSET:
             variables['filters'] = filters
         if pagination is not UNSET:
@@ -13365,7 +13366,7 @@ Args:
 Returns:
     list[TableDataset]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if filters is not UNSET:
             variables['filters'] = filters
         if pagination is not UNSET:
@@ -13384,7 +13385,7 @@ Args:
 Returns:
     Transformation
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['id'] = id
         return (await self.aexecute(GetTransformationQuery, variables, task=task)).transformation
 
@@ -13400,7 +13401,7 @@ Args:
 Returns:
     Transformation
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         variables['id'] = id
         return self.execute(GetTransformationQuery, variables, task=task).transformation
 
@@ -13417,7 +13418,7 @@ Args:
 Returns:
     list[Transformation]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if filters is not UNSET:
             variables['filters'] = filters
         if pagination is not UNSET:
@@ -13437,7 +13438,7 @@ Args:
 Returns:
     list[Transformation]
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if filters is not UNSET:
             variables['filters'] = filters
         if pagination is not UNSET:
@@ -13456,7 +13457,7 @@ Args:
 Returns:
     WatchFilesSubscriptionFiles
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if folder is not UNSET:
             variables['folder'] = folder
         async for event in self.asubscribe(WatchFilesSubscription, variables, task=task):
@@ -13474,7 +13475,7 @@ Args:
 Returns:
     WatchFilesSubscriptionFiles
 """
-        variables: dict[str, Any] = {}
+        variables: dict[str, builtins.object] = {}
         if folder is not UNSET:
             variables['folder'] = folder
         for event in self.subscribe(WatchFilesSubscription, variables, task=task):

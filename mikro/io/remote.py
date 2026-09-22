@@ -23,7 +23,11 @@ bytes this wins; above it, it loses, and it loses by more the larger the object 
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import os
+import shutil
+import tempfile
 import threading
 import time
 from collections.abc import Callable
@@ -39,6 +43,7 @@ from obstore.exceptions import (
     UnauthenticatedError,
 )
 
+from koil import unkoil
 from mikro.io.errors import DownloadError
 
 if TYPE_CHECKING:
@@ -370,8 +375,6 @@ def _bigfile_granted_object(mikro: "Mikro", store_id: str) -> GrantedObject:
     The endpoint URL is resolved once, eagerly: it is a property of the datalayer, not
     of the grant, so re-fetching it per refresh would buy nothing.
     """
-    from koil import unkoil
-
     endpoint_url: str = unkoil(mikro.datalayer.get_endpoint_url)
 
     def resolve() -> tuple[S3UploadGrantLike, str]:
@@ -432,8 +435,6 @@ async def aopen_remote_file(
     opening is made safe here; the reading has to be handed to a thread, as in
     ``await asyncio.to_thread(tifffile.imread, handle)``.
     """
-    import asyncio
-
     return await asyncio.to_thread(
         open_remote_file,
         mikro,
@@ -469,10 +470,6 @@ def download_to_scratch(
     A caller that knows the size should say where the bytes go; ``testing/imaris_converter_live.py``
     is the worked example, and it *refuses* rather than warns.
     """
-    import os
-    import shutil
-    import tempfile
-
     from mikro.io.download import download_file
 
     root = str(directory or os.environ.get(SCRATCH_ENV) or tempfile.gettempdir())

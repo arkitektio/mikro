@@ -25,11 +25,11 @@ Reach for `create_space` when the shape is not one of them.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import TYPE_CHECKING, Any, Union
+from typing import TYPE_CHECKING, Union
 
 from kanne.scalars import Unit
 
-from mikro.vocabulary import AxisTypeName, axis_type_rank, default_axis_type
+from mikro.vocabulary import AxisTypeName, axis_type_rank, default_axis_type, enum_value
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -49,8 +49,7 @@ def _axis_type_rank(axis: PhysicalAxisInput) -> int:
     """The RFC-5 group an axis sorts into. Unknown types sort with the
     categorical ones, which is where every non-space, non-time type belongs."""
     # `use_enum_values` means the field may hold either the enum or its value.
-    kind: Any = axis.type
-    name: AxisTypeName = str(getattr(kind, "value", kind))  # type: ignore[assignment]
+    name: AxisTypeName = enum_value(axis.type)
     return axis_type_rank(name)
 
 
