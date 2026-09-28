@@ -262,7 +262,7 @@ async def _expand_store_through(app: FakeApp, current: FakeApp, fetch: Any) -> A
 
     from arkitekt_spec.declare.app import AppRegistry
     from arkitekt_spec.declare.definition.define import prepare_definition
-    from rekuest.structures.serialization.actor import expand_inputs
+    from arkitekt_runtime.structures.serialization.actor import expand_inputs
 
     class StoreClient:
         """The mikro client, as far as expanding the test store goes."""
