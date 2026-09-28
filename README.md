@@ -2,159 +2,175 @@
 
 [![codecov](https://codecov.io/gh/arkitektio/mikro/graph/badge.svg?token=PRoouTwAGx)](https://codecov.io/gh/arkitektio/mikro)
 [![PyPI version](https://badge.fury.io/py/mikro.svg)](https://pypi.org/project/mikro/)
-[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://pypi.org/project/mikro/)
-![Maintainer](https://img.shields.io/badge/maintainer-jhnnsrs-blue)
 [![PyPI pyversions](https://img.shields.io/pypi/pyversions/mikro.svg)](https://pypi.python.org/pypi/mikro/)
-[![PyPI status](https://img.shields.io/pypi/status/mikro.svg)](https://pypi.python.org/pypi/mikro/)
 [![PyPI download month](https://img.shields.io/pypi/dm/mikro.svg)](https://pypi.python.org/pypi/mikro/)
 
-> **Renamed.** This client was published as `mikro-next` up to 2.1.1. From 3.0.0 it is
-> published as `mikro` again, and the import root is `mikro` (`mikro_next` is gone).
-> Install `mikro>=3` and update imports.
+The Python client for mikro, the [Arkitekt](https://arkitekt.live) service for microscopy and
+imaging data. mikro-server is a GraphQL server that keeps the metadata of your data (datasets,
+folders, coordinate systems, scenes, and the relations between them), while the pixels live in
+object storage as [Zarr](https://zarr.dev/) (and tables as Parquet). This client gives you both as
+one: typed, validated Python objects built on [rath](https://github.com/jhnnsrs/rath) and pydantic,
+whose `.data` is a lazy [xarray](https://docs.xarray.dev/) backed by dask. When you pass an array to a
+mutation, mikro uploads it before the call runs, and when you read one back it downloads only the
+chunks you touch.
 
-mikro is the python client for the next version of the mikro-server environment.
-
-
-# Quick Start
-
-Let's discover **mikro in less than 5 minutes**.
-
-
-### Inspiration
-
-Mikro is the client app for the mikro-server, a graphql compliant server for hosting your microscopy data. Mikro tries to
-facilitate a transition to use modern technologies for the storage and retrieval of microscopy data. It emphasizes the importance
-of relations within your data and tries to make them accessible through a GraphQL Interface.
-
-### Installation
+## Installation
 
 ```bash
 pip install mikro
 ```
 
-### Design
+mikro requires **Python 3.11+**. Extras bring in the heavier wire formats only when you need them:
 
-Mikro is just a client and therefore only concerns itself with the querying (retrieval) and mutation (altering) of data on
-the central server. Therefore its only composes two major components:
+| Extra | Brings in |
+| --- | --- |
+| `table` | pyarrow, pandas and duckdb, for querying Parquet-backed tables |
+| `mesh` | `fabriks`, for uploading meshes |
+| `network` | `konnektion`, for uploading graphs |
+| `sparse` | `sporadik`, for sparse datasets |
+| `complete` | all of the above |
 
-- Rath: A graphql client to query complex relationships in your data through simple queries.
-- Datalayer: A way of accessing and retrieving binary data (image arrays, big tables,...) through known python apis like xarray and numpy
+Inside an arkitekt app, `pip install "arkitekt[rekuest,mikro]"` installs mikro along with arkitekt and the runtime `run(app)` needs.
 
-Under the hood Mikro is build on the growing ecosystem of graphql and pydantic as well as the amazing toolstack
-of zarr, dask and xarray for scientific computation.
+## Usage
 
-### Features
+Every mikro operation is a method of the `Mikro` client. Each comes in a blocking and an
+`a`-prefixed async flavour (`mikro.create_folder(...)`, `await mikro.acreate_folder(...)`). An object
+that a call returns remembers the client that fetched it, so later calls on it, such as `.data`, go
+through the same client.
 
-- Easy to extend with custom graphql logic (together with turms can generate APIs for very complex relationship)
-- Interoperable and standardization (has bindings for Dataframes and Numpy arrays)
-- Fully Typed and Validated(uses pydantic for validation)
+### In an arkitekt app
 
-### Prerequisits
-
-You need a fully configured mikro-server running in your lab, that mikro can connect to. The easiest way to do this is to
-use the [arkitekt.live](https://arkitekt.live) platform, which provides a fully managed mikro-server for your lab. Just
-follow the instructions on the website to get started. If you just want a local test service, check out the 
-tests/integration/docker-compose.yml file, which contains a docker-compose file to start a mikro-server
-locally with a postgres database and a minio object storage.
-
-## Example Use case
-
-The API of Mikro is best explained on this example:
+Add `mikro_service` to your app and take the client by annotation. arkitekt injects it. Types from
+`mikro.arkitekt.specs` such as `Volume` or `Image` are lenses over a mikro dataset. Each one declares
+what an action needs, and the UI then offers only datasets that fit.
 
 ```python
+from arkitekt import App, Task, run
+from mikro import Mikro, mikro_service
+from mikro.arkitekt.specs import Volume, ensure
+
+app = App("clip-volume", "0.1.0", services=[mikro_service])
+
+
+@app.action
+def clip(volume: Volume, mikro: Mikro, task: Task) -> Volume:
+    """Clip Volume
+
+    Clips negative values and stores the result on the same grid.
+    """
+    source = volume.data  # a lazy xarray.DataArray
+    task.progress(30, f"Processing {source.shape}")
+    clipped = source.clip(min=0).compute()
+
+    result = mikro.create_array_dataset(
+        data=clipped,
+        scales=[],
+        name="clipped",
+        axes=volume.carried_axes(clipped.dims),
+        derived_from=[volume.derive_identity(value_relation="TRANSFORMED")],
+    )
+    return ensure(result.lens(), Volume)
+
+
+if __name__ == "__main__":
+    run(app)
+```
+
+Datasets, tables, meshes, annotations, lenses, coordinate systems, scenes, folders and files travel
+between actions by id (`@mikro/arraydataset`, `@mikro/lens`, `@mikro/scene`, ...), so an action can
+take them and return them directly.
+
+### From a script
+
+`easy` connects for you and returns the client:
+
+```python
+import numpy as np
+import xarray as xr
+
 from arkitekt import easy
-from mikro.api.schema import get_random_image
+from mikro import dataset_arrays, mikro_service
 
+volume = xr.DataArray(np.random.random((2, 10, 256, 256)), dims=("c", "z", "y", "x"))
 
-with easy("my-app") as app:
-    g = get_random_image()
+with easy("my-script", mikro_service) as mikro:
+    folder = mikro.create_folder(name="examples")
 
-    maximum_intensity_l = g.data.max()
-    maximum_intensity = maximum_intensity.compute()
+    # `data` is level 0; `scales` holds only the coarser levels
+    level_zero, scales = dataset_arrays(volume, levels=3)
+
+    dataset = mikro.create_array_dataset(
+        data=level_zero,
+        scales=scales,
+        name="random volume",
+        axes=["c", "z", "y", "x"],
+        folder=folder.id,
+    )
+
+    again = mikro.get_array_dataset(dataset.id)
+    peak = again.data.max().compute()  # downloads only what it needs
 ```
 
-1. **First we construct an App**:
-   App is the entrypoint of every client accessing the mikro service,
-   in a more complex example here you would define the configuration of
-   the connection. In this example we use the `easy` function to
-   construct an arkitekt-app with a default configuration. 
+Use `async with aeasy(...)` in async code, or `interactive("notebook", mikro_service)` in Jupyter.
+Inside an async loop, remember that computing `.data` downloads the data in a blocking way on that
+loop.
 
-2. **Entering the Context**:
-   This is the most important concept to learn, every interaction you have with
-   mikro needs to happen within a context. This is needed because mikro uses
-   asyncrhonous programming to retrieve, and save data efficiently. The context
-   ensures that every connection gets cleaned up effienctly and safely.
+Declared axes are checked against the array **before** it is uploaded. For example, a rank mismatch
+or a missing declaration raises `ArrayDeclarationError` (tables and sparse datasets have their own
+errors) before any data is sent.
 
-3. **Retrieving Model**:
-   On calling `get_random_image` we are calling the graphql server and retrieve
-   the metadata of a reandom image. This function just
-   executes a default graphqlquery and constructs a typed python model out of it.
-
-4. **Retrieving Data**:
-   Here we are actually doing operations on the image data. Every Image
-   has a `data` attribute. This data attribute resolves to a lazily loaded
-   xarray that connects to a zarr store on the s3 datalayer. What that means for you
-   is that you can use this as a normal xarray with dask array.
-
-5. **Computing Data**
-   Only on Computing Data is the data actually downloaded from the datalayer. If you
-   only act on partial data, only partial data is downloaded. This is the magic of
-   zarr and xarray.
-
-## Other usage options
-
-If you dont want to use a context manager you can also choose to
-use the connect/disconnect methods:
+### Working with data
 
 ```python
-from arkitekt import easy 
-from mikro.api.schema import get_image
-
-
-app = easy()
-app.enter()
-
-g = get_image(107)
-
-maximum_intensity = g.data.max().compute()
-
-#later
-app.exit()
-
-
+data = dataset.data               # level 0, a lazy dask-backed xarray.DataArray
+coarse = dataset.level_data(2)    # a coarser pyramid level
+levels = dataset.multi_scale_data()
+window = dataset.lens(z=(0, 5))   # a Lens: an immutable selection over the dataset
+window.data
 ```
-:::warning
-If you choose this approach, make sure that you call disconnect in your code at some
-stage. Especially when using asynchronous links/transports (supporting subscriptions) in a sync
-environment,as only on disconnect we will close the threaded loop that these transports required
-to operate. Otherwise this connection will stay open.
-:::
 
-# Async Usage:
+[`examples/`](examples/README.md) holds ten self-contained scripts. Each one simulates an imaging
+modality (SMLM, calcium imaging, high-content screening, CLEM, MRI, tractography, ...) and composes
+it into a mikro scene, and together they use every layer kind the API offers.
 
-If you love asyncio, the way we do, you can also take full control over what happens in your app
-within an asynchrouns loop. Actually this is the API we would recommend.
+### Standalone
+
+Outside arkitekt, you build the client yourself from a `MikroRath` and a `DataLayer`, and you use it
+as a context manager:
 
 ```python
-from mikro import MikroApp, aget_representation
-from fakts import Fakts
+from mikro import Mikro
+from mikro.datalayer import DataLayer
+from mikro.rath import MikroRath
 
+mikro = Mikro(rath=MikroRath(link=...), datalayer=DataLayer(...))
 
-app = MikroApp()
-
-async with app:
-    g = await aget_representation(107)
-
-    maximum_intensity = g.data.max() # DO NOT DO THIS IN YOUR ASYNC LOOP
-
+with mikro:
+    folder = mikro.create_folder(name="examples")
 ```
 
-:::warning
+`tests/conftest.py` shows the complete wiring against a local deployment.
 
-In this scenario we are using the asyncio event loop and do not spawn a seperate thread, so calling
-g.data.max() actually calculates the array (e.g downloads everything blockingly in this loop)
+## Prerequisites
 
-:::
+mikro needs a running mikro-server to connect to. The easiest option is an
+[Arkitekt](https://arkitekt.live) deployment. For a local test server,
+`tests/integration/docker-compose.yml` starts mikro together with a database and S3-compatible
+object storage.
 
-If you want to know more about why we use apps, composition and how we handle threads, check out koil
-(mikros async-sync-helper library)
+## Development
+
+The generated API (`mikro/api/schema.py`) is produced by [turms](https://github.com/jhnnsrs/turms)
+from the schema and the documents in `graphql/` (see `graphql.config.yaml`).
+
+```bash
+uv run pytest -m "not integration"   # no server needed
+uv run pytest -m integration          # a real mikro deployment via dokker
+```
+
+See [RELEASING.md](RELEASING.md) for how versions are cut.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
