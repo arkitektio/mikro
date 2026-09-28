@@ -62,7 +62,7 @@ projects:
               SporadikLike: mikro.scalars.SporadikCoercible
               ID: rath.scalars.IDCoercible
             coercible_inputs:
-              AxisInput: str
+              AxisInput: mikro.scalars.AxisName
             expand_input_types:
               - input
         scalar_definitions:

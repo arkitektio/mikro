@@ -2,7 +2,7 @@ import builtins
 from datetime import datetime
 from enum import Enum
 from kanne.scalars import Frequency, GenericQuantity, Length, Power, Temperature, Unit
-from mikro.scalars import ArrayCoercible, ArrayLike, FabriksCoercible, FabriksLike, FileLike, ImageFileCoercible, ImageFileLike, KonnektionCoercible, KonnektionLike, ParquetCoercible, ParquetLike, SporadikCoercible, SporadikLike, ThreeDVector
+from mikro.scalars import ArrayCoercible, ArrayLike, AxisName, FabriksCoercible, FabriksLike, FileLike, ImageFileCoercible, ImageFileLike, KonnektionCoercible, KonnektionLike, ParquetCoercible, ParquetLike, SporadikCoercible, SporadikLike, ThreeDVector
 from mikro.traits import AxisInputTrait, CoordinateAnchorInputTrait, CoordinateSystemTrait, CreateADatasetTrait, CreateSparseDatasetTrait, CreateTableDatasetTrait, DataArrayTrait, DatasetTrait, FileTrait, GraphColorByInputTrait, HasDownloadAccessor, HasParquestStoreTrait, HasParquetStoreAccesor, HasPresignedDownloadAccessor, HasZarrStoreAccessor, Lensable, MikroFetchable, RGBAColorInputTrait, SceneTrait, SparseAxisInputTrait, SparseColorByInputTrait, TransformationTrait, ValueHistogramInputTrait
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 from rath.scalars import ID, IDCoercible
@@ -7437,7 +7437,7 @@ Returns:
         variables['input'] = _input
         return self.execute(DeleteAnnotationMutation, variables, task=task).delete_annotation
 
-    async def acreate_annotation_collection(self, name: str, axes: Iterable[AxisInput | str], description: str | None | UnsetType=UNSET, folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, task: TaskLike | None=None) -> AnnotationCollection:
+    async def acreate_annotation_collection(self, name: str, axes: Iterable[AxisInput | AxisName], description: str | None | UnsetType=UNSET, folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, task: TaskLike | None=None) -> AnnotationCollection:
         """CreateAnnotationCollection 
 
 Create an annotation collection explicitly, in a coordinate system of its own, optionally derived from the system the shapes are drawn over. The common path -- drawing on a scene -- goes through createAnnotation instead, which mints the scene's collection on first use
@@ -7469,7 +7469,7 @@ Returns:
         variables['input'] = _input
         return (await self.aexecute(CreateAnnotationCollectionMutation, variables, task=task)).create_annotation_collection
 
-    def create_annotation_collection(self, name: str, axes: Iterable[AxisInput | str], description: str | None | UnsetType=UNSET, folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, task: TaskLike | None=None) -> AnnotationCollection:
+    def create_annotation_collection(self, name: str, axes: Iterable[AxisInput | AxisName], description: str | None | UnsetType=UNSET, folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, task: TaskLike | None=None) -> AnnotationCollection:
         """CreateAnnotationCollection 
 
 Create an annotation collection explicitly, in a coordinate system of its own, optionally derived from the system the shapes are drawn over. The common path -- drawing on a scene -- goes through createAnnotation instead, which mints the scene's collection on first use
@@ -7537,7 +7537,7 @@ Returns:
         variables['input'] = _input
         return self.execute(DeleteAnnotationCollectionMutation, variables, task=task).delete_annotation_collection
 
-    async def acreate_array_dataset(self, data: ArrayCoercible, scales: Iterable[ScaleInput], name: str, axes: Iterable[AxisInput | str], folder: IDCoercible | None | UnsetType=UNSET, anchors: Iterable[CoordinateAnchorInput] | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, task: TaskLike | None=None) -> ArrayDataset:
+    async def acreate_array_dataset(self, data: ArrayCoercible, scales: Iterable[ScaleInput], name: str, axes: Iterable[AxisInput | AxisName], folder: IDCoercible | None | UnsetType=UNSET, anchors: Iterable[CoordinateAnchorInput] | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, task: TaskLike | None=None) -> ArrayDataset:
         """CreateArrayDataset 
 
 Create a new dataset from array-like data with optional coordinate anchors and OME metadata
@@ -7573,7 +7573,7 @@ Returns:
         variables['input'] = _input
         return (await self.aexecute(CreateArrayDatasetMutation, variables, task=task)).create_array_dataset
 
-    def create_array_dataset(self, data: ArrayCoercible, scales: Iterable[ScaleInput], name: str, axes: Iterable[AxisInput | str], folder: IDCoercible | None | UnsetType=UNSET, anchors: Iterable[CoordinateAnchorInput] | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, task: TaskLike | None=None) -> ArrayDataset:
+    def create_array_dataset(self, data: ArrayCoercible, scales: Iterable[ScaleInput], name: str, axes: Iterable[AxisInput | AxisName], folder: IDCoercible | None | UnsetType=UNSET, anchors: Iterable[CoordinateAnchorInput] | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, task: TaskLike | None=None) -> ArrayDataset:
         """CreateArrayDataset 
 
 Create a new dataset from array-like data with optional coordinate anchors and OME metadata
@@ -10327,7 +10327,7 @@ Returns:
         variables['input'] = _input
         return self.execute(CreateLensMutation, variables, task=task).create_lens
 
-    async def acreate_mesh_collection(self, version: str, store: FabriksCoercible, axes: Iterable[AxisInput | str], folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, provenance_metadata: Any | None | UnsetType=UNSET, task: TaskLike | None=None) -> MeshCollection:
+    async def acreate_mesh_collection(self, version: str, store: FabriksCoercible, axes: Iterable[AxisInput | AxisName], folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, provenance_metadata: Any | None | UnsetType=UNSET, task: TaskLike | None=None) -> MeshCollection:
         """CreateMeshCollection 
 
 Register an immutable, versioned mesh collection against a coordinate system
@@ -10361,7 +10361,7 @@ Returns:
         variables['input'] = _input
         return (await self.aexecute(CreateMeshCollectionMutation, variables, task=task)).create_mesh_collection
 
-    def create_mesh_collection(self, version: str, store: FabriksCoercible, axes: Iterable[AxisInput | str], folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, provenance_metadata: Any | None | UnsetType=UNSET, task: TaskLike | None=None) -> MeshCollection:
+    def create_mesh_collection(self, version: str, store: FabriksCoercible, axes: Iterable[AxisInput | AxisName], folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, provenance_metadata: Any | None | UnsetType=UNSET, task: TaskLike | None=None) -> MeshCollection:
         """CreateMeshCollection 
 
 Register an immutable, versioned mesh collection against a coordinate system
@@ -10431,7 +10431,7 @@ Returns:
         variables['input'] = _input
         return self.execute(DeleteMeshCollectionMutation, variables, task=task).delete_mesh_collection
 
-    async def acreate_network_collection(self, version: str, store: KonnektionCoercible, axes: Iterable[AxisInput | str], folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, provenance_metadata: Any | None | UnsetType=UNSET, task: TaskLike | None=None) -> NetworkCollection:
+    async def acreate_network_collection(self, version: str, store: KonnektionCoercible, axes: Iterable[AxisInput | AxisName], folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, provenance_metadata: Any | None | UnsetType=UNSET, task: TaskLike | None=None) -> NetworkCollection:
         """CreateNetworkCollection 
 
 Register an immutable, versioned network collection from an uploaded konnektion store, in a coordinate system of its own
@@ -10465,7 +10465,7 @@ Returns:
         variables['input'] = _input
         return (await self.aexecute(CreateNetworkCollectionMutation, variables, task=task)).create_network_collection
 
-    def create_network_collection(self, version: str, store: KonnektionCoercible, axes: Iterable[AxisInput | str], folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, provenance_metadata: Any | None | UnsetType=UNSET, task: TaskLike | None=None) -> NetworkCollection:
+    def create_network_collection(self, version: str, store: KonnektionCoercible, axes: Iterable[AxisInput | AxisName], folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, provenance_metadata: Any | None | UnsetType=UNSET, task: TaskLike | None=None) -> NetworkCollection:
         """CreateNetworkCollection 
 
 Register an immutable, versioned network collection from an uploaded konnektion store, in a coordinate system of its own

@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import os
 from collections import deque
-from collections.abc import Generator, Mapping, Sequence
+from collections.abc import Generator, Hashable, Mapping, Sequence
 from contextlib import contextmanager
 from enum import Enum
 from pathlib import Path
@@ -24,6 +24,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     ClassVar,
+    Literal,
     NamedTuple,
     NoReturn,
     Protocol,
@@ -52,6 +53,7 @@ from mikro.checks.sparse import check_axes
 from mikro.checks.tables import TableDeclarationError
 from mikro.checks.tables import file_columns_of
 from mikro.checks.tables import resolve_columns
+from mikro.scalars import axis_name
 import shutil
 from .vocabulary import (
     MATRIX_KINDS,
@@ -75,6 +77,10 @@ OneDArray = NDArray[np.generic]
 #: A point or a stack of them: a (N,) vector, a (K, N) array, or anything
 #: `np.asarray` turns into one.
 PointsLike = Union[Sequence[float], Sequence[Sequence[float]], NDArray[np.generic]]
+
+
+ValueRelationName = Literal["IDENTICAL", "TRANSFORMED", "CATEGORIZED"]
+"""A ``ValueRelation`` spelled by its value (``"TRANSFORMED"``), wherever one is taken."""
 
 
 if TYPE_CHECKING:
@@ -203,7 +209,7 @@ class HasNamedAxes:
             name for name, found, _ in self.axis_table if found == wanted
         )
 
-    def carried_axes(self, dims: Sequence[str]) -> list[AxisInput]:
+    def carried_axes(self, dims: Sequence[Hashable]) -> list[AxisInput]:
         """AxisInput for a derived array's dims, types carried from this source.
 
         For ``create_array_dataset(axes=...)`` on a dataset computed from this
@@ -216,12 +222,13 @@ class HasNamedAxes:
         from mikro.api.schema import AxisInput, AxisType
 
         types = {name: found for name, found, _ in self.axis_table}
+        names = [axis_name(dim) for dim in dims]
         return [
             AxisInput(
-                name=dim,
-                type=AxisType(types[dim] if dim in types else default_axis_type(dim)),
+                name=name,
+                type=AxisType(types[name] if name in types else default_axis_type(name)),
             )
-            for dim in dims
+            for name in names
         ]
 
 
@@ -600,6 +607,29 @@ class DatasetTrait(HasNamedAxes):
         `_space_or_none` for why that is an answer rather than a failure.
         """
         return getattr(self, "intrinsic_system", None)
+
+    def stage(
+        self,
+        *,
+        name: str | None = None,
+        policy: "ScenePolicyInput | None" = None,
+        mikro: "Mikro | None" = None,
+    ) -> "Scene":
+        """Stage this dataset: a renderable scene over its own pixel grid.
+
+        ``dataset.intrinsic_system.stage(...)``, without the ``None`` the schema allows
+        for a query that did not select ``intrinsicSystem``.
+
+        Raises:
+            ValueError: If this dataset was fetched without its intrinsic system.
+        """
+        intrinsic = self.space
+        if intrinsic is None:
+            raise ValueError(
+                "This dataset was fetched without its intrinsic coordinate system "
+                "(select intrinsicSystem), so there is no grid to stage."
+            )
+        return intrinsic.stage(name=name, policy=policy, mikro=mikro)
 
     def level_data(self, level: int = 0) -> xr.DataArray:
         """One pyramid level of this dataset, with its axes named.
@@ -1124,9 +1154,11 @@ class AxisInputTrait(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def _coerce_bare_name(cls, value: Any) -> Any:
-        if isinstance(value, str):
-            return {"name": value, "type": default_axis_type(value)}
-        return value
+        if isinstance(value, (dict, BaseModel)) or not isinstance(value, Hashable):
+            return value
+        # A bare name: a str, or any hashable xarray dim.
+        name = axis_name(value)
+        return {"name": name, "type": default_axis_type(name)}
 
 
 class ValueHistogramInputTrait(BaseModel):
@@ -1414,7 +1446,7 @@ class Lensable(HasNamedAxes):
         affine: Sequence[Sequence[float]] | None = None,
         input_axes: Sequence[str] | None = None,
         output_axes: Sequence[str] | None = None,
-        value_relation: ValueRelation | None = None,
+        value_relation: ValueRelation | ValueRelationName | None = None,
         reason: str | None = None,
     ) -> DerivedFromInput:
         """A derivation edge pointing back into this lens, for a dataset about
@@ -1440,7 +1472,7 @@ class Lensable(HasNamedAxes):
         # is a typing alias and cannot be called. This method hangs off a lens, so
         # the member is the lens one — the transform kind (IDENTITY, SCALE, ...)
         # is a separate discriminator, carried inside `transform`.
-        from mikro.api.schema import LensDerivedFromInput
+        from mikro.api.schema import LensDerivedFromInput, ValueRelation
 
         if kind is None:
             kind, scale, translation, affine = _infer_transform_kind(
@@ -1460,12 +1492,12 @@ class Lensable(HasNamedAxes):
         return LensDerivedFromInput(
             lens=get_attributes_or_error(self, "id"),
             transform=transform,
-            value_relation=value_relation,
+            value_relation=ValueRelation(value_relation) if value_relation is not None else None,
         )
 
     def derive_identity(
         self,
-        value_relation: ValueRelation | None = None,
+        value_relation: ValueRelation | ValueRelationName | None = None,
     ) -> DerivedFromInput:
         """An IDENTITY derivation edge: same axes, same voxels.
 
@@ -1480,7 +1512,7 @@ class Lensable(HasNamedAxes):
         self,
         offset: Sequence[float],
         *,
-        value_relation: ValueRelation | None = None,
+        value_relation: ValueRelation | ValueRelationName | None = None,
     ) -> DerivedFromInput:
         """A TRANSLATION derivation edge: same axes, shifted origin — a crop.
 
@@ -1503,7 +1535,7 @@ class Lensable(HasNamedAxes):
         self,
         axes: Sequence[str],
         *,
-        value_relation: ValueRelation | None = None,
+        value_relation: ValueRelation | ValueRelationName | None = None,
     ) -> DerivedFromInput:
         """A rank-dropping BY_DIMENSION derivation edge keeping only `axes`.
 

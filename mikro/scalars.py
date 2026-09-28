@@ -7,9 +7,10 @@ Custom scalars for mikro
 from __future__ import annotations
 
 import io
+from enum import Enum
 import mimetypes
 import uuid
-from collections.abc import Mapping
+from collections.abc import Hashable, Mapping
 from pathlib import Path
 from typing import IO, TYPE_CHECKING, Any, Protocol, TypeAlias
 
@@ -39,6 +40,16 @@ FourDVectorCoercible: TypeAlias = list[float] | OneDArray | list[int]
 """ A type alias for 4D vector-like structures that can be coerced into a FourDVector."""
 
 ArrayCoercible: TypeAlias = xr.DataArray | OneDArray | list[float] | list[list[float]]
+
+AxisName: TypeAlias = Hashable
+"""An axis given by its name alone: any hashable, as xarray types its dims (see :func:`axis_name`)."""
+
+
+def axis_name(name: AxisName) -> str:
+    """The string an axis given by ``name`` is called: an enum's value, else ``str(name)``."""
+    if isinstance(name, Enum):
+        name = name.value
+    return str(name)
 """ A type alias for array-like structures that can be coerced into an xarray DataArray."""
 
 ImageFileCoercible: TypeAlias = str | bytes | Path | io.BufferedReader
