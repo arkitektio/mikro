@@ -9,8 +9,8 @@ import pytest
 
 pytest.importorskip("rekuest")
 
-from rekuest.app import AppRegistry  # noqa: E402
-from rekuest.structures.types import is_valid_identifier  # noqa: E402
+from arkitekt_spec.declare.app import AppRegistry  # noqa: E402
+from arkitekt_spec.declare.structures.types import is_valid_identifier  # noqa: E402
 
 from mikro import arkitekt as declared  # noqa: E402
 

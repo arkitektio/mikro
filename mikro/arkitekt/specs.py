@@ -83,7 +83,7 @@ from typing import (
     get_args,
 )
 
-from rekuest.annotations import Provides, Requires
+from arkitekt_spec.declare.annotations import Provides, Requires
 from arkitekt_spec.actions import (
     DescriptorOperator,
     RequiresInput,

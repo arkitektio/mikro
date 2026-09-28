@@ -18,6 +18,8 @@ dependencies = [
     "numcodecs>=0.16.1",
     "obstore>=0.10.0",
     "kanne>=2.5.0",
+    # The service and structures are declared with arkitekt-spec.
+    "arkitekt-spec>=0.1",
 ]
 
 [project.optional-dependencies]
@@ -68,8 +70,7 @@ dev-dependencies =  [
     # marching_cubes for the glass-brain meshes.
     "scikit-image>=0.22",
     "fakts>=3",
-    "rekuest>=4",
-    "arkitekt-spec>=0.1",
+    "rekuest>=6",
     "pyarrow>=24",
     "duckdb>=1.5.3",
     "basedpyright>=1.21",

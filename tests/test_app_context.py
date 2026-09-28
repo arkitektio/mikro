@@ -255,13 +255,13 @@ async def _expand_store_through(app: FakeApp, current: FakeApp, fetch: Any) -> A
     only ``current`` current, so what it reaches can only come from what it
     remembered.
     """
-    pytest.importorskip("rekuest.app")
+    pytest.importorskip("arkitekt_spec.declare.app")
     from typing import Annotated
 
     from fakts import Alias, Require
 
-    from rekuest.app import AppRegistry
-    from rekuest.definition.define import prepare_definition
+    from arkitekt_spec.declare.app import AppRegistry
+    from arkitekt_spec.declare.definition.define import prepare_definition
     from rekuest.structures.serialization.actor import expand_inputs
 
     class StoreClient:
