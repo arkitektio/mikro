@@ -69,6 +69,7 @@ dev-dependencies =  [
     "scikit-image>=0.22",
     "fakts>=3",
     "rekuest>=4",
+    "arkitekt-spec>=0.1",
     "pyarrow>=24",
     "duckdb>=1.5.3",
     "basedpyright>=1.21",
