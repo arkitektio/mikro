@@ -94,8 +94,8 @@ def mikro(
                 DictingLink(),
                 FaktsAuthLink(token_loader=tokens),
                 SplitLink(
-                    left=AIOHttpLink(endpoint_url=mikro.to_http_path("graphql")),
-                    right=GraphQLWSLink(ws_endpoint_url=mikro.to_ws_path("graphql")),
+                    left=AIOHttpLink(endpoint_url=mikro.to_http_path("graphql"), proxy=mikro.proxy),
+                    right=GraphQLWSLink(ws_endpoint_url=mikro.to_ws_path("graphql"), proxy=mikro.proxy),
                     split=lambda o: o.node.operation != OperationType.SUBSCRIPTION,
                 ),
             ),

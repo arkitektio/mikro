@@ -47,6 +47,9 @@ class DataLayer(KoiledModel):
     """
 
     endpoint_url: str = ""
+    proxy: str | None = None
+    """The HTTP forward proxy (``http://host:port``) the store is only reachable
+    through, when it sits on a private mesh. ``None`` connects directly."""
 
     @classmethod
     def from_alias(cls, alias: "Alias") -> "DataLayer":
@@ -58,7 +61,7 @@ class DataLayer(KoiledModel):
         Returns:
             The datalayer, ready to use.
         """
-        return cls(endpoint_url=alias.to_http_path())
+        return cls(endpoint_url=alias.to_http_path(), proxy=alias.proxy)
 
     async def get_endpoint_url(self) -> str:
         """Return the configured S3 endpoint URL."""

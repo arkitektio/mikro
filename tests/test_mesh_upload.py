@@ -169,7 +169,7 @@ def test_the_whole_tree_lands_under_the_granted_prefix(
 
     credentials = grant()
     returned = store_fabriks_collection(
-        FabriksLike.validate(collection), credentials, SimpleNamespace(endpoint_url="http://s3.test")
+        FabriksLike.validate(collection), credentials, DataLayer(endpoint_url="http://s3.test")
     )
 
     assert returned == credentials.store, "the store id is what replaces the collection in the variables"
@@ -226,7 +226,7 @@ def test_the_manifest_is_written_last(
     monkeypatch.setattr("mikro.io.obstore.create_s3_store", lambda *_, **__: Recording())
 
     store_fabriks_collection(
-        FabriksLike.validate(collection), grant(), SimpleNamespace(endpoint_url="http://s3.test")
+        FabriksLike.validate(collection), grant(), DataLayer(endpoint_url="http://s3.test")
     )
 
     assert order[-1].endswith("fabriks.json"), order
@@ -253,7 +253,7 @@ def test_a_failed_write_is_reported_as_an_upload_error(
 
     with pytest.raises(UploadError, match=GRANT_KEY):
         store_fabriks_collection(
-            FabriksLike.validate(collection), grant(), SimpleNamespace(endpoint_url="http://s3.test")
+            FabriksLike.validate(collection), grant(), DataLayer(endpoint_url="http://s3.test")
         )
 
 

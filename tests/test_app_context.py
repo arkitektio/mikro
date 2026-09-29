@@ -150,7 +150,7 @@ def opened(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
 
     monkeypatch.setattr("mikro.io.download.unkoil", fake_unkoil)
     monkeypatch.setattr(
-        "mikro.io.download.create_zarr_store_path", lambda *args: "a-store-path"
+        "mikro.io.download.create_zarr_store_path", lambda *args, **kwargs: "a-store-path"
     )
     return seen
 

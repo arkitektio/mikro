@@ -58,10 +58,10 @@ def test_download_file_reads_bytes_via_obstore(tmp_path, monkeypatch) -> None:
         return credentials, "http://example.invalid"
 
     monkeypatch.setattr("mikro.io.download.unkoil", fake_unkoil)
-    monkeypatch.setattr("mikro.io.download.create_s3_store", lambda *_args: store)
+    monkeypatch.setattr("mikro.io.download.create_s3_store", lambda *_args, **_kwargs: store)
 
     # The client is handed over explicitly; nothing ambient is involved.
-    mikro = object()
+    mikro = SimpleNamespace(datalayer=SimpleNamespace(proxy=None))
     result = download_file(mikro, "store-id", str(target))
 
     assert seen == {"mikro": mikro}

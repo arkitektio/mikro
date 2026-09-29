@@ -21,6 +21,7 @@ import numpy as np
 import pytest
 from obstore.store import MemoryStore
 
+from mikro.datalayer import DataLayer
 from mikro.io.errors import UploadError
 from mikro.io.upload import store_konnektion_collection
 from mikro.scalars import KonnektionLike
@@ -143,7 +144,7 @@ def test_the_whole_tree_lands_under_the_granted_prefix(
     returned = store_konnektion_collection(
         KonnektionLike.validate(collection),
         credentials,
-        SimpleNamespace(endpoint_url="http://s3.test"),
+        DataLayer(endpoint_url="http://s3.test"),
     )
 
     assert returned == credentials.store, "the store id replaces the collection in the variables"
@@ -183,7 +184,7 @@ def test_the_manifest_is_written_last(
     monkeypatch.setattr("mikro.io.obstore.create_s3_store", lambda *_, **__: Recording())
 
     store_konnektion_collection(
-        KonnektionLike.validate(collection), grant(), SimpleNamespace(endpoint_url="http://s3.test")
+        KonnektionLike.validate(collection), grant(), DataLayer(endpoint_url="http://s3.test")
     )
 
     assert order[-1].endswith("konnektion.json"), order
@@ -212,6 +213,6 @@ def test_a_failed_write_is_reported_as_an_upload_error(
         store_konnektion_collection(
             KonnektionLike.validate(collection),
             grant(),
-            SimpleNamespace(endpoint_url="http://s3.test"),
+            DataLayer(endpoint_url="http://s3.test"),
         )
 

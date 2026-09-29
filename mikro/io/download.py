@@ -59,13 +59,13 @@ async def aget_bigfile_credentials_and_endpoint(
 async def aopen_zarr_store(mikro: "Mikro", store_id: str, cache: int = 2**30) -> StorePath:
     """Open a zarr store for the given store ID asynchronously."""
     credentials, endpoint_url = await aget_zarr_credentials_and_endpoint(mikro, store_id)
-    return create_zarr_store_path(endpoint_url, credentials)
+    return create_zarr_store_path(endpoint_url, credentials, proxy=mikro.datalayer.proxy)
 
 
 def open_zarr_store(mikro: "Mikro", store_id: str, cache: int = 2**30) -> StorePath:
     """Open a zarr store for the given store ID synchronously."""
     credentials, endpoint_url = unkoil(aget_zarr_credentials_and_endpoint, mikro, store_id)
-    return create_zarr_store_path(endpoint_url, credentials)
+    return create_zarr_store_path(endpoint_url, credentials, proxy=mikro.datalayer.proxy)
 
 
 def _require_pyarrow() -> None:
@@ -80,7 +80,7 @@ async def aopen_parquet_filesytem(mikro: "Mikro", store_id: str) -> ParquetDatas
     _require_pyarrow()
     credentials, endpoint_url = await aget_table_credentials_and_endpoint(mikro, store_id)
     return ParquetDatasetViaObstore(
-        create_s3_store(endpoint_url, credentials), credentials.key
+        create_s3_store(endpoint_url, credentials, proxy=mikro.datalayer.proxy), credentials.key
     )
 
 
@@ -89,7 +89,7 @@ def open_parquet_filesystem(mikro: "Mikro", store_id: str) -> ParquetDatasetViaO
     _require_pyarrow()
     credentials, endpoint_url = unkoil(aget_table_credentials_and_endpoint, mikro, store_id)
     return ParquetDatasetViaObstore(
-        create_s3_store(endpoint_url, credentials), credentials.key
+        create_s3_store(endpoint_url, credentials, proxy=mikro.datalayer.proxy), credentials.key
     )
 
 
@@ -143,7 +143,10 @@ async def adownload_presigned_file(
 
     # Stream the file in 1 MiB chunks to avoid per-read syscall overhead.
     async with aiohttp.ClientSession() as session:
-        async with session.get(endpoint_url + presigned_url) as response:
+        # ``proxy=None`` is aiohttp's own default, so an unproxied datalayer is unchanged.
+        async with session.get(
+            endpoint_url + presigned_url, proxy=mikro.datalayer.proxy
+        ) as response:
             response.raise_for_status()
             with open(file_name, "wb") as file:
                 while True:
@@ -169,7 +172,7 @@ async def adownload_file(mikro: "Mikro", store_id: str, file_name: str) -> str:
     credentials, endpoint_url = await aget_bigfile_credentials_and_endpoint(mikro, store_id)
 
     _ensure_parent_directory(file_name)
-    store = create_s3_store(endpoint_url, credentials)
+    store = create_s3_store(endpoint_url, credentials, proxy=mikro.datalayer.proxy)
 
     # Stream the file asynchronously directly into the file object
     response = await obstore.get_async(store, credentials.key)
@@ -185,7 +188,7 @@ def download_file(mikro: "Mikro", store_id: str, file_name: str) -> str:
     credentials, endpoint_url = unkoil(aget_bigfile_credentials_and_endpoint, mikro, store_id)
 
     _ensure_parent_directory(file_name)
-    store = create_s3_store(endpoint_url, credentials)
+    store = create_s3_store(endpoint_url, credentials, proxy=mikro.datalayer.proxy)
 
     # Stream the file synchronously directly into the file object
     response = obstore.get(store, credentials.key)

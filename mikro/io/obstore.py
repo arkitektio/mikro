@@ -48,16 +48,24 @@ def create_s3_store(
     client_options: "ClientConfig | None" = None,
     retry_config: "RetryConfig | None" = None,
     prefix: str | None = None,
+    *,
+    proxy: str | None = None,
 ) -> S3Store:
     """Create an obstore S3 client from a Mikro grant and endpoint.
 
     ``prefix`` roots the store inside the bucket, so every key the caller passes is
     relative to it. Zarr needs this (see :func:`create_zarr_store_path`); the
     single-object paths address their key directly and leave it unset.
+
+    ``proxy`` is the HTTP forward proxy the datalayer is only reachable through
+    (see :attr:`DataLayer.proxy`). It is merged into the client options, never
+    replacing them -- dropping ``allow_http`` would break every ``http://`` store.
     """
     normalized_client_options: dict[str, object] = dict(client_options or {})
     if endpoint_url.startswith("http://"):
         normalized_client_options.setdefault("allow_http", True)
+    if proxy:
+        normalized_client_options["proxy_url"] = proxy
 
     store_kwargs: dict[str, object] = {
         "access_key_id": grant.access_key,
@@ -78,7 +86,9 @@ def create_s3_store(
     )
 
 
-def create_zarr_store_path(endpoint_url: str, grant: "S3UploadGrantLike") -> StorePath:
+def create_zarr_store_path(
+    endpoint_url: str, grant: "S3UploadGrantLike", *, proxy: str | None = None
+) -> StorePath:
     """Create a Zarr store path rooted at the granted S3 prefix.
 
     The store is rooted at ``grant.key`` and the node sits at the store's root, rather
@@ -89,7 +99,9 @@ def create_zarr_store_path(endpoint_url: str, grant: "S3UploadGrantLike") -> Sto
     reads and writes ``<bucket>/zarr.json``, which a prefix-scoped STS grant denies with
     a 403. A node at the root has no parents to walk.
     """
-    zarr_store = ZarrObjectStore(create_s3_store(endpoint_url, grant, prefix=grant.key))
+    zarr_store = ZarrObjectStore(
+        create_s3_store(endpoint_url, grant, prefix=grant.key, proxy=proxy)
+    )
     return StorePath(zarr_store, "")
 
 
@@ -107,6 +119,7 @@ async def acreate_s3_store(
         grant,
         client_options=client_options,
         retry_config=retry_config,
+        proxy=datalayer.proxy,
     )
 
 
@@ -267,7 +280,9 @@ async def awrite_xarray_to_obstore(
     """
     Asynchronously write an xarray dataset to S3 via obstore and Zarr.
     """
-    store_path = create_zarr_store_path(await datalayer.get_endpoint_url(), grant)
+    store_path = create_zarr_store_path(
+        await datalayer.get_endpoint_url(), grant, proxy=datalayer.proxy
+    )
     await awrite_dataarray_to_zarr(store_path, da)
 
 

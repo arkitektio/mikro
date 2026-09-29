@@ -114,6 +114,7 @@ class GrantedObject:
         resolve: Callable[[], tuple[S3UploadGrantLike, str]],
         *,
         expires_in: Callable[[S3UploadGrantLike], int | None] | None = None,
+        proxy: str | None = None,
     ) -> None:
         """Wrap a grant resolver.
 
@@ -125,8 +126,11 @@ class GrantedObject:
             expires_in: Reads the grant's lifetime in seconds. Defaults to the
                 ``expires_in`` attribute the access grants carry; a grant without one
                 is treated as never expiring.
+            proxy: The HTTP forward proxy the datalayer is only reachable through,
+                if any (see :attr:`mikro.datalayer.DataLayer.proxy`).
         """
         self._resolve = resolve
+        self._proxy = proxy
         self._expires_in = expires_in or (lambda grant: getattr(grant, "expires_in", None))
         self._lock = threading.Lock()
         self._store: S3Store | None = None
@@ -180,7 +184,7 @@ class GrantedObject:
         # Bucket-rooted, addressing the key directly -- the shape `download_file` already
         # uses. The prefix-rooted store in `create_zarr_store_path` exists because zarr
         # walks a node's parents; a single ranged read has no parents to walk.
-        self._store = create_s3_store(endpoint_url, grant)
+        self._store = create_s3_store(endpoint_url, grant, proxy=self._proxy)
         self._key = grant.key
 
         lifetime = self._expires_in(grant)
@@ -380,7 +384,7 @@ def _bigfile_granted_object(mikro: "Mikro", store_id: str) -> GrantedObject:
     def resolve() -> tuple[S3UploadGrantLike, str]:
         return mikro.request_bigfile_access(store_id), endpoint_url
 
-    return GrantedObject(resolve)
+    return GrantedObject(resolve, proxy=mikro.datalayer.proxy)
 
 
 def open_remote_file(
