@@ -222,7 +222,10 @@ fragment Layer on Layer {
   # Inlined rather than spread, for the reason given on LabelLayer: a nested fragment spread
   # inside an *interface* fragment breaks the generated module's import.
   ... on NetworkLayer {
-    collection {
+    # Aliased: MeshLayer above also selects `collection`, and turms names the nested class off
+    # the field, so the two collapsed into one `LayerCollection` -- the network one, last, won,
+    # and every mesh layer's collection then failed validation on its __typename.
+    networkCollection: collection {
       id
     }
     materialColor
@@ -312,7 +315,11 @@ fragment Layer on Layer {
     pointSize
     colormap
     activeColorBy
-    colorBys {
+    # Aliased like the network arm's pickers: MeshLayer selects `colorBys`/`filterBys` too,
+    # and the point layer's are LabelColorBy/LabelFilterBy, so unaliased the two collapse into
+    # one `LayerColorBys` -- this one, last, wins, and every mesh layer's pickers then fail
+    # validation on their __typename.
+    pointColorBys: colorBys {
       kind
       table
       column
@@ -331,7 +338,7 @@ fragment Layer on Layer {
       label
     }
     activeFilterBys
-    filterBys {
+    pointFilterBys: filterBys {
       table
       column
       joinPath {

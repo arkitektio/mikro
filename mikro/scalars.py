@@ -74,6 +74,9 @@ MillisecondsCoercible: TypeAlias = int | float
 MicrometersCoercible: TypeAlias = int | float
 """ A type alias for micrometer-like structures that can be coerced into an xarray DataArray."""
 
+ByteCountCoercible: TypeAlias = int | str
+""" What a ByteCount input accepts: an int, or a numeric string."""
+
 RGBAColorCoercible: TypeAlias = list[float] | list[int] | OneDArray
 """ A type alias for RGBA color-like structures that can be coerced into an RGBA Value"""
 
@@ -167,6 +170,36 @@ class RGBAColor(list[float]):
 class XArrayConversionException(Exception):
     """An exception that is raised when a conversion to xarray fails."""
 
+
+
+class ByteCount(int):
+    """A number of bytes: 64-bit, unlike GraphQL's Int.
+
+    Mirrors the server's scalar: a non-negative integer, sent as a JSON number and
+    accepted as a number or a numeric string (from a client that cannot hold one).
+    """
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls,
+        source_type: Any,  # noqa: ANN401
+        handler: GetCoreSchemaHandler,
+    ) -> CoreSchema:
+        """Validate with :meth:`validate`, serialize as a plain int."""
+        return core_schema.no_info_plain_validator_function(
+            cls.validate,
+            serialization=core_schema.plain_serializer_function_ser_schema(int),
+        )
+
+    @classmethod
+    def validate(cls, v: ByteCountCoercible) -> ByteCount:
+        """Take an int or a numeric string; refuse bools, fractions and negatives."""
+        if isinstance(v, bool) or not isinstance(v, (int, str)):
+            raise ValueError(f"ByteCount must be an integer, got {v!r}")
+        count = int(v)
+        if count < 0:
+            raise ValueError(f"ByteCount cannot be negative, got {count}")
+        return cls(count)
 
 
 class Micrometers(float):

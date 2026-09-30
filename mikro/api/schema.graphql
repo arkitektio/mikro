@@ -48,8 +48,6 @@ type AffineTransformation implements Transformation @key(fields: "id", resolvabl
   id: ID!
   kind: TransformKind!
   name: String
-  input: CoordinateSystem
-  output: CoordinateSystem
 
   """
   How much this map is actually known: VALIDATED for a map the server derived (or one someone checked), INFERRED for numbers read from metadata, MANUAL for an authored registration, UNKNOWN for one its author marked as a guess. A layer's validity is the weakest edge on its path to world
@@ -67,6 +65,16 @@ type AffineTransformation implements Transformation @key(fields: "id", resolvabl
   provenanceEntries(pagination: OffsetPaginationInput): [ProvenanceEntry!]!
   createdAt: DateTime!
   creator: User
+
+  """
+  The system this edge maps from. Null for the child of a SEQUENCE or BY_DIMENSION, which takes its endpoints from the wrapper
+  """
+  input: CoordinateSystem
+
+  """
+  The system this edge maps to. Null for the child of a SEQUENCE or BY_DIMENSION, which takes its endpoints from the wrapper
+  """
+  output: CoordinateSystem
 
   """
   How many times this edge has been written, counting the row that created it -- so a new edge reads 1. Only comparison is meaningful: this and the edge's `id` together are the cache key for anything derived from the edge, and a change means refetch. It counts the same provenance rows `provenanceEntries` lists, so the audit trail and the token cannot disagree; a rename moves it too, which errs towards refetching something that did not change rather than trusting something that did
@@ -616,11 +624,21 @@ type ArrayDataset @key(fields: "id", resolvable: true) {
   """The task this dataset was created through, if any"""
   createdThrough: Task
 
+  """
+  The coordinate anchors of this dataset, each pinning metadata spokes -- a microscope state, OME metadata, a value histogram, a channel label -- to some of its level-0 coordinates
+  """
+  anchors(filters: CoordinateAnchorFilter, pagination: OffsetPaginationInput): [CoordinateAnchor!]!
+
   """The assigner of the creating task, if any"""
   createdThroughBy: User
 
   """The multiscale data arrays belonging to this dataset"""
   dataArrays(filters: DataArrayFilter, ordering: [DataArrayOrder!]! = [], pagination: OffsetPaginationInput): [DataArray!]!
+
+  """
+  This dataset's stored vector, as `<model id>:<floats>`. Null until it has been indexed.
+  """
+  embedding: Embedding
 
   """
   The files this dataset was converted from -- the CZI a converter read to write these arrays, named per series. **Read this alongside `derivedFrom`, not instead of it**: `derivedFrom` says which *data* this was computed from and relates two coordinate systems, while this says which *bytes* it was read out of and relates to no space at all, because a file has none. Both can be non-empty and complete
@@ -908,23 +926,6 @@ type ArraySample implements SampleStep {
   store: ZarrStore!
 }
 
-"""Input for assigning object-level permissions to a user"""
-input AssignUserPermissionInput {
-  """
-  The type identifier of the object, e.g. "@mikro/image"
-  """
-  identifier: String!
-
-  """The primary key of the object to assign permissions on"""
-  object: ID!
-
-  """The primary key of the user to assign permissions to"""
-  user: ID!
-
-  """The permissions to assign, e.g. ["view_image", "change_image"]"""
-  permissions: [String!]!
-}
-
 """
 An input for associating a set of items with another item, e.g. putting images into a dataset
 """
@@ -1176,12 +1177,12 @@ type BigFileStore @key(fields: "id", resolvable: true) {
   """
   The byte budget the upload grant advertised for this store. Advertised, not enforced: a session policy bounds what a credential may write, never how much, so a store may exceed this
   """
-  maxBytes: Int
+  maxBytes: ByteCount
 
   """
   How many bytes this store actually holds, measured when its upload was finished. Null while unfinished, or for stores written before this was recorded
   """
-  sizeBytes: Int
+  sizeBytes: ByteCount
   originalFileName: String
   contentType: String
 
@@ -1202,7 +1203,7 @@ type BigFileUploadGrant {
   path: String!
   expiresIn: Int!
   store: String!
-  maxBytes: Int!
+  maxBytes: ByteCount!
   originalFileName: String
   uploadFileName: String!
   uploadContentType: String
@@ -1311,8 +1312,6 @@ type ByDimensionTransformation implements Transformation @key(fields: "id", reso
   id: ID!
   kind: TransformKind!
   name: String
-  input: CoordinateSystem
-  output: CoordinateSystem
 
   """
   How much this map is actually known: VALIDATED for a map the server derived (or one someone checked), INFERRED for numbers read from metadata, MANUAL for an authored registration, UNKNOWN for one its author marked as a guess. A layer's validity is the weakest edge on its path to world
@@ -1330,6 +1329,16 @@ type ByDimensionTransformation implements Transformation @key(fields: "id", reso
   provenanceEntries(pagination: OffsetPaginationInput): [ProvenanceEntry!]!
   createdAt: DateTime!
   creator: User
+
+  """
+  The system this edge maps from. Null for the child of a SEQUENCE or BY_DIMENSION, which takes its endpoints from the wrapper
+  """
+  input: CoordinateSystem
+
+  """
+  The system this edge maps to. Null for the child of a SEQUENCE or BY_DIMENSION, which takes its endpoints from the wrapper
+  """
+  output: CoordinateSystem
 
   """
   How many times this edge has been written, counting the row that created it -- so a new edge reads 1. Only comparison is meaningful: this and the edge's `id` together are the cache key for anything derived from the edge, and a change means refetch. It counts the same provenance rows `provenanceEntries` lists, so the audit trail and the token cannot disagree; a rename moves it too, which errs towards refetching something that did not change rather than trusting something that did
@@ -1361,6 +1370,11 @@ type ByDimensionTransformation implements Transformation @key(fields: "id", reso
   """
   transformations: [Transformation!]!
 }
+
+"""
+A number of bytes. 64-bit, unlike Int: serialized as a JSON number, and accepted as a number or a numeric string.
+"""
+scalar ByteCount
 
 """Detector"""
 type CCDElement implements OpticalElement {
@@ -1863,23 +1877,48 @@ type Coordinate {
 }
 
 """
-The axis-agnostic hub that pins metadata spokes (microscope state, OME metadata, value histograms, channel labels, light paths, phasor distributions and calibrations) to specific coordinates of a dataset
+The axis-agnostic hub that pins metadata spokes (microscope state, OME metadata, value histograms, channel labels, light paths, phasor distributions and calibrations) to specific coordinates of an array, table or sparse dataset. Exactly one of `dataset`, `table` and `sparse` is set
 """
 type CoordinateAnchor @key(fields: "id", resolvable: true) {
   id: ID!
+
+  """The array dataset this anchor pins into, or null otherwise"""
+  dataset: ArrayDataset
+
+  """The table dataset this anchor pins into, or null otherwise"""
+  table: TableDataset
+
+  """The sparse dataset this anchor pins into, or null otherwise"""
+  sparse: SparseDataset
 
   """The microscope state recorded at this coordinate"""
   microscope: OptikitState
   valueHistogram: ValueHistogram
   channelLabel: ChannelLabel
   lightGraph: LightPath
+
+  """The OME image metadata recorded at this coordinate"""
+  omeMetadata: OmeMetadata
   phasorHistograms(pagination: OffsetPaginationInput): [PhasorHistogram!]!
   phasorCalibrations(pagination: OffsetPaginationInput): [PhasorCalibration!]!
 
   """
-  The coordinates this anchor is pinned to, e.g. {'c': 0, 't': 5}. Level-0 pixel indices, i.e. coordinates of the dataset's INTRINSIC system. An anchor that omits an axis is global along it
+  The coordinates this anchor is pinned to, e.g. {'c': 0, 't': 5}. For an array dataset these are level-0 pixel indices, i.e. coordinates of its INTRINSIC system; for a table dataset they are values of its coordinate columns, keyed by column name; for a sparse dataset they are positions along its enumerated axes. An anchor that omits an axis is global along it
   """
   coordinates: Any!
+}
+
+input CoordinateAnchorFilter {
+  """Filter by list of IDs"""
+  ids: [ID!]
+  id: ID
+  dataset: IDFilterLookup
+  table: IDFilterLookup
+  sparse: IDFilterLookup
+  AND: CoordinateAnchorFilter
+  OR: CoordinateAnchorFilter
+  NOT: CoordinateAnchorFilter
+  DISTINCT: Boolean
 }
 
 """
@@ -2162,6 +2201,16 @@ input CreateArrayDatasetInput {
 }
 
 """
+Attach metadata spokes to an array, table or sparse dataset after ingest. Exactly one of `dataset`, `table` and `sparse` names the container; `anchor` carries the coordinates and the spokes. Get-or-create on (container, coordinates): a second call at the same coordinates adds its spokes to the one anchor, and a spoke stated twice is replaced
+"""
+input CreateCoordinateAnchorInput {
+  dataset: ID = null
+  table: ID = null
+  sparse: ID = null
+  anchor: CoordinateAnchorInput!
+}
+
+"""
 Create a SHARED coordinate system -- a reference space with no owner, e.g. a world or an atlas -- and, in the same call, author the edges registering any number of sources (datasets, table datasets, mesh collections, coordinate systems) into it. Every other system is owned by a container and created with it, so a shared space is the only system created directly. createSceneFromCoordinateSystem later builds a scene over it and materializes those sources as layers
 """
 input CreateCoordinateSystemInput {
@@ -2402,6 +2451,7 @@ input CreateRgbLayerInput {
   blueIndex: Int = 2
   climMin: Float = null
   climMax: Float = null
+  whiteBalance: [Float!] = null
   opacity: Float = null
   visible: Boolean = null
   order: Int = null
@@ -2442,6 +2492,7 @@ input CreateSparseDatasetInput {
   folder: ID = null
   derivedFrom: [DerivedFromInput!] = null
   sourceFiles: [SourceFileInput!] = null
+  anchors: [CoordinateAnchorInput!] = null
 }
 
 """
@@ -2455,6 +2506,7 @@ input CreateTableDatasetInput {
   folder: ID = null
   derivedFrom: [DerivedFromInput!] = null
   sourceFiles: [SourceFileInput!] = null
+  anchors: [CoordinateAnchorInput!] = null
 }
 
 """
@@ -2919,6 +2971,11 @@ enum ElementKind {
   OTHER
 }
 
+"""
+A stored vector, as `<model id>:<comma-separated floats>` -- e.g. `potion-base-8M:0.0123,-0.0456,...`. The model id is part of the value because vectors from different models are not comparable. Null when the row has no vector yet (it carries no text, or indexing has not caught up with it).
+"""
+scalar Embedding
+
 """Euler angles for 3D orientation"""
 type Euler {
   rx: Float
@@ -3028,12 +3085,12 @@ type FabriksStore @key(fields: "id", resolvable: true) {
   """
   The byte budget the upload grant advertised for this store. Advertised, not enforced: a session policy bounds what a credential may write, never how much, so a store may exceed this
   """
-  maxBytes: Int
+  maxBytes: ByteCount
 
   """
   How many bytes this store actually holds, measured when its upload was finished. Null while unfinished, or for stores written before this was recorded
   """
-  sizeBytes: Int
+  sizeBytes: ByteCount
   specVersion: String
   grid: JSON
   encoding: JSON
@@ -3061,7 +3118,7 @@ type FabriksUploadGrant {
   path: String!
   expiresIn: Int!
   store: String!
-  maxBytes: Int!
+  maxBytes: ByteCount!
   originalFileName: String
   uploadFileName: String!
   uploadContentType: String
@@ -3085,8 +3142,6 @@ type FieldTransformation implements Transformation @key(fields: "id", resolvable
   id: ID!
   kind: TransformKind!
   name: String
-  input: CoordinateSystem
-  output: CoordinateSystem
 
   """
   How much this map is actually known: VALIDATED for a map the server derived (or one someone checked), INFERRED for numbers read from metadata, MANUAL for an authored registration, UNKNOWN for one its author marked as a guess. A layer's validity is the weakest edge on its path to world
@@ -3104,6 +3159,16 @@ type FieldTransformation implements Transformation @key(fields: "id", resolvable
   provenanceEntries(pagination: OffsetPaginationInput): [ProvenanceEntry!]!
   createdAt: DateTime!
   creator: User
+
+  """
+  The system this edge maps from. Null for the child of a SEQUENCE or BY_DIMENSION, which takes its endpoints from the wrapper
+  """
+  input: CoordinateSystem
+
+  """
+  The system this edge maps to. Null for the child of a SEQUENCE or BY_DIMENSION, which takes its endpoints from the wrapper
+  """
+  output: CoordinateSystem
 
   """
   How many times this edge has been written, counting the row that created it -- so a new edge reads 1. Only comparison is meaningful: this and the edge's `id` together are the cache key for anything derived from the edge, and a change means refetch. It counts the same provenance rows `provenanceEntries` lists, so the audit trail and the token cannot disagree; a rename moves it too, which errs towards refetching something that did not change rather than trusting something that did
@@ -3143,6 +3208,11 @@ type File @key(fields: "id", resolvable: true) {
   id: ID!
   name: String!
   store: BigFileStore!
+
+  """
+  The folder this file is filed in, or null once its folder was deleted (deleting a folder unfiles what is in it and destroys nothing). Organisational only: it says where a user keeps the file, nothing about its contents
+  """
+  folder: Folder
 
   """Provenance entries for this file"""
   provenanceEntries(pagination: OffsetPaginationInput): [ProvenanceEntry!]!
@@ -3631,6 +3701,11 @@ type Folder @key(fields: "id", resolvable: true) {
 
   """The assigner of the creating task, if any"""
   createdThroughBy: User
+
+  """
+  This folder's stored vector, as `<model id>:<floats>`. Null until it has been indexed.
+  """
+  embedding: Embedding
   pinned: Boolean!
   tags: [String!]!
 }
@@ -3928,6 +4003,26 @@ type HopVia {
   axis: String
 }
 
+input IDFilterLookup {
+  exact: ID
+  iExact: ID
+  contains: ID
+  iContains: ID
+  inList: [ID!]
+  gt: ID
+  gte: ID
+  lt: ID
+  lte: ID
+  startsWith: ID
+  iStartsWith: ID
+  endsWith: ID
+  iEndsWith: ID
+  range: [ID!]
+  isNull: Boolean
+  regex: String
+  iRegex: String
+}
+
 """
 What a column's values or an axis' positions **are**, as a discriminated union: `kind` selects which sort of thing is being named, and only that member's id field is read -- any other is rejected. Carried by a sparse dataset's axes and by a table's columns alike -- the one spelling of every 'values here identify things there' claim. `DATASET`, `MESH_COLLECTION` and `NETWORK_COLLECTION` author a FIELD edge from the source into this data, which is also what makes it reachable from a layer over that source (INDEX axes only -- the edge produces an axis); `TABLE` authors no edge and states a foreign key instead, on an INDEX axis or a plain data column; `NETWORK_COLLECTION_NODES` likewise authors none, on an INDEX axis scoped by a sibling object axis
 """
@@ -4010,8 +4105,6 @@ type IdentityTransformation implements Transformation @key(fields: "id", resolva
   id: ID!
   kind: TransformKind!
   name: String
-  input: CoordinateSystem
-  output: CoordinateSystem
 
   """
   How much this map is actually known: VALIDATED for a map the server derived (or one someone checked), INFERRED for numbers read from metadata, MANUAL for an authored registration, UNKNOWN for one its author marked as a guess. A layer's validity is the weakest edge on its path to world
@@ -4029,6 +4122,16 @@ type IdentityTransformation implements Transformation @key(fields: "id", resolva
   provenanceEntries(pagination: OffsetPaginationInput): [ProvenanceEntry!]!
   createdAt: DateTime!
   creator: User
+
+  """
+  The system this edge maps from. Null for the child of a SEQUENCE or BY_DIMENSION, which takes its endpoints from the wrapper
+  """
+  input: CoordinateSystem
+
+  """
+  The system this edge maps to. Null for the child of a SEQUENCE or BY_DIMENSION, which takes its endpoints from the wrapper
+  """
+  output: CoordinateSystem
 
   """
   How many times this edge has been written, counting the row that created it -- so a new edge reads 1. Only comparison is meaningful: this and the edge's `id` together are the cache key for anything derived from the edge, and a change means refetch. It counts the same provenance rows `provenanceEntries` lists, so the audit trail and the token cannot disagree; a rename moves it too, which errs towards refetching something that did not change rather than trusting something that did
@@ -4241,12 +4344,12 @@ type KonnektionStore @key(fields: "id", resolvable: true) {
   """
   The byte budget the upload grant advertised for this store. Advertised, not enforced: a session policy bounds what a credential may write, never how much, so a store may exceed this
   """
-  maxBytes: Int
+  maxBytes: ByteCount
 
   """
   How many bytes this store actually holds, measured when its upload was finished. Null while unfinished, or for stores written before this was recorded
   """
-  sizeBytes: Int
+  sizeBytes: ByteCount
   specVersion: String
   grid: JSON
   encoding: JSON
@@ -4279,7 +4382,7 @@ type KonnektionUploadGrant {
   path: String!
   expiresIn: Int!
   store: String!
-  maxBytes: Int!
+  maxBytes: ByteCount!
   originalFileName: String
   uploadFileName: String!
   uploadContentType: String
@@ -5148,8 +5251,6 @@ type MapAxisTransformation implements Transformation @key(fields: "id", resolvab
   id: ID!
   kind: TransformKind!
   name: String
-  input: CoordinateSystem
-  output: CoordinateSystem
 
   """
   How much this map is actually known: VALIDATED for a map the server derived (or one someone checked), INFERRED for numbers read from metadata, MANUAL for an authored registration, UNKNOWN for one its author marked as a guess. A layer's validity is the weakest edge on its path to world
@@ -5167,6 +5268,16 @@ type MapAxisTransformation implements Transformation @key(fields: "id", resolvab
   provenanceEntries(pagination: OffsetPaginationInput): [ProvenanceEntry!]!
   createdAt: DateTime!
   creator: User
+
+  """
+  The system this edge maps from. Null for the child of a SEQUENCE or BY_DIMENSION, which takes its endpoints from the wrapper
+  """
+  input: CoordinateSystem
+
+  """
+  The system this edge maps to. Null for the child of a SEQUENCE or BY_DIMENSION, which takes its endpoints from the wrapper
+  """
+  output: CoordinateSystem
 
   """
   How many times this edge has been written, counting the row that created it -- so a new edge reads 1. Only comparison is meaningful: this and the edge's `id` together are the cache key for anything derived from the edge, and a change means refetch. It counts the same provenance rows `provenanceEntries` lists, so the audit trail and the token cannot disagree; a rename moves it too, which errs towards refetching something that did not change rather than trusting something that did
@@ -5213,12 +5324,12 @@ type MediaStore @key(fields: "id", resolvable: true) {
   """
   The byte budget the upload grant advertised for this store. Advertised, not enforced: a session policy bounds what a credential may write, never how much, so a store may exceed this
   """
-  maxBytes: Int
+  maxBytes: ByteCount
 
   """
   How many bytes this store actually holds, measured when its upload was finished. Null while unfinished, or for stores written before this was recorded
   """
-  sizeBytes: Int
+  sizeBytes: ByteCount
   originalFileName: String
   contentType: String
 
@@ -5241,7 +5352,7 @@ type MediaUploadGrant {
   path: String!
   expiresIn: Int!
   store: String!
-  maxBytes: Int!
+  maxBytes: ByteCount!
   originalFileName: String
   uploadFileName: String!
   uploadContentType: String
@@ -5644,10 +5755,10 @@ type ModelChange {
 
 type Mutation {
   """Upload media and return a URL for access"""
-  requestMediaUpload(input: RequestMediaUploadInput!): MediaUploadGrant!
+  requestMediaUpload(input: RequestMediaUploadInput!): MediaUploadGrant! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Finalize a media upload after the client has written the object"""
-  finishMediaUpload(input: FinishMediaUploadInput!): MediaStore!
+  finishMediaUpload(input: FinishMediaUploadInput!): MediaStore! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Request temporary S3 read credentials for a media file"""
   requestMediaAccess(input: RequestMediaAccessInput!): MediaAccessGrant!
@@ -5658,24 +5769,24 @@ type Mutation {
   requestGeneralMediaAccess(input: RequestGeneralMediaAccessInput!): GeneralMediaAccessGrant!
 
   """Request an upload grant for a big file store"""
-  requestBigfileUpload(input: RequestBigFileUploadInput!): BigFileUploadGrant!
+  requestBigfileUpload(input: RequestBigFileUploadInput!): BigFileUploadGrant! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Finalize a big file upload after the client has written the object"""
-  finishBigfileUpload(input: FinishBigFileUploadInput!): BigFileStore!
+  finishBigfileUpload(input: FinishBigFileUploadInput!): BigFileStore! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Request temporary S3 read credentials for a big file"""
   requestBigfileAccess(input: RequestBigFileAccessInput!): BigFileAccessGrant!
 
   """Request an upload grant for a Zarr store"""
-  requestZarrUpload(input: RequestZarrUploadInput!): ZarrUploadGrant!
+  requestZarrUpload(input: RequestZarrUploadInput!): ZarrUploadGrant! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Finalize a Zarr upload after the client has written the object"""
-  finishZarrUpload(input: FinishZarrUploadInput!): ZarrStore!
+  finishZarrUpload(input: FinishZarrUploadInput!): ZarrStore! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
   Reissue upload credentials for a Zarr store whose upload is still in flight. A grant's credentials expire, and clients hold the session token as a static credential, so a write large enough to outlive its session dies partway through. This returns a fresh session against the same prefix so the write can carry on. Refuses a store that is already populated -- that is an overwrite, not a resumption
   """
-  refreshZarrUpload(input: RefreshZarrUploadInput!): ZarrUploadGrant!
+  refreshZarrUpload(input: RefreshZarrUploadInput!): ZarrUploadGrant! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Request temporary S3 read credentials for a Zarr store"""
   requestZarrAccess(input: RequestZarrAccessInput!): ZarrAccessGrant!
@@ -5688,17 +5799,17 @@ type Mutation {
   """
   Request an upload grant for a sparse store. The grant covers the whole prefix, so one request authorizes the group's metadata and all three of its arrays. It declares nothing about the matrix: the group states its encoding, shape and chunking, and the server reads them when the upload is finished
   """
-  requestSparseUpload(input: RequestSparseUploadInput!): SparseUploadGrant!
+  requestSparseUpload(input: RequestSparseUploadInput!): SparseUploadGrant! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
   Finalize a sparse upload, which is when the group's own metadata is read. A missing encoding, a missing array, or an `indptr` whose length contradicts the declared shape are all refused here -- that is what an interrupted upload looks like, and catching it now beats a reader discovering it later
   """
-  finishSparseUpload(input: FinishSparseUploadInput!): SparseStore!
+  finishSparseUpload(input: FinishSparseUploadInput!): SparseStore! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
   Reissue upload credentials for a sparse store whose upload is still in flight, for the reason `refreshZarrUpload` exists: three chunked arrays of a large matrix take long enough that a write can outlive its session token. Refuses a store that is already populated -- that is an overwrite, not a resumption
   """
-  refreshSparseUpload(input: RefreshSparseUploadInput!): SparseUploadGrant!
+  refreshSparseUpload(input: RefreshSparseUploadInput!): SparseUploadGrant! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
   Request temporary S3 read credentials for a sparse store. Covers the whole prefix, because a lookup needs `indptr` before it knows which range of `data` to fetch
@@ -5713,12 +5824,12 @@ type Mutation {
   """
   Request an upload grant for a fabriks store. The grant covers the whole prefix, so one request authorizes the manifest, both catalogs and every level
   """
-  requestFabriksUpload(input: RequestFabriksUploadInput!): FabriksUploadGrant!
+  requestFabriksUpload(input: RequestFabriksUploadInput!): FabriksUploadGrant! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
   Finalize a fabriks upload. This reads the store's `fabriks.json` and refuses a prefix that has none -- which is what an interrupted upload looks like, since the manifest is written last
   """
-  finishFabriksUpload(input: FinishFabriksUploadInput!): FabriksStore!
+  finishFabriksUpload(input: FinishFabriksUploadInput!): FabriksStore! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
   Request temporary S3 read credentials covering a fabriks store's whole prefix
@@ -5733,12 +5844,12 @@ type Mutation {
   """
   Request an upload grant for a konnektion store. The grant covers the whole prefix, so one request authorizes the manifest, both catalogs and every level
   """
-  requestKonnektionUpload(input: RequestKonnektionUploadInput!): KonnektionUploadGrant!
+  requestKonnektionUpload(input: RequestKonnektionUploadInput!): KonnektionUploadGrant! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
   Finalize a konnektion upload. This reads the store's `konnektion.json` and refuses a prefix that has none -- which is what an interrupted upload looks like, since the manifest is written last
   """
-  finishKonnektionUpload(input: FinishKonnektionUploadInput!): KonnektionStore!
+  finishKonnektionUpload(input: FinishKonnektionUploadInput!): KonnektionStore! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
   Request temporary S3 read credentials covering a konnektion store's whole prefix
@@ -5751,10 +5862,10 @@ type Mutation {
   requestGeneralKonnektionAccess(input: RequestGeneralKonnektionAccessInput!): GeneralKonnektionAccessGrant!
 
   """Request an upload grant for a Parquet store"""
-  requestParquetUpload(input: RequestParquetUploadInput!): ParquetUploadGrant!
+  requestParquetUpload(input: RequestParquetUploadInput!): ParquetUploadGrant! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Finalize a Parquet upload after the client has written the object"""
-  finishParquetUpload(input: FinishParquetUploadInput!): ParquetStore!
+  finishParquetUpload(input: FinishParquetUploadInput!): ParquetStore! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Request temporary S3 read credentials for a Parquet file"""
   requestParquetAccess(input: RequestParquetAccessInput!): ParquetAccessGrant!
@@ -5794,6 +5905,11 @@ type Mutation {
 
   """Delete an existing data array"""
   deleteDataArray(input: DeleteDataArrayInput!): ID! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+
+  """
+  Attach metadata spokes to an array, table or sparse dataset after ingest: a microscope state, OME metadata, a value histogram, a channel label or a light path, pinned to some of its coordinates. Get-or-create on (container, coordinates): a second call at the same coordinates adds its spokes to the one anchor, and a spoke stated twice is replaced
+  """
+  createCoordinateAnchor(input: CreateCoordinateAnchorInput!): CoordinateAnchor! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
   Create a SHARED coordinate system (an ownerless space) and, in one call, author the edges registering any number of sources (datasets, table datasets, mesh collections, coordinate systems) into it
@@ -6142,9 +6258,6 @@ type Mutation {
 
   """Delete an existing camera tour"""
   deleteAnimation(input: DeleteAnimationInput!): ID! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
-
-  """Assign a user permission to an object"""
-  assignUserPermission(input: AssignUserPermissionInput!): [UserObjectPermission!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 }
 
 """
@@ -6529,6 +6642,14 @@ input OffsetPaginationInput {
   limit: Int
 }
 
+"""The image truth: OME image metadata pinned to a coordinate anchor"""
+type OmeMetadata @key(fields: "id", resolvable: true) {
+  id: ID!
+
+  """The OME image metadata"""
+  metadata: Any!
+}
+
 """Input type for OME metadata"""
 input OmeMetadataInput {
   """The OME metadata as a JSON string"""
@@ -6846,12 +6967,12 @@ type ParquetStore @key(fields: "id", resolvable: true) {
   """
   The byte budget the upload grant advertised for this store. Advertised, not enforced: a session policy bounds what a credential may write, never how much, so a store may exceed this
   """
-  maxBytes: Int
+  maxBytes: ByteCount
 
   """
   How many bytes this store actually holds, measured when its upload was finished. Null while unfinished, or for stores written before this was recorded
   """
-  sizeBytes: Int
+  sizeBytes: ByteCount
   originalFileName: String
   contentType: String
 
@@ -6874,7 +6995,7 @@ type ParquetUploadGrant {
   path: String!
   expiresIn: Int!
   store: String!
-  maxBytes: Int!
+  maxBytes: ByteCount!
   originalFileName: String
   uploadFileName: String!
   uploadContentType: String
@@ -7583,6 +7704,11 @@ type Query {
   dataArray(id: ID!): DataArray! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
+  List coordinate anchors (the hubs pinning metadata spokes to coordinates of an array, table or sparse dataset)
+  """
+  coordinateAnchors(filters: CoordinateAnchorFilter, pagination: OffsetPaginationInput): [CoordinateAnchor!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+
+  """
   List annotations (human-drawn shapes, each in its collection's coordinate system)
   """
   annotations(filters: AnnotationFilter, ordering: [AnnotationOrder!]! = [], pagination: OffsetPaginationInput): [Annotation!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
@@ -7821,7 +7947,7 @@ input RequestBigFileAccessInput {
 
 input RequestBigFileUploadInput {
   originalFileName: String!
-  fileSize: Int = null
+  fileSize: ByteCount = null
   contentType: String = null
   host: String = null
   port: Int = null
@@ -7875,7 +8001,7 @@ input RequestMediaAccessInput {
 
 input RequestMediaUploadInput {
   originalFileName: String!
-  fileSize: Int = null
+  fileSize: ByteCount = null
   contentType: String = null
 }
 
@@ -7970,6 +8096,11 @@ type RgbLayer implements Layer @key(fields: "id", resolvable: true) {
   climMax: Float
 
   """
+  Per-component gains [red, green, blue], multiplied into the components before the shared contrast limits. Null: no correction, the same as [1, 1, 1]
+  """
+  whiteBalance: [Float!]
+
+  """
   Per pyramid level, the path from that level's voxel grid to this scene's world system. What a multiscale renderer consumes directly: pick a level by zoom and use its path -- every level stars into the same intrinsic system, so the registration tail is shared. A level's path is null when the dataset is not registered into the scene
   """
   levelPaths: [LevelPlacement!]!
@@ -7988,8 +8119,6 @@ type RotationTransformation implements Transformation @key(fields: "id", resolva
   id: ID!
   kind: TransformKind!
   name: String
-  input: CoordinateSystem
-  output: CoordinateSystem
 
   """
   How much this map is actually known: VALIDATED for a map the server derived (or one someone checked), INFERRED for numbers read from metadata, MANUAL for an authored registration, UNKNOWN for one its author marked as a guess. A layer's validity is the weakest edge on its path to world
@@ -8007,6 +8136,16 @@ type RotationTransformation implements Transformation @key(fields: "id", resolva
   provenanceEntries(pagination: OffsetPaginationInput): [ProvenanceEntry!]!
   createdAt: DateTime!
   creator: User
+
+  """
+  The system this edge maps from. Null for the child of a SEQUENCE or BY_DIMENSION, which takes its endpoints from the wrapper
+  """
+  input: CoordinateSystem
+
+  """
+  The system this edge maps to. Null for the child of a SEQUENCE or BY_DIMENSION, which takes its endpoints from the wrapper
+  """
+  output: CoordinateSystem
 
   """
   How many times this edge has been written, counting the row that created it -- so a new edge reads 1. Only comparison is meaningful: this and the edge's `id` together are the cache key for anything derived from the edge, and a change means refetch. It counts the same provenance rows `provenanceEntries` lists, so the audit trail and the token cannot disagree; a rename moves it too, which errs towards refetching something that did not change rather than trusting something that did
@@ -8160,8 +8299,6 @@ type ScaleTransformation implements Transformation @key(fields: "id", resolvable
   id: ID!
   kind: TransformKind!
   name: String
-  input: CoordinateSystem
-  output: CoordinateSystem
 
   """
   How much this map is actually known: VALIDATED for a map the server derived (or one someone checked), INFERRED for numbers read from metadata, MANUAL for an authored registration, UNKNOWN for one its author marked as a guess. A layer's validity is the weakest edge on its path to world
@@ -8179,6 +8316,16 @@ type ScaleTransformation implements Transformation @key(fields: "id", resolvable
   provenanceEntries(pagination: OffsetPaginationInput): [ProvenanceEntry!]!
   createdAt: DateTime!
   creator: User
+
+  """
+  The system this edge maps from. Null for the child of a SEQUENCE or BY_DIMENSION, which takes its endpoints from the wrapper
+  """
+  input: CoordinateSystem
+
+  """
+  The system this edge maps to. Null for the child of a SEQUENCE or BY_DIMENSION, which takes its endpoints from the wrapper
+  """
+  output: CoordinateSystem
 
   """
   How many times this edge has been written, counting the row that created it -- so a new edge reads 1. Only comparison is meaningful: this and the edge's `id` together are the cache key for anything derived from the edge, and a change means refetch. It counts the same provenance rows `provenanceEntries` lists, so the audit trail and the token cannot disagree; a rename moves it too, which errs towards refetching something that did not change rather than trusting something that did
@@ -8411,8 +8558,6 @@ type SequenceTransformation implements Transformation @key(fields: "id", resolva
   id: ID!
   kind: TransformKind!
   name: String
-  input: CoordinateSystem
-  output: CoordinateSystem
 
   """
   How much this map is actually known: VALIDATED for a map the server derived (or one someone checked), INFERRED for numbers read from metadata, MANUAL for an authored registration, UNKNOWN for one its author marked as a guess. A layer's validity is the weakest edge on its path to world
@@ -8430,6 +8575,16 @@ type SequenceTransformation implements Transformation @key(fields: "id", resolva
   provenanceEntries(pagination: OffsetPaginationInput): [ProvenanceEntry!]!
   createdAt: DateTime!
   creator: User
+
+  """
+  The system this edge maps from. Null for the child of a SEQUENCE or BY_DIMENSION, which takes its endpoints from the wrapper
+  """
+  input: CoordinateSystem
+
+  """
+  The system this edge maps to. Null for the child of a SEQUENCE or BY_DIMENSION, which takes its endpoints from the wrapper
+  """
+  output: CoordinateSystem
 
   """
   How many times this edge has been written, counting the row that created it -- so a new edge reads 1. Only comparison is meaningful: this and the edge's `id` together are the cache key for anything derived from the edge, and a change means refetch. It counts the same provenance rows `provenanceEntries` lists, so the audit trail and the token cannot disagree; a rename moves it too, which errs towards refetching something that did not change rather than trusting something that did
@@ -8607,7 +8762,7 @@ type SourcePlacement {
   path: [PlacementStep!]!
 
   """
-  The source's coordinate anchors whose slab overlaps the region. An anchor pins some axes and is global along every axis it omits, so its slab is one voxel wide where it pins and the container's full extent where it does not. Only an array dataset has anchors; every other source kind reports none, which is not a gap
+  The source's coordinate anchors whose slab overlaps the region. An anchor pins some axes and is global along every axis it omits, so its slab is one voxel wide where it pins and the container's full extent where it does not. Only an array dataset's anchors are placed here: a table's anchors pin column values rather than a slab, and are read through `TableDataset.anchors`; every other source kind reports none, which is not a gap
   """
   anchors: [CoordinateAnchor!]!
 }
@@ -8724,6 +8879,11 @@ type SparseDataset @key(fields: "id", resolvable: true) {
 
   """The task this dataset was created through, if any"""
   createdThrough: Task
+
+  """
+  The coordinate anchors of this matrix, each pinning metadata spokes to positions along its enumerated axes, keyed by axis name, or to the whole matrix when its coordinates are empty. The same hub an array dataset uses, so a per-object matrix carries the acquisition facts of the recording it was computed from
+  """
+  anchors(filters: CoordinateAnchorFilter, pagination: OffsetPaginationInput): [CoordinateAnchor!]!
 
   """Who assigned that task"""
   createdThroughBy: User
@@ -8865,12 +9025,12 @@ type SparseStore @key(fields: "id", resolvable: true) {
   """
   The byte budget the upload grant advertised for this store. Advertised, not enforced: a session policy bounds what a credential may write, never how much, so a store may exceed this
   """
-  maxBytes: Int
+  maxBytes: ByteCount
 
   """
   How many bytes this store actually holds, measured when its upload was finished. Null while unfinished, or for stores written before this was recorded
   """
-  sizeBytes: Int
+  sizeBytes: ByteCount
 
   """
   The version of the `sporadik` block this store was accepted under. A spec selects how every byte in the prefix is read, so an unknown one is refused rather than guessed at
@@ -8905,7 +9065,7 @@ type SparseUploadGrant {
   path: String!
   expiresIn: Int!
   store: String!
-  maxBytes: Int!
+  maxBytes: ByteCount!
   originalFileName: String
   uploadFileName: String!
   uploadContentType: String
@@ -9003,6 +9163,11 @@ type TableDataset @key(fields: "id", resolvable: true) {
   """The task this table was created through, if any"""
   createdThrough: Task
 
+  """
+  The coordinate anchors of this table, each pinning metadata spokes -- a microscope state, OME metadata, a channel label -- to values of its coordinate columns keyed by column name, or to the whole table when its coordinates are empty. The same hub an array dataset uses, so a measurement table carries the acquisition facts of the image it was segmented out of
+  """
+  anchors(filters: CoordinateAnchorFilter, pagination: OffsetPaginationInput): [CoordinateAnchor!]!
+
   """The assigner of the creating task, if any"""
   createdThroughBy: User
 
@@ -9010,6 +9175,11 @@ type TableDataset @key(fields: "id", resolvable: true) {
   Every column, in any table, that declares this table as its reference target -- the reverse of `Column.references`. This table cannot be deleted while any of them exist
   """
   referencedBy: [Column!]!
+
+  """
+  This table's stored vector, as `<model id>:<floats>`. Null until it has been indexed.
+  """
+  embedding: Embedding
 
   """
   The files this table dataset was converted from -- the CZI a converter read to write these arrays, named per series. **Read this alongside `derivedFrom`, not instead of it**: `derivedFrom` says which *data* this was computed from and relates two coordinate systems, while this says which *bytes* it was read out of and relates to no space at all, because a file has none. Both can be non-empty and complete
@@ -9449,8 +9619,6 @@ interface Transformation {
   id: ID!
   kind: TransformKind!
   name: String
-  input: CoordinateSystem
-  output: CoordinateSystem
 
   """
   How much this map is actually known: VALIDATED for a map the server derived (or one someone checked), INFERRED for numbers read from metadata, MANUAL for an authored registration, UNKNOWN for one its author marked as a guess. A layer's validity is the weakest edge on its path to world
@@ -9468,6 +9636,16 @@ interface Transformation {
   provenanceEntries(pagination: OffsetPaginationInput): [ProvenanceEntry!]!
   createdAt: DateTime!
   creator: User
+
+  """
+  The system this edge maps from. Null for the child of a SEQUENCE or BY_DIMENSION, which takes its endpoints from the wrapper
+  """
+  input: CoordinateSystem
+
+  """
+  The system this edge maps to. Null for the child of a SEQUENCE or BY_DIMENSION, which takes its endpoints from the wrapper
+  """
+  output: CoordinateSystem
 
   """
   How many times this edge has been written, counting the row that created it -- so a new edge reads 1. Only comparison is meaningful: this and the edge's `id` together are the cache key for anything derived from the edge, and a change means refetch. It counts the same provenance rows `provenanceEntries` lists, so the audit trail and the token cannot disagree; a rename moves it too, which errs towards refetching something that did not change rather than trusting something that did
@@ -9550,8 +9728,6 @@ type TranslationTransformation implements Transformation @key(fields: "id", reso
   id: ID!
   kind: TransformKind!
   name: String
-  input: CoordinateSystem
-  output: CoordinateSystem
 
   """
   How much this map is actually known: VALIDATED for a map the server derived (or one someone checked), INFERRED for numbers read from metadata, MANUAL for an authored registration, UNKNOWN for one its author marked as a guess. A layer's validity is the weakest edge on its path to world
@@ -9569,6 +9745,16 @@ type TranslationTransformation implements Transformation @key(fields: "id", reso
   provenanceEntries(pagination: OffsetPaginationInput): [ProvenanceEntry!]!
   createdAt: DateTime!
   creator: User
+
+  """
+  The system this edge maps from. Null for the child of a SEQUENCE or BY_DIMENSION, which takes its endpoints from the wrapper
+  """
+  input: CoordinateSystem
+
+  """
+  The system this edge maps to. Null for the child of a SEQUENCE or BY_DIMENSION, which takes its endpoints from the wrapper
+  """
+  output: CoordinateSystem
 
   """
   How many times this edge has been written, counting the row that created it -- so a new edge reads 1. Only comparison is meaningful: this and the edge's `id` together are the cache key for anything derived from the edge, and a change means refetch. It counts the same provenance rows `provenanceEntries` lists, so the audit trail and the token cannot disagree; a rename moves it too, which errs towards refetching something that did not change rather than trusting something that did
@@ -9631,8 +9817,6 @@ type UnmappableTransformation implements Transformation @key(fields: "id", resol
   id: ID!
   kind: TransformKind!
   name: String
-  input: CoordinateSystem
-  output: CoordinateSystem
 
   """
   How much this map is actually known: VALIDATED for a map the server derived (or one someone checked), INFERRED for numbers read from metadata, MANUAL for an authored registration, UNKNOWN for one its author marked as a guess. A layer's validity is the weakest edge on its path to world
@@ -9650,6 +9834,16 @@ type UnmappableTransformation implements Transformation @key(fields: "id", resol
   provenanceEntries(pagination: OffsetPaginationInput): [ProvenanceEntry!]!
   createdAt: DateTime!
   creator: User
+
+  """
+  The system this edge maps from. Null for the child of a SEQUENCE or BY_DIMENSION, which takes its endpoints from the wrapper
+  """
+  input: CoordinateSystem
+
+  """
+  The system this edge maps to. Null for the child of a SEQUENCE or BY_DIMENSION, which takes its endpoints from the wrapper
+  """
+  output: CoordinateSystem
 
   """
   How many times this edge has been written, counting the row that created it -- so a new edge reads 1. Only comparison is meaningful: this and the edge's `id` together are the cache key for anything derived from the edge, and a change means refetch. It counts the same provenance rows `provenanceEntries` lists, so the audit trail and the token cannot disagree; a rename moves it too, which errs towards refetching something that did not change rather than trusting something that did
@@ -9972,6 +10166,7 @@ input UpdateRgbLayerInput {
   blueIndex: Int = null
   climMin: Float = null
   climMax: Float = null
+  whiteBalance: [Float!] = null
   opacity: Float = null
   visible: Boolean = null
   order: Int = null
@@ -10055,7 +10250,6 @@ type User @key(fields: "id", resolvable: true) {
   id: ID!
   sub: String!
   preferredUsername: String!
-  activeOrganization: Organization
 }
 
 """
@@ -10276,12 +10470,12 @@ type ZarrStore @key(fields: "id", resolvable: true) {
   """
   The byte budget the upload grant advertised for this store. Advertised, not enforced: a session policy bounds what a credential may write, never how much, so a store may exceed this
   """
-  maxBytes: Int
+  maxBytes: ByteCount
 
   """
   How many bytes this store actually holds, measured when its upload was finished. Null while unfinished, or for stores written before this was recorded
   """
-  sizeBytes: Int
+  sizeBytes: ByteCount
   shape: [Int!]!
 
   """
@@ -10318,7 +10512,7 @@ type ZarrUploadGrant {
   path: String!
   expiresIn: Int!
   store: String!
-  maxBytes: Int!
+  maxBytes: ByteCount!
   originalFileName: String
   uploadFileName: String!
   uploadContentType: String
@@ -10327,7 +10521,7 @@ type ZarrUploadGrant {
 
 scalar _Any
 
-union _Entity = AffineTransformation | Animation | AnimationWaypoint | Annotation | AnnotationCollection | AnnotationLayer | ArrayDataset | Axis | BigFileStore | ByDimensionTransformation | ChannelLabel | Client | Column | CoordinateAnchor | CoordinateSystem | DataArray | FabriksStore | FieldTransformation | File | FileLink | Folder | IdentityTransformation | ImageLayer | IntensityLayer | KonnektionStore | LabelLayer | Lens | LightPath | MapAxisTransformation | MediaStore | Membership | MeshCollection | MeshLayer | NetworkCollection | NetworkLayer | OptikitState | Organization | ParquetStore | PhasorCalibration | PhasorHistogram | PhasorLayer | PointLayer | RgbLayer | RotationTransformation | ScaleTransformation | Scene | SceneSnapshot | SequenceTransformation | SparseArray | SparseAxisReference | SparseDataset | SparseStore | TableDataset | Task | TrackLayer | TranslationTransformation | UnmappableTransformation | User | ValueHistogram | VectorLayer | ZarrStore
+union _Entity = AffineTransformation | Animation | AnimationWaypoint | Annotation | AnnotationCollection | AnnotationLayer | ArrayDataset | Axis | BigFileStore | ByDimensionTransformation | ChannelLabel | Client | Column | CoordinateAnchor | CoordinateSystem | DataArray | FabriksStore | FieldTransformation | File | FileLink | Folder | IdentityTransformation | ImageLayer | IntensityLayer | KonnektionStore | LabelLayer | Lens | LightPath | MapAxisTransformation | MediaStore | Membership | MeshCollection | MeshLayer | NetworkCollection | NetworkLayer | OmeMetadata | OptikitState | Organization | ParquetStore | PhasorCalibration | PhasorHistogram | PhasorLayer | PointLayer | RgbLayer | RotationTransformation | ScaleTransformation | Scene | SceneSnapshot | SequenceTransformation | SparseArray | SparseAxisReference | SparseDataset | SparseStore | TableDataset | Task | TrackLayer | TranslationTransformation | UnmappableTransformation | User | ValueHistogram | VectorLayer | ZarrStore
 
 type _Service {
   sdl: String!

@@ -38,7 +38,8 @@
                 "Power": "kanne.scalars.Power",
                 "Frequency": "kanne.scalars.Frequency",
                 "Temperature": "kanne.scalars.Temperature",
-                "ID": "rath.scalars.ID"
+                "ID": "rath.scalars.ID",
+                "ByteCount": "mikro.scalars.ByteCount"
             },
             "coercible_scalars": {},
             "coercible_inputs": {},
@@ -212,6 +213,7 @@
                     ],
                     "coercible_scalars": {
                         "ArrayLike": "mikro.scalars.ArrayCoercible",
+                        "ByteCount": "mikro.scalars.ByteCountCoercible",
                         "ImageFileLike": "mikro.scalars.ImageFileCoercible",
                         "FileLike": "mikro.scalars.ImageFileCoercible",
                         "ParquetLike": "mikro.scalars.ParquetCoercible",

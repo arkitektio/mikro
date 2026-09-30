@@ -54,6 +54,7 @@ projects:
               - mikro.mikro.Mikro
             coercible_scalars:
               ArrayLike: mikro.scalars.ArrayCoercible
+              ByteCount: mikro.scalars.ByteCountCoercible
               ImageFileLike: mikro.scalars.ImageFileCoercible
               FileLike: mikro.scalars.ImageFileCoercible
               ParquetLike: mikro.scalars.ParquetCoercible
@@ -84,6 +85,7 @@ projects:
           Frequency: kanne.scalars.Frequency
           Temperature: kanne.scalars.Temperature
           ID: rath.scalars.ID
+          ByteCount: mikro.scalars.ByteCount
         additional_bases:
           AxisInput:
             - mikro.traits.AxisInputTrait
