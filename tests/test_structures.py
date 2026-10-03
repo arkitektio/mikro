@@ -22,7 +22,7 @@ IDENTIFIERS = {
     "@mikro/annotationcollection",
     "@mikro/arraydataset",
     "@mikro/coordinatesystem",
-    "@mikro/dataset",
+    "@mikro/folder",
     "@mikro/file",
     "@mikro/lens",
     "@mikro/meshcollection",

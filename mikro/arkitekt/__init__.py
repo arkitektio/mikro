@@ -185,11 +185,12 @@ async def expand_animation(id: str, mikro: Mikro) -> Animation:
     return await mikro.aget_animation(id)
 
 
-# `@mikro/dataset` rather than `@mikro/folder`: the identifier a folder already
-# travels under, kept because it is a wire contract with every deployed app.
-@registry.structure("@mikro/dataset", widget=_search(SearchFoldersQuery))
+# `@mikro/folder`, the identifier the mikro service declares it hosts. (A folder
+# used to travel as `@mikro/dataset`; an app registered with that identifier has
+# to re-register.)
+@registry.structure("@mikro/folder", widget=_search(SearchFoldersQuery))
 async def expand_folder(id: str, mikro: Mikro) -> Folder:
-    """A folder, by id -- it travels as `@mikro/dataset`."""
+    """A folder, by id."""
     return await mikro.aget_folder(id)
 
 

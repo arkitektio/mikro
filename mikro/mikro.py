@@ -70,7 +70,7 @@ class Mikro(Composition, MikroApi):
         "@mikro/scene": schema.Scene,
         "@mikro/scenesnapshot": schema.SceneSnapshot,
         "@mikro/animation": schema.Animation,
-        "@mikro/dataset": schema.Folder,
+        "@mikro/folder": schema.Folder,
         "@mikro/file": schema.File,
     }
     """The fragment each structure is, for federated batch expansion."""
