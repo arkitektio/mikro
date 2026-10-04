@@ -5,8 +5,7 @@ system — a node of the transformation graph, belonging to nobody — plus an e
 claiming that some data sits in it. Those are two facts, and they read best
 written as two steps::
 
-    from kanne.scalars import Unit
-    from mikro import space_3d
+    from mikro import Unit, space_3d
 
     world = space_3d(mikro, "stage", unit=Unit("micrometer"))
     world.register(dataset, scale={"z": 1.0, "y": 0.2, "x": 0.2})
@@ -134,7 +133,7 @@ def space_2d(
 ) -> CoordinateSystem:
     """A flat physical space: ``(y, x)``, one length unit for both axes.
 
-        plane = space_2d("slide", unit=Unit("micrometer"))
+        plane = space_2d(mikro, "slide", unit=Unit("micrometer"))
         plane.register(dataset, scale={"y": 0.2, "x": 0.2})
 
     Args:

@@ -120,6 +120,57 @@ Declared axes are checked against the array **before** it is uploaded. For examp
 or a missing declaration raises `ArrayDeclarationError` (tables and sparse datasets have their own
 errors) before any data is sent.
 
+### A camera frame, and tiles that sit side by side
+
+A frame straight off a camera is a bare array. Three things make it an image someone can look at:
+labelled axes, contrast limits to draw it with, and a place in physical space.
+
+```python
+import numpy as np
+import xarray as xr
+
+from mikro import Unit, canonical, dataset_arrays, space_2d
+from mikro.api.schema import CoordinateAnchorInput, ScenePolicyInput
+
+
+def upload(mikro, frame: np.ndarray, name: str, space, x_um: float, y_um: float, pixel_um: float):
+    # 1. Name the axes. `canonical` puts them in the order the server wants (c, y, x).
+    image = canonical(xr.DataArray(frame, dims=("y", "x", "c")[: frame.ndim]))
+
+    # 2. A pyramid, so a large frame opens at once, and one contrast anchor per channel.
+    levels = max(1, min(4, int(np.log2(max(frame.shape[:2]) / 512)) + 1))
+    level_zero, scales = dataset_arrays(image, levels=levels, method="mean")
+    dataset = mikro.create_array_dataset(
+        data=level_zero,
+        scales=scales,
+        name=name,
+        axes=[str(d) for d in image.dims],
+        anchors=CoordinateAnchorInput.histogram_anchors(image),
+    )
+
+    # 3. Where it is: pixel size as the scale, the stage position as the offset.
+    space.register(dataset, scale={"y": pixel_um, "x": pixel_um}, x=x_um, y=y_um)
+    return dataset
+
+
+space = space_2d(mikro, "tile scan", unit=Unit("micrometer"))
+for x_um, y_um, frame in tiles:
+    upload(mikro, frame, f"tile {x_um:.0f} {y_um:.0f}", space, x_um, y_um, pixel_um=0.65)
+
+# One scene over the space: every tile at its position.
+space.stage(name="tile scan", policy=ScenePolicyInput(nchildren=len(tiles)))
+```
+
+Units and positions never go on the dataset: a physical space is a coordinate system of its own, and
+`register` says where the data sits in it. Tiles registered into one space share one world, which is
+what makes a viewer show them stitched by position. A single frame gets a space of its own the same
+way.
+
+`stage()` builds a scene from at most `nchildren` registered sources, **8 unless you say otherwise**.
+A scan of more tiles than that needs the `policy` above, or the scene silently shows the first eight.
+
+An action that returns the image returns a lens, not the dataset: `return dataset.lens()`.
+
 ### Working with data
 
 ```python
