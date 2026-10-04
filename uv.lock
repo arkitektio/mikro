@@ -183,7 +183,7 @@ wheels = [
 
 [[package]]
 name = "arkitekt-spec"
-version = "1.4.0"
+version = "3.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "docstring-parser" },
@@ -192,9 +192,9 @@ dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/49/27/51a5c73f6e58066c11dbfc4753147f560acff53fa2fcb09727b452bdebc3/arkitekt_spec-1.4.0.tar.gz", hash = "sha256:81d61ba5cac57994c912c70a8bf92a290cdd5b29c2c582eead406a3cef61dd1b", size = 148707, upload-time = "2026-09-29T09:13:09.8Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/68/6b/d78580e760705e2c17b366d055e2d3cd970c46d56fb018e70b226ebe72ec/arkitekt_spec-3.4.0.tar.gz", hash = "sha256:1ac2d11a9aed3b17f9d9e49658c104093c0d217fd121e7341bdeb92f70036275", size = 158531, upload-time = "2026-10-04T18:51:25.195Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/23/c1/1e2d813863cc672e8bbd47cb3577931c55a32002b383de39d2b677a900a2/arkitekt_spec-1.4.0-py3-none-any.whl", hash = "sha256:93a7970a419eacdbb519db18e9b8d3bf9566e4ba74236831afa8dd0a586037bf", size = 183456, upload-time = "2026-09-29T09:13:08.782Z" },
+    { url = "https://files.pythonhosted.org/packages/6d/2b/fdd7c90a0224d36322a9d8c87a3b57530141191ccffa38c617d145afa646/arkitekt_spec-3.4.0-py3-none-any.whl", hash = "sha256:f2bf59936b9c53b5367a12e9c1e1290e3ce37f926d42bc736e7be926cac26f25", size = 194242, upload-time = "2026-10-04T18:51:24.153Z" },
 ]
 
 [[package]]
@@ -764,7 +764,7 @@ meshopt = [
 
 [[package]]
 name = "fakts"
-version = "4.0.0"
+version = "5.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -773,9 +773,9 @@ dependencies = [
     { name = "koil" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f5/7b/ef57dcbb7b2166a3b818c7866990f48c442bf53be7ae288b46b5b36439c2/fakts-4.0.0.tar.gz", hash = "sha256:38ace22be9dd7518ebb79b1ff90558dedaa1569a39abd947c507c4b260c5db16", size = 74905, upload-time = "2026-09-28T19:15:40.211Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d5/2b/2f2f3227b5506e4aabaffeec79013d30c52a52f49a5be6819c35307a14cb/fakts-5.4.0.tar.gz", hash = "sha256:74c1c362445beef25f6dd4c80978b6cca68e5208b601083a28607e92805a8886", size = 96243, upload-time = "2026-10-04T18:56:42.049Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ad/ef/a844f7f90d1d51ab9c2a60d18b05f9fd1ed6a8302c360c9d06d0ea47868a/fakts-4.0.0-py3-none-any.whl", hash = "sha256:341bfe3df9876edf33da0e42ab98fdf54b03f63b301a4031140a665e6cd4435c", size = 90271, upload-time = "2026-09-28T19:15:38.965Z" },
+    { url = "https://files.pythonhosted.org/packages/f8/99/f2db152f4abec81305cea8dd91ba18a6337572352e46165e821531239f37/fakts-5.4.0-py3-none-any.whl", hash = "sha256:39886ee6302ff216ae48b25805084add0eac14e1b782158cd62e97e1f53fc31f", size = 103382, upload-time = "2026-10-04T18:56:40.528Z" },
 ]
 
 [[package]]
@@ -1140,14 +1140,14 @@ wheels = [
 
 [[package]]
 name = "koil"
-version = "3.3.4"
+version = "3.3.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f8/2a/5830d2c0fb9536a057d439da06e86297ef9310c437feb92ad572e55a5399/koil-3.3.4.tar.gz", hash = "sha256:ed4f3c7db1470c656561bc28602ea94d9ee8b16dc32a01045e47b2a6a7178c74", size = 42202, upload-time = "2026-09-21T22:54:00.23Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/27/3a/c0b5fa5e69df7bc9d4f8769512aa29d472f07593bd4f0c5d922e72e3a697/koil-3.3.6.tar.gz", hash = "sha256:07cee5dc8f22effbe4c5823cefa0e1b3e7afa513154d045f4d64b16e7b428bff", size = 42903, upload-time = "2026-10-04T18:50:36.417Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ee/28/8d7a04530b3521fa09b43cd735f991f3c214242eeb09e6901852c17a157f/koil-3.3.4-py3-none-any.whl", hash = "sha256:dfe91f333a3cdcbaaca36606c33160c22f51df53c40788615eb0e969ea7b345d", size = 48568, upload-time = "2026-09-21T22:53:59.286Z" },
+    { url = "https://files.pythonhosted.org/packages/83/04/c72f6873146546069cd3920691972869c89c21970b7712016d415e1cae68/koil-3.3.6-py3-none-any.whl", hash = "sha256:27b368019d6a7051312eceefe675fa983548f83aa776d8ea04b5196628cffbb8", size = 49234, upload-time = "2026-10-04T18:50:35.278Z" },
 ]
 
 [[package]]
@@ -1364,14 +1364,14 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "arkitekt-spec", specifier = ">=1.4" },
+    { name = "arkitekt-spec", specifier = ">=3.4" },
     { name = "dask", specifier = ">=2024.12.1" },
     { name = "duckdb", marker = "extra == 'complete'", specifier = ">=1.0" },
     { name = "duckdb", marker = "extra == 'table'", specifier = ">=1.0" },
     { name = "fabriks", marker = "extra == 'mesh'", specifier = ">=1.3" },
     { name = "fabriks", extras = ["meshopt"], marker = "extra == 'complete'", specifier = ">=1.3" },
     { name = "fabriks", extras = ["meshopt"], marker = "extra == 'meshopt'", specifier = ">=1.3" },
-    { name = "fakts", specifier = ">=4" },
+    { name = "fakts", specifier = ">=5.4" },
     { name = "kanne", specifier = ">=2.5.0" },
     { name = "konnektion", marker = "extra == 'complete'", specifier = ">=1.2" },
     { name = "konnektion", marker = "extra == 'network'", specifier = ">=1.2" },
@@ -1403,7 +1403,7 @@ dev = [
     { name = "cryptography", specifier = ">=44.0.3" },
     { name = "dokker", specifier = ">=2.8" },
     { name = "duckdb", specifier = ">=1.5.3" },
-    { name = "fakts", specifier = ">=4" },
+    { name = "fakts", specifier = ">=5.4" },
     { name = "pillow", specifier = ">=11.2.1" },
     { name = "pyarrow", specifier = ">=24" },
     { name = "pyjwt", specifier = ">=2.10.1" },
