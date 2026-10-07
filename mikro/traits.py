@@ -150,9 +150,9 @@ class AxisSource(Protocol):
 
     Structural rather than a union of the concrete models, for the same reason
     `Registrable` is: the operation-specific variants turms generates are
-    different classes with the same shape. It is also what lets a caller plan
-    against a candidate it built itself — `mikro.arkitekt.specs` does, and its
-    tests stand in `SimpleNamespace` for a lens.
+    different classes with the same shape. It is also what lets a caller describe
+    a candidate it built itself — the tests of `mikro.arkitekt.specs` stand in
+    `SimpleNamespace` for a lens.
 
     Which field names the space is *not* part of the protocol: `_space_or_none`
     finds it whether it is called `space`, `coordinate_system` or
@@ -1372,7 +1372,8 @@ class Lensable(HasNamedAxes):
         Args:
             kind (AnnotationKind): The kind of the annotation to draw
             vectors (TwoDArray): A 2D array of vectors to draw the annotation with. The last
-                dimension needs to be of size 3 and represent the z, y, x values of the vectors.
+                dimension holds the space components of each vertex, in the axis order of
+                the lens: z, y, x on a volume, y, x on a plane.
             name (str | None): An optional name for the annotation
             collection (str | None): The ID of the annotation collection to draw into
             scene (str | None): The ID of the scene to draw onto
@@ -1625,7 +1626,7 @@ def axis_table(source: AxisSource) -> tuple[tuple[str, AxisTypeName, int], ...]:
     CHANNEL, else SPACE).
 
     A function as well as `HasNamedAxes.axis_table` because callers outside the
-    model hierarchy use it structurally — `mikro.arkitekt.specs` plans against
+    model hierarchy use it structurally — `mikro.arkitekt.specs` describes
     candidates that need only name a space, and its tests build them out of
     `SimpleNamespace`.
     """

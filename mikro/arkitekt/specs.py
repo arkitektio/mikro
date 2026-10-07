@@ -1,677 +1,262 @@
-"""Spec types: what a lens structurally *is*, as importable Annotated aliases.
+"""Spec types: what a lens structurally is, as types to put in a signature.
 
-An action that convolves a z-stack does not accept "a Lens" — it accepts a
-volume. These aliases say so in the signature, in the same vocabulary
-``ArrayDatasetSpec`` uses server-side::
+An action that convolves a z-stack does not take "a lens", it takes a volume::
 
-    from mikro.arkitekt.specs import Volume, TimelapseVolume
+    from mikro.arkitekt.specs import Volume
 
     @app.action
     def deconvolve(image: Volume) -> Volume: ...
 
-Each alias wraps :class:`~mikro.api.schema.Lens` in a mirrored
-``Requires``/``Provides`` pair over the axis-count vocabulary below. Rekuest
-keeps only the side a port can carry — ``requires`` on arguments, ``provides``
-on returns — so the same alias works in both positions, and the constraints
-become wiring information: a ``Volume`` argument only matches candidates whose
-descriptors satisfy it, and a ``Volume`` return advertises what it produced.
+Each spec is a :class:`~mikro.api.schema.Lens` annotated with rekuest's own
+``Requires`` and ``Provides``, nothing more. Both are written out because a port
+keeps only its side: an argument the ``Requires`` (the UI offers only lenses that
+fit), a return the ``Provides`` (what the action says it made). A run tests them on
+every lens that crosses the port, using :func:`lens_descriptors`: a lens that does
+not fit fails the task, saying which constraint it broke.
 
-The vocabulary counts axes by :class:`~mikro.api.schema.AxisType` rather
-than naming positions (``axis_0_kind``), because axis position is not stable
-across specs: canonical order puts time and channel *before* space, so the
-three SPACE axes of a plain volume sit at 0–2 but at 2–4 in a TCZYX timelapse.
-Counts make specs stack the way ``ArrayDatasetSpec`` says they do — a 3D timelapse
-is VOLUME, TIMESERIES and MULTICHANNEL at once::
+Write your own the same way, as a plain assignment
+(``from arkitekt import DescriptorOperator, Provides, Requires``)::
 
-    TimelapseVolume = Annotated[Volume, *at_least(N_TIME_AXES, 1)]
+    DualColorVolume = Annotated[
+        Lens,
+        Requires(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=3),
+        Provides(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=3),
+        Requires(key=N_CHANNELS, operator=DescriptorOperator.EQUALS, value=2),
+        Provides(key=N_CHANNELS, operator=DescriptorOperator.EQUALS, value=2),
+    ]
 
-A lens never drops or reorders an axis — it only crops, steps and pins, so it
-changes *extents*, and only ever downward. That splits the vocabulary into two
-kinds of keys with different wiring meaning:
+Three things to know:
 
-- **Invariant** (the ``n_*_axes`` counts): no lens over a dataset can change
-  them. A mismatch filters the dataset out — it is fundamentally not that
-  kind of data.
-- **Adjustable** (the extents in ``ADJUSTABLE_KEYS``: ``n_channels``,
-  ``n_timepoints``): a mismatch is a *conversion target*. A frontend can
-  satisfy ``n_channels <= 1`` on a two-channel dataset by pinning one channel
-  — and which channel is exactly the choice to render as a picker. The
-  composed Lens IS the conversion: actions take ``@mikro/lens``, so passing
-  the composed view converts on the fly without touching the data.
-
-``compose`` is the reference composer: it partitions a spec's constraints into
-invariant failures and required pins, and ``fit_lens`` turns choices into the
-fitted lens. State specs in adjustable terms whenever a lens could fix them —
-"single channel" is ``n_channels <= 1`` (pinnable), never "no channel axis"
-(unfixable).
-
-"Returns the same as the input" has two honest levels, and needs no more: the
-signature promises the *class* (``def f(image: SingleChannelVolume) ->
-SingleChannelVolume``), and the derivation edge records the *instance* — a
-``derive_identity()`` edge says "same grid as that very input". A Provides
-whose value references an argument's descriptors (parametric specs) would need
-server support; until then nothing here pretends to it.
-
-Three rules, each protecting against a silent failure:
-
-- Aliases are plain assignments, never PEP 695 ``type`` statements. A ``type``
-  alias wraps the Annotated in a ``TypeAliasType`` that rekuest's definition
-  machinery does not unwrap, so every marker is dropped without an error.
-- Aliases here carry no ``Description``: it is single-valued, so a base type
-  that had one could never be refined ("Multiple descriptions found"). Add
-  yours at the leaf: ``Annotated[Volume, Description("...")]``.
-- ``LabelMask`` is provenance, not structure. Nothing structural distinguishes
-  a label map from an image (``BootstrapLayerKind.LABEL`` is override-only for
-  the same reason), so its key is *provided* by producers and never inferred —
-  ``lens_descriptors`` deliberately omits it.
+- Never a PEP 695 ``type`` statement: it wraps the ``Annotated`` so that the
+  markers are dropped, without an error.
+- The specs here carry no ``Description`` (a port takes only one). Add yours at
+  the use: ``Annotated[Volume, Description("...")]``.
+- "One channel" is ``n_channels <= 1``, an extent, never "no channel axis": a
+  lens can pin a channel of a multichannel dataset, it cannot remove the axis.
+  Action code must tolerate a channel axis of length one.
 """
 
 from __future__ import annotations
 
-import re
-from collections import Counter, abc
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
-from typing import (
-    Annotated,
-    Any,
-    Final,
-    Literal,
-    Protocol,
-    Union,
-    cast,
-    get_args,
-)
+from collections import Counter
+from typing import Annotated, Any
 
+from arkitekt_spec.actions import DescriptorOperator
 from arkitekt_spec.declare.annotations import Provides, Requires
-from arkitekt_spec.actions import (
-    DescriptorOperator,
-    RequiresInput,
-)
 
 from mikro.api.schema import Lens
 from mikro.traits import AxisSource, axis_table
-from mikro.vocabulary import (
-    AxisSelection,
-    AxisTypeName,
-    enum_value,
-    normalize_selection,
-)
 
-# Descriptor keys, namespaced like the other @mikro structure identifiers.
-# One vocabulary drives both sides: the aliases below constrain on these keys,
-# and `lens_descriptors` computes them for a candidate lens.
-N_SPACE_AXES: Final = "@mikro/n_space_axes"
-N_TIME_AXES: Final = "@mikro/n_time_axes"
-N_CHANNEL_AXES: Final = "@mikro/n_channel_axes"
-N_SPECTRUM_AXES: Final = "@mikro/n_spectrum_axes"
-N_MICROTIME_AXES: Final = "@mikro/n_microtime_axes"
-N_CHANNELS: Final = "@mikro/n_channels"
-N_TIMEPOINTS: Final = "@mikro/n_timepoints"
-VALUE_KIND: Final = "@mikro/value_kind"
+# --- The descriptor keys --------------------------------------------------------
+# The same keys the mikro server declares for a lens and an array dataset.
 
-#: The closed set of descriptor keys this vocabulary defines. A key outside it
-#: is not a typo the server will catch — nothing on either side computes it, so
-#: the constraint would simply never be satisfiable.
-DescriptorKey = Literal[
-    "@mikro/n_space_axes",
-    "@mikro/n_time_axes",
-    "@mikro/n_channel_axes",
-    "@mikro/n_spectrum_axes",
-    "@mikro/n_microtime_axes",
-    "@mikro/n_channels",
-    "@mikro/n_timepoints",
-    "@mikro/value_kind",
-]
-
-#: What a descriptor key can be constrained to. The counts are ints; VALUE_KIND
-#: is a string; the set operators (IN, NOT_IN) take a sequence of either.
-DescriptorValue = Union[int, str, bool, Sequence[int | str]]
-
-#: The matching operators, as they read back off a `RequiresInput`. A Literal
-#: rather than `DescriptorOperator` because `use_enum_values=True` means the
-#: model stores the plain value — annotating a read as the enum would be a lie.
-#: The enum is still what `constrain` builds with.
-ConstraintOperator = Literal[
-    "EQUALS",
-    "NOT_EQUALS",
-    "GTE",
-    "LTE",
-    "IN",
-    "NOT_IN",
-    "CONTAINS",
-    "MATCHES",
-    "EXISTS",
-]
-
-_KEY_BY_AXIS_TYPE: Final[Mapping[AxisTypeName, DescriptorKey]] = {
-    "SPACE": N_SPACE_AXES,
-    "TIME": N_TIME_AXES,
-    "CHANNEL": N_CHANNEL_AXES,
-    "SPECTRUM": N_SPECTRUM_AXES,
-    "MICROTIME": N_MICROTIME_AXES,
-}
-
-# The adjustability contract, mirrored by frontend composers: each key measures
-# the total extent along one axis type, so a lens can shrink it (pin, crop) but
-# never grow it. Every key not listed here is lens-invariant.
-ADJUSTABLE_KEYS: Final[Mapping[DescriptorKey, AxisTypeName]] = {
-    N_CHANNELS: "CHANNEL",
-    N_TIMEPOINTS: "TIME",
-}
+N_SPACE_AXES = "@mikro/n_space_axes"
+"""How many of its axes are SPACE axes."""
+N_TIME_AXES = "@mikro/n_time_axes"
+"""How many of its axes are TIME axes."""
+N_CHANNEL_AXES = "@mikro/n_channel_axes"
+"""How many of its axes are CHANNEL axes."""
+N_SPECTRUM_AXES = "@mikro/n_spectrum_axes"
+"""How many of its axes are SPECTRUM axes."""
+N_MICROTIME_AXES = "@mikro/n_microtime_axes"
+"""How many of its axes are MICROTIME axes."""
+N_CHANNELS = "@mikro/n_channels"
+"""Its total extent along its CHANNEL axes."""
+N_TIMEPOINTS = "@mikro/n_timepoints"
+"""Its total extent along its TIME axes."""
+VALUE_KIND = "@mikro/value_kind"
+"""What its values mean. Provenance: stated by whoever made the data, never computed."""
 
 
-def constrain(
-    key: DescriptorKey, operator: ConstraintOperator, value: DescriptorValue
-) -> tuple[Requires, Provides]:
-    """A mirrored Requires/Provides pair for one constraint.
+def lens_descriptors(lens: AxisSource) -> dict[str, Any]:
+    """The descriptors of a lens (or an array dataset), computed from its axes.
 
-    Both directions carry the same statement so one alias serves argument and
-    return positions; the port converter keeps the applicable side and drops
-    the other. Both sides take the same `DescriptorOperator`, so the operator is
-    named once and used for each.
+    One count per axis type, zero included, and the total extent along the
+    channel and the time axes. ``VALUE_KIND`` is not in it: nothing about the
+    axes tells a label mask from an image, so a constraint on it is the
+    producer's word and is not tested.
+
+    Args:
+        lens: The lens or dataset to describe.
+
+    Returns:
+        Its descriptors, by key.
     """
-    return (
-        Requires(key=key, operator=DescriptorOperator(operator), value=value),
-        Provides(key=key, operator=DescriptorOperator(operator), value=value),
-    )
+    table = axis_table(lens)
+    counts = Counter(axis_type for _, axis_type, _ in table)
+    return {
+        N_SPACE_AXES: counts["SPACE"],
+        N_TIME_AXES: counts["TIME"],
+        N_CHANNEL_AXES: counts["CHANNEL"],
+        N_SPECTRUM_AXES: counts["SPECTRUM"],
+        N_MICROTIME_AXES: counts["MICROTIME"],
+        N_CHANNELS: sum(extent for _, axis_type, extent in table if axis_type == "CHANNEL"),
+        N_TIMEPOINTS: sum(extent for _, axis_type, extent in table if axis_type == "TIME"),
+    }
 
 
-def exactly(key: DescriptorKey, value: DescriptorValue) -> tuple[Requires, Provides]:
-    """Constrain a descriptor key to exactly a value."""
-    return constrain(key, "EQUALS", value)
+# --- By spatial rank: exactly one of these holds for any lens -------------------
 
+Scalar = Annotated[
+    Lens,
+    Requires(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=0),
+    Provides(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=0),
+]
+"""No spatial axis at all."""
 
-def at_least(key: DescriptorKey, value: DescriptorValue) -> tuple[Requires, Provides]:
-    """Constrain a descriptor key to at least a value."""
-    return constrain(key, "GTE", value)
+Profile = Annotated[
+    Lens,
+    Requires(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=1),
+    Provides(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=1),
+]
+"""One spatial axis: a line profile, a depth trace."""
 
+Image = Annotated[
+    Lens,
+    Requires(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=2),
+    Provides(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=2),
+]
+"""Two spatial axes: a plane."""
 
-def at_most(key: DescriptorKey, value: DescriptorValue) -> tuple[Requires, Provides]:
-    """Constrain a descriptor key to at most a value."""
-    return constrain(key, "LTE", value)
+Volume = Annotated[
+    Lens,
+    Requires(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=3),
+    Provides(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=3),
+]
+"""Three spatial axes: a stack, even one whose z holds a single plane."""
 
-
-def refine(base: Any, *markers: Any) -> Any:  # noqa: ANN401 — see `Spec` below
-    """Stack more markers onto a spec type, building it dynamically.
-
-    ``Annotated`` flattens on nesting and Requires/Provides accumulate, so a
-    refined spec carries the base's constraints plus the new ones. For an
-    alias you will write in signatures, prefer the literal spelling — static
-    checkers reject a call result in type position but accept the literal::
-
-        DualColorVolume = Annotated[Volume, *exactly(N_CHANNELS, 2)]
-
-    Reach for ``refine`` when the spec is assembled programmatically (markers
-    in a variable, specs built in a loop).
-    """
-    if not markers:
-        return base
-    return Annotated[base, *markers]
-
-
-# --- Spatial specs: exactly one of these holds for any lens. ----------------
-
-Scalar = Annotated[Lens, *exactly(N_SPACE_AXES, 0)]
-"""No spatial extent: no SPACE axis at all."""
-
-Profile = Annotated[Lens, *exactly(N_SPACE_AXES, 1)]
-"""One spatial axis — a line profile, a depth trace."""
-
-Image = Annotated[Lens, *exactly(N_SPACE_AXES, 2)]
-"""Two spatial axes: a plane. The ordinary micrograph."""
-
-Volume = Annotated[Lens, *exactly(N_SPACE_AXES, 3)]
-"""Three spatial axes: a stack — even one whose z holds a single plane."""
-
-Hypervolume = Annotated[Lens, *at_least(N_SPACE_AXES, 4)]
+Hypervolume = Annotated[
+    Lens,
+    Requires(key=N_SPACE_AXES, operator=DescriptorOperator.GTE, value=4),
+    Provides(key=N_SPACE_AXES, operator=DescriptorOperator.GTE, value=4),
+]
 """Four or more spatial axes."""
 
-# --- Presence modifiers: any subset may hold alongside a spatial spec. ------
+# --- By what else it carries: any of these may hold beside a spatial rank ------
 
-Timeseries = Annotated[Lens, *at_least(N_TIME_AXES, 1)]
-"""Carries a TIME axis. Presence only: a single-frame time axis counts."""
+Timeseries = Annotated[
+    Lens,
+    Requires(key=N_TIME_AXES, operator=DescriptorOperator.GTE, value=1),
+    Provides(key=N_TIME_AXES, operator=DescriptorOperator.GTE, value=1),
+]
+"""Has a TIME axis, of any length."""
 
-Multichannel = Annotated[Lens, *at_least(N_CHANNEL_AXES, 1)]
-"""Carries a CHANNEL axis. Presence only: a one-channel axis counts."""
+Multichannel = Annotated[
+    Lens,
+    Requires(key=N_CHANNEL_AXES, operator=DescriptorOperator.GTE, value=1),
+    Provides(key=N_CHANNEL_AXES, operator=DescriptorOperator.GTE, value=1),
+]
+"""Has a CHANNEL axis, of any length."""
 
-Spectral = Annotated[Lens, *at_least(N_SPECTRUM_AXES, 1)]
-"""Carries a SPECTRUM axis: a spectrally resolved acquisition."""
+Spectral = Annotated[
+    Lens,
+    Requires(key=N_SPECTRUM_AXES, operator=DescriptorOperator.GTE, value=1),
+    Provides(key=N_SPECTRUM_AXES, operator=DescriptorOperator.GTE, value=1),
+]
+"""Has a SPECTRUM axis: a spectrally resolved acquisition."""
 
-Flim = Annotated[Lens, *at_least(N_MICROTIME_AXES, 1)]
-"""Carries a MICROTIME axis: fluorescence-lifetime arrival-time bins."""
+Flim = Annotated[
+    Lens,
+    Requires(key=N_MICROTIME_AXES, operator=DescriptorOperator.GTE, value=1),
+    Provides(key=N_MICROTIME_AXES, operator=DescriptorOperator.GTE, value=1),
+]
+"""Has a MICROTIME axis: fluorescence-lifetime arrival-time bins."""
 
-Still = Annotated[Lens, *at_most(N_TIMEPOINTS, 1)]
-"""At most one timepoint of data. Extent-based on purpose: a timelapse
-satisfies it after a composer pins a timepoint — which timepoint is the
-frontend's slider."""
+Still = Annotated[
+    Lens,
+    Requires(key=N_TIMEPOINTS, operator=DescriptorOperator.LTE, value=1),
+    Provides(key=N_TIMEPOINTS, operator=DescriptorOperator.LTE, value=1),
+]
+"""At most one timepoint: no time axis, or one pinned to a single frame."""
 
-SingleChannel = Annotated[Lens, *at_most(N_CHANNELS, 1)]
-"""At most one channel's worth of data — no channel axis, or one pinned to a
-single position. Extent-based on purpose: a multichannel dataset satisfies it
-after a composer pins a channel — which channel is the frontend's picker.
-Action code must tolerate a surviving size-1 channel axis (squeeze it)."""
+SingleChannel = Annotated[
+    Lens,
+    Requires(key=N_CHANNELS, operator=DescriptorOperator.LTE, value=1),
+    Provides(key=N_CHANNELS, operator=DescriptorOperator.LTE, value=1),
+]
+"""At most one channel: no channel axis, or one pinned to a single channel."""
 
-# --- Common stacks. ---------------------------------------------------------
+# --- The common combinations ----------------------------------------------------
 
-TimelapseImage = Annotated[Image, *at_least(N_TIME_AXES, 1)]
+TimelapseImage = Annotated[
+    Lens,
+    Requires(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=2),
+    Provides(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=2),
+    Requires(key=N_TIME_AXES, operator=DescriptorOperator.GTE, value=1),
+    Provides(key=N_TIME_AXES, operator=DescriptorOperator.GTE, value=1),
+]
 """A plane over time."""
 
-TimelapseVolume = Annotated[Volume, *at_least(N_TIME_AXES, 1)]
+TimelapseVolume = Annotated[
+    Lens,
+    Requires(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=3),
+    Provides(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=3),
+    Requires(key=N_TIME_AXES, operator=DescriptorOperator.GTE, value=1),
+    Provides(key=N_TIME_AXES, operator=DescriptorOperator.GTE, value=1),
+]
 """A stack over time."""
 
-MultichannelImage = Annotated[Image, *at_least(N_CHANNEL_AXES, 1)]
+MultichannelImage = Annotated[
+    Lens,
+    Requires(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=2),
+    Provides(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=2),
+    Requires(key=N_CHANNEL_AXES, operator=DescriptorOperator.GTE, value=1),
+    Provides(key=N_CHANNEL_AXES, operator=DescriptorOperator.GTE, value=1),
+]
 """A plane with a channel axis."""
 
-MultichannelVolume = Annotated[Volume, *at_least(N_CHANNEL_AXES, 1)]
+MultichannelVolume = Annotated[
+    Lens,
+    Requires(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=3),
+    Provides(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=3),
+    Requires(key=N_CHANNEL_AXES, operator=DescriptorOperator.GTE, value=1),
+    Provides(key=N_CHANNEL_AXES, operator=DescriptorOperator.GTE, value=1),
+]
 """A stack with a channel axis."""
 
-SingleChannelImage = Annotated[Image, *at_most(N_CHANNELS, 1)]
-"""A plane with at most one channel's worth of data."""
-
-SingleChannelVolume = Annotated[Volume, *at_most(N_CHANNELS, 1)]
-"""A stack with at most one channel's worth of data — "a 3D image with one
-channel". Composable: any multichannel volume fits after pinning a channel."""
-
-RGBImage = Annotated[Image, *exactly(N_CHANNEL_AXES, 1), *exactly(N_CHANNELS, 3)]
-"""A plane whose one channel axis has exactly three positions — a photograph,
-a brightfield slide. The same inference rule as ``BootstrapLayerKind.RGB``."""
-
-LabelMask = Annotated[Lens, *exactly(VALUE_KIND, "categorical")]
-"""A lens whose values are object ids, not intensities. Never structurally
-inferred: only a producer that *made* labels provides this, and only an action
-that requires it will be offered them."""
-
-
-# --- The candidate side: the same vocabulary, computed from a lens. ---------
-#
-# Most of it lives in `mikro.traits` now: `axis_table` computes the per-axis
-# (name, type, extent) table for a lens or a dataset, `AxisSource` is the
-# structural contract it needs, and `Lens.axes_of_type` / `Lens.carried_axes`
-# are methods there. They moved because they use no rekuest, and this module
-# cannot be imported without it — while `mikro.traits` is on the core import
-# path of every `import mikro`. Only what reads a `Spec` stayed behind.
-
-
-def lens_descriptors(candidate: AxisSource) -> dict[DescriptorKey, DescriptorValue]:
-    """The descriptor key/value pairs a lens (or dataset) carries as a match
-    candidate.
-
-    Emits every count key of the vocabulary (zero included — `Still` and
-    `SingleChannel` match on absence) plus the adjustable extent keys
-    (``N_CHANNELS``, ``N_TIMEPOINTS``: total extent across axes of that type).
-    ``VALUE_KIND`` is deliberately absent: it is provenance, carried only by a
-    producer's ``Provides``.
-    """
-    table = axis_table(candidate)
-    counts = Counter(axis_type for _, axis_type, _ in table)
-    descriptors: dict[DescriptorKey, DescriptorValue] = {
-        key: counts.get(axis_type, 0) for axis_type, key in _KEY_BY_AXIS_TYPE.items()
-    }
-    for key, wanted in ADJUSTABLE_KEYS.items():
-        descriptors[key] = sum(
-            extent for _, axis_type, extent in table if axis_type == wanted
-        )
-    return descriptors
-
-
-# --- The fulfilment side: guarding a Provides before returning. -------------
-
-
-class SpecMismatch(Exception):
-    """A lens does not fulfil the spec it was about to be returned as."""
-
-
-#: A spec type: one of the `Annotated` aliases above, or a refinement of one.
-#:
-#: This is `Any` and cannot be anything else. Python has no type for "an
-#: ``Annotated`` alias carrying these markers" — `type[Lens]` would reject the
-#: aliases, and a `TypeAlias` of the union would not carry the markers. The
-#: alias exists so every spec-taking signature says *which* kind of `Any` it
-#: means; see also the note on `refine` about static checkers rejecting a call
-#: result in type position.
-Spec = Any
-
-
-def spec_constraints(spec: Spec) -> tuple[RequiresInput, ...]:
-    """The constraints a spec type carries.
-
-    Reads the Requires side of the mirrored pairs; since every pair states the
-    same thing in both directions, this is also exactly what the spec's
-    Provides promise.
-    """
-    args = get_args(spec)
-    return tuple(marker for marker in args[1:] if isinstance(marker, RequiresInput))
-
-
-def _constrained_key(constraint: RequiresInput) -> DescriptorKey:
-    """The key a constraint names.
-
-    `RequiresInput.key` is a bare `str` — rekuest's marker vocabulary is open,
-    and other libraries namespace their own keys into it. Only the `@mikro/`
-    keys are ever computed on the candidate side, so a foreign key simply reads
-    as absent and fails its constraint, which is the same outcome the untyped
-    lookup produced.
-    """
-    return cast(DescriptorKey, constraint.key)
-
-
-def _constraint_operator(constraint: RequiresInput) -> ConstraintOperator:
-    """A constraint's operator as a plain value.
-
-    `use_enum_values=True` means the field may hold either the enum or its
-    value, so both spellings have to be unwrapped the same way.
-    """
-    operator = constraint.operator
-    return enum_value(operator)
-
-
-def _holds(
-    operator: ConstraintOperator,
-    actual: DescriptorValue | None,
-    expected: DescriptorValue,
-    present: bool,
-) -> bool:
-    """Evaluate one constraint operator against a descriptor value.
-
-    Most operators only make sense against some shapes of value — you cannot
-    order a string against a count, and you cannot ask what a count contains.
-    Those refusals used to surface as whatever `TypeError` Python happened to
-    raise from the bare comparison; naming them says which side is wrong.
-    """
-    if operator == "EXISTS":
-        return present
-    if not present:
-        return False
-    if operator == "EQUALS":
-        return bool(actual == expected)
-    if operator == "NOT_EQUALS":
-        return bool(actual != expected)
-    if operator in ("GTE", "LTE"):
-        if not isinstance(actual, int) or not isinstance(expected, int):
-            raise TypeError(
-                f"{operator} orders counts; {actual!r} and {expected!r} are not both counts"
-            )
-        return actual >= expected if operator == "GTE" else actual <= expected
-    if operator in ("IN", "NOT_IN"):
-        if isinstance(expected, str) or not isinstance(expected, abc.Sequence):
-            raise TypeError(
-                f"{operator} needs a sequence of allowed values, got {expected!r}"
-            )
-        found = actual in expected
-        return found if operator == "IN" else not found
-    if operator == "CONTAINS":
-        if isinstance(actual, str):
-            if not isinstance(expected, str):
-                raise TypeError(
-                    f"CONTAINS against the string {actual!r} needs a substring, "
-                    f"got {expected!r}"
-                )
-            return expected in actual
-        if not isinstance(actual, abc.Sequence):
-            raise TypeError(f"CONTAINS needs a sequence descriptor, got {actual!r}")
-        return any(item == expected for item in actual)
-    if operator == "MATCHES":
-        return re.fullmatch(str(expected), str(actual)) is not None
-    raise ValueError(f"Unknown constraint operator {operator!r}")
-
-
-#: Provenance keys a producer vouches for, which structure cannot show.
-Declarations = Mapping[DescriptorKey, DescriptorValue]
-
-
-def unfulfilled(
-    lens: Lens, spec: Spec, declares: Declarations | None = None
-) -> tuple[str, ...]:
-    """Every constraint of `spec` this lens does not satisfy, human-readable.
-
-    Structural keys are computed via `lens_descriptors`; provenance keys
-    (``VALUE_KIND``) cannot be computed and must be stated via `declares` —
-    an absent key fails its constraint rather than being skipped.
-    """
-    descriptors = lens_descriptors(lens)
-    if declares:
-        descriptors.update(declares)
-    failures: list[str] = []
-    for constraint in spec_constraints(spec):
-        key = _constrained_key(constraint)
-        operator = _constraint_operator(constraint)
-        present = key in descriptors
-        actual = descriptors.get(key)
-        if not _holds(operator, actual, constraint.value, present):
-            failures.append(_describe(constraint, operator, actual, present))
-    return tuple(failures)
-
-
-def _describe(
-    constraint: RequiresInput,
-    operator: ConstraintOperator,
-    actual: DescriptorValue | None,
-    present: bool,
-) -> str:
-    """One unsatisfied constraint, human-readable."""
-    detail = (
-        f"actual {actual!r}"
-        if present
-        else "key absent — declare it if it is provenance"
-    )
-    return f"{constraint.key} {operator} {constraint.value!r} ({detail})"
-
-
-def fulfills(lens: Lens, spec: Spec, declares: Declarations | None = None) -> bool:
-    """Whether a lens satisfies every constraint of a spec."""
-    return not unfulfilled(lens, spec, declares)
-
-
-def ensure(lens: Lens, spec: Spec, declares: Declarations | None = None) -> Lens:
-    """Assert a lens fulfils a spec, then return it — the produce-side guard.
-
-    A Provides is a promise the definition makes statically; nothing checks the
-    value an implementation actually returns. Returning through ``ensure``
-    closes that gap::
-
-        return ensure(result.lens(), Volume)
-        return ensure(result.lens(), LabelMask, declares={VALUE_KIND: "categorical"})
-
-    `declares` states provenance keys the producer vouches for but structure
-    cannot show.
-    """
-    failures = unfulfilled(lens, spec, declares)
-    if failures:
-        raise SpecMismatch(
-            "Lens does not fulfil the promised spec: " + "; ".join(failures)
-        )
-    return lens
-
-
-# --- The composer: fitting a dataset to a spec by lensing. ------------------
-
-
-@dataclass(frozen=True)
-class Pin:
-    """One adjustable constraint a lens must fix, and its degrees of freedom.
-
-    The frontend affordance follows from ``axis_type``: CHANNEL -> picker,
-    TIME -> slider. ``axes`` are the candidate axes (name, current extent);
-    the choice is which indices of them to keep so their total extent meets
-    ``target`` under ``operator``.
-    """
-
-    key: DescriptorKey
-    axis_type: AxisTypeName
-    axes: tuple[tuple[str, int], ...]
-    operator: ConstraintOperator
-    target: int
-
-
-@dataclass(frozen=True)
-class CompositionPlan:
-    """What it takes for a candidate to fit a spec through a lens.
-
-    ``failures`` are invariant (or ungrowable) mismatches — nonempty means no
-    lens over this candidate can ever fit; filter it out. ``pins`` are the
-    adjustable fixes, each one a choice to offer the user.
-    """
-
-    failures: tuple[str, ...]
-    pins: tuple[Pin, ...]
-
-    @property
-    def satisfiable(self) -> bool:
-        """Whether some lens over the candidate fits the spec."""
-        return not self.failures
-
-    @property
-    def already_fits(self) -> bool:
-        """Whether the candidate fits as-is, no adjustment needed."""
-        return not self.failures and not self.pins
-
-
-def compose(
-    candidate: AxisSource, spec: Spec, declares: Declarations | None = None
-) -> CompositionPlan:
-    """Plan how a dataset (or lens) could fit a spec — the reference composer.
-
-    Pure and server-free: the same algorithm a frontend runs to decide, for a
-    dropped dataset and a port's requires, whether to filter it out, pass it
-    through, or offer pickers. A constraint that fails is a `Pin` when its key
-    is in ``ADJUSTABLE_KEYS``, its operator is EQUALS/LTE, and the target is
-    reachable by shrinking (each axis keeps at least one position); anything
-    else that fails is a hard failure — extents never grow, axes never vanish.
-    """
-    table = axis_table(candidate)
-    descriptors = lens_descriptors(candidate)
-    if declares:
-        descriptors.update(declares)
-
-    failures: list[str] = []
-    pins: list[Pin] = []
-    for constraint in spec_constraints(spec):
-        key = _constrained_key(constraint)
-        operator = _constraint_operator(constraint)
-        present = key in descriptors
-        actual = descriptors.get(key)
-        if _holds(operator, actual, constraint.value, present):
-            continue
-        axis_type = ADJUSTABLE_KEYS.get(key)
-        axes = tuple(
-            (name, extent) for name, found, extent in table if found == axis_type
-        )
-        adjustable = (
-            axis_type is not None
-            and operator in ("EQUALS", "LTE")
-            and isinstance(actual, int)
-            and isinstance(constraint.value, int)
-            and actual > constraint.value >= len(axes)
-        )
-        if adjustable and axis_type is not None:
-            pins.append(
-                Pin(
-                    key=key,
-                    axis_type=axis_type,
-                    axes=axes,
-                    operator=operator,
-                    target=constraint.value,
-                )
-            )
-        else:
-            failures.append(_describe(constraint, operator, actual, present))
-    return CompositionPlan(failures=tuple(failures), pins=tuple(pins))
-
-
-def _selected_extent(choice: AxisSelection, extent: int, axis: str) -> int:
-    """The extent an axis keeps under a selection, mirroring DatasetTrait.lens.
-
-    Shares `normalize_selection` with the lens itself, so the two cannot drift
-    on what a selection may look like. The bounds check is here rather than
-    there because it is the one part that needs the extent, which the lens does
-    not have.
-    """
-    if isinstance(choice, int) and not isinstance(choice, bool):
-        if not 0 <= choice < extent:
-            raise ValueError(
-                f"Index {choice} out of range for axis {axis!r} (extent {extent})"
-            )
-    start, stop, step = normalize_selection(axis, choice)
-    return len(range(*slice(start, stop, step).indices(extent)))
-
-
-def selections_for(
-    plan: CompositionPlan, **choices: AxisSelection
-) -> dict[str, AxisSelection]:
-    """Resolve a plan's pins into per-axis selections for ``dataset.lens(...)``.
-
-    Each choice keyword names an axis of a pin (``c=1`` pins channel 1). Every
-    pin must end up satisfied by the choices; leftover choices on axes no pin
-    asked about are rejected — they would silently change the data.
-    """
-    if plan.failures:
-        raise SpecMismatch("Plan is unsatisfiable: " + "; ".join(plan.failures))
-    remaining = dict(choices)
-    selections: dict[str, AxisSelection] = {}
-    for pin in plan.pins:
-        names = [name for name, _ in pin.axes]
-        picked = {name: remaining.pop(name) for name in names if name in remaining}
-        if not picked:
-            raise ValueError(
-                f"{pin.key} must be reduced to {pin.operator} {pin.target}: "
-                f"pass a selection for one of the {pin.axis_type} axes {names}"
-            )
-        achieved = sum(
-            _selected_extent(picked[name], extent, name) if name in picked else extent
-            for name, extent in pin.axes
-        )
-        fits = (
-            achieved == pin.target
-            if pin.operator == "EQUALS"
-            else achieved <= pin.target
-        )
-        if not fits:
-            raise ValueError(
-                f"Choices leave {pin.key} at {achieved}, need {pin.operator} {pin.target}"
-            )
-        selections.update(picked)
-    if remaining:
-        raise ValueError(
-            f"Choices for axes no pin asked about: {sorted(remaining)} — "
-            f"a spec-fitting lens must not silently select beyond the plan"
-        )
-    return selections
-
-
-class LensableDataset(AxisSource, Protocol):
-    """A dataset `fit_lens` can both measure and lens: `DatasetTrait` satisfies it."""
-
-    def lens(self, **selections: AxisSelection) -> Lens:
-        """Frame a view of this dataset — see `DatasetTrait.lens`."""
-        ...
-
-
-def fit_lens(
-    dataset: LensableDataset,
-    spec: Spec,
-    declares: Declarations | None = None,
-    **choices: AxisSelection,
-) -> Lens:
-    """Compose a lens over a dataset that fits a spec — the conversion itself.
-
-    ``fit_lens(ds, SingleChannelVolume, c=1)`` plans, validates the choices,
-    creates the lens via ``dataset.lens(...)`` and re-checks the result::
-
-        lens = fit_lens(timelapse, SingleChannelVolume, c=0)
-    """
-    plan = compose(dataset, spec, declares)
-    if not plan.satisfiable:
-        raise SpecMismatch(
-            "No lens over this dataset fits the spec: " + "; ".join(plan.failures)
-        )
-    selections = selections_for(plan, **choices)
-    lens = dataset.lens(**selections)
-    return ensure(lens, spec, declares)
+SingleChannelImage = Annotated[
+    Lens,
+    Requires(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=2),
+    Provides(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=2),
+    Requires(key=N_CHANNELS, operator=DescriptorOperator.LTE, value=1),
+    Provides(key=N_CHANNELS, operator=DescriptorOperator.LTE, value=1),
+]
+"""A plane with at most one channel."""
+
+SingleChannelVolume = Annotated[
+    Lens,
+    Requires(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=3),
+    Provides(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=3),
+    Requires(key=N_CHANNELS, operator=DescriptorOperator.LTE, value=1),
+    Provides(key=N_CHANNELS, operator=DescriptorOperator.LTE, value=1),
+]
+"""A stack with at most one channel."""
+
+RGBImage = Annotated[
+    Lens,
+    Requires(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=2),
+    Provides(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=2),
+    Requires(key=N_CHANNEL_AXES, operator=DescriptorOperator.EQUALS, value=1),
+    Provides(key=N_CHANNEL_AXES, operator=DescriptorOperator.EQUALS, value=1),
+    Requires(key=N_CHANNELS, operator=DescriptorOperator.EQUALS, value=3),
+    Provides(key=N_CHANNELS, operator=DescriptorOperator.EQUALS, value=3),
+]
+"""A plane whose one channel axis has exactly three positions: a photograph, a
+brightfield slide."""
+
+# --- By what the values mean ----------------------------------------------------
+
+LabelMask = Annotated[
+    Lens,
+    Requires(key=VALUE_KIND, operator=DescriptorOperator.EQUALS, value="categorical"),
+    Provides(key=VALUE_KIND, operator=DescriptorOperator.EQUALS, value="categorical"),
+]
+"""A lens whose values are object ids, not intensities. Provenance, so never
+tested on the lens: an action that returns one says it made labels, and only an
+action that takes one is offered them."""
 
 
 __all__ = [
-    "ADJUSTABLE_KEYS",
     "N_CHANNELS",
     "N_CHANNEL_AXES",
     "N_MICROTIME_AXES",
@@ -680,45 +265,24 @@ __all__ = [
     "N_TIMEPOINTS",
     "N_TIME_AXES",
     "VALUE_KIND",
-    "CompositionPlan",
-    "ConstraintOperator",
-    "Declarations",
-    "DescriptorKey",
-    "DescriptorValue",
     "Flim",
     "Hypervolume",
     "Image",
     "LabelMask",
-    "LensableDataset",
     "Multichannel",
     "MultichannelImage",
     "MultichannelVolume",
-    "Pin",
     "Profile",
     "RGBImage",
     "Scalar",
     "SingleChannel",
     "SingleChannelImage",
     "SingleChannelVolume",
-    "Spec",
-    "SpecMismatch",
     "Spectral",
     "Still",
     "TimelapseImage",
     "TimelapseVolume",
     "Timeseries",
     "Volume",
-    "at_least",
-    "at_most",
-    "compose",
-    "constrain",
-    "ensure",
-    "exactly",
-    "fit_lens",
-    "fulfills",
     "lens_descriptors",
-    "refine",
-    "selections_for",
-    "spec_constraints",
-    "unfulfilled",
 ]

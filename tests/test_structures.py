@@ -56,3 +56,15 @@ def test_merging_stamps_the_service_that_owns_them() -> None:
 
     services = {s.service for s in app.structure_registry.structures()}
     assert services == {"mikro"}
+
+
+def test_a_lens_and_a_dataset_say_how_they_are_described() -> None:
+    """What lets a run test a lens against a port's Requires and Provides."""
+    from mikro.arkitekt.specs import lens_descriptors
+
+    structures = declared.registry.structure_registry
+    assert structures.get_fullfilled_structure("@mikro/lens").describe is lens_descriptors
+    assert structures.get_fullfilled_structure("@mikro/arraydataset").describe is lens_descriptors
+    # Nothing else carries descriptors a port could constrain on.
+    described = {i for i, s in structures.identifier_structure_map.items() if s.describe}
+    assert described == {"@mikro/lens", "@mikro/arraydataset"}

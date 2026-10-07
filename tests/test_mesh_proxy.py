@@ -23,7 +23,7 @@ from fakts import Alias
 from rath.links.aiohttp import AIOHttpLink
 from rath.links.graphql_ws import GraphQLWSLink
 
-import mikro.arkitekt as mikro_arkitekt
+import mikro.arkitekt.service as mikro_arkitekt
 from mikro.datalayer import DataLayer
 from mikro.io.obstore import acreate_s3_store, create_s3_store
 

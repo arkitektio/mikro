@@ -19,7 +19,7 @@ dependencies = [
     "obstore>=0.10.0",
     "kanne>=2.5.0",
     # The service and structures are declared with arkitekt-spec.
-    "arkitekt-spec>=3.4",
+    "arkitekt-spec>=3.5",
 ]
 
 [project.optional-dependencies]
@@ -127,7 +127,7 @@ line-length = 100
 
 [tool.pytest.ini_options]
 markers = [
-    "integration: marks tests that require a deployment via testcontainers",
+    "integration: marks tests that start a real mikro in Docker",
     "linux_only: marks tests that only run on Linux",
     "no_windows: marks tests that are skipped on Windows",
 ]

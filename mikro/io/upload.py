@@ -188,7 +188,12 @@ async def astore_sparse_matrix(
     granularity at which they can be fetched, so the two have to agree. See
     :data:`sporadik.DEFAULT_CHUNK` for the measurement.
     """
-    return _store_sparse_into_grant(sparse, credentials, await datalayer.get_endpoint_url(), proxy=datalayer.proxy)
+    # In a thread: the writer is synchronous, and a matrix takes long enough that the event
+    # loop (the agent's socket, every other upload) must not wait for it.
+    endpoint_url = await datalayer.get_endpoint_url()
+    return await asyncio.to_thread(
+        _store_sparse_into_grant, sparse, credentials, endpoint_url, proxy=datalayer.proxy
+    )
 
 
 def store_sparse_matrix(

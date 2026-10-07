@@ -267,7 +267,11 @@ class TwoDVector(list[float]):
 
 
 class ThreeDVector(list[float]):
-    """A custom scalar to represent a vector."""
+    """A custom scalar to represent a vertex of a shape.
+
+    Its components are the SPACE axes of the coordinate system it is drawn in, in that
+    system's axis order: ``(z, y, x)`` on a volume, ``(y, x)`` on a plane.
+    """
 
     @classmethod
     def __get_pydantic_core_schema__(
@@ -286,7 +290,7 @@ class ThreeDVector(list[float]):
             v = v.tolist()
 
         assert isinstance(v, list)
-        assert len(v) == 3
+        assert len(v) in (2, 3), f"A vertex has two or three space components, but got {len(v)}."
         return cls(v)
 
     def as_vector(self) -> OneDArray:

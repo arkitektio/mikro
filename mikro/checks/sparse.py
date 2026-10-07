@@ -73,9 +73,8 @@ def _enum_value(value: object) -> str:
     The generated models set ``use_enum_values=True``, so a model constructed with an enum
     member holds the plain string. The normalizer stays because a field can also be read off a
     model built some other way, and the cost of being wrong here is a check that silently
-    passes. A local copy on purpose: :mod:`mikro.checks.tables`, :mod:`mikro.traits` and
-    :mod:`mikro.arkitekt.specs` each carry their own, and sharing it is a change to five call
-    sites rather than to this one.
+    passes. A local copy on purpose: :mod:`mikro.checks.tables` and :mod:`mikro.traits` each
+    carry their own, and sharing it is a change to their call sites rather than to this one.
     """
     # ``str(...)`` where :mod:`mikro.checks.tables` returns the attribute directly. The same
     # answer for every input this sees, and it type-checks, where that copy carries a standing

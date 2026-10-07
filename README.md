@@ -43,12 +43,13 @@ through the same client.
 
 Add `mikro_service` to your app and take the client by annotation. arkitekt injects it. Types from
 `mikro.arkitekt.specs` such as `Volume` or `Image` are lenses over a mikro dataset. Each one declares
-what an action needs, and the UI then offers only datasets that fit.
+what an action needs, and the UI then offers only datasets that fit. A run tests the same on every
+lens an action takes or returns: one that does not fit the type fails the task, saying why.
 
 ```python
 from arkitekt import App, Task, run
 from mikro import Mikro, mikro_service
-from mikro.arkitekt.specs import Volume, ensure
+from mikro.arkitekt.specs import Volume
 
 app = App("clip-volume", "0.1.0", services=[mikro_service])
 
@@ -70,7 +71,7 @@ def clip(volume: Volume, mikro: Mikro, task: Task) -> Volume:
         axes=volume.carried_axes(clipped.dims),
         derived_from=[volume.derive_identity(value_relation="TRANSFORMED")],
     )
-    return ensure(result.lens(), Volume)
+    return result.lens()
 
 
 if __name__ == "__main__":
@@ -201,7 +202,7 @@ with mikro:
     folder = mikro.create_folder(name="examples")
 ```
 
-`tests/conftest.py` shows the complete wiring against a local deployment.
+`tests/stack.py` shows the complete wiring against a local deployment.
 
 ## Prerequisites
 

@@ -8,14 +8,29 @@ services:
       POSTGRES_MULTIPLE_DATABASES: mikro
       POSTGRES_PASSWORD: hello_django
       POSTGRES_USER: hello_django
+  # Brings the database to the image's release, once, before the server is started: a
+  # service's own start only serves.
+  mikro-migrate:
+    depends_on:
+    - db
+    image: jhnnsrs/mikro:${MIKRO_SERVICE_TAG:-latest}
+    command: arkitekt-service run migrate
+    volumes:
+    - ./configs/mikro.yaml:/workspace/config.yaml
   mikro:
     depends_on:
-    - redis
-    - db
-    - rustfs
-    - initc
+      redis:
+        condition: service_started
+      db:
+        condition: service_started
+      rustfs:
+        condition: service_started
+      initc:
+        condition: service_started
+      mikro-migrate:
+        condition: service_completed_successfully
     image: jhnnsrs/mikro:${MIKRO_SERVICE_TAG:-latest}
-    command: bash run-debug.sh
+    command: arkitekt-service debug
     stop_grace_period: 1s
     ports:
     - "${MIKRO_HOST_PORT:-6580}:80"
