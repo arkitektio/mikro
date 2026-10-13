@@ -17,8 +17,8 @@ import os
 from collections import deque
 from collections.abc import Generator, Hashable, Mapping, Sequence
 from contextlib import contextmanager
+from dataclasses import dataclass
 from enum import Enum
-from pathlib import Path
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -48,6 +48,8 @@ from zarr.storage import StorePath
 from .client import client_of
 from .scalars import ArrayCoercible
 from mikro.checks.arrays import check_dims_match_axes
+from mikro.checks.arrays import check_layouts_agree
+from mikro.io.chunking import lay_out_pyramid
 from mikro.checks.sparse import check_against_store
 from mikro.checks.sparse import check_axes
 from mikro.checks.tables import TableDeclarationError
@@ -56,6 +58,7 @@ from mikro.checks.tables import resolve_columns
 from mikro.scalars import axis_name
 import shutil
 from .vocabulary import (
+    COMPOSABLE_KINDS,
     MATRIX_KINDS,
     QUALITATIVE_COLORMAP_VALUES,
     AxisSelection,
@@ -64,9 +67,11 @@ from .vocabulary import (
     ResolvedTransformKind,
     TransformKind,
     Unit,
+    WindowSelection,
     default_axis_type,
     enum_value,
     normalize_selection,
+    normalize_window,
 )
 
 _Given = TypeVar("_Given")
@@ -91,27 +96,32 @@ if TYPE_CHECKING:
     from mikro.api.schema import (
         Annotation,
         AnnotationKind,
+        ArrayLens,
         Axis,
         AxisInput,
         AxisType,
+        Chart,
+        ChartPolicyInput,
         CoordinateAnchorInput,
         CoordinateSystem,
         CreateTransformationMutationCreateTransformationBase,
         DerivedFromInput,
         GetCoordinateGraphQueryCoordinateGraph,
-        HasZarrStoreAccessor,
-        Lens,
+        MeshLens,
+        NetworkLens,
         PhysicalAxisInput,
         PlacementValidity,
         Scene,
         ScenePolicyInput,
+        SparseLens,
+        TableLens,
         TransformInput,
+        WindowInput,
         ValueHistogramInput,
         ValueRelation,
     )
     from mikro.io.obstore import ParquetDatasetViaObstore
     from mikro.mikro import Mikro
-    from mikro.rath import MikroRath
 
     #: What `create_transformation` hands back: the shared base of every edge
     #: kind the mutation can return, the catch-all included.
@@ -230,18 +240,6 @@ class HasNamedAxes:
             )
             for name in names
         ]
-
-
-def _three_floats(values: NDArray[np.generic]) -> tuple[float, float, float]:
-    """The first three entries of a row, as the tuple of floats callers expect.
-
-    Slicing a numpy row yields an ndarray of numpy scalars, which is neither a
-    tuple nor made of Python floats — a signature promising
-    ``Tuple[float, float, float]`` and returning one used to be reconciled by a
-    ``# type: ignore``.
-    """
-    x, y, z = (float(v) for v in values[:3])
-    return (x, y, z)
 
 
 class MikroFetchable(ContextBound, FederationFetchable):
@@ -773,17 +771,21 @@ class DatasetTrait(HasNamedAxes):
         self,
         mikro: "Mikro | None" = None,
         **selections: AxisSelection,
-    ) -> Lens:
-        """Create a lens on this dataset from pythonic per-axis selections.
+    ) -> ArrayLens:
+        """The lens over this dataset that pythonic per-axis selections describe.
 
-        With no selections the lens frames the whole dataset — the tail every
-        derivation edge starts from. Each keyword names an axis and selects
-        along it: an ``int`` pins one index (a slice of size 1), a
-        ``(start, stop)`` or ``(start, stop, step)`` tuple and a ``slice()``
-        object select a range.
+        With no selections it is the dataset's whole lens — the tail every
+        derivation edge starts from. Every dataset is created with one, so it is
+        read, not made. Each keyword names an axis and selects along it: an
+        ``int`` pins one index (a slice of size 1), a ``(start, stop)`` or
+        ``(start, stop, step)`` tuple and a ``slice()`` object select a range.
 
         ``crop.lens(z=16, y=32)`` is the row through (z=16, y=32);
         ``source.lens(x=(0, 128))`` is the left half.
+
+        A lens is one row per dataset and selection: asking twice answers with
+        the same lens, and a selection that keeps everything is the whole lens.
+        Its ``slices`` come back as the server normalized them, not as written.
         """
         from mikro.api.schema import SliceInput
 
@@ -797,9 +799,15 @@ class DatasetTrait(HasNamedAxes):
             start, stop, step = normalize_selection(axis, selection)
             slices.append(SliceInput(axis=axis, start=start, stop=stop, step=step))
 
-        return client_of(self, mikro).create_lens(
-            dataset=get_attributes_or_error(self, "id"), slices=slices
-        )
+        client = client_of(self, mikro)
+        dataset = get_attributes_or_error(self, "id")
+        if not slices:
+            whole = client.get_full_lens(dataset).full_lens
+            if whole is not None:
+                return whole
+        # Also the answer for a dataset with no whole lens to read: the server
+        # says what it cannot select over better than this could.
+        return client.create_lens(dataset=dataset, slices=slices)
 
     def key_table(
         self,
@@ -866,6 +874,111 @@ class DatasetTrait(HasNamedAxes):
         )
 
 
+def _window_inputs(
+    container: object, selections: Mapping[str, WindowSelection]
+) -> list[WindowInput]:
+    """The windows a container's ``lens()`` keywords describe, refused by axis name.
+
+    The axis check runs only when the container says what its axes are: a table
+    windows its coordinate columns and a collection the axes of its own space, and
+    neither is selected as a flat list of names on its fragment, so for those the
+    server names the axis it does not know.
+    """
+    from mikro.api.schema import WindowInput
+
+    axis_names = getattr(container, "axis_names", None)
+    windows: list[WindowInput] = []
+    for axis, selection in selections.items():
+        if axis_names is not None and axis not in axis_names:
+            raise ValueError(f"Invalid axis {axis!r} for a container with axes {list(axis_names)}")
+        low, high = normalize_window(axis, selection)
+        windows.append(WindowInput(axis=axis, min=low, max=high))
+    return windows
+
+
+class TableDatasetLensTrait:
+    """The lens over a table dataset: what a point, track or series layer draws."""
+
+    def lens(self, mikro: "Mikro | None" = None, **windows: WindowSelection) -> TableLens:
+        """The lens keeping these windows of the table's coordinate columns.
+
+        With no windows it is the table's whole lens, which is what a layer over
+        the whole table names: ``mikro.create_point_layer(scene=scene, lens=table.lens())``.
+        ``table.lens(t=(0, 10))`` keeps the rows whose ``t`` lies in that range.
+        One row per table and selection: asking twice answers with the same lens.
+        """
+        return client_of(self, mikro).create_table_lens(
+            table_dataset=get_attributes_or_error(self, "id"),
+            windows=_window_inputs(self, windows),
+        )
+
+
+class SparseDatasetTrait:
+    """The lens over a sparse dataset: a slice of it is what a picker reads."""
+
+    def lens(self, mikro: "Mikro | None" = None, **windows: WindowSelection) -> SparseLens:
+        """The lens keeping these windows of the matrix's axes.
+
+        A number pins one position, and pinning one on every axis the matrix
+        identifies itself by is a *slice* -- one value per object, which is what
+        a SPARSE colouring names: ``sparse_color_by(expression.lens(gene=4711))``.
+        With no windows it is the whole lens. One row per matrix and selection, so
+        every picker reading one gene shares one lens.
+
+        A pinned position is checked against the axis' extent here, where the
+        shape is held; whether the result is a slice a picker can read is the
+        lens' own ``spec``, which `sparse_color_by` asks.
+        """
+        axis_names = list(getattr(self, "axis_names", None) or ())
+        shape = list(getattr(self, "shape", None) or ())
+        # Same condition the server guards its own bound check with: a store whose
+        # rank disagrees with the declared axes has no extent to compare against.
+        if len(axis_names) == len(shape):
+            for axis, selection in windows.items():
+                if axis not in axis_names or isinstance(selection, (tuple, list, bool)):
+                    continue
+                extent = int(shape[axis_names.index(axis)])
+                if not 0 <= selection < extent:
+                    raise ValueError(
+                        f"Position {selection} along {axis!r} is outside 0..{extent - 1}. A position "
+                        "is a row of the table that axis references, not an id of its own."
+                    )
+        return client_of(self, mikro).create_sparse_lens(
+            sparse_dataset=get_attributes_or_error(self, "id"),
+            windows=_window_inputs(self, windows),
+        )
+
+
+class MeshCollectionTrait:
+    """The lens over a mesh collection: what a mesh layer draws."""
+
+    def lens(self, mikro: "Mikro | None" = None, **windows: WindowSelection) -> MeshLens:
+        """The lens keeping these windows of the collection's own space.
+
+        With no windows it is the collection's whole lens:
+        ``mikro.create_mesh_layer(scene=scene, lens=collection.lens())``.
+        """
+        return client_of(self, mikro).create_mesh_lens(
+            mesh_collection=get_attributes_or_error(self, "id"),
+            windows=_window_inputs(self, windows),
+        )
+
+
+class NetworkCollectionTrait:
+    """The lens over a network collection: what a network layer draws."""
+
+    def lens(self, mikro: "Mikro | None" = None, **windows: WindowSelection) -> NetworkLens:
+        """The lens keeping these windows of the collection's own space.
+
+        With no windows it is the collection's whole lens:
+        ``mikro.create_network_layer(scene=scene, lens=collection.lens())``.
+        """
+        return client_of(self, mikro).create_network_lens(
+            network_collection=get_attributes_or_error(self, "id"),
+            windows=_window_inputs(self, windows),
+        )
+
+
 class CreateADatasetTrait:
     """Validation trait for the generic ``create_array_dataset`` input.
 
@@ -873,7 +986,8 @@ class CreateADatasetTrait:
     arbitrarily-labelled array. This trait enforces that the labels are coherent
     at the model level: every dimension of the ``data`` array must have exactly
     one matching ``axis`` (by name), and every scale's array must share that same
-    set of dimensions.
+    set of dimensions. Once they do, each level is given the chunk layout its axes
+    imply, unless the caller set one.
     """
 
     @model_validator(mode="after")
@@ -883,7 +997,15 @@ class CreateADatasetTrait:
         axes = getattr(self, "axes", None)
         if data is None or axes is None:
             return self
-        check_dims_match_axes(data, axes, getattr(self, "scales", None))
+        scales = getattr(self, "scales", None)
+        check_dims_match_axes(data, axes, scales)
+
+        # The declaration is the one place that sees the axis types and every level at once,
+        # which is what a layout has to be chosen from: see `mikro.io.chunking`.
+        levels = [data, *(scale.array for scale in sorted(scales or (), key=lambda s: s.level))]
+        axis_types = {axis.name: str(getattr(axis.type, "value", axis.type)) for axis in axes}
+        lay_out_pyramid(levels, axis_types)
+        check_layouts_agree(levels, axis_types)
         return self
 
 
@@ -1038,9 +1160,9 @@ class SparseColorByInputTrait(BaseModel):
     On the input rather than in :func:`mikro.inputs.picker.sparse_color_by`, because
     ``label_render`` accepts entries that were built some other way and a guard in the builder
     is one anybody can walk past. The rest of what a sparse colouring can get wrong -- whether
-    ``at`` names the axes this matrix identifies, whether a position is inside its extent,
-    whether any layout indexes one of them -- needs the dataset, and this input carries an id.
-    Those live in the picker, which is where the caller holds the object.
+    its lens pins exactly the axes the matrix identifies, each at one whole position, with a
+    layout indexing one of them -- is the lens' ``spec``, and this input carries an id. That
+    lives in the picker, which is where the caller holds the lens.
     """
 
     @model_validator(mode="after")
@@ -1115,10 +1237,8 @@ class RGBAColorInputTrait(BaseModel):
         TransferFunctionInput(color=(0, 255, 255, 128))  # left alone
         TransferFunctionInput(color=(0, 255))            # ValueError
 
-    Alpha is 255 rather than 1.0 because these components are 0-255 integers;
-    ``mikro.scalars.RGBAColor`` completes with 1.0 for the same reason, its
-    components being floats. That scalar is not what validates this field —
-    nothing in the schema is typed ``RGBAColor`` — which is why this exists.
+    Alpha is 255 rather than 1.0 because these components are 0-255 integers.
+    Nothing in the schema types the field as a colour, which is why this exists.
     """
 
     @model_validator(mode="before")
@@ -1300,9 +1420,7 @@ class CoordinateAnchorInputTrait(BaseModel):
 
 
 class Lensable(HasNamedAxes):
-    """A trait for file-like objects that can be downloaded
-    because they have a big file store attached to them.
-    """
+    """What an array lens can do: read its selection and derive data from it."""
 
     @property
     def space(self) -> CoordinateSystem | None:
@@ -1815,6 +1933,248 @@ def _transform_member(
     raise ValueError(f"Unknown transformation kind {normalized!r}")
 
 
+@dataclass(frozen=True, eq=False)
+class AxisMap:
+    """An affine map between two coordinate systems, keyed by axis name.
+
+    `matrix` is homogeneous, ``(len(output_axes) + 1) x (len(input_axes) + 1)``:
+    one row per output axis, one column per input axis, the last column the
+    offset. `output_axes` names **only the axes the map states**. An axis a path
+    says nothing about -- the channel of an image, seen from a shape drawn in
+    space -- has no row, never a zero one: zero would be a claim.
+    """
+
+    input_axes: tuple[str, ...]
+    output_axes: tuple[str, ...]
+    matrix: NDArray[np.float64]
+
+    def apply(
+        self,
+        points: PointsLike,
+        *,
+        input_axes: Sequence[str] | None = None,
+        output_axes: Sequence[str] | None = None,
+    ) -> NDArray[np.float64]:
+        """Map points, one column per `input_axes`, to one column per `output_axes`.
+
+        Both default to this map's own. Naming fewer input axes is how a point
+        that has no value along some axis is mapped: it works whenever the
+        requested output axes do not read the missing ones, and raises naming
+        the axis when they do. Asking for an output axis the map does not state
+        raises too.
+        """
+        given = tuple(input_axes) if input_axes is not None else self.input_axes
+        wanted = tuple(output_axes) if output_axes is not None else self.output_axes
+        unknown = [axis for axis in given if axis not in self.input_axes]
+        if unknown:
+            raise ValueError(
+                f"The points name axes {unknown}, which the map's input does not have; "
+                f"its axes are {list(self.input_axes)}"
+            )
+        unstated = [axis for axis in wanted if axis not in self.output_axes]
+        if unstated:
+            raise ValueError(
+                f"The map says nothing about {unstated}: from {list(self.input_axes)} it "
+                f"states only {list(self.output_axes)}"
+            )
+        rows = self.matrix[[self.output_axes.index(axis) for axis in wanted]]
+        missing = [axis for axis in self.input_axes if axis not in given]
+        for axis in missing:
+            reading = [
+                out for out, row in zip(wanted, rows) if row[self.input_axes.index(axis)] != 0.0
+            ]
+            if reading:
+                raise ValueError(
+                    f"{reading} depend on {axis!r}, which the points do not carry; "
+                    f"they carry {list(given)}"
+                )
+        columns = [self.input_axes.index(axis) for axis in given]
+        reduced = np.vstack(
+            [
+                np.hstack([rows[:, columns], rows[:, -1:]]),
+                np.eye(1, len(columns) + 1, len(columns)),
+            ]
+        )
+        return _apply_homogeneous(reduced, points)
+
+
+def _pass_through_factor(source: object, target: object) -> float | None:
+    """How much one unit of a passed-through axis is worth on the other side.
+
+    An axis an edge passes through is the same position said twice, so two
+    different units on its two ends are a conversion, not a relabelling. None
+    when the units have no conversion between them: the axis then does not pass
+    through at all. A missing or arbitrary unit claims nothing and converts by
+    one. The same rule the server composes placements by.
+    """
+    if not source or not target or str(source) == str(target):
+        return 1.0
+    from kanne.scalars import get_current_registry, is_arbitrary_unit
+
+    if is_arbitrary_unit(source) or is_arbitrary_unit(target):
+        return 1.0
+    try:
+        return float(get_current_registry().Quantity(1.0, str(source)).to(str(target)).magnitude)
+    except Exception:
+        return None
+
+
+def _units_in_order(system: CoordinateSystemTrait) -> dict[str, object]:
+    axes = get_attributes_or_error(system, "axes")
+    return {a.name: getattr(a, "unit", None) for a in axes}
+
+
+def _edge_axis_map(step: PathStep) -> AxisMap:
+    """One edge of a path as an `AxisMap` in the direction it is walked.
+
+    A kind with a matrix is that matrix, labelled with its two systems' axes.
+    A BY_DIMENSION maps the axes it names by its parameters, passes through the
+    ones it does not name that both systems have, and states nothing about the
+    rest. Walked backwards, the block over the named axes is inverted and the
+    pass-through reads the other way round.
+    """
+    t = step.transformation
+    kind = _normalize_kind(get_attributes_or_error(t, "kind"))
+    input_system = getattr(t, "input", None)
+    output_system = getattr(t, "output", None)
+    if input_system is None or output_system is None:
+        raise ValueError(
+            f"Transformation {getattr(t, 'id', '?')} ({kind}) was fetched without its "
+            "input and output coordinate systems, so its axes cannot be named"
+        )
+    in_names, out_names = _axis_names_in_order(input_system), _axis_names_in_order(output_system)
+    in_units, out_units = _units_in_order(input_system), _units_in_order(output_system)
+
+    if kind != "BY_DIMENSION":
+        matrix = t.as_matrix()
+        if matrix.shape != (len(out_names) + 1, len(in_names) + 1):
+            raise ValueError(
+                f"Transformation {getattr(t, 'id', '?')} ({kind}) maps "
+                f"{matrix.shape[1] - 1} -> {matrix.shape[0] - 1} dimensions, but its systems "
+                f"have axes {in_names} -> {out_names}"
+            )
+        if kind == "IDENTITY" and in_names == out_names:
+            # Every axis of an identity passes through, so each is converted
+            # between the units its two ends give it, or dropped if it cannot be.
+            factors = [_pass_through_factor(in_units[a], out_units[a]) for a in in_names]
+            kept = [i for i, factor in enumerate(factors) if factor is not None]
+            matrix = np.vstack(
+                [np.diag([factors[i] or 0.0 for i in range(len(in_names))] + [1.0])[kept], matrix[-1:]]
+            )
+            out_names = [out_names[i] for i in kept]
+        if not step.inverted:
+            return AxisMap(tuple(in_names), tuple(out_names), matrix)
+        if matrix.shape[0] != matrix.shape[1]:
+            raise ValueError(
+                f"The path needs the inverse of transformation {getattr(t, 'id', '?')} "
+                f"({kind}), but it maps {matrix.shape[1] - 1} -> {matrix.shape[0] - 1} "
+                "dimensions and is not invertible"
+            )
+        try:
+            inverse = np.linalg.inv(matrix)
+        except np.linalg.LinAlgError as e:
+            raise ValueError(
+                f"Transformation {getattr(t, 'id', '?')} ({kind}) is singular and cannot "
+                "be walked backwards"
+            ) from e
+        return AxisMap(tuple(out_names), tuple(in_names), inverse)
+
+    acts_in = list(getattr(t, "input_axes", ()) or ())
+    acts_out = list(getattr(t, "output_axes", ()) or ())
+    if len(acts_in) != len(acts_out):
+        raise ValueError(
+            f"Transformation {getattr(t, 'id', '?')} (BY_DIMENSION) names {acts_in} -> "
+            f"{acts_out}, which is not one axis for one"
+        )
+    strangers = [a for a in acts_in if a not in in_names] + [a for a in acts_out if a not in out_names]
+    if strangers:
+        raise ValueError(
+            f"Transformation {getattr(t, 'id', '?')} (BY_DIMENSION) names axes {strangers} "
+            f"that its systems {in_names} -> {out_names} do not have"
+        )
+    n = len(acts_in)
+    affine, scale, translation = (getattr(t, name, ()) or () for name in ("affine", "scale", "translation"))
+    if len(affine):
+        sub = _homogeneous_from_rows(np.asarray(affine, dtype=float), n)
+    else:
+        # Scale, then translation: the order a SEQUENCE of the two is read in.
+        sub = np.eye(n + 1)
+        if len(scale):
+            sub[:n, :n] = np.diag([float(s) for s in scale])
+        if len(translation):
+            sub[:n, n] = [float(v) for v in translation]
+    if sub.shape != (n + 1, n + 1):
+        raise ValueError(
+            f"Transformation {getattr(t, 'id', '?')} (BY_DIMENSION) carries a "
+            f"{sub.shape[0] - 1} x {sub.shape[1] - 1} map for the {n} axes it names"
+        )
+    if step.inverted:
+        try:
+            sub = np.linalg.inv(sub)
+        except np.linalg.LinAlgError as e:
+            raise ValueError(
+                f"Transformation {getattr(t, 'id', '?')} (BY_DIMENSION) is singular and "
+                "cannot be walked backwards"
+            ) from e
+        in_names, out_names, in_units, out_units = out_names, in_names, out_units, in_units
+        acts_in, acts_out = acts_out, acts_in
+
+    rows: list[np.ndarray] = []
+    stated: list[str] = []
+    for out_axis in out_names:
+        row = np.zeros(len(in_names) + 1)
+        if out_axis in acts_out:
+            block = sub[acts_out.index(out_axis)]
+            for column, in_axis in enumerate(acts_in):
+                row[in_names.index(in_axis)] = block[column]
+            row[-1] = block[n]
+        elif out_axis in in_names and out_axis not in acts_in:
+            factor = _pass_through_factor(in_units[out_axis], out_units[out_axis])
+            if factor is None:
+                continue
+            row[in_names.index(out_axis)] = factor
+        else:
+            # Neither named nor shared: the edge says nothing about this axis.
+            continue
+        rows.append(row)
+        stated.append(out_axis)
+    bottom = np.zeros(len(in_names) + 1)
+    bottom[-1] = 1.0
+    return AxisMap(tuple(in_names), tuple(stated), np.vstack([*rows, bottom]))
+
+
+def _compose_axis_maps(steps: Sequence[PathStep], source_axes: Sequence[str]) -> AxisMap:
+    """Compose a path into one `AxisMap` over the source system's axes.
+
+    By substitution, axis name by axis name, so a path may change rank on the
+    way. An axis a step reads from one an earlier step stopped stating is
+    dropped: once a path has let go of an axis, nothing downstream takes hold of
+    it again.
+    """
+    source = tuple(source_axes)
+    current = AxisMap(source, source, np.eye(len(source) + 1))
+    for step in steps:
+        edge = _edge_axis_map(step)
+        rows: list[np.ndarray] = []
+        stated: list[str] = []
+        for out_axis, form in zip(edge.output_axes, edge.matrix[:-1]):
+            row = np.zeros(len(source) + 1)
+            row[-1] = form[-1]
+            for in_axis, factor in zip(edge.input_axes, form[:-1]):
+                if factor == 0.0:
+                    continue
+                if in_axis not in current.output_axes:
+                    break
+                row += factor * current.matrix[current.output_axes.index(in_axis)]
+            else:
+                rows.append(row)
+                stated.append(out_axis)
+        bottom = np.zeros(len(source) + 1)
+        bottom[-1] = 1.0
+        current = AxisMap(source, tuple(stated), np.vstack([*rows, bottom]))
+    return current
+
+
 class PathStep(NamedTuple):
     """One edge of a composable path between coordinate systems.
 
@@ -1855,9 +2215,9 @@ class TransformationTrait:
     def as_matrix(self) -> NDArray[np.float64]:
         """This transformation as a homogeneous (M+1) x (N+1) numpy matrix.
 
-        Only IDENTITY, SCALE, TRANSLATION, AFFINE, ROTATION and MAP_AXIS have
-        a closed-form matrix. SEQUENCE requires `.resolve_matrix()` (a network
-        round-trip); the remaining kinds have no matrix.
+        IDENTITY, SCALE, TRANSLATION, AFFINE, ROTATION and MAP_AXIS have a
+        closed-form matrix, and so does a SEQUENCE of them: it carries its steps,
+        which compose first to last. The remaining kinds have no matrix.
         """
         kind = _normalize_kind(get_attributes_or_error(self, "kind"))
 
@@ -1916,10 +2276,17 @@ class TransformationTrait:
             return matrix
 
         if kind == "SEQUENCE":
-            raise NotImplementedError(
-                "SEQUENCE children carry only their id and kind in this query; call "
-                ".resolve_matrix() to fetch and compose them (requires a network round-trip)"
-            )
+            steps = get_attributes_or_error(self, "steps")
+            if not steps:
+                raise ValueError(
+                    f"SEQUENCE transformation {getattr(self, 'id', '?')} has no steps"
+                )
+            matrix = _step_matrix(steps[0], self.ndim_in())
+            for step in steps[1:]:
+                # Applied first to last, so each later step multiplies from the left.
+                # A step's input rank is the previous step's output rank.
+                matrix = _step_matrix(step, matrix.shape[0] - 1) @ matrix
+            return matrix
         if kind == "UNMAPPABLE":
             raise NotImplementedError(
                 "An UNMAPPABLE transformation is a declared non-correspondence between "
@@ -1958,45 +2325,48 @@ class TransformationTrait:
         """Map points from the output system back to the input system."""
         return _apply_homogeneous(self.inverse_matrix(), points)
 
-    def resolve_matrix(self, mikro: "Mikro | None" = None) -> NDArray[np.float64]:
-        """Like `as_matrix()`, but resolves SEQUENCE transformations by fetching
-        each child from the server and composing them first-to-last."""
-        kind = _normalize_kind(get_attributes_or_error(self, "kind"))
-        if kind != "SEQUENCE":
-            return self.as_matrix()
 
-        pass
+def _step_matrix(step: object, ndim_in: int | None) -> NDArray[np.float64]:
+    """One step of a SEQUENCE as a homogeneous matrix.
 
-        children = get_attributes_or_error(self, "sequence_children")
-        matrix: np.ndarray | None = None
-        for child in children:
-            full = client_of(self, mikro).get_transformation(child.id)
-            resolve = getattr(full, "resolve_matrix", None)
-            if resolve is None:
-                raise ValueError(
-                    f"Child transformation {child.id} came back as a kind this "
-                    f"client does not model, so its matrix cannot be composed"
-                )
-            child_matrix = resolve(mikro=mikro)
-            matrix = child_matrix if matrix is None else child_matrix @ matrix
-        if matrix is None:
+    A step is a kind and that kind's parameters, in the axis order of the
+    sequence's input -- not an edge, so it has no systems of its own and its rank
+    is read off its parameters (or, for an identity, off what came before it).
+    """
+    kind = _normalize_kind(get_attributes_or_error(step, "kind"))
+    if kind == "IDENTITY":
+        if ndim_in is None:
             raise ValueError(
-                f"SEQUENCE transformation {getattr(self, 'id', '?')} has no children"
+                "Cannot determine the dimensionality of an IDENTITY step: the sequence's "
+                "input coordinate system (with axes) was not selected in the query"
             )
+        return np.eye(ndim_in + 1)
+    if kind == "SCALE":
+        return np.diag([float(s) for s in get_attributes_or_error(step, "scale")] + [1.0])
+    if kind == "TRANSLATION":
+        translation = get_attributes_or_error(step, "translation")
+        n = len(translation)
+        matrix = np.eye(n + 1)
+        matrix[:n, n] = [float(t) for t in translation]
         return matrix
+    if kind in ("AFFINE", "ROTATION"):
+        return _homogeneous_from_rows(
+            np.asarray(get_attributes_or_error(step, "affine"), dtype=float), ndim_in
+        )
+    raise NotImplementedError(f"A SEQUENCE step of kind {kind} has no closed-form matrix")
 
 
 def _bfs_path(
     transformations: Sequence[object],
     start_id: str,
     target_id: str,
-    allow_fetch: bool = False,
 ) -> list[PathStep]:
     """Find the shortest composable path between two coordinate systems.
 
     Edges are walked forward (input -> output) and backward (output -> input,
-    flagged inverted). Only kinds with a closed-form matrix are walkable
-    (plus SEQUENCE when `allow_fetch` permits resolving children later).
+    flagged inverted). Only composable kinds are walkable: those with a
+    closed-form matrix -- a SEQUENCE among them when every one of its steps has
+    one -- and BY_DIMENSION, which composes by axis name.
 
     The graph query returns a heterogeneous union, and a kind this client does
     not model comes back as a fieldless catch-all that carries no trait — hence
@@ -2008,10 +2378,12 @@ def _bfs_path(
         if not isinstance(t, TransformationTrait):
             continue
         kind = _normalize_kind(get_attributes_or_error(t, "kind"))
-        composable = kind in TransformationTrait.MATRIX_KINDS or (
-            kind == "SEQUENCE" and allow_fetch
-        )
-        if not composable:
+        if kind not in COMPOSABLE_KINDS:
+            continue
+        if kind == "SEQUENCE" and not all(
+            _normalize_kind(step.kind) in TransformationTrait.MATRIX_KINDS
+            for step in getattr(t, "steps", ())
+        ):
             continue
         input_system = getattr(t, "input", None)
         output_system = getattr(t, "output", None)
@@ -2047,48 +2419,6 @@ def _bfs_path(
         f"No composable transformation path from coordinate system {start_id} to "
         f"{target_id}. Reachable systems: {sorted(visited)}"
     )
-
-
-def _compose_steps(
-    steps: Sequence[PathStep],
-    identity_ndim: int | None = None,
-    allow_fetch: bool = False,
-    mikro: "Mikro | None" = None,
-) -> NDArray[np.float64]:
-    """Compose a path of steps into one homogeneous matrix, applied first-to-last
-    (the newest matrix multiplies on the left). Inverted steps are inverted first."""
-    matrix: np.ndarray | None = None
-    for step in steps:
-        t = step.transformation
-        kind = _normalize_kind(get_attributes_or_error(t, "kind"))
-        if kind == "SEQUENCE" and allow_fetch:
-            step_matrix = t.resolve_matrix(mikro=mikro)
-        else:
-            step_matrix = t.as_matrix()
-        if step.inverted:
-            if step_matrix.shape[0] != step_matrix.shape[1]:
-                raise ValueError(
-                    f"The path needs the inverse of transformation "
-                    f"{getattr(t, 'id', '?')} ({kind}), but it maps "
-                    f"{step_matrix.shape[1] - 1} -> {step_matrix.shape[0] - 1} "
-                    f"dimensions and is not invertible"
-                )
-            step_matrix = np.linalg.inv(step_matrix)
-        if matrix is None:
-            matrix = step_matrix
-        elif step_matrix.shape[1] != matrix.shape[0]:
-            raise ValueError(
-                f"Transformation {getattr(t, 'id', '?')} expects "
-                f"{step_matrix.shape[1] - 1} dimensions but the path so far "
-                f"produces {matrix.shape[0] - 1}"
-            )
-        else:
-            matrix = step_matrix @ matrix
-    if matrix is None:
-        if identity_ndim is None:
-            raise ValueError("Cannot compose an empty path without a dimensionality")
-        return np.eye(identity_ndim + 1)
-    return matrix
 
 
 class SceneTrait:
@@ -2172,6 +2502,42 @@ class SceneTrait:
         pass
 
         return client_of(self, mikro).delete_scene(id=get_attributes_or_error(self, "id"))
+
+
+class ChartTrait:
+    """A trait for charts: a *composition* of layers along one metric axis.
+
+    The second composition beside a scene, and its equal: a scene is a place, a
+    chart is an axis with values read off it. It adopts a world with exactly one
+    metric, unit-carrying axis and owns only view state, its layers.
+
+    So a chart places nothing either. Which of a source's axes runs along the
+    chart, and by what scale and shift, is the edge landing in the world::
+
+        chart.world.register(traces, scale={"t": 0.05})
+    """
+
+    @property
+    def world(self) -> CoordinateSystem:
+        """The shared one-axis coordinate system this chart is laid out along.
+
+        Adopted, never owned: many charts can share it, it outlives each of
+        them, and deleting a chart never deletes it.
+        """
+        return get_attributes_or_error(self, "world_coordinate_system")
+
+    def delete(self, mikro: "Mikro | None" = None) -> ID:
+        """Delete this chart and its layers.
+
+        Nothing a layer drew is touched, and the world survives.
+
+        Args:
+            mikro: The client to call through; defaults to the one that fetched this object.
+
+        Returns:
+            The id of the deleted chart.
+        """
+        return client_of(self, mikro).delete_chart(id=get_attributes_or_error(self, "id"))
 
 
 class CoordinateSystemTrait:
@@ -2440,6 +2806,38 @@ class CoordinateSystemTrait:
             name=name if name is not None else UNSET,
         )
 
+    def chart(
+        self,
+        *,
+        name: str | None = None,
+        policy: ChartPolicyInput | None = None,
+        mikro: "Mikro | None" = None,
+    ) -> Chart:
+        """Bootstrap a chart over this space, drawing what is laid along its axis.
+
+        The sibling of `stage`: the chart adopts this system as its world and no
+        edges are authored. Every array registered into it that is a trace, every
+        table that is a series and every annotation collection becomes a layer,
+        up to the policy's ``nchildren``; what no layer kind reads is left out.
+
+        The space must have exactly one axis, metric and carrying a unit.
+
+        Args:
+            name: An optional name for the chart. Defaults to the space's name.
+            policy: A `ChartPolicyInput`. Omit to let the server choose.
+            mikro: The client to call through; defaults to the one that fetched this object.
+
+        Returns:
+            The created chart.
+        """
+        from mikro.api.schema import UNSET, ChartPolicyInput
+
+        return client_of(self, mikro).create_chart_from_coordinate_system(
+            coordinate_system=get_attributes_or_error(self, "id"),
+            policy=policy if policy is not None else ChartPolicyInput(),
+            name=name if name is not None else UNSET,
+        )
+
     def clear(self, mikro: "Mikro | None" = None) -> tuple[ID, ...]:
         """Delete every registration *into* this space, returning the edge ids.
 
@@ -2600,7 +2998,6 @@ class CoordinateSystemTrait:
         other: IDCoercible | CoordinateSystemTrait,
         *,
         max_depth: int | None = None,
-        allow_fetch: bool = False,
         graph: GetCoordinateGraphQueryCoordinateGraph | None = None,
         mikro: "Mikro | None" = None,
     ) -> list[PathStep]:
@@ -2618,42 +3015,73 @@ class CoordinateSystemTrait:
             return []
         if graph is None:
             graph = self.graph(max_depth=max_depth, mikro=mikro)
-        return _bfs_path(graph.transformations, my_id, other_id, allow_fetch)
+        return _bfs_path(graph.transformations, my_id, other_id)
+
+    def axis_map_to(
+        self,
+        other: IDCoercible | CoordinateSystemTrait,
+        *,
+        max_depth: int | None = None,
+        graph: GetCoordinateGraphQueryCoordinateGraph | None = None,
+        mikro: "Mikro | None" = None,
+    ) -> AxisMap:
+        """The path to `other` composed into one map, keyed by axis name.
+
+        What `matrix_to` cannot say: a path may cross a registration or a
+        scene's drawing space, which relate systems of different rank, and then
+        states only some of `other`'s axes. The map names the ones it states.
+        """
+        steps = self.path_to(other, max_depth=max_depth, graph=graph, mikro=mikro)
+        return _compose_axis_maps(steps, self.axis_names)
 
     def matrix_to(
         self,
         other: IDCoercible | CoordinateSystemTrait,
         *,
         max_depth: int | None = None,
-        allow_fetch: bool = False,
         graph: GetCoordinateGraphQueryCoordinateGraph | None = None,
         mikro: "Mikro | None" = None,
     ) -> NDArray[np.float64]:
         """The composed homogeneous matrix mapping points of this system into
-        `other`, found via the coordinate graph."""
-        steps = self.path_to(
-            other, max_depth=max_depth, allow_fetch=allow_fetch, graph=graph, mikro=mikro
-        )
-        return _compose_steps(
-            steps, identity_ndim=self.ndim, allow_fetch=allow_fetch, mikro=mikro
-        )
+        `other`, found via the coordinate graph.
+
+        Raises when the path leaves an axis of `other` unstated, since a matrix
+        has no way to say so; `axis_map_to` is the question to ask then.
+        """
+        steps = self.path_to(other, max_depth=max_depth, graph=graph, mikro=mikro)
+        if not steps:
+            return np.eye(self.ndim + 1)
+        composed = _compose_axis_maps(steps, self.axis_names)
+        target = _axis_names_in_order(steps[-1].transformation.input if steps[-1].inverted else steps[-1].transformation.output)
+        unstated = [axis for axis in target if axis not in composed.output_axes]
+        if unstated:
+            raise ValueError(
+                f"The path from {self.axis_names} states nothing about {unstated} of the "
+                f"target's axes {target}, so it has no matrix. Use axis_map_to(), or "
+                "transform_points_to(..., axes=...) naming the axes you need."
+            )
+        return composed.matrix
 
     def transform_points_to(
         self,
         other: IDCoercible | CoordinateSystemTrait,
         points: PointsLike,
         *,
+        axes: Sequence[str] | None = None,
         max_depth: int | None = None,
-        allow_fetch: bool = False,
         graph: GetCoordinateGraphQueryCoordinateGraph | None = None,
         mikro: "Mikro | None" = None,
     ) -> NDArray[np.float64]:
         """Map points given in this system's axis order into `other`.
 
         Accepts a (K, N) array or a single (N,) point; returns the matching
-        shape in `other`'s axis order.
+        shape in `other`'s axis order. `axes` asks for a subset of `other`'s
+        axes instead, in the order given -- the way across a path that does not
+        state all of them (a shape drawn in space, mapped onto an image with
+        channels).
         """
-        matrix = self.matrix_to(
-            other, max_depth=max_depth, allow_fetch=allow_fetch, graph=graph, mikro=mikro
-        )
-        return _apply_homogeneous(matrix, points)
+        if axes is None:
+            matrix = self.matrix_to(other, max_depth=max_depth, graph=graph, mikro=mikro)
+            return _apply_homogeneous(matrix, points)
+        mapped = self.axis_map_to(other, max_depth=max_depth, graph=graph, mikro=mikro)
+        return mapped.apply(points, output_axes=axes)

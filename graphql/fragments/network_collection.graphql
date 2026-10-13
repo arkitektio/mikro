@@ -1,6 +1,7 @@
 fragment NetworkCollection on NetworkCollection {
   id
-  version
+  name
+  label
   specVersion
   grid
   encoding

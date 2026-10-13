@@ -2,34 +2,8 @@ from types import TracebackType
 
 from pydantic import Field
 from rath import rath
-from rath.links.auth import AuthTokenLink
-from rath.links.compose import TypedComposedLink
-from rath.links.dictinglink import DictingLink
-from rath.links.file import FileExtraction
-from rath.links.split import SplitLink
 
 from mikro.middleware.base import OperationMiddleware
-
-class MikroLinkComposition(TypedComposedLink):
-    """The MikroLinkComposition
-
-    This is a composition of links that are traversed before a request is sent to the
-    mikro api. This link composition contains the default links for mikro.
-
-    Upload logic has been moved to the UploadMiddleware, which runs at the operation
-    level before the rath link chain is entered.
-
-    You shouldn't need to create this directly.
-    """
-
-    fileextraction: FileExtraction = Field(default_factory=FileExtraction)
-    """ A link that extracts files from the request and follows the graphql multipart request spec"""
-    dicting: DictingLink = Field(default_factory=DictingLink)
-    """ A link that converts basemodels to dicts"""
-    auth: AuthTokenLink
-    """ A link that adds auth tokens to the request"""
-    split: SplitLink
-    """ A link that splits the request into a http and a websocket request"""
 
 
 class MikroRath(rath.Rath):
@@ -74,9 +48,3 @@ class MikroRath(rath.Rath):
         for mw in self.middlewares:
             await mw.aexit()
         await super().__aexit__(exc_type, exc_val, exc_tb)
-
-
-#: The name the generated ``mikro.api.schema`` still imports. That module is
-#: generated and is not edited by hand, so the old spelling has to resolve until
-#: the next ``turms gen`` — ``graphql.config.yaml`` already names ``MikroRath``,
-#: so the regen drops it and this alias can go with it.

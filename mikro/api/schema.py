@@ -3,7 +3,7 @@ from datetime import datetime
 from enum import Enum
 from kanne.scalars import Frequency, GenericQuantity, Length, Power, Temperature, Unit
 from mikro.scalars import ArrayCoercible, ArrayLike, AxisName, ByteCount, ByteCountCoercible, FabriksCoercible, FabriksLike, FileLike, ImageFileCoercible, ImageFileLike, KonnektionCoercible, KonnektionLike, ParquetCoercible, ParquetLike, SporadikCoercible, SporadikLike, ThreeDVector
-from mikro.traits import AxisInputTrait, CoordinateAnchorInputTrait, CoordinateSystemTrait, CreateADatasetTrait, CreateSparseDatasetTrait, CreateTableDatasetTrait, DataArrayTrait, DatasetTrait, FileTrait, GraphColorByInputTrait, HasDownloadAccessor, HasParquestStoreTrait, HasParquetStoreAccesor, HasPresignedDownloadAccessor, HasZarrStoreAccessor, Lensable, MikroFetchable, RGBAColorInputTrait, SceneTrait, SparseAxisInputTrait, SparseColorByInputTrait, TransformationTrait, ValueHistogramInputTrait
+from mikro.traits import AxisInputTrait, ChartTrait, CoordinateAnchorInputTrait, CoordinateSystemTrait, CreateADatasetTrait, CreateSparseDatasetTrait, CreateTableDatasetTrait, DataArrayTrait, DatasetTrait, FileTrait, GraphColorByInputTrait, HasDownloadAccessor, HasParquestStoreTrait, HasParquetStoreAccesor, HasPresignedDownloadAccessor, HasZarrStoreAccessor, Lensable, MeshCollectionTrait, MikroFetchable, NetworkCollectionTrait, RGBAColorInputTrait, SceneTrait, SparseAxisInputTrait, SparseColorByInputTrait, SparseDatasetTrait, TableDatasetLensTrait, TransformationTrait, ValueHistogramInputTrait
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 from rath.scalars import ID, IDCoercible
 from rath.task import TaskLike
@@ -76,25 +76,33 @@ class AnnotationKindChoices(str, Enum):
     __str__ = str.__str__
 
 class ArrayDatasetSpec(str, Enum):
-    """What a dataset structurally is, materialized from the axes of its intrinsic coordinate system at creation. Specs stack: a 3D timelapse is VOLUME, TIMESERIES and MULTICHANNEL at once. Exactly one spatial member (SCALAR/PROFILE/IMAGE/VOLUME/HYPERVOLUME) ever holds."""
+    """What a dataset structurally is, materialized from the axes of its intrinsic coordinate system at creation; an array lens answers the same vocabulary over the shape its slices cut out, so one plane of a stack is an IMAGE and one row of an image a TRACE. Specs stack: a 3D timelapse is VOLUME, TIMESERIES and MULTICHANNEL at once. Exactly one spatial member (SCALAR/PROFILE/IMAGE/VOLUME/HYPERVOLUME) ever holds; the others are modifiers: one per non-spatial axis type the dataset has more than one position along, and TRACE for a dataset that is a curve along one measured axis."""
     SCALAR = 'SCALAR'
-    'No spatial extent: the array carries no SPACE axis at all.'
+    'No spatial extent: no SPACE axis with more than one position.'
     PROFILE = 'PROFILE'
-    'One spatial axis -- a line profile, a depth trace.'
+    'One spatial axis with more than one position -- a line profile, a depth trace.'
     IMAGE = 'IMAGE'
-    'Two spatial axes: a plane. The ordinary micrograph.'
+    'Two spatial axes with more than one position each: a plane. The ordinary micrograph.'
     VOLUME = 'VOLUME'
-    'Three spatial axes: a stack. Holds whenever a z axis is present, even if it carries a single plane.'
+    'Three spatial axes with more than one position each: a stack. A z axis of a single plane does not make one -- that dataset is an IMAGE.'
     HYPERVOLUME = 'HYPERVOLUME'
-    'Four or more spatial axes.'
+    'Four or more spatial axes with more than one position each.'
     TIMESERIES = 'TIMESERIES'
-    'Carries a TIME axis -- a timelapse. Presence only: a single-frame time axis still counts.'
+    'Carries a TIME axis of more than one frame -- a timelapse. A single-frame time axis does not count.'
     MULTICHANNEL = 'MULTICHANNEL'
-    'Carries a CHANNEL axis. Presence only: a one-channel axis still counts.'
+    'Carries a CHANNEL axis of more than one channel. A one-channel axis does not count.'
     SPECTRAL = 'SPECTRAL'
-    'Carries a SPECTRUM axis: a spectrally resolved acquisition, a lambda stack.'
+    'Carries a SPECTRUM axis of more than one bin: a spectrally resolved acquisition, a lambda stack.'
     FLIM = 'FLIM'
-    'Carries a MICROTIME axis: fluorescence-lifetime arrival-time bins.'
+    'Carries a MICROTIME axis of more than one bin: fluorescence-lifetime arrival-time bins.'
+    DISPLACEMENT_FIELD = 'DISPLACEMENT_FIELD'
+    'Carries a DISPLACEMENT axis of more than one component: the values are per-point offsets -- a flow field, a drift map, a deformation.'
+    COORDINATE_FIELD = 'COORDINATE_FIELD'
+    'Carries a COORDINATE axis of more than one component: the values are absolute positions -- a lookup map, the field of a FIELD edge. A scalar-valued array declares no such axis and is not one.'
+    INDEXED = 'INDEXED'
+    'Carries an INDEX axis of more than one position: an axis that enumerates -- objects, rows -- rather than measures. A stack of per-object crops, a per-object measurement.'
+    TRACE = 'TRACE'
+    "A curve: exactly one measured axis (SPACE, TIME, MICROTIME or SPECTRUM) with more than one position, and beside it at most one enumerating axis (CHANNEL or INDEX), one line per position. A line profile, a time trace, a decay, a spectrum -- what a chart draws whole as a TRACE layer. An image is not one, though a row of it is: that row is a lens, and the lens' own spec says so. Says nothing about placement: whether a given chart can draw it depends on what is registered."
     __str__ = str.__str__
 
 class AxisType(str, Enum):
@@ -115,6 +123,8 @@ class AxisType(str, Enum):
     'A wavelength bin of a spectrally resolved acquisition. Continuous -- unlike a CHANNEL axis, whose coordinates index acquisitions rather than positions -- so a pyramid may re-bin it, and a phasor may be taken over it.'
     INDEX = 'INDEX'
     'An enumerating axis with no metric: an object id, a row number. It has no unit because there is nothing to measure — the distance between object 3 and object 4 means nothing.'
+    VALUE = 'VALUE'
+    "The direction values are drawn along. It exists only in a drawing space -- an annotation collection's -- so that a mark can sit at a height as well as a position: no dataset's grid, no table and no unit-carrying space has one, because what data *holds* is its values, not an axis of them. Always unitless: what a height measures is whatever the thing drawn beside it measures."
     __str__ = str.__str__
 
 class Blending(str, Enum):
@@ -154,6 +164,28 @@ class ChannelKind(str, Enum):
     FIBER_SM = 'FIBER_SM'
     FIBER_MM = 'FIBER_MM'
     WAVEGUIDE = 'WAVEGUIDE'
+    __str__ = str.__str__
+
+class ChartLayerKind(str, Enum):
+    """The kind of a chart layer, which says what it reads -- never how it looks. TRACE reads an array along one axis; SERIES reads one column of a table against another; ANNOTATION reads drawn marks. A line, markers, both or steps is `ChartMark`, a setting on the layer."""
+    TRACE = 'TRACE'
+    SERIES = 'SERIES'
+    ANNOTATION = 'ANNOTATION'
+    __str__ = str.__str__
+
+class ChartLayerKindChoices(str, Enum):
+    """No documentation"""
+    TRACE = 'TRACE'
+    SERIES = 'SERIES'
+    ANNOTATION = 'ANNOTATION'
+    __str__ = str.__str__
+
+class ChartMark(str, Enum):
+    """How a trace or a series is drawn. A look, not a kind: changing it changes nothing about what the layer reads."""
+    LINE = 'LINE'
+    MARKERS = 'MARKERS'
+    LINE_MARKERS = 'LINE_MARKERS'
+    STEPS = 'STEPS'
     __str__ = str.__str__
 
 class ColorMap(str, Enum):
@@ -217,7 +249,7 @@ class ColorSourceKind(str, Enum):
     COLUMN = 'COLUMN'
     "A column of a table the source's ids key into, reached by `table`, `column` and any `joinPath`. Every colouring written before sparse datasets existed is one of these, which is why it is the default."
     SPARSE = 'SPARSE'
-    "One slice of a sparse matrix the source's ids index, reached by `dataset` and the position `at`. Always measured: a slice is a value per object, so it takes a colormap and never a class map."
+    "One slice of a sparse matrix the source's ids index, reached by `lens`: a sparse lens whose windows pin one position on every axis the matrix identifies itself by. Always measured: a slice is a value per object, so it takes a colormap and never a class map."
     GRAPH = 'GRAPH'
     "A per-node value the network collection itself carries, reached by `attribute` -- a name its manifest declares (Strahler order, degree, depth, component, a writer's own column), or `radius` when the encoding carries one. Computed once on the full level-0 graph and only ever subset, so the value is the same at every level a node survives to. Always measured, per node rather than per object; `target` says whether it paints nodes or edges."
     __str__ = str.__str__
@@ -249,7 +281,7 @@ class ColumnRole(str, Enum):
     __str__ = str.__str__
 
 class CreatableTransformKind(str, Enum):
-    """The kind of a transformation a client can author directly: the discriminator of `TransformInput`. SEQUENCE is absent on purpose -- it is a wrapper the ingest builds together with its children (pyramid levels, stepped lenses), never authored empty."""
+    """The kind of a transformation a client can author directly: the discriminator of `TransformInput`. SEQUENCE is absent on purpose -- it is the edge the ingest writes with its steps (pyramid levels, stepped lenses), never authored."""
     IDENTITY = 'IDENTITY'
     'The identity map. Input and output coordinates are the same, so it takes no parameters.'
     SCALE = 'SCALE'
@@ -273,17 +305,32 @@ class CreatableTransformKind(str, Enum):
 class DerivationSourceKind(str, Enum):
     """Which kind of thing a derivation names as the source its data was computed from: the discriminator of `DerivedFromInput`. The edge itself is the same whichever is chosen -- child space in, source space out -- so a table named as TABLE_DATASET and the same table named as COORDINATE_SYSTEM write the identical row; the read side reports what lives at the far end through `CoordinateSystem.residents`, not which member was used to say it"""
     LENS = 'LENS'
-    "A selection over an array dataset, and the preferred way to name one: a lens' own edge back to its dataset already carries the crop, so pointing at it gets the rest of the chain for free."
+    "A lens of any kind but a network or sparse lens, and the one path every other arm resolves to: a container arm names the container's whole lens. A crop's own edge back to its dataset already carries the crop, so pointing at it gets the rest of the chain for free."
     DATASET = 'DATASET'
-    'An array dataset as a whole, through its intrinsic pixel grid. Use it when the source is the entire image and there is no lens worth minting.'
+    'An array dataset as a whole: its whole lens, through its intrinsic pixel grid. The same source as LENS on that lens, and refused beside it.'
     TABLE_DATASET = 'TABLE_DATASET'
     'A table dataset, through the space its coordinate columns declare -- the direction an image reconstructed from a table of SMLM localizations is derived. A table with no coordinate columns enumerates objects rather than places them, and its only honest edge is UNMAPPABLE.'
     MESH_COLLECTION = 'MESH_COLLECTION'
     'A mesh collection, through its vertex coordinate system.'
     ANNOTATION_COLLECTION = 'ANNOTATION_COLLECTION'
     'An annotation collection, through the space its shapes are drawn in.'
+    ANNOTATION = 'ANNOTATION'
+    "One shape of an annotation collection: the data was computed along it or within it -- a crop to an ROI, an image straightened along a path. The ANNOTATION_COLLECTION arm on the shape's collection, and which shape: the edge lands in the collection's drawing space and carries the annotation, so two shapes of one collection are two sources. Usually named second, behind the lens the pixels came from, and usually without a transform: the shape is why the data is what it is, not where it sits."
     COORDINATE_SYSTEM = 'COORDINATE_SYSTEM'
     'A coordinate system directly, when the source is a space rather than a container -- a physical space, or a world.'
+    __str__ = str.__str__
+
+class DescriptorOperator(str, Enum):
+    """How a descriptor constraint compares the object's value with the stated one. The operators a rekuest port's `requires` and `provides` are written in, with the same meaning."""
+    EQUALS = 'EQUALS'
+    MATCHES = 'MATCHES'
+    NOT_EQUALS = 'NOT_EQUALS'
+    GTE = 'GTE'
+    LTE = 'LTE'
+    EXISTS = 'EXISTS'
+    CONTAINS = 'CONTAINS'
+    IN = 'IN'
+    NOT_IN = 'NOT_IN'
     __str__ = str.__str__
 
 class Easing(str, Enum):
@@ -414,6 +461,16 @@ class LayerKindChoices(str, Enum):
     VECTOR = 'VECTOR'
     __str__ = str.__str__
 
+class LensKind(str, Enum):
+    """What a lens selects over: an array (by index slices, re-indexing into a space of its own), or a table, a sparse dataset, a mesh collection, a network collection or an annotation collection (by value windows, in the container's own space)."""
+    ARRAY = 'ARRAY'
+    TABLE = 'TABLE'
+    SPARSE = 'SPARSE'
+    MESH = 'MESH'
+    NETWORK = 'NETWORK'
+    ANNOTATION = 'ANNOTATION'
+    __str__ = str.__str__
+
 class MeshShading(str, Enum):
     """How a mesh surface is lit. Vocabulary a mesh needs and an image has no use for: a raster has no normals to shade with, which is why this sits on the mesh layer rather than anywhere near a render graph."""
     FLAT = 'FLAT'
@@ -539,6 +596,48 @@ class ScaleMethod(str, Enum):
     "The minimum of the source window. Not label-safe, for the mirror of MAX's reason."
     __str__ = str.__str__
 
+class SparseDatasetSpec(str, Enum):
+    """What a sparse matrix structurally is, read off its axes, its shape and the layouts its store holds; a sparse lens answers the same vocabulary over what its windows leave free. Exactly one rank member (SCALAR/VECTOR/MATRIX/TENSOR) ever holds, by how many axes still have more than one position: an axis of a single position does not count, and neither does one a window pins to one position (min == max). SLICE is what the whole amounts to when a picker can read it."""
+    SCALAR = 'SCALAR'
+    'No axis left free: one value.'
+    VECTOR = 'VECTOR'
+    "One axis left free: one value per position along it -- one feature across every object, or one object's whole profile."
+    MATRIX = 'MATRIX'
+    'Two axes left free. What a whole sparse dataset ordinarily is.'
+    TENSOR = 'TENSOR'
+    'Three or more axes left free.'
+    SLICE = 'SLICE'
+    'One whole-number position pinned on every axis the matrix identifies itself by and on no other, with a layout that makes the read one contiguous range: one value per object, which is what a SPARSE colour or filter picker entry reads. Never true of a whole dataset.'
+    __str__ = str.__str__
+
+class TableDatasetSpec(str, Enum):
+    """What a table structurally is, materialized from its declared columns at creation; a table lens answers the same vocabulary over what its windows leave free -- a coordinate column a window pins to one value (min == max) no longer counts, so one frame of a tracking result is not TIMED. Specs stack: a tracking result is POINTS_2D, TIMED and TRACKED at once. Exactly one placement member (RECORDS/POINTS_1D/POINTS_2D/POINTS_3D/POINTS_ND) ever holds; the others are modifiers, one per fact the schema declares, and SERIES for a table that is one value against one measured coordinate. Declared, not measured: where an array's spec counts an axis only when it has more than one position, a table's is read off its schema alone, because the server never scans the rows."""
+    RECORDS = 'RECORDS'
+    'No SPACE coordinate column: the rows are records rather than positions -- one per object with its measurements. Nothing places them in a scene.'
+    POINTS_1D = 'POINTS_1D'
+    'One SPACE coordinate column: positions along a line.'
+    POINTS_2D = 'POINTS_2D'
+    'Two SPACE coordinate columns: points in a plane. The least a point layer draws.'
+    POINTS_3D = 'POINTS_3D'
+    'Three SPACE coordinate columns: points in a volume.'
+    POINTS_ND = 'POINTS_ND'
+    'Four or more SPACE coordinate columns.'
+    TIMED = 'TIMED'
+    'Declares a TIME coordinate column: each row sits at an instant.'
+    TRACKED = 'TRACKED'
+    'Declares a TRACK_ID column: rows group into trajectories. With POINTS_2D or more, what a track layer draws.'
+    GROUPED = 'GROUPED'
+    'Declares a GROUP_ID column: rows group into connected objects that are not trajectories -- the nodes of one arbor, the points of one cluster.'
+    KEYED = 'KEYED'
+    "A column's values identify rows of another table (`Column.references`): a foreign key out of this table, or the table an INDEX coordinate enumerates."
+    NODE_TABLE = 'NODE_TABLE'
+    'One INDEX coordinate column holds the node ids of a network collection: one row per node.'
+    EDGE_TABLE = 'EDGE_TABLE'
+    'Two INDEX coordinate columns hold node ids of one network collection: one row per edge, (source, target) in column order.'
+    SERIES = 'SERIES'
+    "Exactly one measured coordinate column (SPACE or TIME) and at least one numeric ATTRIBUTE column: a value against a position, what a chart draws as a SERIES layer with nothing left to choose but the value. Not the only table a chart can draw -- one with several measured coordinates is drawn along whichever the chart's axis is registered to -- and it says nothing about placement: whether a given chart can draw it depends on what is registered."
+    __str__ = str.__str__
+
 class TransformInvariance(str, Enum):
     """Which geometric properties survive a coordinate transformation. A nested hierarchy -- each class preserves strictly less than the one above it -- so the class of a composed path is the weakest of its steps. Derived from a transformation's `kind`, never stored: a column could contradict the parameters, and the parameters would be right."""
     ISOMETRY = 'ISOMETRY'
@@ -568,9 +667,9 @@ class TransformKind(str, Enum):
     ROTATION = 'ROTATION'
     'A rotation, given as an orthonormal matrix.'
     SEQUENCE = 'SEQUENCE'
-    'An ordered composition of child transformations, applied first to last.'
+    'An ordered composition of steps, applied first to last. The steps are carried on the edge itself.'
     BY_DIMENSION = 'BY_DIMENSION'
-    'A composition of child transformations, each acting on a named subset of the axes.'
+    'A map acting on a named subset of the axes, and the identity on the rest.'
     FIELD = 'FIELD'
     'A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a coordinate system, and so a node of this graph, not a payload on this edge. Whether its values are absolute POSITIONS or per-point OFFSETS is read from the value axis of that node -- COORDINATE or DISPLACEMENT -- never restated here. A label mask is the case where the field IS the input: its own pixels are the map. Not invertible in closed form, so a placement path never walks it backwards -- which is also the right semantics for a dereference, an object being a set of pixels.'
     UNMAPPABLE = 'UNMAPPABLE'
@@ -627,6 +726,17 @@ class AnnotationCollectionExportOfInput(BaseModel):
     series_identifier: str | None = Field(validation_alias=AliasChoices('series_identifier', 'seriesIdentifier'), serialization_alias='seriesIdentifier', default=None)
     value_relation: ValueRelation | None = Field(validation_alias=AliasChoices('value_relation', 'valueRelation'), serialization_alias='valueRelation', default=None)
     annotation_collection: ID = Field(validation_alias=AliasChoices('annotation_collection', 'annotationCollection'), serialization_alias='annotationCollection')
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class AnnotationDerivedFromInput(BaseModel):
+    """The fields an ANNOTATION derivation reads. Published for codegen; the wire type is the flat DerivedFromInput"""
+    kind: Literal['ANNOTATION'] = Field(default='ANNOTATION')
+    transform: 'TransformInput | None' = None
+    value_relation: ValueRelation | None = Field(validation_alias=AliasChoices('value_relation', 'valueRelation'), serialization_alias='valueRelation', default=None)
+    annotation: ID
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
@@ -1137,8 +1247,7 @@ class SparseColorByInput(SparseColorByInputTrait, BaseModel):
     min: float | None = None
     max: float | None = None
     label: str | None = None
-    dataset: ID
-    at: tuple['AxisPositionInput', ...]
+    lens: ID
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
@@ -1271,12 +1380,13 @@ class AnnotationFilter(BaseModel):
     or_: 'AnnotationFilter | None' = Field(validation_alias=AliasChoices('or_', 'OR'), serialization_alias='OR', default=None)
     not_: 'AnnotationFilter | None' = Field(validation_alias=AliasChoices('not_', 'NOT'), serialization_alias='NOT', default=None)
     distinct: bool | None = Field(validation_alias=AliasChoices('distinct', 'DISTINCT'), serialization_alias='DISTINCT', default=None)
+    requires: tuple['DescriptorConstraintInput', ...] | None = Field(default=None, description="Filter to the annotations satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL: `@mikro/annotation_kind` is the kind (named as the descriptor names it, e.g. PATH) and the axis counts are those of the collection's drawing space. A key annotations do not declare is refused rather than ignored")
     collection: ID | None = Field(default=None, description='Filter by the collection this annotation belongs to')
     coordinate_system: ID | None = Field(validation_alias=AliasChoices('coordinate_system', 'coordinateSystem'), serialization_alias='coordinateSystem', default=None, description="Filter by the coordinate system this annotation is drawn in (its collection's own)")
     dataset: ID | None = Field(default=None, description="Filter by the dataset the annotations are drawn over, following the collection's derivation edge")
     search: str | None = Field(default=None, description='Search by name (case-insensitive substring)')
     pinned_to: tuple['CoordinateInput', ...] | None = Field(validation_alias=AliasChoices('pinned_to', 'pinnedTo'), serialization_alias='pinnedTo', default=None, description="Filter to annotations pinned to every one of these coordinates, e.g. [{name: 't', value: 3}]. GIN-backed containment on the stored coordinate dict; an annotation that spans a coordinate does not match a pin on it")
-    intersects: 'BoundingBoxInput | None' = Field(default=None, description='Filter to annotations whose intrinsic bounding box overlaps this box (GiST-backed). Only meaningful within one frame: pass `collection` or `coordinateSystem` alongside. A box of lower rank is zero-filled on the missing coordinates')
+    intersects: 'BoundingBoxInput | None' = Field(default=None, description='Filter to annotations whose intrinsic bounding box overlaps this box (GiST-backed). Only meaningful within one frame: pass `collection` or `coordinateSystem` alongside, and bound every axis of that frame -- a box of lower rank is refused rather than zero-filled on the missing coordinates')
     contains_point: tuple[float, ...] | None = Field(validation_alias=AliasChoices('contains_point', 'containsPoint'), serialization_alias='containsPoint', default=None, description='Filter to annotations whose intrinsic bounding box contains this point (GiST-backed). Only meaningful within one frame: pass `collection` or `coordinateSystem` alongside')
     model_config = ConfigDict(frozen=True, extra='forbid')
 
@@ -1311,10 +1421,11 @@ class ArrayDatasetFilter(BaseModel):
     or_: 'ArrayDatasetFilter | None' = Field(validation_alias=AliasChoices('or_', 'OR'), serialization_alias='OR', default=None)
     not_: 'ArrayDatasetFilter | None' = Field(validation_alias=AliasChoices('not_', 'NOT'), serialization_alias='NOT', default=None)
     distinct: bool | None = Field(validation_alias=AliasChoices('distinct', 'DISTINCT'), serialization_alias='DISTINCT', default=None)
+    requires: tuple['DescriptorConstraintInput', ...] | None = Field(default=None, description="Filter to the datasets satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored at creation, and `@mikro/value_kind` from the dataset's primary derivation. A key datasets do not declare is refused rather than ignored")
     folder: ID | None = Field(default=None, description='Filter by the folder this dataset is filed in')
     folders: tuple[ID, ...] | None = Field(default=None, description='Filter by a list of folder IDs')
-    spec: tuple[ArrayDatasetSpec, ...] | None = Field(default=None, description='Filter to datasets satisfying every one of these specs, e.g. [VOLUME, TIMESERIES] for 3D timelapses. Materialized from the axes of the intrinsic coordinate system at creation. A dataset carries one spatial spec (by how many SPACE axes it has) plus a modifier per acquisition axis present, so two spatial specs together match nothing')
-    has_axis_types: tuple[AxisType, ...] | None = Field(validation_alias=AliasChoices('has_axis_types', 'hasAxisTypes'), serialization_alias='hasAxisTypes', default=None, description='Filter to datasets whose intrinsic coordinate system carries every one of these axis types, e.g. [TIME, CHANNEL]. The raw form of `spec`, for the types no spec names: COORDINATE, DISPLACEMENT, INDEX')
+    spec: tuple[ArrayDatasetSpec, ...] | None = Field(default=None, description='Filter to datasets satisfying every one of these specs, e.g. [VOLUME, TIMESERIES] for 3D timelapses. Materialized at creation from the axes of the intrinsic coordinate system and the level-0 shape; an axis counts only when it has more than one position, so a stack of one plane is an IMAGE and a single frame is not a TIMESERIES (use `hasAxisTypes` to ask whether an axis is declared at all). A dataset carries one spatial spec (by how many such SPACE axes it has) plus a modifier per non-spatial axis type it has more than one position along (TIMESERIES, MULTICHANNEL, SPECTRAL, FLIM, DISPLACEMENT_FIELD, COORDINATE_FIELD, INDEXED), and TRACE when it is a curve along one measured axis -- `[TRACE]` finds what a chart can draw whole. Two spatial specs together match nothing')
+    has_axis_types: tuple[AxisType, ...] | None = Field(validation_alias=AliasChoices('has_axis_types', 'hasAxisTypes'), serialization_alias='hasAxisTypes', default=None, description='Filter to datasets whose intrinsic coordinate system carries every one of these axis types, e.g. [TIME, CHANNEL]. The raw form of `spec`: it asks whether an axis is declared at all, where a spec counts it only when it has more than one position')
     multiscale: bool | None = Field(default=None, description='Filter by whether the dataset carries a resolution pyramid: true for the multiscale ones, false for those with a single level')
     has_physical_space: bool | None = Field(validation_alias=AliasChoices('has_physical_space', 'hasPhysicalSpace'), serialization_alias='hasPhysicalSpace', default=None, description="Filter by whether the dataset has an edge into a space with real units. False finds the data that is still only pixels, with no pixel size or stage pose recorded. Unrelated to a phasor histogram's `calibrated`, which is about reference correction")
     scene: ID | None = Field(default=None, description="Filter to datasets rendered in this scene, through their lenses' layers. What is actually staged there -- for what merely could be, use `placeableIn`")
@@ -1323,7 +1434,14 @@ class ArrayDatasetFilter(BaseModel):
     not_derived: bool | None = Field(validation_alias=AliasChoices('not_derived', 'notDerived'), serialization_alias='notDerived', default=None, description="Filter for datasets that were acquired rather than computed: true for the roots, those with no derivation edge into another dataset's space")
     source_file: ID | None = Field(validation_alias=AliasChoices('source_file', 'sourceFile'), serialization_alias='sourceFile', default=None, description='Filter to the datasets converted from this file -- every series of it, unless `sourceSeriesIdentifier` narrows that. A file link, not a derivation: this asks which bytes the arrays were read out of, where `derivedFrom` asks which data they were computed from. A dataset can honestly answer both')
     source_series_identifier: str | None = Field(validation_alias=AliasChoices('source_series_identifier', 'sourceSeriesIdentifier'), serialization_alias='sourceSeriesIdentifier', default=None, description='Filter to the datasets converted from one series of a file. Pair it with `sourceFile`; alone it matches that series identifier in any file')
-    has_default_scene: bool | None = Field(validation_alias=AliasChoices('has_default_scene', 'hasDefaultScene'), serialization_alias='hasDefaultScene', default=None, description='Filter by whether the dataset nominates a scene to open. False finds the ones with no thumbnail -- what `backfill_default_scenes` could not seed, and the work remaining before that command can be deleted')
+    has_default_scene: bool | None = Field(validation_alias=AliasChoices('has_default_scene', 'hasDefaultScene'), serialization_alias='hasDefaultScene', default=None, description='Filter by whether the dataset nominates a scene to open (through its whole lens). False finds the ones with no thumbnail')
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class AutoVisualizeInput(BaseModel):
+    """Show a coordinate system, or one lens, without choosing how. A space with exactly one metric, unit-carrying axis becomes a chart; any other space with a time or space axis becomes a scene. Over a `coordinateSystem`, either is bootstrapped from what already resides in the space; over a `lens`, it shows that lens' selection and nothing else of its container, the choice read off the space the selection lives in. Both use that kind's default policy and register nothing into any space. Provide exactly one of the two. For a say in the kind or the policy, use `createChartFromCoordinateSystem`, `createSceneFromCoordinateSystem` or `createSceneFromLens`"""
+    coordinate_system: ID | None = Field(validation_alias=AliasChoices('coordinate_system', 'coordinateSystem'), serialization_alias='coordinateSystem', default=None)
+    lens: ID | None = None
+    name: str | None = None
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class AxisAnchorInput(BaseModel):
@@ -1338,12 +1456,6 @@ class AxisInput(AxisInputTrait, BaseModel):
     type: AxisType
     long_name: str | None = Field(validation_alias=AliasChoices('long_name', 'longName'), serialization_alias='longName', default=None)
     description: str | None = None
-    model_config = ConfigDict(frozen=True, extra='forbid')
-
-class AxisPositionInput(BaseModel):
-    """One position along one named axis: which slice of a matrix a colouring reads. The same pair a coordinate anchor carries -- it *names* a position rather than enumerating them, which is what lets a matrix with 19 059 features be selected from at all"""
-    axis: str
-    value: int
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class BeamStateInput(BaseModel):
@@ -1374,6 +1486,37 @@ class ChangeFolderInput(BaseModel):
     name: str = Field(description='The name of the folder')
     parent: ID | None = Field(default=None, description='The ID of the parent folder to nest this folder under')
     id: ID = Field(description='The ID of the folder to change')
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class ChartFilter(BaseModel):
+    """No documentation"""
+    ids: tuple[ID, ...] | None = Field(default=None, description='Filter by list of IDs')
+    id: ID | None = None
+    name: 'StrFilterLookup | None' = None
+    and_: 'ChartFilter | None' = Field(validation_alias=AliasChoices('and_', 'AND'), serialization_alias='AND', default=None)
+    or_: 'ChartFilter | None' = Field(validation_alias=AliasChoices('or_', 'OR'), serialization_alias='OR', default=None)
+    not_: 'ChartFilter | None' = Field(validation_alias=AliasChoices('not_', 'NOT'), serialization_alias='NOT', default=None)
+    distinct: bool | None = Field(validation_alias=AliasChoices('distinct', 'DISTINCT'), serialization_alias='DISTINCT', default=None)
+    search: str | None = Field(default=None, description='Search by name (case-insensitive substring)')
+    coordinate_system: ID | None = Field(validation_alias=AliasChoices('coordinate_system', 'coordinateSystem'), serialization_alias='coordinateSystem', default=None, description='Filter to the charts laid out over this coordinate system')
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class ChartLayerFilter(BaseModel):
+    """No documentation"""
+    ids: tuple[ID, ...] | None = Field(default=None, description='Filter by list of IDs')
+    id: ID | None = None
+    kind: ChartLayerKindChoices | None = None
+    and_: 'ChartLayerFilter | None' = Field(validation_alias=AliasChoices('and_', 'AND'), serialization_alias='AND', default=None)
+    or_: 'ChartLayerFilter | None' = Field(validation_alias=AliasChoices('or_', 'OR'), serialization_alias='OR', default=None)
+    not_: 'ChartLayerFilter | None' = Field(validation_alias=AliasChoices('not_', 'NOT'), serialization_alias='NOT', default=None)
+    distinct: bool | None = Field(validation_alias=AliasChoices('distinct', 'DISTINCT'), serialization_alias='DISTINCT', default=None)
+    chart: ID | None = Field(default=None, description='Filter by the chart this layer is drawn in')
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class ChartPolicyInput(BaseModel):
+    """How a chart is drawn from what is already placed in a space"""
+    nchildren: Annotated[int | None, GraphQLDefault('32')] = None
+    'Default: 32'
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class ClearCoordinateSystemInput(BaseModel):
@@ -1452,6 +1595,16 @@ class CreateAnimationInput(BaseModel):
     waypoints: tuple[AnimationWaypointInput, ...] = Field(description='The poses the viewer pans through, in tour order')
     model_config = ConfigDict(frozen=True, extra='forbid')
 
+class CreateAnnotationChartLayerInput(BaseModel):
+    """Input for drawing an annotation collection's marks in a chart. Name an existing collection that is registered into the chart's world, or omit it to have a new drawing surface made for the chart: a collection whose space has the chart's axis and a VALUE axis, registered into the chart's world along the chart's axis. Marks are then drawn into it with `createAnnotation(collection:)`, at a position along the axis and a height along `value`"""
+    chart: ID
+    lens: ID | None = None
+    name: str | None = None
+    visible: bool | None = None
+    order: int | None = None
+    opacity: float | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
 class CreateAnnotationCollectionInput(BaseModel):
     """Input for creating an annotation collection. The collection gets a coordinate system of its own, and an edge relates it to the space the shapes are drawn over"""
     name: str
@@ -1477,6 +1630,13 @@ class CreateAnnotationInput(BaseModel):
     filled: bool | None = None
     model_config = ConfigDict(frozen=True, extra='forbid')
 
+class CreateAnnotationLensInput(BaseModel):
+    """Input for the lens making a selection over an annotation collection, by windows in its drawing space"""
+    annotation_collection: ID | None = Field(validation_alias=AliasChoices('annotation_collection', 'annotationCollection'), serialization_alias='annotationCollection', default=None, description='The annotation collection to select over. Exactly one of this and `lens`')
+    lens: ID | None = Field(default=None, description="A lens over the annotation collection to select within, in place of the container: the windows then intersect with its own, and the result is the annotation collection's lens for what that keeps")
+    windows: tuple['WindowInput', ...] | None = Field(default=None, description="Windows, one per axis to restrict, each keeping the positions whose value lies between its min and its max (an omitted side is open). Omit for everything: the annotation collection's whole lens, or the lens cut from")
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
 class CreateAnnotationsInput(BaseModel):
     """Input for drawing many annotations in one call. Provide exactly one of `collection` or `scene` (same semantics as createAnnotation); the transform chain and version resolve once for the whole batch"""
     collection: ID | None = None
@@ -1494,6 +1654,22 @@ class CreateArrayDatasetInput(CreateADatasetTrait, BaseModel):
     anchors: tuple[CoordinateAnchorInput, ...] | None = None
     derived_from: tuple['DerivedFromInput', ...] | None = Field(validation_alias=AliasChoices('derived_from', 'derivedFrom'), serialization_alias='derivedFrom', default=None)
     source_files: tuple['SourceFileInput', ...] | None = Field(validation_alias=AliasChoices('source_files', 'sourceFiles'), serialization_alias='sourceFiles', default=None)
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class CreateChartFromCoordinateSystemInput(BaseModel):
+    """Bootstrap a chart over an existing coordinate system, drawing what is already laid along its axis: each array placed in it that is a trace, each table that is a series, each annotation collection. Authors no edges -- what places each layer is the registration already in the graph -- and leaves out anything placed in the space that no layer kind reads. Rerunning makes another chart over the same space"""
+    coordinate_system: ID = Field(validation_alias=AliasChoices('coordinate_system', 'coordinateSystem'), serialization_alias='coordinateSystem')
+    name: str | None = None
+    policy: Annotated[ChartPolicyInput | None, GraphQLDefault("{'nchildren': 32}")] = None
+    "Default: {'nchildren': 32}"
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class CreateChartInput(BaseModel):
+    """Input type for creating a chart: a composition of data laid out along one metric axis. The chart is created over a world -- an existing coordinate system adopted as it is, or one created from a single axis -- and starts with no layers"""
+    name: str
+    description: str | None = None
+    coordinate_system: ID | None = Field(validation_alias=AliasChoices('coordinate_system', 'coordinateSystem'), serialization_alias='coordinateSystem', default=None)
+    axis: 'PhysicalAxisInput | None' = None
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreateCoordinateSystemInput(BaseModel):
@@ -1515,9 +1691,6 @@ class CreateIntensityLayerInput(BaseModel):
     """Create a single-channel intensity layer rendered through a colormap (e.g. a fluorescence channel)"""
     lens: ID
     scene: ID
-    intensity_axis: str | None = Field(validation_alias=AliasChoices('intensity_axis', 'intensityAxis'), serialization_alias='intensityAxis', default=None)
-    intensity_index: Annotated[int | None, GraphQLDefault('0')] = Field(validation_alias=AliasChoices('intensity_index', 'intensityIndex'), serialization_alias='intensityIndex', default=None)
-    'Default: 0'
     colormap: ColorMap | None = None
     color: tuple[int, ...] | None = None
     clim_min: float | None = Field(validation_alias=AliasChoices('clim_min', 'climMin'), serialization_alias='climMin', default=None)
@@ -1540,7 +1713,7 @@ class CreateLabelLayerInput(BaseModel):
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreateLayerInput(BaseModel):
-    """Input type for creating an image from an array-like object"""
+    """Input for creating an image layer: an array lens drawn through a composable render graph"""
     lens: ID
     scene: ID
     blending: Blending | None = None
@@ -1551,14 +1724,18 @@ class CreateLayerInput(BaseModel):
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreateLensInput(BaseModel):
-    """Input type for creating an image from an array-like object"""
-    dataset: ID
-    slices: tuple['SliceInput', ...]
+    """Input for the lens making a selection over an array dataset -- or within one of its lenses -- by slices"""
+    dataset: ID | None = Field(default=None, description='The array dataset to select over. Exactly one of this and `lens`')
+    lens: ID | None = Field(default=None, description="An array lens to cut from, in place of `dataset`: a crop of a crop. The slices are stated in this lens' own index space and composed through it; the result is the dataset's lens for the voxels that keeps")
+    slices: tuple['SliceInput', ...] | None = Field(default=None, description="Slices selecting a window of the dataset (or of the lens), one per axis to restrict. Omit, or pass an empty list, for everything: the dataset's whole lens, or the lens cut from. The same selection, however spelled, is the same lens")
+    box: 'LensBoxInput | None' = Field(default=None, description='In place of `slices`: a box in any coordinate system the dataset reaches, cut to the voxels whose cells it meets. With `dataset` only: a box names its own frame, it is not relative to a crop')
+    annotation: ID | None = Field(default=None, description='In place of `slices`: an annotation, cut to the voxels under its stored box (crop to the ROI). With `dataset`, of the whole dataset; with `lens`, what that lens selects under the box. The cut is recorded: the annotation lists the lens as one of its `derivedLenses`')
+    name: str | None = Field(default=None, description='What to call this selection. Applied when the lens has no name yet; a lens that already makes this selection and is named keeps its name: finding a selection is not a request to rename it, `updateLens` is')
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreateMeshCollectionInput(BaseModel):
-    """Input for registering an immutable, versioned mesh collection. The collection gets a coordinate system of its own, and an edge relates it to the space the meshes were extracted from"""
-    version: str
+    """Input for registering an immutable mesh collection. The collection gets a coordinate system of its own, and an edge relates it to the space the meshes were extracted from"""
+    name: str | None = None
     store: FabriksLike
     axes: tuple[AxisInput, ...]
     folder: ID | None = None
@@ -1570,7 +1747,7 @@ class CreateMeshCollectionInput(BaseModel):
 class CreateMeshLayerInput(BaseModel):
     """Create a layer that renders a mesh collection (surface reconstructions / isosurfaces) in a scene. The collection's own coordinate system is the layer's space, so it must already have a path to the scene's world"""
     scene: ID
-    mesh_collection: ID = Field(validation_alias=AliasChoices('mesh_collection', 'meshCollection'), serialization_alias='meshCollection')
+    lens: ID
     material_color: tuple[int, ...] | None = Field(validation_alias=AliasChoices('material_color', 'materialColor'), serialization_alias='materialColor', default=None)
     wireframe: bool | None = None
     shading: MeshShading | None = None
@@ -1585,9 +1762,16 @@ class CreateMeshLayerInput(BaseModel):
     order: int | None = None
     model_config = ConfigDict(frozen=True, extra='forbid')
 
+class CreateMeshLensInput(BaseModel):
+    """Input for the lens making a selection over a mesh collection, by windows in its own space"""
+    mesh_collection: ID | None = Field(validation_alias=AliasChoices('mesh_collection', 'meshCollection'), serialization_alias='meshCollection', default=None, description='The mesh collection to select over. Exactly one of this and `lens`')
+    lens: ID | None = Field(default=None, description="A lens over the mesh collection to select within, in place of the container: the windows then intersect with its own, and the result is the mesh collection's lens for what that keeps")
+    windows: tuple['WindowInput', ...] | None = Field(default=None, description="Windows, one per axis to restrict, each keeping the positions whose value lies between its min and its max (an omitted side is open). Omit for everything: the mesh collection's whole lens, or the lens cut from")
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
 class CreateNetworkCollectionInput(BaseModel):
-    """Input for registering an immutable, versioned network collection. The collection gets a coordinate system of its own, and an edge relates it to the space the network was traced in"""
-    version: str
+    """Input for registering an immutable network collection. The collection gets a coordinate system of its own, and an edge relates it to the space the network was traced in"""
+    name: str | None = None
     store: KonnektionLike
     axes: tuple[AxisInput, ...]
     folder: ID | None = None
@@ -1599,7 +1783,7 @@ class CreateNetworkCollectionInput(BaseModel):
 class CreateNetworkLayerInput(BaseModel):
     """Input for drawing a network collection -- a traced arbor, a vessel tree, a connectome -- in a scene. Its segments are drawn as camera-facing quads rather than GL lines, which is what makes a width in scene units meaningful at all"""
     scene: ID
-    network_collection: ID = Field(validation_alias=AliasChoices('network_collection', 'networkCollection'), serialization_alias='networkCollection')
+    lens: ID
     material_color: tuple[int, ...] | None = Field(validation_alias=AliasChoices('material_color', 'materialColor'), serialization_alias='materialColor', default=None)
     line_width: float | None = Field(validation_alias=AliasChoices('line_width', 'lineWidth'), serialization_alias='lineWidth', default=None)
     node_size_column: str | None = Field(validation_alias=AliasChoices('node_size_column', 'nodeSizeColumn'), serialization_alias='nodeSizeColumn', default=None)
@@ -1615,6 +1799,13 @@ class CreateNetworkLayerInput(BaseModel):
     opacity: float | None = None
     visible: bool | None = None
     order: int | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class CreateNetworkLensInput(BaseModel):
+    """Input for the lens making a selection over a network collection, by windows in its own space"""
+    network_collection: ID | None = Field(validation_alias=AliasChoices('network_collection', 'networkCollection'), serialization_alias='networkCollection', default=None, description='The network collection to select over. Exactly one of this and `lens`')
+    lens: ID | None = Field(default=None, description="A lens over the network collection to select within, in place of the container: the windows then intersect with its own, and the result is the network collection's lens for what that keeps")
+    windows: tuple['WindowInput', ...] | None = Field(default=None, description="Windows, one per axis to restrict, each keeping the positions whose value lies between its min and its max (an omitted side is open). Omit for everything: the network collection's whole lens, or the lens cut from")
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreatePhasorCalibrationInput(BaseModel):
@@ -1650,9 +1841,6 @@ class CreatePhasorLayerInput(BaseModel):
     lens: ID
     scene: ID
     phasor_axis: str | None = Field(validation_alias=AliasChoices('phasor_axis', 'phasorAxis'), serialization_alias='phasorAxis', default=None)
-    intensity_axis: str | None = Field(validation_alias=AliasChoices('intensity_axis', 'intensityAxis'), serialization_alias='intensityAxis', default=None)
-    intensity_index: Annotated[int | None, GraphQLDefault('0')] = Field(validation_alias=AliasChoices('intensity_index', 'intensityIndex'), serialization_alias='intensityIndex', default=None)
-    'Default: 0'
     harmonic: int | None = None
     transfer: 'PhasorTransferInput | None' = None
     blending: Blending | None = None
@@ -1664,13 +1852,12 @@ class CreatePhasorLayerInput(BaseModel):
 class CreatePointLayerInput(BaseModel):
     """Create a layer that renders a point cloud (e.g. SMLM localisations, centroids) from a table dataset"""
     scene: ID
-    table_dataset: ID = Field(validation_alias=AliasChoices('table_dataset', 'tableDataset'), serialization_alias='tableDataset')
+    lens: ID
     color_bys: tuple['LabelColorByInput', ...] | None = Field(validation_alias=AliasChoices('color_bys', 'colorBys'), serialization_alias='colorBys', default=None)
     active_color_by: int | None = Field(validation_alias=AliasChoices('active_color_by', 'activeColorBy'), serialization_alias='activeColorBy', default=None)
     filter_bys: tuple['LabelFilterByInput', ...] | None = Field(validation_alias=AliasChoices('filter_bys', 'filterBys'), serialization_alias='filterBys', default=None)
     active_filter_bys: tuple[int, ...] | None = Field(validation_alias=AliasChoices('active_filter_bys', 'activeFilterBys'), serialization_alias='activeFilterBys', default=None)
     size_column: str | None = Field(validation_alias=AliasChoices('size_column', 'sizeColumn'), serialization_alias='sizeColumn', default=None)
-    color_column: str | None = Field(validation_alias=AliasChoices('color_column', 'colorColumn'), serialization_alias='colorColumn', default=None)
     point_size: float | None = Field(validation_alias=AliasChoices('point_size', 'pointSize'), serialization_alias='pointSize', default=None)
     colormap: ColorMap | None = None
     blending: Blending | None = None
@@ -1680,16 +1867,12 @@ class CreatePointLayerInput(BaseModel):
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreateRgbLayerInput(BaseModel):
-    """Create a layer that composites three channels of a lens as red, green and blue"""
+    """Create a layer that composites three single-channel lenses, each a crop of `lens`, as the red, green and blue components of one picture"""
     lens: ID
     scene: ID
-    intensity_axis: str | None = Field(validation_alias=AliasChoices('intensity_axis', 'intensityAxis'), serialization_alias='intensityAxis', default=None)
-    red_index: Annotated[int | None, GraphQLDefault('0')] = Field(validation_alias=AliasChoices('red_index', 'redIndex'), serialization_alias='redIndex', default=None)
-    'Default: 0'
-    green_index: Annotated[int | None, GraphQLDefault('1')] = Field(validation_alias=AliasChoices('green_index', 'greenIndex'), serialization_alias='greenIndex', default=None)
-    'Default: 1'
-    blue_index: Annotated[int | None, GraphQLDefault('2')] = Field(validation_alias=AliasChoices('blue_index', 'blueIndex'), serialization_alias='blueIndex', default=None)
-    'Default: 2'
+    red_lens: ID = Field(validation_alias=AliasChoices('red_lens', 'redLens'), serialization_alias='redLens')
+    green_lens: ID = Field(validation_alias=AliasChoices('green_lens', 'greenLens'), serialization_alias='greenLens')
+    blue_lens: ID = Field(validation_alias=AliasChoices('blue_lens', 'blueLens'), serialization_alias='blueLens')
     clim_min: float | None = Field(validation_alias=AliasChoices('clim_min', 'climMin'), serialization_alias='climMin', default=None)
     clim_max: float | None = Field(validation_alias=AliasChoices('clim_max', 'climMax'), serialization_alias='climMax', default=None)
     white_balance: tuple[float, ...] | None = Field(validation_alias=AliasChoices('white_balance', 'whiteBalance'), serialization_alias='whiteBalance', default=None)
@@ -1707,6 +1890,16 @@ class CreateSceneFromCoordinateSystemInput(BaseModel):
     default_for: tuple[ID, ...] | None = Field(validation_alias=AliasChoices('default_for', 'defaultFor'), serialization_alias='defaultFor', default=None)
     model_config = ConfigDict(frozen=True, extra='forbid')
 
+class CreateSceneFromLensInput(BaseModel):
+    """Bootstrap a renderable scene showing one lens: its selection and nothing else of its dataset, one layer per channel exactly as createSceneFromCoordinateSystem draws a whole dataset. This is how a crop is staged -- staging a sliced lens' *space* draws its whole dataset again, because which lens the layers read is not a fact of the space"""
+    lens: ID
+    name: str | None = None
+    kind: BootstrapLayerKind | None = None
+    world: ID | None = None
+    nominate: Annotated[bool | None, GraphQLDefault('True')] = None
+    'Default: True'
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
 class CreateSceneInput(BaseModel):
     """Input type for creating a scene over a world coordinate system: an adopted existing system (a shared space, a dataset's intrinsic grid, a physical space), or one created for it"""
     name: str
@@ -1717,6 +1910,21 @@ class CreateSceneInput(BaseModel):
     epoch: datetime | None = None
     coordinate_system: ID | None = Field(validation_alias=AliasChoices('coordinate_system', 'coordinateSystem'), serialization_alias='coordinateSystem', default=None)
     default_for: tuple[ID, ...] | None = Field(validation_alias=AliasChoices('default_for', 'defaultFor'), serialization_alias='defaultFor', default=None)
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class CreateSeriesChartLayerInput(BaseModel):
+    """Input for drawing a table as a series in a chart: one numeric column read as the value against the coordinate column the graph lays along the chart's axis. The coordinate column is not named here -- it is whichever of the table's coordinate columns its registration maps onto the chart's axis. The table must already be registered into the chart's world: this writes no edge"""
+    name: str | None = None
+    visible: bool | None = None
+    order: int | None = None
+    opacity: float | None = None
+    color: tuple[float, ...] | None = None
+    mark: ChartMark | None = None
+    line_width: float | None = Field(validation_alias=AliasChoices('line_width', 'lineWidth'), serialization_alias='lineWidth', default=None)
+    marker_size: float | None = Field(validation_alias=AliasChoices('marker_size', 'markerSize'), serialization_alias='markerSize', default=None)
+    chart: ID
+    lens: ID
+    value_column: str | None = Field(validation_alias=AliasChoices('value_column', 'valueColumn'), serialization_alias='valueColumn', default=None)
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreateSparseDatasetInput(CreateSparseDatasetTrait, BaseModel):
@@ -1732,6 +1940,13 @@ class CreateSparseDatasetInput(CreateSparseDatasetTrait, BaseModel):
     anchors: tuple[CoordinateAnchorInput, ...] | None = None
     model_config = ConfigDict(frozen=True, extra='forbid')
 
+class CreateSparseLensInput(BaseModel):
+    """Input for the lens making a selection over a sparse dataset, by windows on its axes"""
+    sparse_dataset: ID | None = Field(validation_alias=AliasChoices('sparse_dataset', 'sparseDataset'), serialization_alias='sparseDataset', default=None, description='The sparse dataset to select over. Exactly one of this and `lens`')
+    lens: ID | None = Field(default=None, description="A lens over the sparse dataset to select within, in place of the container: the windows then intersect with its own, and the result is the sparse dataset's lens for what that keeps")
+    windows: tuple['WindowInput', ...] | None = Field(default=None, description="Windows, one per axis to restrict, each keeping the positions whose value lies between its min and its max (an omitted side is open). Omit for everything: the sparse dataset's whole lens, or the lens cut from")
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
 class CreateTableDatasetInput(CreateTableDatasetTrait, BaseModel):
     """Input for creating a table dataset from a Parquet store. A column is declared ONCE, in `columns`: a non-null `axisType` makes it an axis of the coordinate system the table owns, and the axis-typed columns, in list (= file) order, are the space -- there is no separate axes list, because a table's axes are named columns and every consumer addresses them by name. Declare no axis-typed columns for a pure measurement table (its rows enumerate objects, its space is a synthetic `object` axis, and its lineage edge is UNMAPPABLE)"""
     name: str
@@ -1745,10 +1960,31 @@ class CreateTableDatasetInput(CreateTableDatasetTrait, BaseModel):
     anchors: tuple[CoordinateAnchorInput, ...] | None = None
     model_config = ConfigDict(frozen=True, extra='forbid')
 
+class CreateTableLensInput(BaseModel):
+    """Input for the lens making a selection over a table dataset, by windows on its coordinate columns"""
+    table_dataset: ID | None = Field(validation_alias=AliasChoices('table_dataset', 'tableDataset'), serialization_alias='tableDataset', default=None, description='The table dataset to select over. Exactly one of this and `lens`')
+    lens: ID | None = Field(default=None, description="A lens over the table dataset to select within, in place of the container: the windows then intersect with its own, and the result is the table dataset's lens for what that keeps")
+    windows: tuple['WindowInput', ...] | None = Field(default=None, description="Windows, one per axis to restrict, each keeping the positions whose value lies between its min and its max (an omitted side is open). Omit for everything: the table dataset's whole lens, or the lens cut from")
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class CreateTraceChartLayerInput(BaseModel):
+    """Input for drawing an array as a trace in a chart. The lens must leave one metric axis free -- the one the graph lays along the chart's axis -- and may leave one CHANNEL or INDEX axis free beside it, drawn as one line per position; every other axis must be sliced to a single position. The lens' data must already be registered into the chart's world: this writes no edge"""
+    name: str | None = None
+    visible: bool | None = None
+    order: int | None = None
+    opacity: float | None = None
+    color: tuple[float, ...] | None = None
+    mark: ChartMark | None = None
+    line_width: float | None = Field(validation_alias=AliasChoices('line_width', 'lineWidth'), serialization_alias='lineWidth', default=None)
+    marker_size: float | None = Field(validation_alias=AliasChoices('marker_size', 'markerSize'), serialization_alias='markerSize', default=None)
+    chart: ID
+    lens: ID
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
 class CreateTrackLayerInput(BaseModel):
     """Create a layer that renders trajectories (e.g. particle/cell tracks) from a table dataset, grouped by its TRACK_ID column"""
     scene: ID
-    table_dataset: ID = Field(validation_alias=AliasChoices('table_dataset', 'tableDataset'), serialization_alias='tableDataset')
+    lens: ID
     color_by_column: str | None = Field(validation_alias=AliasChoices('color_by_column', 'colorByColumn'), serialization_alias='colorByColumn', default=None)
     line_width: float | None = Field(validation_alias=AliasChoices('line_width', 'lineWidth'), serialization_alias='lineWidth', default=None)
     colormap: ColorMap | None = None
@@ -1774,9 +2010,6 @@ class CreateVolumeLayerInput(BaseModel):
     lens: ID
     scene: ID
     mode: ProjectionMode | None = None
-    intensity_axis: str | None = Field(validation_alias=AliasChoices('intensity_axis', 'intensityAxis'), serialization_alias='intensityAxis', default=None)
-    intensity_index: Annotated[int | None, GraphQLDefault('0')] = Field(validation_alias=AliasChoices('intensity_index', 'intensityIndex'), serialization_alias='intensityIndex', default=None)
-    'Default: 0'
     colormap: ColorMap | None = None
     color: tuple[int, ...] | None = None
     clim_min: float | None = Field(validation_alias=AliasChoices('clim_min', 'climMin'), serialization_alias='climMin', default=None)
@@ -1803,9 +2036,24 @@ class DeleteAnnotationInput(BaseModel):
     id: ID
     model_config = ConfigDict(frozen=True, extra='forbid')
 
+class DeleteChartInput(BaseModel):
+    """Input for deleting a chart by ID. Deletes its layers and nothing they drew: the data, and the chart's world, are untouched"""
+    id: ID = Field(description='The ID of the chart to delete')
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class DeleteChartLayerInput(BaseModel):
+    """Input for deleting a chart layer by ID. Deletes the layer and nothing it drew"""
+    id: ID = Field(description='The ID of the chart layer to delete')
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
 class DeleteCoordinateSystemInput(BaseModel):
     """Input for deleting a shared coordinate system by ID"""
     id: ID = Field(description='The ID of the shared coordinate system to delete')
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class DeleteLensInput(BaseModel):
+    """Input for deleting a lens by ID"""
+    id: ID = Field(description='The ID of the lens to delete')
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class DeleteMeshCollectionInput(BaseModel):
@@ -1852,7 +2100,14 @@ class DeleteTransformationInput(BaseModel):
     """Input for deleting a transformation by ID"""
     id: ID = Field(description='The ID of the transformation to delete')
     model_config = ConfigDict(frozen=True, extra='forbid')
-DerivedFromInput = Annotated[AnnotationCollectionDerivedFromInput | CoordinateSystemDerivedFromInput | DatasetDerivedFromInput | LensDerivedFromInput | MeshCollectionDerivedFromInput | TableDatasetDerivedFromInput, Field(discriminator='kind')]
+DerivedFromInput = Annotated[AnnotationCollectionDerivedFromInput | AnnotationDerivedFromInput | CoordinateSystemDerivedFromInput | DatasetDerivedFromInput | LensDerivedFromInput | MeshCollectionDerivedFromInput | TableDatasetDerivedFromInput, Field(discriminator='kind')]
+
+class DescriptorConstraintInput(BaseModel):
+    """One constraint on an object's descriptors, in the shape a rekuest port states its `requires` in -- so a picker hands a port's constraints on unchanged. `key` is one of the keys the structure declares (e.g. `@mikro/n_space_axes`); a key it does not declare is refused."""
+    key: str = Field(description='The descriptor key, e.g. `@mikro/n_space_axes`')
+    operator: DescriptorOperator = Field(description="How the object's value is compared with `value`. MATCHES is equality, as EQUALS is")
+    value: Any | None = Field(default=None, description='The value compared against: a number for GTE and LTE, a list for IN and NOT_IN, true or false for EXISTS, the member looked for with CONTAINS')
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class DeviceStateInput(BaseModel):
     """One hardware device's recorded state: its identity in the setup plus its settings at this coordinate"""
@@ -1943,9 +2198,7 @@ class LabelFilterByInput(BaseModel):
     column: str | None = None
     join_path: Annotated[tuple[JoinStepInput, ...] | None, GraphQLDefault('[]')] = Field(validation_alias=AliasChoices('join_path', 'joinPath'), serialization_alias='joinPath', default=None)
     'Default: []'
-    dataset: ID | None = None
-    at: Annotated[tuple[AxisPositionInput, ...] | None, GraphQLDefault('[]')] = None
-    'Default: []'
+    lens: ID | None = None
     min: float | None = None
     max: float | None = None
     values: tuple[str, ...] | None = None
@@ -1961,8 +2214,6 @@ class LabelInput(BaseModel):
 
 class LabelRenderInput(BaseModel):
     """How a label layer's discrete object ids become color. OMITTED fields keep their current value on an update and take their default on a create; an explicit `null` CLEARS the ones whose null means something, which is what tells 'leave the colouring alone' apart from 'draw none of it'"""
-    intensity_axis: str | None = Field(validation_alias=AliasChoices('intensity_axis', 'intensityAxis'), serialization_alias='intensityAxis', default=None, description='The lens axis to index. Pass `null` to go back to reading the pixel value itself as the id (the common case for masks); omit to leave it alone')
-    intensity_index: int | None = Field(validation_alias=AliasChoices('intensity_index', 'intensityIndex'), serialization_alias='intensityIndex', default=None, description='The index along that axis to render (default 0)')
     seed: int | None = Field(default=None, description='The seed of the hash mapping an id to its color. Changing it repaints every object, which is how two touching objects that happened to hash alike are separated (default 0)')
     background: int | None = Field(default=None, description="The id drawn fully transparent -- the 'not an object' value (default 0)")
     opacity: float | None = Field(default=None, description='Opacity applied to the colored ids within the layer, from 0 to 1 (default 1.0)')
@@ -1992,11 +2243,10 @@ class LayerFilter(BaseModel):
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class LayerNodeInput(BaseModel):
-    """A node in a layer's internal render graph. A 'channel' node carries an intensity source and transfer function; a 'phasor' node reduces an axis to a phasor and colors the pixel by it; a 'blend' node composites its children; a 'projection' node projects theirs over z."""
+    """A node in a layer's internal render graph. A 'channel' node samples one single-channel lens through a transfer function; a 'phasor' node reduces an axis to a phasor and colors the pixel by it; a 'blend' node composites its children; a 'projection' node projects theirs over z."""
     kind: str
     label: str | None = None
-    intensity_axis: str | None = Field(validation_alias=AliasChoices('intensity_axis', 'intensityAxis'), serialization_alias='intensityAxis', default=None)
-    intensity_index: int | None = Field(validation_alias=AliasChoices('intensity_index', 'intensityIndex'), serialization_alias='intensityIndex', default=None)
+    lens: ID | None = None
     visible: bool | None = None
     transfer: 'TransferFunctionInput | None' = None
     blending: Blending | None = None
@@ -2010,6 +2260,52 @@ class LayerNodeInput(BaseModel):
 class LayerRenderGraphInput(BaseModel):
     """The composable render recipe inside a single layer, rooted at a blend node"""
     root: LayerNodeInput
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class LensBoxInput(BaseModel):
+    """A box in any coordinate system an array dataset reaches -- micrometres in a physical space, a sibling dataset's grid through a shared world -- as the selection of a lens: the voxels whose cells the box meets, once the box is composed into the dataset's pixel grid"""
+    coordinate_system: ID = Field(validation_alias=AliasChoices('coordinate_system', 'coordinateSystem'), serialization_alias='coordinateSystem', description="The coordinate system the windows are stated in. The dataset's pixel grid must reach it affinely, walking the transformation edges either way")
+    windows: tuple['WindowInput', ...] = Field(description="The box, one window per axis it bounds. A side left open runs to the array's edge, an axis of the grid the box says nothing about is kept whole, and a window may be a plane (min equal to max)")
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class LensFilter(BaseModel):
+    """No documentation"""
+    ids: tuple[ID, ...] | None = Field(default=None, description='Filter by list of IDs')
+    created_before: datetime | None = Field(validation_alias=AliasChoices('created_before', 'createdBefore'), serialization_alias='createdBefore', default=None, description='Filter for items created before this datetime')
+    created_after: datetime | None = Field(validation_alias=AliasChoices('created_after', 'createdAfter'), serialization_alias='createdAfter', default=None, description='Filter for items created after this datetime')
+    owner: ID | None = Field(default=None, description="Filter by the creator's subject ID")
+    created_through_task: str | None = Field(validation_alias=AliasChoices('created_through_task', 'createdThroughTask'), serialization_alias='createdThroughTask', default=None, description='Filter by the rekuest task id the item was created through')
+    created_through: ID | None = Field(validation_alias=AliasChoices('created_through', 'createdThrough'), serialization_alias='createdThrough', default=None, description='Filter by the database ID of the task the item was created through (the `createdThrough { id }` field)')
+    assigned_by: ID | None = Field(validation_alias=AliasChoices('assigned_by', 'assignedBy'), serialization_alias='assignedBy', default=None, description='Filter by the sub of the user that assigned the creating task')
+    created_through_by: ID | None = Field(validation_alias=AliasChoices('created_through_by', 'createdThroughBy'), serialization_alias='createdThroughBy', default=None, description='Filter by the database ID of the user that assigned the creating task (the `createdThroughBy { id }` field)')
+    id: ID | None = None
+    and_: 'LensFilter | None' = Field(validation_alias=AliasChoices('and_', 'AND'), serialization_alias='AND', default=None)
+    or_: 'LensFilter | None' = Field(validation_alias=AliasChoices('or_', 'OR'), serialization_alias='OR', default=None)
+    not_: 'LensFilter | None' = Field(validation_alias=AliasChoices('not_', 'NOT'), serialization_alias='NOT', default=None)
+    distinct: bool | None = Field(validation_alias=AliasChoices('distinct', 'DISTINCT'), serialization_alias='DISTINCT', default=None)
+    requires: tuple[DescriptorConstraintInput, ...] | None = Field(default=None, description='Filter to the lenses satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored when the lens was made. `@mikro/value_kind` is asked of array lenses only and `@mikro/n_annotations` of whole annotation lenses only (a windowed one counts by geometry and is left out). A key lenses do not declare is refused rather than ignored')
+    kind: LensKind | None = Field(default=None, description='Filter by the kind of container the lens selects over')
+    array_spec: tuple[ArrayDatasetSpec, ...] | None = Field(validation_alias=AliasChoices('array_spec', 'arraySpec'), serialization_alias='arraySpec', default=None, description="Filter to the array lenses whose selection satisfies every one of these specs, e.g. [IMAGE] for every plane, single-channel or not, or [PROFILE, TRACE] for what a chart draws as a trace. The spec is the selection's, not the dataset's: an axis counts only when the lens keeps more than one position along it, so one plane of a stack matches [IMAGE] and its dataset [VOLUME]")
+    table_spec: tuple[TableDatasetSpec, ...] | None = Field(validation_alias=AliasChoices('table_spec', 'tableSpec'), serialization_alias='tableSpec', default=None, description="Filter to the table lenses whose selection satisfies every one of these specs, e.g. [POINTS_2D, TRACKED]. The spec is the selection's: a coordinate column a window pins to one value (min == max) does not count, so one frame of a tracking table does not match [TIMED]")
+    sparse_spec: tuple[SparseDatasetSpec, ...] | None = Field(validation_alias=AliasChoices('sparse_spec', 'sparseSpec'), serialization_alias='sparseSpec', default=None, description='Filter to the sparse lenses whose selection satisfies every one of these specs, e.g. [SLICE] for the lenses a SPARSE colour or filter picker entry accepts. An axis a window pins to one position does not count')
+    dataset: ID | None = Field(default=None, description='Filter to the array lenses over this dataset')
+    table_dataset: ID | None = Field(validation_alias=AliasChoices('table_dataset', 'tableDataset'), serialization_alias='tableDataset', default=None, description='Filter to the lenses over this table dataset')
+    sparse_dataset: ID | None = Field(validation_alias=AliasChoices('sparse_dataset', 'sparseDataset'), serialization_alias='sparseDataset', default=None, description='Filter to the lenses over this sparse dataset')
+    mesh_collection: ID | None = Field(validation_alias=AliasChoices('mesh_collection', 'meshCollection'), serialization_alias='meshCollection', default=None, description='Filter to the lenses over this mesh collection')
+    network_collection: ID | None = Field(validation_alias=AliasChoices('network_collection', 'networkCollection'), serialization_alias='networkCollection', default=None, description='Filter to the lenses over this network collection')
+    annotation_collection: ID | None = Field(validation_alias=AliasChoices('annotation_collection', 'annotationCollection'), serialization_alias='annotationCollection', default=None, description='Filter to the lenses over this annotation collection')
+    sliced: bool | None = Field(default=None, description='Filter by whether the lens cuts anything out of its container. True keeps the crops, sub-volumes and windows; false the whole lenses, one per container -- a list meant for people usually wants true')
+    search: str | None = Field(default=None, description="Search by the lens' own name or, since most lenses have none and are known by their container's, by its container's label: the name of a dataset, table, sparse dataset or annotation collection, the name or store key of a mesh or network collection (case-insensitive substring)")
+    placeable_in: 'LensPlaceableFilter | None' = Field(validation_alias=AliasChoices('placeable_in', 'placeableIn'), serialization_alias='placeableIn', default=None, description='Filter to lenses placeable into a coordinate system: those whose space reaches it across steps that compose into one affine map, walking the transformation edges. Takes a *space*, not a scene -- pass `scene.worldCoordinateSystem.id` to ask it of a scene. `derivedOnly` and `asLayer` narrow the answer for a particular picker; with neither, this is the whole set layer creation would accept')
+    overlaps_annotation: ID | None = Field(validation_alias=AliasChoices('overlaps_annotation', 'overlapsAnnotation'), serialization_alias='overlapsAnnotation', default=None, description='Filter to lenses whose extent overlaps this annotation, wherever the two are co-registered: lenses over the dataset it was drawn on, and lenses over any other dataset registered into a space its collection reaches. Both extents are composed per request from the shapes and the edges and compared in the nearest space they share, so this costs one coordinate-graph walk per such space rather than an index lookup. A lens the server cannot bound there -- placed only per index, or across a warp -- is not returned')
+    reachable_from: ID | None = Field(validation_alias=AliasChoices('reachable_from', 'reachableFrom'), serialization_alias='reachableFrom', default=None, description="Filter to the lenses co-registered with this annotation: lenses over the dataset it was drawn on, and lenses over any other dataset registered into a space its collection reaches, walking the transformation edges. The candidates `overlapsAnnotation` compares the shape against, without the comparison -- so a crop the shape lies outside of is still returned. What a picker offers once an annotation is chosen. The lenses over the annotation's own collection are always among them; an annotation whose collection has no edge out of its drawing space reaches no other")
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class LensPlaceableFilter(BaseModel):
+    """What a lens picker is asking for: a destination space, and optionally which sort of candidate. Structured rather than a bare space id because `derivedOnly` and `asLayer` are qualifications *of* the placeability question -- a lens is not derived or label-shaped in the abstract, it is those things on the way into a particular space"""
+    space: ID = Field(description='The space to be placed into. A *space*, not a scene: every scene over one world offers the same candidates, so a scene-shaped argument would ask for more than the answer depends on. Pass `scene.worldCoordinateSystem.id` to ask it of a scene')
+    derived_only: bool | None = Field(validation_alias=AliasChoices('derived_only', 'derivedOnly'), serialization_alias='derivedOnly', default=None, description="Keep only the lenses that *needed* a lineage tree to get here: the segmentations, deconvolutions and projections placed by an ancestor's registration. What the space registers directly is dropped, even when it is itself a derived dataset -- it does not need its lineage to be placeable. A narrowing of the candidate list and nothing more: every lens it keeps is one `createLayer` accepts, and every lens it drops is too")
+    as_layer: LayerKind | None = Field(validation_alias=AliasChoices('as_layer', 'asLayer'), serialization_alias='asLayer', default=None, description='Keep only the lenses that could source a layer of this kind, named as `LayerKind` names it. The six array kinds require the lens to be drawable at all -- an x and a y axis of more than one pixel, the gate layer creation applies -- and three ask something further: `LABEL` a primary derivation declaring CATEGORIZED, `RGB` a channel axis with at least three positions to cut the components from, and `PHASOR` a MICROTIME or SPECTRUM axis. `RGB` is capacity only -- whether those three channels *are* red, green and blue is not a question any axis can answer, which is why RGB is never inferred. The five container kinds keep the lenses over the container the kind draws: `POINT` and `TRACK` a table with coordinate columns, `MESH` a mesh collection, `NETWORK` a network collection, `ANNOTATION` an annotation collection; a sparse lens answers `placeableIn` without `asLayer` only, since nothing draws a matrix. Note that *omitting* this applies no renderability gate, so `IMAGE` is a real narrowing rather than a no-op: the unqualified filter answers what is placeable, which is a spatial question, not what is drawable')
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class LightEdgeInput(BaseModel):
@@ -2056,11 +2352,12 @@ class MeshCollectionFilter(BaseModel):
     created_after: datetime | None = Field(validation_alias=AliasChoices('created_after', 'createdAfter'), serialization_alias='createdAfter', default=None, description='Filter for items created after this datetime')
     owner: ID | None = Field(default=None, description="Filter by the creator's subject ID")
     id: ID | None = None
-    version: 'StrFilterLookup | None' = None
+    name: 'StrFilterLookup | None' = None
     and_: 'MeshCollectionFilter | None' = Field(validation_alias=AliasChoices('and_', 'AND'), serialization_alias='AND', default=None)
     or_: 'MeshCollectionFilter | None' = Field(validation_alias=AliasChoices('or_', 'OR'), serialization_alias='OR', default=None)
     not_: 'MeshCollectionFilter | None' = Field(validation_alias=AliasChoices('not_', 'NOT'), serialization_alias='NOT', default=None)
     distinct: bool | None = Field(validation_alias=AliasChoices('distinct', 'DISTINCT'), serialization_alias='DISTINCT', default=None)
+    search: str | None = Field(default=None, description="Search by the collection's label: its name, or its store's key (case-insensitive substring)")
     folder: ID | None = Field(default=None, description='Filter by the folder this mesh collection is filed in')
     folders: tuple[ID, ...] | None = Field(default=None, description='Filter by a list of folder IDs')
     coordinate_system: ID | None = Field(validation_alias=AliasChoices('coordinate_system', 'coordinateSystem'), serialization_alias='coordinateSystem', default=None, description="Filter by the coordinate system the mesh geometry is expressed in (the collection's own)")
@@ -2076,15 +2373,32 @@ class MeshFilterByInput(BaseModel):
     column: str | None = None
     join_path: Annotated[tuple[JoinStepInput, ...] | None, GraphQLDefault('[]')] = Field(validation_alias=AliasChoices('join_path', 'joinPath'), serialization_alias='joinPath', default=None)
     'Default: []'
-    dataset: ID | None = None
-    at: Annotated[tuple[AxisPositionInput, ...] | None, GraphQLDefault('[]')] = None
-    'Default: []'
+    lens: ID | None = None
     min: float | None = None
     max: float | None = None
     values: tuple[str, ...] | None = None
     exclude: Annotated[bool | None, GraphQLDefault('False')] = None
     'Default: False'
     label: str | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class NetworkCollectionFilter(BaseModel):
+    """No documentation"""
+    ids: tuple[ID, ...] | None = Field(default=None, description='Filter by list of IDs')
+    created_before: datetime | None = Field(validation_alias=AliasChoices('created_before', 'createdBefore'), serialization_alias='createdBefore', default=None, description='Filter for items created before this datetime')
+    created_after: datetime | None = Field(validation_alias=AliasChoices('created_after', 'createdAfter'), serialization_alias='createdAfter', default=None, description='Filter for items created after this datetime')
+    owner: ID | None = Field(default=None, description="Filter by the creator's subject ID")
+    id: ID | None = None
+    name: 'StrFilterLookup | None' = None
+    and_: 'NetworkCollectionFilter | None' = Field(validation_alias=AliasChoices('and_', 'AND'), serialization_alias='AND', default=None)
+    or_: 'NetworkCollectionFilter | None' = Field(validation_alias=AliasChoices('or_', 'OR'), serialization_alias='OR', default=None)
+    not_: 'NetworkCollectionFilter | None' = Field(validation_alias=AliasChoices('not_', 'NOT'), serialization_alias='NOT', default=None)
+    distinct: bool | None = Field(validation_alias=AliasChoices('distinct', 'DISTINCT'), serialization_alias='DISTINCT', default=None)
+    search: str | None = Field(default=None, description="Search by the collection's label: its name, or its store's key (case-insensitive substring)")
+    folder: ID | None = Field(default=None, description='Filter by the folder this network collection is filed in')
+    folders: tuple[ID, ...] | None = Field(default=None, description='Filter by a list of folder IDs')
+    coordinate_system: ID | None = Field(validation_alias=AliasChoices('coordinate_system', 'coordinateSystem'), serialization_alias='coordinateSystem', default=None, description="Filter by the coordinate system the network geometry is expressed in (the collection's own)")
+    dataset: ID | None = Field(default=None, description='Filter by the dataset the networkes were extracted from, following the derivation edge')
     model_config = ConfigDict(frozen=True, extra='forbid')
 NetworkColorByInput = Annotated[ColumnColorByInput | GraphColorByInput | SparseColorByInput, Field(discriminator='kind')]
 
@@ -2096,9 +2410,7 @@ class NetworkFilterByInput(BaseModel):
     column: str | None = None
     join_path: Annotated[tuple[JoinStepInput, ...] | None, GraphQLDefault('[]')] = Field(validation_alias=AliasChoices('join_path', 'joinPath'), serialization_alias='joinPath', default=None)
     'Default: []'
-    dataset: ID | None = None
-    at: Annotated[tuple[AxisPositionInput, ...] | None, GraphQLDefault('[]')] = None
-    'Default: []'
+    lens: ID | None = None
     attribute: str | None = None
     target: GraphTarget | None = None
     min: float | None = None
@@ -2353,6 +2665,12 @@ class SelectorInput(BaseModel):
     index: int
     model_config = ConfigDict(frozen=True, extra='forbid')
 
+class SetLensDefaultSceneInput(BaseModel):
+    """Nominate the scene to open for a lens, and take its thumbnail from"""
+    lens: ID = Field(description='The lens to nominate a scene for')
+    scene: ID | None = Field(default=None, description='The scene to nominate, or null to clear the nomination')
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
 class SettingInput(BaseModel):
     """One named device setting with exactly one value slot filled: a quantity when the setting carries a unit, else a number, text or flag. A setting holding two values is two settings"""
     name: str
@@ -2440,6 +2758,7 @@ class TableDatasetFilter(BaseModel):
     folder: ID | None = Field(default=None, description='Filter by the folder this table dataset is filed in')
     folders: tuple[ID, ...] | None = Field(default=None, description='Filter by a list of folder IDs')
     dataset: ID | None = Field(default=None, description='Filter by the dataset the table was computed from, following its derivation edge')
+    spec: tuple[TableDatasetSpec, ...] | None = Field(default=None, description='Filter to tables satisfying every one of these specs, e.g. [POINTS_3D, TRACKED] for 3D tracks, or [SERIES] for a value against a single measured coordinate, which a chart draws without an axis to choose. Materialized at creation from the declared columns: one placement member (by how many SPACE coordinate columns the table has) plus a modifier per declared fact. Declared, not measured -- TIMED says a TIME coordinate column exists. Two placement members together match nothing. `hasColumnRole` is the raw form')
     has_column_role: ColumnRole | None = Field(validation_alias=AliasChoices('has_column_role', 'hasColumnRole'), serialization_alias='hasColumnRole', default=None, description='Filter to tables that declare a column of this role, e.g. TRACK_ID')
     placeable_in: ID | None = Field(validation_alias=AliasChoices('placeable_in', 'placeableIn'), serialization_alias='placeableIn', default=None, description='Filter to table datasets placeable into this coordinate system: those whose own coordinate system reaches it across steps that compose into one affine map, walking the transformation edges. Takes a *space*, not a scene -- pass `scene.worldCoordinateSystem.id` to ask it of a scene')
     model_config = ConfigDict(frozen=True, extra='forbid')
@@ -2472,7 +2791,6 @@ class TransformationFilter(BaseModel):
     validity: PlacementValidity | None = Field(default=None, description="Filter by how much the edge's map is actually known, e.g. UNKNOWN to list every placement that is still an assumption")
     input: ID | None = Field(default=None, description='Filter by the coordinate system this transformation maps from')
     output: ID | None = Field(default=None, description='Filter by the coordinate system this transformation maps to')
-    roots_only: bool | None = Field(validation_alias=AliasChoices('roots_only', 'rootsOnly'), serialization_alias='rootsOnly', default=None, description='Show only top-level edges, excluding the children of SEQUENCE / BY_DIMENSION wrappers')
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class UpdateAnimationInput(BaseModel):
@@ -2497,6 +2815,26 @@ class UpdateAnnotationInput(BaseModel):
     filled: bool | None = None
     model_config = ConfigDict(frozen=True, extra='forbid')
 
+class UpdateChartInput(BaseModel):
+    """Input for renaming or re-describing a chart. Its world is not editable: a chart along another axis is another chart"""
+    id: ID
+    name: str | None = None
+    description: str | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class UpdateChartLayerInput(BaseModel):
+    """Input for restyling a chart layer. View state only: what the layer reads, and where its data sits along the chart's axis, are not settings -- the first is fixed at creation and the second is the graph's, changed by editing the registration"""
+    name: str | None = None
+    visible: bool | None = None
+    order: int | None = None
+    opacity: float | None = None
+    color: tuple[float, ...] | None = None
+    mark: ChartMark | None = None
+    line_width: float | None = Field(validation_alias=AliasChoices('line_width', 'lineWidth'), serialization_alias='lineWidth', default=None)
+    marker_size: float | None = Field(validation_alias=AliasChoices('marker_size', 'markerSize'), serialization_alias='markerSize', default=None)
+    id: ID
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
 class UpdateCoordinateSystemInput(BaseModel):
     """Input for renaming a shared coordinate system or anchoring its clock. Shared spaces only: every other system is named by the container that owns it"""
     id: ID
@@ -2511,6 +2849,12 @@ class UpdateLabelLayerInput(BaseModel):
     opacity: float | None = None
     visible: bool | None = None
     order: int | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class UpdateLensInput(BaseModel):
+    """Input for renaming a lens -- the whole of what is editable about one"""
+    id: ID = Field(description='The ID of the lens to update')
+    name: str | None = Field(default=None, description='The new name, or null (or blank) to clear it')
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class UpdateMeshLayerInput(BaseModel):
@@ -2625,6 +2969,13 @@ class Vec3Input(BaseModel):
     z: float | None = None
     model_config = ConfigDict(frozen=True, extra='forbid')
 
+class WindowInput(BaseModel):
+    """Input type for a window along one axis of a container that is not an array: the positions kept, by value"""
+    axis: str
+    min: float | None = None
+    max: float | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
 class CameraState(MikroFetchable, BaseModel):
     """Where a viewer's camera is in a scene, and how it is looking at it. Carries a flat cross-section view and a volumetric projection view of one position, so a single pose serves both and `Scene.preferredView` picks which is used. Every number is read against the scene's world coordinate system, whose axes carry the units"""
     typename: Literal['CameraState'] = Field(alias='__typename', default='CameraState', exclude=True)
@@ -2645,6 +2996,180 @@ class CameraState(MikroFetchable, BaseModel):
         document = 'fragment CameraState on CameraState {\n  position\n  crossSectionOrientation\n  crossSectionScale\n  projectionOrientation\n  projectionScale\n  __typename\n}'
         name = 'CameraState'
         type = 'CameraState'
+
+class ChartLayerChart(ChartTrait, BaseModel):
+    """A composition of data laid out along one metric axis, with values read off it. The second kind of composition beside a scene: a scene is a place, a chart is an axis. It names data by id and owns none of it, and it carries no unit of its own -- the unit is its world axis's"""
+    typename: Literal['Chart'] = Field(alias='__typename', default='Chart', exclude=True)
+    id: ID
+    name: str
+    model_config = ConfigDict(frozen=True)
+
+class ChartLayerAsAffine(BaseModel):
+    """A whole placement path composed into one affine map, labelled with the axes it is written over. `matrix` is M x (N+1) with rows outermost -- the same layout an AffineTransformation's `affine` uses -- its columns in `inputAxes` order and its last column the translation. **`outputAxes` names only the destination axes the path actually constrains**: a (c,y,x) dataset registered on (y,x) into a (t,z,y,x) world gets two rows, not four, because the registration says nothing about t and z and a zero row there would pin the data at their origin rather than leave it unstated. `total` is whether the map covers every destination axis"""
+    typename: Literal['AffinePlacement'] = Field(alias='__typename', default='AffinePlacement', exclude=True)
+    matrix: tuple[tuple[float, ...], ...]
+    'The composed map, M x (N+1), rows outermost. One row per axis in `outputAxes`, one column per axis in `inputAxes`, plus a final translation column'
+    input_axes: tuple[str, ...] = Field(alias='inputAxes')
+    "The axes the matrix's columns are in, which is the layer's own source coordinate system's axis order"
+    output_axes: tuple[str, ...] = Field(alias='outputAxes')
+    "The destination axes the matrix's rows are in, in the world's own axis order. An axis the path says nothing about has no row at all"
+    total: bool
+    'Whether `outputAxes` covers every axis of the destination space. False for a partial registration -- an honest map over the axes it names, and silence about the rest'
+    model_config = ConfigDict(frozen=True)
+
+class ChartLayerLensDataset(DatasetTrait, BaseModel):
+    """A multi-dimensional array dataset. Its dimensions and their types live on the axes of its INTRINSIC (pixel grid) coordinate system; physical units live on the physical spaces it has edges into; its pyramid levels are DataArrays, each mapping into its grid"""
+    typename: Literal['ArrayDataset'] = Field(alias='__typename', default='ArrayDataset', exclude=True)
+    id: ID
+    name: str
+    model_config = ConfigDict(frozen=True)
+
+class ChartLayerLens(Lensable, BaseModel):
+    """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
+    id: ID
+    dataset: ChartLayerLensDataset
+    model_config = ConfigDict(frozen=True)
+
+class ChartLayerTableLensWindows(BaseModel):
+    """A value window along a named axis of a container that is not an array: the positions kept, by value, with an open side as null"""
+    typename: Literal['Window'] = Field(alias='__typename', default='Window', exclude=True)
+    axis: str
+    "The name of the axis the window constrains, e.g. 't' for a table's time column"
+    min: float | None = Field(default=None)
+    'The smallest position kept, inclusive, or None for no lower bound'
+    max: float | None = Field(default=None)
+    'The largest position kept, inclusive, or None for no upper bound'
+    model_config = ConfigDict(frozen=True)
+
+class ChartLayerTableLens(BaseModel):
+    """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
+    id: ID
+    name: str | None = Field(default=None)
+    "What someone called this selection, or null when nobody has. A label only: it is no part of what the lens selects, and a client shows the selection -- or 'the whole container' -- in its place"
+    windows: tuple[ChartLayerTableLensWindows, ...]
+    'The windows, in the one normalized spelling: container axis order, floats, an open side as null. Empty for the whole lens'
+    model_config = ConfigDict(frozen=True)
+
+class ChartLayerTableDataset(HasParquestStoreTrait, TableDatasetLensTrait, BaseModel):
+    """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
+    typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
+    id: ID
+    name: str
+    model_config = ConfigDict(frozen=True)
+
+class ChartLayerAnnotationLensWindows(BaseModel):
+    """A value window along a named axis of a container that is not an array: the positions kept, by value, with an open side as null"""
+    typename: Literal['Window'] = Field(alias='__typename', default='Window', exclude=True)
+    axis: str
+    "The name of the axis the window constrains, e.g. 't' for a table's time column"
+    min: float | None = Field(default=None)
+    'The smallest position kept, inclusive, or None for no lower bound'
+    max: float | None = Field(default=None)
+    'The largest position kept, inclusive, or None for no upper bound'
+    model_config = ConfigDict(frozen=True)
+
+class ChartLayerAnnotationLens(BaseModel):
+    """A selection over an annotation collection by windows in its drawing space"""
+    typename: Literal['AnnotationLens'] = Field(alias='__typename', default='AnnotationLens', exclude=True)
+    id: ID
+    name: str | None = Field(default=None)
+    "What someone called this selection, or null when nobody has. A label only: it is no part of what the lens selects, and a client shows the selection -- or 'the whole container' -- in its place"
+    windows: tuple[ChartLayerAnnotationLensWindows, ...]
+    'The windows, in the one normalized spelling: container axis order, floats, an open side as null. Empty for the whole lens'
+    model_config = ConfigDict(frozen=True)
+
+class ChartLayerAnnotationCollection(BaseModel):
+    """A named set of human-drawn annotations, owning the coordinate system they are drawn in. The CRUD counterpart of a table dataset's machine-produced rows: shapes a person draws and edits, sharing one drawing space and one registration story"""
+    typename: Literal['AnnotationCollection'] = Field(alias='__typename', default='AnnotationCollection', exclude=True)
+    id: ID
+    name: str
+    model_config = ConfigDict(frozen=True)
+
+class ChartLayerBase(BaseModel):
+    """A layer drawn in a chart. It carries view state only. Where its data sits along the chart's axis -- `pathToWorld`, `asAffine`, `alongAxis`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one registration moves every layer that looks through it. The concrete kind says what the layer reads: TraceChartLayer an array, SeriesChartLayer a table, AnnotationChartLayer drawn marks"""
+    id: ID
+    kind: ChartLayerKind
+    name: str | None = Field(default=None)
+    chart: ChartLayerChart
+    visible: bool
+    order: int
+    opacity: float
+    color: tuple[float, ...] | None = Field(default=None)
+    'The colour the layer is drawn in, as RGBA. Null lets the viewer choose'
+    along_axis: str | None = Field(default=None, alias='alongAxis')
+    "The name of the source axis that runs along the chart's axis: for a trace, the axis of its lens the values are read along; for a series, the table's coordinate column; for an annotation layer, the axis of the drawing space that is the chart's own. **Not a setting.** It is the one source axis the composed placement reads the chart's axis from, so it follows the registration: re-register the data by another axis and this changes with no write to the layer. Null when the layer is no longer placed, or is placed by a map that reads the chart's axis from several source axes"
+    placement: PlacementState
+    "Whether this layer has a place along its chart's axis, and if not, why not. UNREGISTERED is a gap to close; UNMAPPABLE is a fact to badge; CONDITIONAL is a placement to ask again for with `at`. Derived, never stored"
+    placement_validity: PlacementValidity = Field(alias='placementValidity')
+    "How much this layer's placement is actually known: the weakest edge on its path to the chart's world. Derived, never stored"
+    as_affine: ChartLayerAsAffine | None = Field(default=None, alias='asAffine')
+    "This layer's whole `pathToWorld` composed into one affine map: a single row, because the chart's world has a single axis. The coefficient on `alongAxis` is the scale from a step along the data to a step along the chart's axis, in the axis's unit, and the last entry is the offset. Derived on read. Null when `pathToWorld` is null; an error when a path exists but does not condense"
+
+class ChartLayerCatch(ChartLayerBase):
+    """Catch all class for ChartLayerBase"""
+    typename: str = Field(alias='__typename', exclude=True)
+    "A layer drawn in a chart. It carries view state only. Where its data sits along the chart's axis -- `pathToWorld`, `asAffine`, `alongAxis`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one registration moves every layer that looks through it. The concrete kind says what the layer reads: TraceChartLayer an array, SeriesChartLayer a table, AnnotationChartLayer drawn marks"
+    id: ID
+    kind: ChartLayerKind
+    name: str | None = Field(default=None)
+    chart: ChartLayerChart
+    visible: bool
+    order: int
+    opacity: float
+    color: tuple[float, ...] | None = Field(default=None)
+    'The colour the layer is drawn in, as RGBA. Null lets the viewer choose'
+    along_axis: str | None = Field(default=None, alias='alongAxis')
+    "The name of the source axis that runs along the chart's axis: for a trace, the axis of its lens the values are read along; for a series, the table's coordinate column; for an annotation layer, the axis of the drawing space that is the chart's own. **Not a setting.** It is the one source axis the composed placement reads the chart's axis from, so it follows the registration: re-register the data by another axis and this changes with no write to the layer. Null when the layer is no longer placed, or is placed by a map that reads the chart's axis from several source axes"
+    placement: PlacementState
+    "Whether this layer has a place along its chart's axis, and if not, why not. UNREGISTERED is a gap to close; UNMAPPABLE is a fact to badge; CONDITIONAL is a placement to ask again for with `at`. Derived, never stored"
+    placement_validity: PlacementValidity = Field(alias='placementValidity')
+    "How much this layer's placement is actually known: the weakest edge on its path to the chart's world. Derived, never stored"
+    as_affine: ChartLayerAsAffine | None = Field(default=None, alias='asAffine')
+    "This layer's whole `pathToWorld` composed into one affine map: a single row, because the chart's world has a single axis. The coefficient on `alongAxis` is the scale from a step along the data to a step along the chart's axis, in the axis's unit, and the last entry is the offset. Derived on read. Null when `pathToWorld` is null; an error when a path exists but does not condense"
+
+class ChartLayerAnnotationChartLayer(ChartLayerBase, BaseModel):
+    """A layer that draws an annotation collection's marks in a chart. One layer per collection: per-mark styling lives on the annotations themselves"""
+    typename: Literal['AnnotationChartLayer'] = Field(alias='__typename', default='AnnotationChartLayer', exclude=True)
+    annotation_lens: ChartLayerAnnotationLens = Field(alias='annotationLens')
+    'The annotation lens this layer draws through'
+    annotation_collection: ChartLayerAnnotationCollection = Field(alias='annotationCollection')
+    "The annotation collection whose marks this layer draws: the container of the lens. Its own coordinate system is the layer's space"
+
+class ChartLayerSeriesChartLayer(ChartLayerBase, BaseModel):
+    """A layer that reads one numeric column of a table against a coordinate column. The value column is the layer's; the coordinate column is the graph's -- whichever of the table's coordinate columns its registration lays along the chart's axis"""
+    typename: Literal['SeriesChartLayer'] = Field(alias='__typename', default='SeriesChartLayer', exclude=True)
+    table_lens: ChartLayerTableLens = Field(alias='tableLens')
+    'The table lens this series reads through: the rows its windows keep'
+    table_dataset: ChartLayerTableDataset = Field(alias='tableDataset')
+    'The table dataset whose columns are read: the container of the lens'
+    value_column: str = Field(alias='valueColumn')
+    'The numeric attribute column read as the value'
+    coordinate_column: str | None = Field(default=None, alias='coordinateColumn')
+    "The coordinate column the values are read against: the same name as `alongAxis`, since a table's coordinate columns are its space's axes. Null when the table is no longer placed"
+    value_unit: Unit | None = Field(default=None, alias='valueUnit')
+    "The unit the value column's values are in, as the table declares it. Null when the column declares none. A chart may hold layers in several units: it commits only to its axis"
+    mark: ChartMark
+    'How the values are drawn: a line, markers, both, or steps'
+    line_width: float | None = Field(default=None, alias='lineWidth')
+    'Line width in screen pixels. Null lets the viewer choose'
+    marker_size: float | None = Field(default=None, alias='markerSize')
+    'Marker size in screen pixels. Null lets the viewer choose'
+
+class ChartLayerTraceChartLayer(ChartLayerBase, BaseModel):
+    """A layer that reads an array along one axis. Its lens leaves one metric axis free -- `alongAxis`, laid along the chart -- and optionally one enumerating axis, `seriesAxis`, drawn as one line per position. Whether it is drawn as a line, markers, both or steps is `mark`"""
+    typename: Literal['TraceChartLayer'] = Field(alias='__typename', default='TraceChartLayer', exclude=True)
+    lens: ChartLayerLens
+    'The array lens whose values are read'
+    series_axis: str | None = Field(default=None, alias='seriesAxis')
+    "The CHANNEL or INDEX axis the lens leaves free beside `alongAxis`, drawn as one line per position along it. Null when the lens is a single line. Read from the lens' shape, not stored"
+    mark: ChartMark
+    'How the values are drawn: a line, markers, both, or steps'
+    line_width: float | None = Field(default=None, alias='lineWidth')
+    'Line width in screen pixels. Null lets the viewer choose'
+    marker_size: float | None = Field(default=None, alias='markerSize')
+    'Marker size in screen pixels. Null lets the viewer choose'
 
 class Axis(MikroFetchable, BaseModel):
     """One named, typed dimension of a coordinate system. Its `order` is its index into the array shape"""
@@ -2940,27 +3465,166 @@ class LayerScene(SceneTrait, BaseModel):
     model_config = ConfigDict(frozen=True)
 
 class LayerLens(Lensable, BaseModel):
-    """A Lens is a way of looking at a dataset: a dimensional selection (slices) over a dataset that defines a view of its data"""
-    typename: Literal['Lens'] = Field(alias='__typename', default='Lens', exclude=True)
+    """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
     id: ID
     model_config = ConfigDict(frozen=True)
 
-class LayerLens(Lensable, BaseModel):
-    """A Lens is a way of looking at a dataset: a dimensional selection (slices) over a dataset that defines a view of its data"""
-    typename: Literal['Lens'] = Field(alias='__typename', default='Lens', exclude=True)
-    id: ID
+class LayerRenderAxes(BaseModel):
+    """Which axis of a data source maps to screen x, y, z, time and intensity. Derived from the axis types, never stored"""
+    typename: Literal['RenderAxes'] = Field(alias='__typename', default='RenderAxes', exclude=True)
+    x: str
+    'The axis mapped to screen x: the last (fastest-varying) spatial axis'
+    y: str
+    'The axis mapped to screen y: the second-to-last spatial axis'
+    z: str | None = Field(default=None)
+    'The axis mapped to screen z: the third-to-last spatial axis, if the data is volumetric'
+    t: str | None = Field(default=None)
+    'The time axis, if the data has one'
+    intensity: str | None = Field(default=None)
+    'The channel axis, if the data has one'
+    phasor: str | None = Field(default=None)
+    'The axis a phasor may be taken over -- a MICROTIME (FLIM arrival time) or SPECTRUM (wavelength) axis -- if the data has one'
+    vector: str | None = Field(default=None)
+    'The DISPLACEMENT value axis, if the data has one: its positions are the components of a per-point offset, which is what a vector layer draws'
     model_config = ConfigDict(frozen=True)
 
 class LayerLens(Lensable, BaseModel):
-    """A Lens is a way of looking at a dataset: a dimensional selection (slices) over a dataset that defines a view of its data"""
-    typename: Literal['Lens'] = Field(alias='__typename', default='Lens', exclude=True)
+    """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
     id: ID
     model_config = ConfigDict(frozen=True)
 
+class LayerRenderAxes(BaseModel):
+    """Which axis of a data source maps to screen x, y, z, time and intensity. Derived from the axis types, never stored"""
+    typename: Literal['RenderAxes'] = Field(alias='__typename', default='RenderAxes', exclude=True)
+    x: str
+    'The axis mapped to screen x: the last (fastest-varying) spatial axis'
+    y: str
+    'The axis mapped to screen y: the second-to-last spatial axis'
+    z: str | None = Field(default=None)
+    'The axis mapped to screen z: the third-to-last spatial axis, if the data is volumetric'
+    t: str | None = Field(default=None)
+    'The time axis, if the data has one'
+    intensity: str | None = Field(default=None)
+    'The channel axis, if the data has one'
+    phasor: str | None = Field(default=None)
+    'The axis a phasor may be taken over -- a MICROTIME (FLIM arrival time) or SPECTRUM (wavelength) axis -- if the data has one'
+    vector: str | None = Field(default=None)
+    'The DISPLACEMENT value axis, if the data has one: its positions are the components of a per-point offset, which is what a vector layer draws'
+    model_config = ConfigDict(frozen=True)
+
 class LayerLens(Lensable, BaseModel):
-    """A Lens is a way of looking at a dataset: a dimensional selection (slices) over a dataset that defines a view of its data"""
-    typename: Literal['Lens'] = Field(alias='__typename', default='Lens', exclude=True)
+    """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
     id: ID
+    model_config = ConfigDict(frozen=True)
+
+class LayerRenderAxes(BaseModel):
+    """Which axis of a data source maps to screen x, y, z, time and intensity. Derived from the axis types, never stored"""
+    typename: Literal['RenderAxes'] = Field(alias='__typename', default='RenderAxes', exclude=True)
+    x: str
+    'The axis mapped to screen x: the last (fastest-varying) spatial axis'
+    y: str
+    'The axis mapped to screen y: the second-to-last spatial axis'
+    z: str | None = Field(default=None)
+    'The axis mapped to screen z: the third-to-last spatial axis, if the data is volumetric'
+    t: str | None = Field(default=None)
+    'The time axis, if the data has one'
+    intensity: str | None = Field(default=None)
+    'The channel axis, if the data has one'
+    phasor: str | None = Field(default=None)
+    'The axis a phasor may be taken over -- a MICROTIME (FLIM arrival time) or SPECTRUM (wavelength) axis -- if the data has one'
+    vector: str | None = Field(default=None)
+    'The DISPLACEMENT value axis, if the data has one: its positions are the components of a per-point offset, which is what a vector layer draws'
+    model_config = ConfigDict(frozen=True)
+
+class LayerRedLensSlices(BaseModel):
+    """A slice along a named axis, with optional start, stop and step"""
+    typename: Literal['Slice'] = Field(alias='__typename', default='Slice', exclude=True)
+    axis: str
+    "The name of the axis the slice acts on, e.g. 'x', 'y', 'z', 'c', or 't'"
+    start: int | None = Field(default=None)
+    'The starting index of the slice, or None to start from the beginning'
+    stop: int | None = Field(default=None)
+    'The stopping index of the slice, or None to go to the end'
+    step: int | None = Field(default=None)
+    'The step size of the slice, or None to use the default step'
+    model_config = ConfigDict(frozen=True)
+
+class LayerRedLens(Lensable, BaseModel):
+    """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
+    id: ID
+    slices: tuple[LayerRedLensSlices, ...]
+    'The slices, in the one normalized spelling: dataset axis order, explicit ints, a step always present. Empty for the whole lens'
+    model_config = ConfigDict(frozen=True)
+
+class LayerGreenLensSlices(BaseModel):
+    """A slice along a named axis, with optional start, stop and step"""
+    typename: Literal['Slice'] = Field(alias='__typename', default='Slice', exclude=True)
+    axis: str
+    "The name of the axis the slice acts on, e.g. 'x', 'y', 'z', 'c', or 't'"
+    start: int | None = Field(default=None)
+    'The starting index of the slice, or None to start from the beginning'
+    stop: int | None = Field(default=None)
+    'The stopping index of the slice, or None to go to the end'
+    step: int | None = Field(default=None)
+    'The step size of the slice, or None to use the default step'
+    model_config = ConfigDict(frozen=True)
+
+class LayerGreenLens(Lensable, BaseModel):
+    """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
+    id: ID
+    slices: tuple[LayerGreenLensSlices, ...]
+    'The slices, in the one normalized spelling: dataset axis order, explicit ints, a step always present. Empty for the whole lens'
+    model_config = ConfigDict(frozen=True)
+
+class LayerBlueLensSlices(BaseModel):
+    """A slice along a named axis, with optional start, stop and step"""
+    typename: Literal['Slice'] = Field(alias='__typename', default='Slice', exclude=True)
+    axis: str
+    "The name of the axis the slice acts on, e.g. 'x', 'y', 'z', 'c', or 't'"
+    start: int | None = Field(default=None)
+    'The starting index of the slice, or None to start from the beginning'
+    stop: int | None = Field(default=None)
+    'The stopping index of the slice, or None to go to the end'
+    step: int | None = Field(default=None)
+    'The step size of the slice, or None to use the default step'
+    model_config = ConfigDict(frozen=True)
+
+class LayerBlueLens(Lensable, BaseModel):
+    """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
+    id: ID
+    slices: tuple[LayerBlueLensSlices, ...]
+    'The slices, in the one normalized spelling: dataset axis order, explicit ints, a step always present. Empty for the whole lens'
+    model_config = ConfigDict(frozen=True)
+
+class LayerLens(Lensable, BaseModel):
+    """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
+    id: ID
+    model_config = ConfigDict(frozen=True)
+
+class LayerRenderAxes(BaseModel):
+    """Which axis of a data source maps to screen x, y, z, time and intensity. Derived from the axis types, never stored"""
+    typename: Literal['RenderAxes'] = Field(alias='__typename', default='RenderAxes', exclude=True)
+    x: str
+    'The axis mapped to screen x: the last (fastest-varying) spatial axis'
+    y: str
+    'The axis mapped to screen y: the second-to-last spatial axis'
+    z: str | None = Field(default=None)
+    'The axis mapped to screen z: the third-to-last spatial axis, if the data is volumetric'
+    t: str | None = Field(default=None)
+    'The time axis, if the data has one'
+    intensity: str | None = Field(default=None)
+    'The channel axis, if the data has one'
+    phasor: str | None = Field(default=None)
+    'The axis a phasor may be taken over -- a MICROTIME (FLIM arrival time) or SPECTRUM (wavelength) axis -- if the data has one'
+    vector: str | None = Field(default=None)
+    'The DISPLACEMENT value axis, if the data has one: its positions are the components of a per-point offset, which is what a vector layer draws'
     model_config = ConfigDict(frozen=True)
 
 class LayerPhasorRenderTransferIntensity(BaseModel):
@@ -3004,23 +3668,33 @@ class LayerPhasorRender(BaseModel):
     """How a phasor layer draws: which axis is reduced to a phasor, at which harmonic, and how the resulting (g, s) becomes color. The whole recipe of a PHASOR layer, as `labelRender` is the whole recipe of a LABEL one -- for a phasor composited *with* other channels, an IMAGE layer's graph carries a `PhasorNode` instead"""
     typename: Literal['PhasorRender'] = Field(alias='__typename', default='PhasorRender', exclude=True)
     phasor_axis: str = Field(alias='phasorAxis')
-    intensity_axis: str | None = Field(default=None, alias='intensityAxis')
-    intensity_index: int = Field(alias='intensityIndex')
     harmonic: int
     transfer: LayerPhasorRenderTransfer
     model_config = ConfigDict(frozen=True)
 
 class LayerLens(Lensable, BaseModel):
-    """A Lens is a way of looking at a dataset: a dimensional selection (slices) over a dataset that defines a view of its data"""
-    typename: Literal['Lens'] = Field(alias='__typename', default='Lens', exclude=True)
+    """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
     id: ID
     model_config = ConfigDict(frozen=True)
 
-class LayerLabelRenderColorBysAt(BaseModel):
-    """One position along one named axis: which slice of a matrix a colouring reads"""
-    typename: Literal['AxisPosition'] = Field(alias='__typename', default='AxisPosition', exclude=True)
-    axis: str
-    value: int
+class LayerRenderAxes(BaseModel):
+    """Which axis of a data source maps to screen x, y, z, time and intensity. Derived from the axis types, never stored"""
+    typename: Literal['RenderAxes'] = Field(alias='__typename', default='RenderAxes', exclude=True)
+    x: str
+    'The axis mapped to screen x: the last (fastest-varying) spatial axis'
+    y: str
+    'The axis mapped to screen y: the second-to-last spatial axis'
+    z: str | None = Field(default=None)
+    'The axis mapped to screen z: the third-to-last spatial axis, if the data is volumetric'
+    t: str | None = Field(default=None)
+    'The time axis, if the data has one'
+    intensity: str | None = Field(default=None)
+    'The channel axis, if the data has one'
+    phasor: str | None = Field(default=None)
+    'The axis a phasor may be taken over -- a MICROTIME (FLIM arrival time) or SPECTRUM (wavelength) axis -- if the data has one'
+    vector: str | None = Field(default=None)
+    'The DISPLACEMENT value axis, if the data has one: its positions are the components of a per-point offset, which is what a vector layer draws'
     model_config = ConfigDict(frozen=True)
 
 class LayerLabelRenderColorBysJoinPath(BaseModel):
@@ -3036,8 +3710,7 @@ class LayerLabelRenderColorBys(BaseModel):
     kind: ColorSourceKind
     table: ID | None = Field(default=None)
     column: str | None = Field(default=None)
-    dataset: ID | None = Field(default=None)
-    at: tuple[LayerLabelRenderColorBysAt, ...]
+    lens: ID | None = Field(default=None)
     join_path: tuple[LayerLabelRenderColorBysJoinPath, ...] = Field(alias='joinPath')
     colormap: ColorMap | None = Field(default=None)
     min: float | None = Field(default=None)
@@ -3068,8 +3741,6 @@ class LayerLabelRenderFilterBys(BaseModel):
 class LayerLabelRender(BaseModel):
     """How a label layer's discrete object ids become color. Not a transfer function and not a node graph: a label map has one source, no compositing tree, and none of an intensity image's vocabulary -- contrast limits, gamma and colormaps are all meaningless over ids"""
     typename: Literal['LabelRender'] = Field(alias='__typename', default='LabelRender', exclude=True)
-    intensity_axis: str | None = Field(default=None, alias='intensityAxis')
-    intensity_index: int = Field(alias='intensityIndex')
     seed: int
     background: int
     opacity: float | None = Field(default=None)
@@ -3084,18 +3755,34 @@ class LayerLabelRender(BaseModel):
     active_filter_bys: tuple[int, ...] = Field(alias='activeFilterBys')
     model_config = ConfigDict(frozen=True)
 
-class LayerCollection(BaseModel):
-    """An immutable, versioned collection of meshes, stored as one fabriks prefix. Ask its `store` for an access grant and query the Parquet directly (e.g. with DuckDB) rather than paginating meshes through GraphQL"""
-    typename: Literal['MeshCollection'] = Field(alias='__typename', default='MeshCollection', exclude=True)
-    id: ID
-    version: str
+class LayerMeshLensWindows(BaseModel):
+    """A value window along a named axis of a container that is not an array: the positions kept, by value, with an open side as null"""
+    typename: Literal['Window'] = Field(alias='__typename', default='Window', exclude=True)
+    axis: str
+    "The name of the axis the window constrains, e.g. 't' for a table's time column"
+    min: float | None = Field(default=None)
+    'The smallest position kept, inclusive, or None for no lower bound'
+    max: float | None = Field(default=None)
+    'The largest position kept, inclusive, or None for no upper bound'
     model_config = ConfigDict(frozen=True)
 
-class LayerColorBysAt(BaseModel):
-    """One position along one named axis: which slice of a matrix a colouring reads"""
-    typename: Literal['AxisPosition'] = Field(alias='__typename', default='AxisPosition', exclude=True)
-    axis: str
-    value: int
+class LayerMeshLens(BaseModel):
+    """A selection over a mesh collection by windows in its own space"""
+    typename: Literal['MeshLens'] = Field(alias='__typename', default='MeshLens', exclude=True)
+    id: ID
+    name: str | None = Field(default=None)
+    "What someone called this selection, or null when nobody has. A label only: it is no part of what the lens selects, and a client shows the selection -- or 'the whole container' -- in its place"
+    windows: tuple[LayerMeshLensWindows, ...]
+    'The windows, in the one normalized spelling: container axis order, floats, an open side as null. Empty for the whole lens'
+    model_config = ConfigDict(frozen=True)
+
+class LayerCollection(MeshCollectionTrait, BaseModel):
+    """An immutable collection of meshes, stored as one fabriks prefix. Ask its `store` for an access grant and query the Parquet directly (e.g. with DuckDB) rather than paginating meshes through GraphQL"""
+    typename: Literal['MeshCollection'] = Field(alias='__typename', default='MeshCollection', exclude=True)
+    id: ID
+    name: str | None = Field(default=None)
+    label: str
+    "What to call this collection: its name, or its store's key when it has none"
     model_config = ConfigDict(frozen=True)
 
 class LayerColorBysJoinPath(BaseModel):
@@ -3111,8 +3798,7 @@ class LayerColorBys(BaseModel):
     kind: ColorSourceKind
     table: ID | None = Field(default=None)
     column: str | None = Field(default=None)
-    dataset: ID | None = Field(default=None)
-    at: tuple[LayerColorBysAt, ...]
+    lens: ID | None = Field(default=None)
     join_path: tuple[LayerColorBysJoinPath, ...] = Field(alias='joinPath')
     colormap: ColorMap | None = Field(default=None)
     min: float | None = Field(default=None)
@@ -3140,24 +3826,59 @@ class LayerFilterBys(BaseModel):
     label: str | None = Field(default=None)
     model_config = ConfigDict(frozen=True)
 
-class LayerTableDataset(HasParquestStoreTrait, BaseModel):
+class LayerTableLensWindows(BaseModel):
+    """A value window along a named axis of a container that is not an array: the positions kept, by value, with an open side as null"""
+    typename: Literal['Window'] = Field(alias='__typename', default='Window', exclude=True)
+    axis: str
+    "The name of the axis the window constrains, e.g. 't' for a table's time column"
+    min: float | None = Field(default=None)
+    'The smallest position kept, inclusive, or None for no lower bound'
+    max: float | None = Field(default=None)
+    'The largest position kept, inclusive, or None for no upper bound'
+    model_config = ConfigDict(frozen=True)
+
+class LayerTableLens(BaseModel):
+    """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
+    id: ID
+    name: str | None = Field(default=None)
+    "What someone called this selection, or null when nobody has. A label only: it is no part of what the lens selects, and a client shows the selection -- or 'the whole container' -- in its place"
+    windows: tuple[LayerTableLensWindows, ...]
+    'The windows, in the one normalized spelling: container axis order, floats, an open side as null. Empty for the whole lens'
+    model_config = ConfigDict(frozen=True)
+
+class LayerTableDataset(HasParquestStoreTrait, TableDatasetLensTrait, BaseModel):
     """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
     typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
     id: ID
     name: str
     model_config = ConfigDict(frozen=True)
 
-class LayerNetworkCollection(BaseModel):
-    """An immutable, versioned collection of networks, stored as one konnektion prefix. Ask its `store` for an access grant and query the Parquet directly (e.g. with DuckDB) rather than paginating nodes through GraphQL"""
-    typename: Literal['NetworkCollection'] = Field(alias='__typename', default='NetworkCollection', exclude=True)
-    id: ID
+class LayerNetworkLensWindows(BaseModel):
+    """A value window along a named axis of a container that is not an array: the positions kept, by value, with an open side as null"""
+    typename: Literal['Window'] = Field(alias='__typename', default='Window', exclude=True)
+    axis: str
+    "The name of the axis the window constrains, e.g. 't' for a table's time column"
+    min: float | None = Field(default=None)
+    'The smallest position kept, inclusive, or None for no lower bound'
+    max: float | None = Field(default=None)
+    'The largest position kept, inclusive, or None for no upper bound'
     model_config = ConfigDict(frozen=True)
 
-class LayerNetworkColorBysAt(BaseModel):
-    """One position along one named axis: which slice of a matrix a colouring reads"""
-    typename: Literal['AxisPosition'] = Field(alias='__typename', default='AxisPosition', exclude=True)
-    axis: str
-    value: int
+class LayerNetworkLens(BaseModel):
+    """A selection over a network collection by windows in its own space"""
+    typename: Literal['NetworkLens'] = Field(alias='__typename', default='NetworkLens', exclude=True)
+    id: ID
+    name: str | None = Field(default=None)
+    "What someone called this selection, or null when nobody has. A label only: it is no part of what the lens selects, and a client shows the selection -- or 'the whole container' -- in its place"
+    windows: tuple[LayerNetworkLensWindows, ...]
+    'The windows, in the one normalized spelling: container axis order, floats, an open side as null. Empty for the whole lens'
+    model_config = ConfigDict(frozen=True)
+
+class LayerNetworkCollection(NetworkCollectionTrait, BaseModel):
+    """An immutable collection of networks, stored as one konnektion prefix. Ask its `store` for an access grant and query the Parquet directly (e.g. with DuckDB) rather than paginating nodes through GraphQL"""
+    typename: Literal['NetworkCollection'] = Field(alias='__typename', default='NetworkCollection', exclude=True)
+    id: ID
     model_config = ConfigDict(frozen=True)
 
 class LayerNetworkColorBysJoinPath(BaseModel):
@@ -3173,8 +3894,7 @@ class LayerNetworkColorBys(BaseModel):
     kind: ColorSourceKind
     table: ID | None = Field(default=None)
     column: str | None = Field(default=None)
-    dataset: ID | None = Field(default=None)
-    at: tuple[LayerNetworkColorBysAt, ...]
+    lens: ID | None = Field(default=None)
     attribute: str | None = Field(default=None)
     target: GraphTarget | None = Field(default=None)
     join_path: tuple[LayerNetworkColorBysJoinPath, ...] = Field(alias='joinPath')
@@ -3182,13 +3902,6 @@ class LayerNetworkColorBys(BaseModel):
     min: float | None = Field(default=None)
     max: float | None = Field(default=None)
     label: str | None = Field(default=None)
-    model_config = ConfigDict(frozen=True)
-
-class LayerNetworkFilterBysAt(BaseModel):
-    """One position along one named axis: which slice of a matrix a colouring reads"""
-    typename: Literal['AxisPosition'] = Field(alias='__typename', default='AxisPosition', exclude=True)
-    axis: str
-    value: int
     model_config = ConfigDict(frozen=True)
 
 class LayerNetworkFilterBysJoinPath(BaseModel):
@@ -3204,8 +3917,7 @@ class LayerNetworkFilterBys(BaseModel):
     kind: ColorSourceKind
     table: ID | None = Field(default=None)
     column: str | None = Field(default=None)
-    dataset: ID | None = Field(default=None)
-    at: tuple[LayerNetworkFilterBysAt, ...]
+    lens: ID | None = Field(default=None)
     attribute: str | None = Field(default=None)
     target: GraphTarget | None = Field(default=None)
     join_path: tuple[LayerNetworkFilterBysJoinPath, ...] = Field(alias='joinPath')
@@ -3216,18 +3928,32 @@ class LayerNetworkFilterBys(BaseModel):
     label: str | None = Field(default=None)
     model_config = ConfigDict(frozen=True)
 
-class LayerTableDataset(HasParquestStoreTrait, BaseModel):
+class LayerTableLensWindows(BaseModel):
+    """A value window along a named axis of a container that is not an array: the positions kept, by value, with an open side as null"""
+    typename: Literal['Window'] = Field(alias='__typename', default='Window', exclude=True)
+    axis: str
+    "The name of the axis the window constrains, e.g. 't' for a table's time column"
+    min: float | None = Field(default=None)
+    'The smallest position kept, inclusive, or None for no lower bound'
+    max: float | None = Field(default=None)
+    'The largest position kept, inclusive, or None for no upper bound'
+    model_config = ConfigDict(frozen=True)
+
+class LayerTableLens(BaseModel):
+    """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
+    id: ID
+    name: str | None = Field(default=None)
+    "What someone called this selection, or null when nobody has. A label only: it is no part of what the lens selects, and a client shows the selection -- or 'the whole container' -- in its place"
+    windows: tuple[LayerTableLensWindows, ...]
+    'The windows, in the one normalized spelling: container axis order, floats, an open side as null. Empty for the whole lens'
+    model_config = ConfigDict(frozen=True)
+
+class LayerTableDataset(HasParquestStoreTrait, TableDatasetLensTrait, BaseModel):
     """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
     typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
     id: ID
     name: str
-    model_config = ConfigDict(frozen=True)
-
-class LayerPointColorBysAt(BaseModel):
-    """One position along one named axis: which slice of a matrix a colouring reads"""
-    typename: Literal['AxisPosition'] = Field(alias='__typename', default='AxisPosition', exclude=True)
-    axis: str
-    value: int
     model_config = ConfigDict(frozen=True)
 
 class LayerPointColorBysJoinPath(BaseModel):
@@ -3243,8 +3969,7 @@ class LayerPointColorBys(BaseModel):
     kind: ColorSourceKind
     table: ID | None = Field(default=None)
     column: str | None = Field(default=None)
-    dataset: ID | None = Field(default=None)
-    at: tuple[LayerPointColorBysAt, ...]
+    lens: ID | None = Field(default=None)
     join_path: tuple[LayerPointColorBysJoinPath, ...] = Field(alias='joinPath')
     colormap: ColorMap | None = Field(default=None)
     min: float | None = Field(default=None)
@@ -3272,8 +3997,33 @@ class LayerPointFilterBys(BaseModel):
     label: str | None = Field(default=None)
     model_config = ConfigDict(frozen=True)
 
+class LayerLens(Lensable, BaseModel):
+    """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
+    id: ID
+    model_config = ConfigDict(frozen=True)
+
+class LayerRenderAxes(BaseModel):
+    """Which axis of a data source maps to screen x, y, z, time and intensity. Derived from the axis types, never stored"""
+    typename: Literal['RenderAxes'] = Field(alias='__typename', default='RenderAxes', exclude=True)
+    x: str
+    'The axis mapped to screen x: the last (fastest-varying) spatial axis'
+    y: str
+    'The axis mapped to screen y: the second-to-last spatial axis'
+    z: str | None = Field(default=None)
+    'The axis mapped to screen z: the third-to-last spatial axis, if the data is volumetric'
+    t: str | None = Field(default=None)
+    'The time axis, if the data has one'
+    intensity: str | None = Field(default=None)
+    'The channel axis, if the data has one'
+    phasor: str | None = Field(default=None)
+    'The axis a phasor may be taken over -- a MICROTIME (FLIM arrival time) or SPECTRUM (wavelength) axis -- if the data has one'
+    vector: str | None = Field(default=None)
+    'The DISPLACEMENT value axis, if the data has one: its positions are the components of a per-point offset, which is what a vector layer draws'
+    model_config = ConfigDict(frozen=True)
+
 class LayerBase(BaseModel):
-    """A layer placed in a scene and alpha-blended over the layers below it. It carries view state only: a spatial fact is a coordinate system or a transformation edge, never a field here, and every spatial question a layer answers -- `pathToWorld`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one edge updates every layer that looks through it. Which columns hold a point layer's coordinates is likewise the table dataset's declaration, not a per-layer copy. The concrete kind carries its own data source and render settings: IntensityLayer, RgbLayer, PhasorLayer and LabelLayer each state a recipe of fixed shape as fields, ImageLayer carries a composable render graph for the layers that genuinely composite, and AnnotationLayer, PointLayer, TrackLayer and MeshLayer draw from a collection or a table rather than a lens."""
+    """A layer placed in a scene and alpha-blended over the layers below it. It carries view state only: a spatial fact is a coordinate system or a transformation edge, never a field here, and every spatial question a layer answers -- `pathToWorld`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one edge updates every layer that looks through it. Which columns hold a point layer's coordinates is likewise the table dataset's declaration, not a per-layer copy. The concrete kind carries its own data source and render settings: IntensityLayer, RgbLayer, PhasorLayer and LabelLayer each state a recipe of fixed shape as fields, ImageLayer carries a composable render graph for the layers that genuinely composite, and AnnotationLayer, PointLayer, TrackLayer, MeshLayer and NetworkLayer draw through a lens over a collection or a table -- every layer, of every kind, draws through a lens of its source's kind."""
     id: ID
     kind: LayerKind
     name: str | None = Field(default=None)
@@ -3282,7 +4032,7 @@ class LayerBase(BaseModel):
 class LayerCatch(LayerBase):
     """Catch all class for LayerBase"""
     typename: str = Field(alias='__typename', exclude=True)
-    "A layer placed in a scene and alpha-blended over the layers below it. It carries view state only: a spatial fact is a coordinate system or a transformation edge, never a field here, and every spatial question a layer answers -- `pathToWorld`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one edge updates every layer that looks through it. Which columns hold a point layer's coordinates is likewise the table dataset's declaration, not a per-layer copy. The concrete kind carries its own data source and render settings: IntensityLayer, RgbLayer, PhasorLayer and LabelLayer each state a recipe of fixed shape as fields, ImageLayer carries a composable render graph for the layers that genuinely composite, and AnnotationLayer, PointLayer, TrackLayer and MeshLayer draw from a collection or a table rather than a lens."
+    "A layer placed in a scene and alpha-blended over the layers below it. It carries view state only: a spatial fact is a coordinate system or a transformation edge, never a field here, and every spatial question a layer answers -- `pathToWorld`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one edge updates every layer that looks through it. Which columns hold a point layer's coordinates is likewise the table dataset's declaration, not a per-layer copy. The concrete kind carries its own data source and render settings: IntensityLayer, RgbLayer, PhasorLayer and LabelLayer each state a recipe of fixed shape as fields, ImageLayer carries a composable render graph for the layers that genuinely composite, and AnnotationLayer, PointLayer, TrackLayer, MeshLayer and NetworkLayer draw through a lens over a collection or a table -- every layer, of every kind, draws through a lens of its source's kind."
     id: ID
     kind: LayerKind
     name: str | None = Field(default=None)
@@ -3296,13 +4046,17 @@ class LayerImageLayer(LayerBase, BaseModel):
     """The general image layer: array (lens) data rendered through a composable render graph. The kind for a layer that actually **composites** -- several channels blended together, a hand-authored transfer curve, a solid tint, per-channel opacity. When the recipe's shape is fixed instead, one of IntensityLayer, RgbLayer or PhasorLayer says so directly and carries its settings as fields, which is why those are not this type with a flag. Its rendering is described entirely by the render graph; its placement, entirely by the coordinate graph."""
     typename: Literal['ImageLayer'] = Field(alias='__typename', default='ImageLayer', exclude=True)
     lens: LayerLens
+    "The array lens this layer draws through: the selection, and the space the data is placed from. Read through the layer's own prefetch rather than the optimizer's, which cannot follow a polymorphic foreign key to the kind"
+    render_axes: LayerRenderAxes = Field(alias='renderAxes')
+    "Which axis of this layer's lens faces screen x, y, z, time and intensity (and which carries the phasor or the vector components). A convention of the *view*, which is why it is a field of the layer: a lens is a selection and a coordinate system is a container of axes, and neither chooses how it is looked at. Derived on every read from the axis types and names by the one server-side rule (`core.logic.coords.resolve_render_axes`), never stored, so two layers over one lens -- and two clients over one layer -- cannot transpose the axes differently. A lens has no such field: a selection does not choose how it is looked at"
 
 class LayerIntensityLayer(LayerBase, BaseModel):
-    """One channel of a lens through one colormap -- or one solid tint -- with contrast limits and gamma, optionally projected over z. The fluorescence workhorse, and the layer a renderer can take straight to a single-channel texture and a LUT without walking a tree. Its settings are fields rather than a render graph because there is nothing here to composite: the graph form of this was a blend node with a single child, and additively blending one thing is that thing. Anything that *would* need the tree -- a second channel, an authored transfer curve, per-channel opacity -- is an ImageLayer. A tint is not among them: it names the hue one ramp ends at, which is what `colormap` does, so it is a field here rather than a reason to author a graph."""
+    """A single-channel lens through one colormap -- or one solid tint -- with contrast limits and gamma, optionally projected over z. Which channel is drawn is the lens' selection, not a field here. The fluorescence workhorse, and the layer a renderer can take straight to a single-channel texture and a LUT without walking a tree. Its settings are fields rather than a render graph because there is nothing here to composite: the graph form of this was a blend node with a single child, and additively blending one thing is that thing. Anything that *would* need the tree -- a second channel, an authored transfer curve, per-channel opacity -- is an ImageLayer. A tint is not among them: it names the hue one ramp ends at, which is what `colormap` does, so it is a field here rather than a reason to author a graph."""
     typename: Literal['IntensityLayer'] = Field(alias='__typename', default='IntensityLayer', exclude=True)
     lens: LayerLens
-    intensity_axis: str | None = Field(default=None, alias='intensityAxis')
-    intensity_index: int = Field(alias='intensityIndex')
+    "The array lens this layer draws through: the selection, and the space the data is placed from. Read through the layer's own prefetch rather than the optimizer's, which cannot follow a polymorphic foreign key to the kind"
+    render_axes: LayerRenderAxes = Field(alias='renderAxes')
+    "Which axis of this layer's lens faces screen x, y, z, time and intensity (and which carries the phasor or the vector components). A convention of the *view*, which is why it is a field of the layer: a lens is a selection and a coordinate system is a container of axes, and neither chooses how it is looked at. Derived on every read from the axis types and names by the one server-side rule (`core.logic.coords.resolve_render_axes`), never stored, so two layers over one lens -- and two clients over one layer -- cannot transpose the axes differently. A lens has no such field: a selection does not choose how it is looked at"
     intensity_colormap: ColorMap = Field(alias='intensityColormap')
     color: tuple[int, ...] | None = Field(default=None)
     clim_min: float | None = Field(default=None, alias='climMin')
@@ -3314,6 +4068,9 @@ class LayerLabelLayer(LayerBase, BaseModel):
     """A layer that renders array (lens) data whose values are discrete object ids -- a segmentation or an instance map. It shares the image layer's source and the same coordinate-graph placement, and none of its render settings: contrast limits, gamma, colormaps and intensity projections are all meaningless over ids."""
     typename: Literal['LabelLayer'] = Field(alias='__typename', default='LabelLayer', exclude=True)
     lens: LayerLens
+    "The array lens this layer draws through: the selection, and the space the data is placed from. Read through the layer's own prefetch rather than the optimizer's, which cannot follow a polymorphic foreign key to the kind"
+    render_axes: LayerRenderAxes = Field(alias='renderAxes')
+    "Which axis of this layer's lens faces screen x, y, z, time and intensity (and which carries the phasor or the vector components). A convention of the *view*, which is why it is a field of the layer: a lens is a selection and a coordinate system is a container of axes, and neither chooses how it is looked at. Derived on every read from the axis types and names by the one server-side rule (`core.logic.coords.resolve_render_axes`), never stored, so two layers over one lens -- and two clients over one layer -- cannot transpose the axes differently. A lens has no such field: a selection does not choose how it is looked at"
     label_render: LayerLabelRender | None = Field(default=None, alias='labelRender')
     "How this layer's object ids become color: the hashing, the transparent background id, contour-or-fill, the selection, and any `colorBy`"
     placement: PlacementState
@@ -3324,8 +4081,10 @@ class LayerLabelLayer(LayerBase, BaseModel):
 class LayerMeshLayer(LayerBase, BaseModel):
     """A layer that renders a 3D mesh (surface reconstruction / isosurface) placed and styled in a scene."""
     typename: Literal['MeshLayer'] = Field(alias='__typename', default='MeshLayer', exclude=True)
+    mesh_lens: LayerMeshLens = Field(alias='meshLens')
+    'The mesh lens this layer draws through'
     collection: LayerCollection | None = Field(default=None)
-    "The versioned, coordinate-system-anchored mesh collection this layer renders. Its geometry is fetched from the collection's Parquet catalog, not through this API"
+    "The immutable, coordinate-system-anchored mesh collection this layer renders: the container of the lens. Its geometry is fetched from the collection's Parquet catalog, not through this API"
     material_color: tuple[int, ...] | None = Field(default=None, alias='materialColor')
     wireframe: bool
     shading: MeshShading
@@ -3346,8 +4105,10 @@ class LayerMeshLayer(LayerBase, BaseModel):
 class LayerNetworkLayer(LayerBase, BaseModel):
     """A layer that renders a node/edge network -- a traced arbor, a vessel tree, a connectome -- placed and styled in a scene. Its segments are drawn as camera-facing quads rather than GL lines, which is what makes a width in scene units meaningful."""
     typename: Literal['NetworkLayer'] = Field(alias='__typename', default='NetworkLayer', exclude=True)
+    network_lens: LayerNetworkLens = Field(alias='networkLens')
+    'The network lens this layer draws through'
     network_collection: LayerNetworkCollection | None = Field(default=None, alias='networkCollection')
-    "The versioned, coordinate-system-anchored network collection this layer renders. Its nodes and edges are fetched from the collection's Parquet catalog, not through this API"
+    "The immutable, coordinate-system-anchored network collection this layer renders: the container of the lens. Its nodes and edges are fetched from the collection's Parquet catalog, not through this API"
     material_color: tuple[int, ...] | None = Field(default=None, alias='materialColor')
     network_line_width: float | None = Field(default=None, alias='networkLineWidth')
     'The flat width of every segment, in scene units. A well-defined length only from `placementInvariance` SIMILARITY up. Overridden where `nodeSizeColumn` or `edgeWidthColumn` is set'
@@ -3379,14 +4140,19 @@ class LayerPhasorLayer(LayerBase, BaseModel):
     """One axis of a lens -- MICROTIME or SPECTRUM -- reduced per pixel to a phasor and coloured by it: over microtime the phase reads as a fluorescence lifetime, over a spectrum as a spectral centre of mass. Its recipe lives in `phasorRender` rather than in fields, as a label layer's lives in `labelRender`, because a phasor's transfer maps the *reduction's* output -- a (g, s) pair plus a photon count -- and carries a list of cursors. A phasor composited *with* an ordinary intensity channel is still expressible: that is an ImageLayer whose graph carries a `PhasorNode`."""
     typename: Literal['PhasorLayer'] = Field(alias='__typename', default='PhasorLayer', exclude=True)
     lens: LayerLens
+    "The array lens this layer draws through: the selection, and the space the data is placed from. Read through the layer's own prefetch rather than the optimizer's, which cannot follow a polymorphic foreign key to the kind"
+    render_axes: LayerRenderAxes = Field(alias='renderAxes')
+    "Which axis of this layer's lens faces screen x, y, z, time and intensity (and which carries the phasor or the vector components). A convention of the *view*, which is why it is a field of the layer: a lens is a selection and a coordinate system is a container of axes, and neither chooses how it is looked at. Derived on every read from the axis types and names by the one server-side rule (`core.logic.coords.resolve_render_axes`), never stored, so two layers over one lens -- and two clients over one layer -- cannot transpose the axes differently. A lens has no such field: a selection does not choose how it is looked at"
     phasor_render: LayerPhasorRender | None = Field(default=None, alias='phasorRender')
     'Which axis is reduced to a phasor, at which harmonic, and how the resulting (g, s) becomes color'
 
 class LayerPointLayer(LayerBase, BaseModel):
     """A layer that renders a point cloud (e.g. SMLM localisations, centroids) from a table dataset."""
     typename: Literal['PointLayer'] = Field(alias='__typename', default='PointLayer', exclude=True)
+    table_lens: LayerTableLens = Field(alias='tableLens')
+    "The table lens this layer draws through: the rows its windows keep, in the table's own space"
     table_dataset: LayerTableDataset = Field(alias='tableDataset')
-    'The table dataset the points are drawn from. Its declared coordinate columns provide the coordinates and its own system provides the placement -- the column fields below are derived from its schema, never stored per layer'
+    'The table dataset the points are drawn from: the container of the lens. Its declared coordinate columns provide the coordinates and its own system provides the placement -- the column fields below are derived from its schema, never stored per layer'
     x_column: str | None = Field(default=None, alias='xColumn')
     "The coordinate column whose axis is named 'x', from the dataset's declared schema"
     y_column: str | None = Field(default=None, alias='yColumn')
@@ -3405,21 +4171,28 @@ class LayerPointLayer(LayerBase, BaseModel):
     "The filters this layer offers, in the order a picker should show them. Each keeps or drops points by a column of a table this layer's ids key into. Empty means nothing is offered and every point draws"
 
 class LayerRgbLayer(LayerBase, BaseModel):
-    """Three channels of a lens as the red, green and blue components of one picture -- a photograph, a brightfield slide -- sharing one pair of contrast limits. A renderer can upload this as a single RGB texture in one pass. Its own kind rather than a three-child blend because the two are **indistinguishable as graphs**, and a three-marker fluorescence acquisition coloured red/green/blue is by far the commoner reading of that shape -- so as a graph the authored fact was destroyed at write time. Never inferred, for the same reason. There is no per-channel colormap here and no per-channel visibility: the channel *is* the colour, and the three are components of one picture rather than three signals to hide and reorder separately. Wanting to do that means wanting three layers, or an ImageLayer."""
+    """Three single-channel lenses, each a crop of `lens`, as the red, green and blue components of one picture -- a photograph, a brightfield slide -- sharing one pair of contrast limits. A renderer can upload this as a single RGB texture in one pass. Its own kind rather than a three-child blend because the two are **indistinguishable as graphs**, and a three-marker fluorescence acquisition coloured red/green/blue is by far the commoner reading of that shape -- so as a graph the authored fact was destroyed at write time. Never inferred, for the same reason. There is no per-channel colormap here and no per-channel visibility: the channel *is* the colour, and the three are components of one picture rather than three signals to hide and reorder separately. Wanting to do that means wanting three layers, or an ImageLayer."""
     typename: Literal['RgbLayer'] = Field(alias='__typename', default='RgbLayer', exclude=True)
     lens: LayerLens
-    intensity_axis: str | None = Field(default=None, alias='intensityAxis')
-    red_index: int = Field(alias='redIndex')
-    green_index: int = Field(alias='greenIndex')
-    blue_index: int = Field(alias='blueIndex')
+    "The array lens this layer draws through: the selection, and the space the data is placed from. Read through the layer's own prefetch rather than the optimizer's, which cannot follow a polymorphic foreign key to the kind"
+    render_axes: LayerRenderAxes = Field(alias='renderAxes')
+    "Which axis of this layer's lens faces screen x, y, z, time and intensity (and which carries the phasor or the vector components). A convention of the *view*, which is why it is a field of the layer: a lens is a selection and a coordinate system is a container of axes, and neither chooses how it is looked at. Derived on every read from the axis types and names by the one server-side rule (`core.logic.coords.resolve_render_axes`), never stored, so two layers over one lens -- and two clients over one layer -- cannot transpose the axes differently. A lens has no such field: a selection does not choose how it is looked at"
+    red_lens: LayerRedLens = Field(alias='redLens')
+    'The single-channel lens drawn as red: a crop of `lens` with its channel axis at one position'
+    green_lens: LayerGreenLens = Field(alias='greenLens')
+    'The single-channel lens drawn as green: a crop of `lens` with its channel axis at one position'
+    blue_lens: LayerBlueLens = Field(alias='blueLens')
+    'The single-channel lens drawn as blue: a crop of `lens` with its channel axis at one position'
     clim_min: float | None = Field(default=None, alias='climMin')
     clim_max: float | None = Field(default=None, alias='climMax')
 
 class LayerTrackLayer(LayerBase, BaseModel):
     """A layer that renders trajectories (e.g. particle/cell tracks) from a table dataset, grouped by its TRACK_ID column."""
     typename: Literal['TrackLayer'] = Field(alias='__typename', default='TrackLayer', exclude=True)
+    table_lens: LayerTableLens = Field(alias='tableLens')
+    "The table lens this layer draws through: the rows its windows keep, in the table's own space"
     table_dataset: LayerTableDataset = Field(alias='tableDataset')
-    'The table dataset the tracks are drawn from. Its coordinate and TRACK_ID columns provide the trajectories -- the column fields below are derived from its schema, never stored per layer'
+    'The table dataset the tracks are drawn from: the container of the lens. Its coordinate and TRACK_ID columns provide the trajectories -- the column fields below are derived from its schema, never stored per layer'
     color_by_column: str | None = Field(default=None, alias='colorByColumn')
     line_width: float | None = Field(default=None, alias='lineWidth')
     colormap: ColorMap | None = Field(default=None)
@@ -3435,8 +4208,12 @@ class LayerTrackLayer(LayerBase, BaseModel):
     "The coordinate column whose axis is named 't', if any"
 
 class LayerVectorLayer(LayerBase, BaseModel):
-    """A vector-valued lens -- an optical flow, a deformation field, an orientation map -- drawn as glyphs sampled from the grid. The sixth lens-backed kind, and the value domain is what earns it one, for LabelLayer's reason: the lens carries a DISPLACEMENT axis whose positions are the components of a per-point offset, so the axis is read as geometry, and none of the intensity vocabulary (a channel index, a gamma, a projection) survives that. Which axis holds the components is derived (`vectorAxis`), never stored -- a per-layer copy could disagree with the axes themselves. What the layer carries is honestly view state: a glyph style, a sampling stride, a magnitude scale and a magnitude colormap window, and two layers over one field may disagree about all of it -- a coarse overview beside a dense inset."""
+    """A vector-valued lens -- an optical flow, a deformation field, an orientation map -- drawn as glyphs sampled from the grid. The sixth lens-backed kind, and the value domain is what earns it one, for LabelLayer's reason: the lens carries a DISPLACEMENT axis whose positions are the components of a per-point offset, so the axis is read as geometry, and none of the intensity vocabulary (a channel, a gamma, a projection) survives that. Which axis holds the components is derived (`vectorAxis`), never stored -- a per-layer copy could disagree with the axes themselves. What the layer carries is honestly view state: a glyph style, a sampling stride, a magnitude scale and a magnitude colormap window, and two layers over one field may disagree about all of it -- a coarse overview beside a dense inset."""
     typename: Literal['VectorLayer'] = Field(alias='__typename', default='VectorLayer', exclude=True)
+    lens: LayerLens
+    "The array lens this layer draws through: the selection, and the space the data is placed from. Read through the layer's own prefetch rather than the optimizer's, which cannot follow a polymorphic foreign key to the kind"
+    render_axes: LayerRenderAxes = Field(alias='renderAxes')
+    "Which axis of this layer's lens faces screen x, y, z, time and intensity (and which carries the phasor or the vector components). A convention of the *view*, which is why it is a field of the layer: a lens is a selection and a coordinate system is a container of axes, and neither chooses how it is looked at. Derived on every read from the axis types and names by the one server-side rule (`core.logic.coords.resolve_render_axes`), never stored, so two layers over one lens -- and two clients over one layer -- cannot transpose the axes differently. A lens has no such field: a selection does not choose how it is looked at"
 
 class Slice(MikroFetchable, BaseModel):
     """A slice along a named axis, with optional start, stop and step"""
@@ -3456,6 +4233,23 @@ class Slice(MikroFetchable, BaseModel):
         document = 'fragment Slice on Slice {\n  axis\n  start\n  stop\n  step\n  __typename\n}'
         name = 'Slice'
         type = 'Slice'
+
+class Window(MikroFetchable, BaseModel):
+    """A value window along a named axis of a container that is not an array: the positions kept, by value, with an open side as null"""
+    typename: Literal['Window'] = Field(alias='__typename', default='Window', exclude=True)
+    axis: str
+    "The name of the axis the window constrains, e.g. 't' for a table's time column"
+    min: float | None = Field(default=None)
+    'The smallest position kept, inclusive, or None for no lower bound'
+    max: float | None = Field(default=None)
+    'The largest position kept, inclusive, or None for no upper bound'
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for Window"""
+        document = 'fragment Window on Window {\n  axis\n  min\n  max\n  __typename\n}'
+        name = 'Window'
+        type = 'Window'
 
 class PhasorCalibration(MikroFetchable, BaseModel):
     """The instrument-response correction taking a raw phasor to a calibrated one, pinned to a coordinate anchor. An acquisition fact, not a display choice: two layers over one dataset cannot coherently disagree about it. Its absence means the phasor is uncalibrated, which still renders"""
@@ -3499,7 +4293,7 @@ class PhasorHistogram(MikroFetchable, BaseModel):
         name = 'PhasorHistogram'
         type = 'PhasorHistogram'
 
-class SparseAxisReferenceReferences(HasParquestStoreTrait, BaseModel):
+class SparseAxisReferenceReferences(HasParquestStoreTrait, TableDatasetLensTrait, BaseModel):
     """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
     typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
     id: ID
@@ -3671,75 +4465,7 @@ class SparseStore(MikroFetchable, BaseModel):
         name = 'SparseStore'
         type = 'SparseStore'
 
-class TransformationChildBase(BaseModel):
-    """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
-    id: ID
-    kind: TransformKind
-    input_axes: tuple[str, ...] = Field(alias='inputAxes')
-    "The names of the input axes this edge's parameters are ordered by. `scale`, `translation` and the columns of `affine` follow this order -- which is the input system's axis order, NOT the reading layer's axis names, and the two differ often enough that indexing the arrays against them silently misplaces them. A BY_DIMENSION edge names only the subset of axes it acts on; the axes it does not name are the ones it leaves untouched"
-    output_axes: tuple[str, ...] = Field(alias='outputAxes')
-    "The names of the output axes this edge produces. For a rank-changing BY_DIMENSION edge (placing a (c,y,x) dataset into a (t,z,y,x) world) this is the subset it maps onto; the world's other axes are untouched"
-
-class TransformationChildCatch(TransformationChildBase):
-    """Catch all class for TransformationChildBase"""
-    typename: str = Field(alias='__typename', exclude=True)
-    'A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters'
-    id: ID
-    kind: TransformKind
-    input_axes: tuple[str, ...] = Field(alias='inputAxes')
-    "The names of the input axes this edge's parameters are ordered by. `scale`, `translation` and the columns of `affine` follow this order -- which is the input system's axis order, NOT the reading layer's axis names, and the two differ often enough that indexing the arrays against them silently misplaces them. A BY_DIMENSION edge names only the subset of axes it acts on; the axes it does not name are the ones it leaves untouched"
-    output_axes: tuple[str, ...] = Field(alias='outputAxes')
-    "The names of the output axes this edge produces. For a rank-changing BY_DIMENSION edge (placing a (c,y,x) dataset into a (t,z,y,x) world) this is the subset it maps onto; the world's other axes are untouched"
-
-class TransformationChildAffineTransformation(TransformationChildBase, TransformationTrait, BaseModel):
-    """A general affine map, given as an M x (N+1) matrix with rows outermost"""
-    typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
-    affine: tuple[tuple[float, ...], ...]
-    'The affine matrix, M x (N+1), rows outermost. The last column is the translation'
-
-class TransformationChildByDimensionTransformation(TransformationChildBase, TransformationTrait, BaseModel):
-    """A composition of child transformations, each acting on a named subset of the axes"""
-    typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
-
-class TransformationChildFieldTransformation(TransformationChildBase, TransformationTrait, BaseModel):
-    """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
-    typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
-
-class TransformationChildIdentityTransformation(TransformationChildBase, TransformationTrait, BaseModel):
-    """The identity map: input and output coordinates are the same"""
-    typename: Literal['IdentityTransformation'] = Field(alias='__typename', default='IdentityTransformation', exclude=True)
-
-class TransformationChildMapAxisTransformation(TransformationChildBase, TransformationTrait, BaseModel):
-    """A permutation of axes, mapping each input axis to an output axis by name"""
-    typename: Literal['MapAxisTransformation'] = Field(alias='__typename', default='MapAxisTransformation', exclude=True)
-
-class TransformationChildRotationTransformation(TransformationChildBase, TransformationTrait, BaseModel):
-    """A rotation, given as an orthonormal matrix"""
-    typename: Literal['RotationTransformation'] = Field(alias='__typename', default='RotationTransformation', exclude=True)
-    affine: tuple[tuple[float, ...], ...]
-    'The rotation matrix'
-
-class TransformationChildScaleTransformation(TransformationChildBase, TransformationTrait, BaseModel):
-    """A per-axis multiplication, with one entry per input axis"""
-    typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
-    scale: tuple[float, ...]
-    "The per-axis scale factors, in the axis order of the input system, expressed in the units of the output system's axes (dimensionless between pixel systems, e.g. within a pyramid). Absolute, not relative to another level"
-
-class TransformationChildSequenceTransformation(TransformationChildBase, TransformationTrait, BaseModel):
-    """An ordered composition of child transformations, applied first to last"""
-    typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
-
-class TransformationChildTranslationTransformation(TransformationChildBase, TransformationTrait, BaseModel):
-    """A per-axis offset, with one entry per input axis"""
-    typename: Literal['TranslationTransformation'] = Field(alias='__typename', default='TranslationTransformation', exclude=True)
-    translation: tuple[float, ...]
-    'The per-axis offsets, in the axis order of the input system'
-
-class TransformationChildUnmappableTransformation(TransformationChildBase, TransformationTrait, BaseModel):
-    """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
-    typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
-
-class ColumnOptionJoinStepTable(HasParquestStoreTrait, BaseModel):
+class ColumnOptionJoinStepTable(HasParquestStoreTrait, TableDatasetLensTrait, BaseModel):
     """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
     typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
     id: ID
@@ -3806,6 +4532,136 @@ class CoordinateSystem(CoordinateSystemTrait, MikroFetchable, BaseModel):
         name = 'CoordinateSystem'
         type = 'CoordinateSystem'
 
+class TableLensTableDataset(HasParquestStoreTrait, TableDatasetLensTrait, BaseModel):
+    """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
+    typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
+    id: ID
+    name: str
+    model_config = ConfigDict(frozen=True)
+
+class TableLens(MikroFetchable, BaseModel):
+    """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
+    id: ID
+    name: str | None = Field(default=None)
+    "What someone called this selection, or null when nobody has. A label only: it is no part of what the lens selects, and a client shows the selection -- or 'the whole container' -- in its place"
+    kind: LensKind
+    'What this lens selects over: an array by slices, or a table, a sparse dataset, a mesh, a network or an annotation collection by windows'
+    table_dataset: TableLensTableDataset = Field(alias='tableDataset')
+    windows: tuple[Window, ...]
+    'The windows, in the one normalized spelling: container axis order, floats, an open side as null. Empty for the whole lens'
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for TableLens"""
+        document = 'fragment Window on Window {\n  axis\n  min\n  max\n  __typename\n}\n\nfragment TableLens on TableLens {\n  id\n  name\n  kind\n  tableDataset {\n    id\n    name\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}'
+        name = 'TableLens'
+        type = 'TableLens'
+
+class SparseLensSparseDataset(SparseDatasetTrait, BaseModel):
+    """A sparse matrix over two enumerated axes -- objects on one, features on the other -- stored as anndata-spelled zarr groups. It exists because a colouring names one *column*, so a colourable measurement is a column of a table: right for a few hundred features and impossible for a transcriptome, where a feature stops being a schema fact and becomes a data one. **Each axis is identified exactly once**, by its own `identifiedBy` -- a source whose contents are the ids, or the table whose rows the positions are. Its stores, axes and coordinate system are fixed at creation; a recomputation is a new dataset"""
+    typename: Literal['SparseDataset'] = Field(alias='__typename', default='SparseDataset', exclude=True)
+    id: ID
+    name: str
+    model_config = ConfigDict(frozen=True)
+
+class SparseLens(MikroFetchable, BaseModel):
+    """A selection over a sparse dataset by windows on its axes: the positions kept, never re-indexed. Lives in the dataset's own space"""
+    typename: Literal['SparseLens'] = Field(alias='__typename', default='SparseLens', exclude=True)
+    id: ID
+    name: str | None = Field(default=None)
+    "What someone called this selection, or null when nobody has. A label only: it is no part of what the lens selects, and a client shows the selection -- or 'the whole container' -- in its place"
+    kind: LensKind
+    'What this lens selects over: an array by slices, or a table, a sparse dataset, a mesh, a network or an annotation collection by windows'
+    sparse_dataset: SparseLensSparseDataset = Field(alias='sparseDataset')
+    windows: tuple[Window, ...]
+    'The windows, in the one normalized spelling: container axis order, floats, an open side as null. Empty for the whole lens'
+    spec: tuple[SparseDatasetSpec, ...]
+    "What this selection structurally is: its matrix's `spec` vocabulary, read over what its windows leave free. Materialized when the lens is made, and what the `sparseSpec` filter reads. An axis a window pins to one position (min == max) no longer counts, so one feature of a MATRIX is a VECTOR -- and a SLICE when it pins exactly the axes the matrix identifies itself by and a layout makes the read contiguous, which is what a SPARSE colour or filter picker entry accepts"
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for SparseLens"""
+        document = 'fragment Window on Window {\n  axis\n  min\n  max\n  __typename\n}\n\nfragment SparseLens on SparseLens {\n  id\n  name\n  kind\n  sparseDataset {\n    id\n    name\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  spec\n  __typename\n}'
+        name = 'SparseLens'
+        type = 'SparseLens'
+
+class MeshLensMeshCollection(MeshCollectionTrait, BaseModel):
+    """An immutable collection of meshes, stored as one fabriks prefix. Ask its `store` for an access grant and query the Parquet directly (e.g. with DuckDB) rather than paginating meshes through GraphQL"""
+    typename: Literal['MeshCollection'] = Field(alias='__typename', default='MeshCollection', exclude=True)
+    id: ID
+    model_config = ConfigDict(frozen=True)
+
+class MeshLens(MikroFetchable, BaseModel):
+    """A selection over a mesh collection by windows in its own space"""
+    typename: Literal['MeshLens'] = Field(alias='__typename', default='MeshLens', exclude=True)
+    id: ID
+    name: str | None = Field(default=None)
+    "What someone called this selection, or null when nobody has. A label only: it is no part of what the lens selects, and a client shows the selection -- or 'the whole container' -- in its place"
+    kind: LensKind
+    'What this lens selects over: an array by slices, or a table, a sparse dataset, a mesh, a network or an annotation collection by windows'
+    mesh_collection: MeshLensMeshCollection = Field(alias='meshCollection')
+    windows: tuple[Window, ...]
+    'The windows, in the one normalized spelling: container axis order, floats, an open side as null. Empty for the whole lens'
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for MeshLens"""
+        document = 'fragment Window on Window {\n  axis\n  min\n  max\n  __typename\n}\n\nfragment MeshLens on MeshLens {\n  id\n  name\n  kind\n  meshCollection {\n    id\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}'
+        name = 'MeshLens'
+        type = 'MeshLens'
+
+class NetworkLensNetworkCollection(NetworkCollectionTrait, BaseModel):
+    """An immutable collection of networks, stored as one konnektion prefix. Ask its `store` for an access grant and query the Parquet directly (e.g. with DuckDB) rather than paginating nodes through GraphQL"""
+    typename: Literal['NetworkCollection'] = Field(alias='__typename', default='NetworkCollection', exclude=True)
+    id: ID
+    model_config = ConfigDict(frozen=True)
+
+class NetworkLens(MikroFetchable, BaseModel):
+    """A selection over a network collection by windows in its own space"""
+    typename: Literal['NetworkLens'] = Field(alias='__typename', default='NetworkLens', exclude=True)
+    id: ID
+    name: str | None = Field(default=None)
+    "What someone called this selection, or null when nobody has. A label only: it is no part of what the lens selects, and a client shows the selection -- or 'the whole container' -- in its place"
+    kind: LensKind
+    'What this lens selects over: an array by slices, or a table, a sparse dataset, a mesh, a network or an annotation collection by windows'
+    network_collection: NetworkLensNetworkCollection = Field(alias='networkCollection')
+    windows: tuple[Window, ...]
+    'The windows, in the one normalized spelling: container axis order, floats, an open side as null. Empty for the whole lens'
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for NetworkLens"""
+        document = 'fragment Window on Window {\n  axis\n  min\n  max\n  __typename\n}\n\nfragment NetworkLens on NetworkLens {\n  id\n  name\n  kind\n  networkCollection {\n    id\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}'
+        name = 'NetworkLens'
+        type = 'NetworkLens'
+
+class AnnotationLensAnnotationCollection(BaseModel):
+    """A named set of human-drawn annotations, owning the coordinate system they are drawn in. The CRUD counterpart of a table dataset's machine-produced rows: shapes a person draws and edits, sharing one drawing space and one registration story"""
+    typename: Literal['AnnotationCollection'] = Field(alias='__typename', default='AnnotationCollection', exclude=True)
+    id: ID
+    name: str
+    model_config = ConfigDict(frozen=True)
+
+class AnnotationLens(MikroFetchable, BaseModel):
+    """A selection over an annotation collection by windows in its drawing space"""
+    typename: Literal['AnnotationLens'] = Field(alias='__typename', default='AnnotationLens', exclude=True)
+    id: ID
+    name: str | None = Field(default=None)
+    "What someone called this selection, or null when nobody has. A label only: it is no part of what the lens selects, and a client shows the selection -- or 'the whole container' -- in its place"
+    kind: LensKind
+    'What this lens selects over: an array by slices, or a table, a sparse dataset, a mesh, a network or an annotation collection by windows'
+    annotation_collection: AnnotationLensAnnotationCollection = Field(alias='annotationCollection')
+    windows: tuple[Window, ...]
+    'The windows, in the one normalized spelling: container axis order, floats, an open side as null. Empty for the whole lens'
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for AnnotationLens"""
+        document = 'fragment Window on Window {\n  axis\n  min\n  max\n  __typename\n}\n\nfragment AnnotationLens on AnnotationLens {\n  id\n  name\n  kind\n  annotationCollection {\n    id\n    name\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}'
+        name = 'AnnotationLens'
+        type = 'AnnotationLens'
+
 class File(FileTrait, MikroFetchable, BaseModel):
     """A file in its original format (e.g. a microscopy vendor file), stored in a BigFileStore. Files are the raw bytes that array datasets, table datasets and mesh collections are converted from."""
     typename: Literal['File'] = Field(alias='__typename', default='File', exclude=True)
@@ -3840,14 +4696,14 @@ class SparseArray(MikroFetchable, BaseModel):
         name = 'SparseArray'
         type = 'SparseArray'
 
-class ColorByOptionTable(HasParquestStoreTrait, BaseModel):
+class ColorByOptionTable(HasParquestStoreTrait, TableDatasetLensTrait, BaseModel):
     """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
     typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
     id: ID
     name: str
     model_config = ConfigDict(frozen=True)
 
-class ColorByOptionSparseDataset(BaseModel):
+class ColorByOptionSparseDataset(SparseDatasetTrait, BaseModel):
     """A sparse matrix over two enumerated axes -- objects on one, features on the other -- stored as anndata-spelled zarr groups. It exists because a colouring names one *column*, so a colourable measurement is a column of a table: right for a few hundred features and impossible for a transcriptome, where a feature stops being a schema fact and becomes a data one. **Each axis is identified exactly once**, by its own `identifiedBy` -- a source whose contents are the ids, or the table whose rows the positions are. Its stores, axes and coordinate system are fixed at creation; a recomputation is a new dataset"""
     typename: Literal['SparseDataset'] = Field(alias='__typename', default='SparseDataset', exclude=True)
     id: ID
@@ -3874,7 +4730,7 @@ class ColorByOption(MikroFetchable, BaseModel):
     sparse_dataset: ColorByOptionSparseDataset | None = Field(default=None, alias='sparseDataset')
     '(SPARSE) The matrix one slice of which is read, instead of a table column. Present exactly when `table` and `column` are null -- an option is one or the other, never both'
     axes: tuple[str, ...]
-    "(SPARSE) The axes a position is named along -- the ones the matrix identifies itself, never the one the source's ids index. **Name a position along every one of them**: a rank-two matrix has one, a rank-three matrix two, and an `at` that names a different set is refused. **One option per matrix, never per position**: a matrix with 19 059 features has 19 059 of those, and the picker offers the axes while the client picks the positions out of the tables they reference, which it already holds access grants for. Offered when at least one of these axes has a stored layout, which is what makes the read one contiguous slice rather than a scan"
+    "(SPARSE) The axes a position is named along -- the ones the matrix identifies itself, never the one the source's ids index. **Name a position along every one of them**: a rank-two matrix has one, a rank-three matrix two, and a lens that pins a different set is refused. **One option per matrix, never per position**: a matrix with 19 059 features has 19 059 of those, and the picker offers the axes while the client picks the positions out of the tables they reference, which it already holds access grants for. Offered when at least one of these axes has a stored layout, which is what makes the read one contiguous slice rather than a scan"
     graph_attribute: str | None = Field(default=None, alias='graphAttribute')
     "(GRAPH, network collections only) A per-node value the collection itself carries: a name its manifest declares -- strahler, degree, depth, component, a writer's own column -- or `radius` when the encoding carries one. Present exactly when `table`, `column` and `sparseDataset` are all null. Pass it back as `colorBys[].attribute` with `kind: GRAPH`; always MEASURE, and the one option kind whose values are per node rather than per object"
     target: GraphTarget | None = Field(default=None)
@@ -3893,14 +4749,14 @@ class ColorByOption(MikroFetchable, BaseModel):
         name = 'ColorByOption'
         type = 'ColorByOption'
 
-class FilterByOptionTable(HasParquestStoreTrait, BaseModel):
+class FilterByOptionTable(HasParquestStoreTrait, TableDatasetLensTrait, BaseModel):
     """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
     typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
     id: ID
     name: str
     model_config = ConfigDict(frozen=True)
 
-class FilterByOptionSparseDataset(BaseModel):
+class FilterByOptionSparseDataset(SparseDatasetTrait, BaseModel):
     """A sparse matrix over two enumerated axes -- objects on one, features on the other -- stored as anndata-spelled zarr groups. It exists because a colouring names one *column*, so a colourable measurement is a column of a table: right for a few hundred features and impossible for a transcriptome, where a feature stops being a schema fact and becomes a data one. **Each axis is identified exactly once**, by its own `identifiedBy` -- a source whose contents are the ids, or the table whose rows the positions are. Its stores, axes and coordinate system are fixed at creation; a recomputation is a new dataset"""
     typename: Literal['SparseDataset'] = Field(alias='__typename', default='SparseDataset', exclude=True)
     id: ID
@@ -3927,7 +4783,7 @@ class FilterByOption(MikroFetchable, BaseModel):
     sparse_dataset: FilterByOptionSparseDataset | None = Field(default=None, alias='sparseDataset')
     '(SPARSE) The matrix one slice of which is read, instead of a table column. Present exactly when `table` and `column` are null -- an option is one or the other, never both'
     axes: tuple[str, ...]
-    "(SPARSE) The axes a position is named along -- the ones the matrix identifies itself, never the one the source's ids index. **Name a position along every one of them**: a rank-two matrix has one, a rank-three matrix two, and an `at` that names a different set is refused. **One option per matrix, never per position**: a matrix with 19 059 features has 19 059 of those, and the picker offers the axes while the client picks the positions out of the tables they reference, which it already holds access grants for. Offered when at least one of these axes has a stored layout, which is what makes the read one contiguous slice rather than a scan"
+    "(SPARSE) The axes a position is named along -- the ones the matrix identifies itself, never the one the source's ids index. **Name a position along every one of them**: a rank-two matrix has one, a rank-three matrix two, and a lens that pins a different set is refused. **One option per matrix, never per position**: a matrix with 19 059 features has 19 059 of those, and the picker offers the axes while the client picks the positions out of the tables they reference, which it already holds access grants for. Offered when at least one of these axes has a stored layout, which is what makes the read one contiguous slice rather than a scan"
     graph_attribute: str | None = Field(default=None, alias='graphAttribute')
     '(GRAPH, network collections only) A per-node value the collection itself carries, exactly as on `ColorByOption`. Present exactly when `table`, `column` and `sparseDataset` are all null. Pass it back as `filterBys[].attribute` with `kind: GRAPH`; always MEASURE, so the rule is `min`/`max` bounds, and it hides individual nodes and segments rather than whole objects'
     column: FilterByOptionColumn | None = Field(default=None)
@@ -4024,7 +4880,47 @@ class ArrayDataset(DatasetTrait, MikroFetchable, BaseModel):
         name = 'ArrayDataset'
         type = 'ArrayDataset'
 
-class LensDatasetDataArrays(DataArrayTrait, BaseModel):
+class ChartLayersBase(BaseModel):
+    """A layer drawn in a chart. It carries view state only. Where its data sits along the chart's axis -- `pathToWorld`, `asAffine`, `alongAxis`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one registration moves every layer that looks through it. The concrete kind says what the layer reads: TraceChartLayer an array, SeriesChartLayer a table, AnnotationChartLayer drawn marks"""
+    model_config = ConfigDict(frozen=True)
+
+class ChartLayersBaseAnnotationChartLayer(ChartLayerAnnotationChartLayer, ChartLayersBase, BaseModel):
+    """A layer that draws an annotation collection's marks in a chart. One layer per collection: per-mark styling lives on the annotations themselves"""
+    typename: Literal['AnnotationChartLayer'] = Field(alias='__typename', default='AnnotationChartLayer', exclude=True)
+
+class ChartLayersBaseSeriesChartLayer(ChartLayerSeriesChartLayer, ChartLayersBase, BaseModel):
+    """A layer that reads one numeric column of a table against a coordinate column. The value column is the layer's; the coordinate column is the graph's -- whichever of the table's coordinate columns its registration lays along the chart's axis"""
+    typename: Literal['SeriesChartLayer'] = Field(alias='__typename', default='SeriesChartLayer', exclude=True)
+
+class ChartLayersBaseTraceChartLayer(ChartLayerTraceChartLayer, ChartLayersBase, BaseModel):
+    """A layer that reads an array along one axis. Its lens leaves one metric axis free -- `alongAxis`, laid along the chart -- and optionally one enumerating axis, `seriesAxis`, drawn as one line per position. Whether it is drawn as a line, markers, both or steps is `mark`"""
+    typename: Literal['TraceChartLayer'] = Field(alias='__typename', default='TraceChartLayer', exclude=True)
+
+class ChartLayersBaseCatchAll(ChartLayersBase, BaseModel):
+    """Catch all class for ChartLayersBase"""
+    typename: str = Field(alias='__typename', exclude=True)
+
+class Chart(ChartTrait, MikroFetchable, BaseModel):
+    """A composition of data laid out along one metric axis, with values read off it. The second kind of composition beside a scene: a scene is a place, a chart is an axis. It names data by id and owns none of it, and it carries no unit of its own -- the unit is its world axis's"""
+    typename: Literal['Chart'] = Field(alias='__typename', default='Chart', exclude=True)
+    id: ID
+    name: str
+    description: str | None = Field(default=None)
+    axis: Axis
+    "The one axis this chart is laid out along: its name, its metric type and its unit. The world's only axis, repeated here so a client drawing the chart need not unwrap a list of one"
+    world_coordinate_system: CoordinateSystem = Field(alias='worldCoordinateSystem')
+    'The space this chart is laid out along. Never owned by the chart: several charts can share it, it outlives each of them, and deleting a chart never deletes it. Ask it for `placedSystems` to learn what could be drawn here'
+    layers: tuple[Annotated[ChartLayersBaseAnnotationChartLayer | ChartLayersBaseSeriesChartLayer | ChartLayersBaseTraceChartLayer, Field(discriminator='typename')] | ChartLayersBaseCatchAll, ...]
+    'The layers drawn in this chart, back to front (a heterogeneous list of layer kinds)'
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for Chart"""
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Chart on Chart {\n  id\n  name\n  description\n  axis {\n    ...Axis\n    __typename\n  }\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  layers {\n    ...ChartLayer\n    __typename\n  }\n  __typename\n}'
+        name = 'Chart'
+        type = 'Chart'
+
+class ArrayLensDatasetDataArrays(DataArrayTrait, BaseModel):
     """One level of a dataset's resolution pyramid: a zarr-backed array, with its own voxel-index coordinate system and a stored edge into the dataset's intrinsic space"""
     typename: Literal['DataArray'] = Field(alias='__typename', default='DataArray', exclude=True)
     id: ID
@@ -4032,52 +4928,40 @@ class LensDatasetDataArrays(DataArrayTrait, BaseModel):
     store: ZarrStore
     model_config = ConfigDict(frozen=True)
 
-class LensDataset(DatasetTrait, BaseModel):
+class ArrayLensDataset(DatasetTrait, BaseModel):
     """A multi-dimensional array dataset. Its dimensions and their types live on the axes of its INTRINSIC (pixel grid) coordinate system; physical units live on the physical spaces it has edges into; its pyramid levels are DataArrays, each mapping into its grid"""
     typename: Literal['ArrayDataset'] = Field(alias='__typename', default='ArrayDataset', exclude=True)
     id: ID
     axis_names: tuple[str, ...] = Field(alias='axisNames')
     "The dataset's axis names, in array order. Derived from the axes of its intrinsic coordinate system"
-    data_arrays: tuple[LensDatasetDataArrays, ...] = Field(alias='dataArrays')
+    data_arrays: tuple[ArrayLensDatasetDataArrays, ...] = Field(alias='dataArrays')
     'The multiscale data arrays belonging to this dataset'
     model_config = ConfigDict(frozen=True)
 
-class LensRenderAxes(BaseModel):
-    """Which axis of a data source maps to screen x, y, z, time and intensity. Derived from the axis types, never stored"""
-    typename: Literal['RenderAxes'] = Field(alias='__typename', default='RenderAxes', exclude=True)
-    x: str
-    'The axis mapped to screen x: the last (fastest-varying) spatial axis'
-    y: str
-    'The axis mapped to screen y: the second-to-last spatial axis'
-    z: str | None = Field(default=None)
-    'The axis mapped to screen z: the third-to-last spatial axis, if the data is volumetric'
-    t: str | None = Field(default=None)
-    'The time axis, if the data has one'
-    intensity: str | None = Field(default=None)
-    'The channel axis, if the data has one'
-    model_config = ConfigDict(frozen=True)
-
-class Lens(Lensable, MikroFetchable, BaseModel):
-    """A Lens is a way of looking at a dataset: a dimensional selection (slices) over a dataset that defines a view of its data"""
-    typename: Literal['Lens'] = Field(alias='__typename', default='Lens', exclude=True)
+class ArrayLens(Lensable, MikroFetchable, BaseModel):
+    """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
     id: ID
-    dataset: LensDataset
+    name: str | None = Field(default=None)
+    "What someone called this selection, or null when nobody has. A label only: it is no part of what the lens selects, and a client shows the selection -- or 'the whole container' -- in its place"
+    kind: LensKind
+    'What this lens selects over: an array by slices, or a table, a sparse dataset, a mesh, a network or an annotation collection by windows'
+    dataset: ArrayLensDataset
     shape: tuple[int, ...]
     "The shape this lens' slices cut out of its dataset"
     axis_names: tuple[str, ...] = Field(alias='axisNames')
     "The lens' axis names, in array order. A selection never drops or reorders an axis"
     coordinate_system: CoordinateSystem | None = Field(default=None, alias='coordinateSystem')
-    "The coordinate system the lens' selection is expressed in. A sliced lens owns one (the space its slices cut out, with the derived edge recording the shift); an unsliced lens selects everything, so this resolves to the dataset's INTRINSIC system"
-    render_axes: LensRenderAxes = Field(alias='renderAxes')
-    'Which axis of the data source maps to screen x, y, z, time and intensity. Derived from the axis types: spatial axes are in array order, so the last is x'
+    "The coordinate system the lens' selection is expressed in. A sliced array lens owns one (the space its slices cut out, with the derived edge recording the shift); every other lens selects within its container's own space and resolves to it"
     slices: tuple[Slice, ...]
+    'The slices, in the one normalized spelling: dataset axis order, explicit ints, a step always present. Empty for the whole lens'
     model_config = ConfigDict(frozen=True)
 
     class Meta:
-        """Meta class for Lens"""
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Slice on Slice {\n  axis\n  start\n  stop\n  step\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Lens on Lens {\n  id\n  dataset {\n    id\n    axisNames\n    dataArrays {\n      id\n      level\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  shape\n  axisNames\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  renderAxes {\n    x\n    y\n    z\n    t\n    intensity\n    __typename\n  }\n  slices {\n    ...Slice\n    __typename\n  }\n  __typename\n}'
-        name = 'Lens'
-        type = 'Lens'
+        """Meta class for ArrayLens"""
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Slice on Slice {\n  axis\n  start\n  stop\n  step\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ArrayLens on ArrayLens {\n  id\n  name\n  kind\n  dataset {\n    id\n    axisNames\n    dataArrays {\n      id\n      level\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  shape\n  axisNames\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  slices {\n    ...Slice\n    __typename\n  }\n  __typename\n}'
+        name = 'ArrayLens'
+        type = 'ArrayLens'
 
 class Scene(SceneTrait, MikroFetchable, BaseModel):
     """A composition of layers over a shared world coordinate system. The scene carries no units of its own -- they are per-axis, on the axes of its world system"""
@@ -4098,101 +4982,28 @@ class Scene(SceneTrait, MikroFetchable, BaseModel):
         name = 'Scene'
         type = 'Scene'
 
-class TransformationSequenceChildrenBase(BaseModel):
-    """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
+class TransformationStepsField(CoordinateSystemTrait, BaseModel):
+    """A named coordinate space: a node in the transformation graph. Its axes are ordered, and that order is the order of the array's dimensions"""
+    typename: Literal['CoordinateSystem'] = Field(alias='__typename', default='CoordinateSystem', exclude=True)
+    id: ID
     model_config = ConfigDict(frozen=True)
 
-class TransformationSequenceChildrenBaseAffineTransformation(TransformationChildAffineTransformation, TransformationSequenceChildrenBase, TransformationTrait, BaseModel):
-    """A general affine map, given as an M x (N+1) matrix with rows outermost"""
-    typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
-
-class TransformationSequenceChildrenBaseByDimensionTransformation(TransformationChildByDimensionTransformation, TransformationSequenceChildrenBase, TransformationTrait, BaseModel):
-    """A composition of child transformations, each acting on a named subset of the axes"""
-    typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
-
-class TransformationSequenceChildrenBaseFieldTransformation(TransformationChildFieldTransformation, TransformationSequenceChildrenBase, TransformationTrait, BaseModel):
-    """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
-    typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
-
-class TransformationSequenceChildrenBaseIdentityTransformation(TransformationChildIdentityTransformation, TransformationSequenceChildrenBase, TransformationTrait, BaseModel):
-    """The identity map: input and output coordinates are the same"""
-    typename: Literal['IdentityTransformation'] = Field(alias='__typename', default='IdentityTransformation', exclude=True)
-
-class TransformationSequenceChildrenBaseMapAxisTransformation(TransformationChildMapAxisTransformation, TransformationSequenceChildrenBase, TransformationTrait, BaseModel):
-    """A permutation of axes, mapping each input axis to an output axis by name"""
-    typename: Literal['MapAxisTransformation'] = Field(alias='__typename', default='MapAxisTransformation', exclude=True)
-
-class TransformationSequenceChildrenBaseRotationTransformation(TransformationChildRotationTransformation, TransformationSequenceChildrenBase, TransformationTrait, BaseModel):
-    """A rotation, given as an orthonormal matrix"""
-    typename: Literal['RotationTransformation'] = Field(alias='__typename', default='RotationTransformation', exclude=True)
-
-class TransformationSequenceChildrenBaseScaleTransformation(TransformationChildScaleTransformation, TransformationSequenceChildrenBase, TransformationTrait, BaseModel):
-    """A per-axis multiplication, with one entry per input axis"""
-    typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
-
-class TransformationSequenceChildrenBaseSequenceTransformation(TransformationChildSequenceTransformation, TransformationSequenceChildrenBase, TransformationTrait, BaseModel):
-    """An ordered composition of child transformations, applied first to last"""
-    typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
-
-class TransformationSequenceChildrenBaseTranslationTransformation(TransformationChildTranslationTransformation, TransformationSequenceChildrenBase, TransformationTrait, BaseModel):
-    """A per-axis offset, with one entry per input axis"""
-    typename: Literal['TranslationTransformation'] = Field(alias='__typename', default='TranslationTransformation', exclude=True)
-
-class TransformationSequenceChildrenBaseUnmappableTransformation(TransformationChildUnmappableTransformation, TransformationSequenceChildrenBase, TransformationTrait, BaseModel):
-    """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
-    typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
-
-class TransformationSequenceChildrenBaseCatchAll(TransformationSequenceChildrenBase, BaseModel):
-    """Catch all class for TransformationSequenceChildrenBase"""
-    typename: str = Field(alias='__typename', exclude=True)
-
-class TransformationByDimensionChildrenBase(BaseModel):
-    """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
+class TransformationSteps(BaseModel):
+    """One step of a SEQUENCE transformation: a kind and its parameters, in the axis order of the sequence's input. A step is not an edge -- it has no endpoints, no id and no history of its own -- so it is read here and refined nowhere: the sequence is the ingest's statement of a crop or a pyramid level, derived from the data's own shapes"""
+    typename: Literal['TransformationStep'] = Field(alias='__typename', default='TransformationStep', exclude=True)
+    kind: TransformKind
+    'The kind of this step, which fixes which of the parameters below is read'
+    scale: tuple[float, ...]
+    "(SCALE) The per-axis factors, in the axis order of the sequence's input; empty on any other kind"
+    translation: tuple[float, ...]
+    "(TRANSLATION) The per-axis offsets, in the axis order of the sequence's input; empty on any other kind"
+    affine: tuple[tuple[float, ...], ...]
+    '(AFFINE / ROTATION) The matrix, M x (N+1), rows outermost; empty on any other kind'
+    reason: str | None = Field(default=None)
+    '(UNMAPPABLE) Why nothing corresponds, if the author said'
+    field: TransformationStepsField | None = Field(default=None)
+    "(FIELD) The coordinate system of the array whose values are this step's map"
     model_config = ConfigDict(frozen=True)
-
-class TransformationByDimensionChildrenBaseAffineTransformation(TransformationChildAffineTransformation, TransformationByDimensionChildrenBase, TransformationTrait, BaseModel):
-    """A general affine map, given as an M x (N+1) matrix with rows outermost"""
-    typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
-
-class TransformationByDimensionChildrenBaseByDimensionTransformation(TransformationChildByDimensionTransformation, TransformationByDimensionChildrenBase, TransformationTrait, BaseModel):
-    """A composition of child transformations, each acting on a named subset of the axes"""
-    typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
-
-class TransformationByDimensionChildrenBaseFieldTransformation(TransformationChildFieldTransformation, TransformationByDimensionChildrenBase, TransformationTrait, BaseModel):
-    """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
-    typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
-
-class TransformationByDimensionChildrenBaseIdentityTransformation(TransformationChildIdentityTransformation, TransformationByDimensionChildrenBase, TransformationTrait, BaseModel):
-    """The identity map: input and output coordinates are the same"""
-    typename: Literal['IdentityTransformation'] = Field(alias='__typename', default='IdentityTransformation', exclude=True)
-
-class TransformationByDimensionChildrenBaseMapAxisTransformation(TransformationChildMapAxisTransformation, TransformationByDimensionChildrenBase, TransformationTrait, BaseModel):
-    """A permutation of axes, mapping each input axis to an output axis by name"""
-    typename: Literal['MapAxisTransformation'] = Field(alias='__typename', default='MapAxisTransformation', exclude=True)
-
-class TransformationByDimensionChildrenBaseRotationTransformation(TransformationChildRotationTransformation, TransformationByDimensionChildrenBase, TransformationTrait, BaseModel):
-    """A rotation, given as an orthonormal matrix"""
-    typename: Literal['RotationTransformation'] = Field(alias='__typename', default='RotationTransformation', exclude=True)
-
-class TransformationByDimensionChildrenBaseScaleTransformation(TransformationChildScaleTransformation, TransformationByDimensionChildrenBase, TransformationTrait, BaseModel):
-    """A per-axis multiplication, with one entry per input axis"""
-    typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
-
-class TransformationByDimensionChildrenBaseSequenceTransformation(TransformationChildSequenceTransformation, TransformationByDimensionChildrenBase, TransformationTrait, BaseModel):
-    """An ordered composition of child transformations, applied first to last"""
-    typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
-
-class TransformationByDimensionChildrenBaseTranslationTransformation(TransformationChildTranslationTransformation, TransformationByDimensionChildrenBase, TransformationTrait, BaseModel):
-    """A per-axis offset, with one entry per input axis"""
-    typename: Literal['TranslationTransformation'] = Field(alias='__typename', default='TranslationTransformation', exclude=True)
-
-class TransformationByDimensionChildrenBaseUnmappableTransformation(TransformationChildUnmappableTransformation, TransformationByDimensionChildrenBase, TransformationTrait, BaseModel):
-    """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
-    typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
-
-class TransformationByDimensionChildrenBaseCatchAll(TransformationByDimensionChildrenBase, BaseModel):
-    """Catch all class for TransformationByDimensionChildrenBase"""
-    typename: str = Field(alias='__typename', exclude=True)
 
 class TransformationBase(BaseModel):
     """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
@@ -4201,10 +5012,10 @@ class TransformationBase(BaseModel):
     name: str | None = Field(default=None)
     version: int
     "How many times this edge has been written, counting the row that created it -- so a new edge reads 1. Only comparison is meaningful: this and the edge's `id` together are the cache key for anything derived from the edge, and a change means refetch. It counts the same provenance rows `provenanceEntries` lists, so the audit trail and the token cannot disagree; a rename moves it too, which errs towards refetching something that did not change rather than trusting something that did"
-    input: CoordinateSystem | None = Field(default=None)
-    'The system this edge maps from. Null for the child of a SEQUENCE or BY_DIMENSION, which takes its endpoints from the wrapper'
-    output: CoordinateSystem | None = Field(default=None)
-    'The system this edge maps to. Null for the child of a SEQUENCE or BY_DIMENSION, which takes its endpoints from the wrapper'
+    input: CoordinateSystem
+    'The system this edge maps from'
+    output: CoordinateSystem
+    'The system this edge maps to'
 
 class TransformationCatch(TransformationBase):
     """Catch all class for TransformationBase"""
@@ -4215,10 +5026,10 @@ class TransformationCatch(TransformationBase):
     name: str | None = Field(default=None)
     version: int
     "How many times this edge has been written, counting the row that created it -- so a new edge reads 1. Only comparison is meaningful: this and the edge's `id` together are the cache key for anything derived from the edge, and a change means refetch. It counts the same provenance rows `provenanceEntries` lists, so the audit trail and the token cannot disagree; a rename moves it too, which errs towards refetching something that did not change rather than trusting something that did"
-    input: CoordinateSystem | None = Field(default=None)
-    'The system this edge maps from. Null for the child of a SEQUENCE or BY_DIMENSION, which takes its endpoints from the wrapper'
-    output: CoordinateSystem | None = Field(default=None)
-    'The system this edge maps to. Null for the child of a SEQUENCE or BY_DIMENSION, which takes its endpoints from the wrapper'
+    input: CoordinateSystem
+    'The system this edge maps from'
+    output: CoordinateSystem
+    'The system this edge maps to'
 
 class TransformationAffineTransformation(TransformationBase, TransformationTrait, BaseModel):
     """A general affine map, given as an M x (N+1) matrix with rows outermost"""
@@ -4227,14 +5038,18 @@ class TransformationAffineTransformation(TransformationBase, TransformationTrait
     'The affine matrix, M x (N+1), rows outermost. The last column is the translation'
 
 class TransformationByDimensionTransformation(TransformationBase, TransformationTrait, BaseModel):
-    """A composition of child transformations, each acting on a named subset of the axes"""
+    """A map over a named subset of the axes: `inputAxes` onto `outputAxes`, one for one, by a `scale` and/or a `translation`, or by an `affine` -- or by none of them, which is the identity on the named axes. The axes it does not name pass through untouched, which is how a registration crosses a rank boundary: a (c,y,x) dataset placed into a (t,z,y,x) world names y and x and says nothing about t and z"""
     typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
     input_axes: tuple[str, ...] = Field(alias='inputAxes')
     "The names of the input axes this edge's parameters are ordered by. `scale`, `translation` and the columns of `affine` follow this order -- which is the input system's axis order, NOT the reading layer's axis names, and the two differ often enough that indexing the arrays against them silently misplaces them. A BY_DIMENSION edge names only the subset of axes it acts on; the axes it does not name are the ones it leaves untouched"
     output_axes: tuple[str, ...] = Field(alias='outputAxes')
     "The names of the output axes this edge produces. For a rank-changing BY_DIMENSION edge (placing a (c,y,x) dataset into a (t,z,y,x) world) this is the subset it maps onto; the world's other axes are untouched"
-    by_dimension_children: tuple[Annotated[TransformationByDimensionChildrenBaseAffineTransformation | TransformationByDimensionChildrenBaseByDimensionTransformation | TransformationByDimensionChildrenBaseFieldTransformation | TransformationByDimensionChildrenBaseIdentityTransformation | TransformationByDimensionChildrenBaseMapAxisTransformation | TransformationByDimensionChildrenBaseRotationTransformation | TransformationByDimensionChildrenBaseScaleTransformation | TransformationByDimensionChildrenBaseSequenceTransformation | TransformationByDimensionChildrenBaseTranslationTransformation | TransformationByDimensionChildrenBaseUnmappableTransformation, Field(discriminator='typename')] | TransformationByDimensionChildrenBaseCatchAll, ...] = Field(alias='byDimensionChildren')
-    'The child transformations. Each carries the `inputAxes` and `outputAxes` it acts on'
+    scale: tuple[float, ...]
+    'The per-axis scale factors over the named axes, in `inputAxes` order. Empty when the map states none -- as `ScaleTransformation.scale` is shaped, so one fragment reads both'
+    translation: tuple[float, ...]
+    'The per-axis offsets over the named axes, in `inputAxes` order. Empty when the map states none'
+    affine: tuple[tuple[float, ...], ...]
+    'The matrix over the named axes, M x (N+1) with rows outermost, in `outputAxes` x `inputAxes` order. Empty when the map is stated per axis or not at all. When present it is the whole map: a `scale` or `translation` beside it is not read'
 
 class TransformationFieldTransformation(TransformationBase, TransformationTrait, BaseModel):
     """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
@@ -4267,10 +5082,10 @@ class TransformationScaleTransformation(TransformationBase, TransformationTrait,
     "The per-axis scale factors, in the axis order of the input system, expressed in the units of the output system's axes (dimensionless between pixel systems, e.g. within a pyramid). Absolute, not relative to another level"
 
 class TransformationSequenceTransformation(TransformationBase, TransformationTrait, BaseModel):
-    """An ordered composition of child transformations, applied first to last"""
+    """An ordered composition of steps, applied first to last: one edge, carrying its map as `steps`. The ingest writes one for a stepped lens and for a downsampled pyramid level (a scale, then the half-voxel translation)"""
     typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
-    sequence_children: tuple[Annotated[TransformationSequenceChildrenBaseAffineTransformation | TransformationSequenceChildrenBaseByDimensionTransformation | TransformationSequenceChildrenBaseFieldTransformation | TransformationSequenceChildrenBaseIdentityTransformation | TransformationSequenceChildrenBaseMapAxisTransformation | TransformationSequenceChildrenBaseRotationTransformation | TransformationSequenceChildrenBaseScaleTransformation | TransformationSequenceChildrenBaseSequenceTransformation | TransformationSequenceChildrenBaseTranslationTransformation | TransformationSequenceChildrenBaseUnmappableTransformation, Field(discriminator='typename')] | TransformationSequenceChildrenBaseCatchAll, ...] = Field(alias='sequenceChildren')
-    'The child transformations, applied first to last. They omit their own input and output: the sequence supplies them'
+    steps: tuple[TransformationSteps, ...]
+    "The steps, applied first to last, each in the axis order of this edge's input. Composing them is composing the edge"
 
 class TransformationTranslationTransformation(TransformationBase, TransformationTrait, BaseModel):
     """A per-axis offset, with one entry per input axis"""
@@ -4282,7 +5097,7 @@ class TransformationUnmappableTransformation(TransformationBase, TransformationT
     """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
     typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
 
-class SparseDataset(MikroFetchable, BaseModel):
+class SparseDataset(SparseDatasetTrait, MikroFetchable, BaseModel):
     """A sparse matrix over two enumerated axes -- objects on one, features on the other -- stored as anndata-spelled zarr groups. It exists because a colouring names one *column*, so a colourable measurement is a column of a table: right for a few hundred features and impossible for a transcriptome, where a feature stops being a schema fact and becomes a data one. **Each axis is identified exactly once**, by its own `identifiedBy` -- a source whose contents are the ids, or the table whose rows the positions are. Its stores, axes and coordinate system are fixed at creation; a recomputation is a new dataset"""
     typename: Literal['SparseDataset'] = Field(alias='__typename', default='SparseDataset', exclude=True)
     id: ID
@@ -4345,7 +5160,7 @@ class Animation(MikroFetchable, BaseModel):
         type = 'Animation'
 
 class SceneSnapshot(MikroFetchable, BaseModel):
-    """A pre-rendered picture of a composition: every layer of the scene, blended. Clients use snapshots to preview without compositing the layers themselves. A picture of the scene, not of any one dataset in it -- though `ArrayDataset.latestSnapshot` will offer one of these where the scene's only anchored dataset is that dataset, since then the picture shows it and nothing else"""
+    """A pre-rendered picture of a composition: every layer of the scene, blended. Clients use snapshots to preview without compositing the layers themselves. A picture of the scene, not of any one lens in it -- `Lens.latestSnapshot` and `ArrayDataset.latestSnapshot` offer the newest picture of the scene the lens nominates, which may stage other data too"""
     typename: Literal['SceneSnapshot'] = Field(alias='__typename', default='SceneSnapshot', exclude=True)
     id: ID
     name: str
@@ -4370,7 +5185,7 @@ class MeshCollectionDerivedFromBaseAffineTransformation(TransformationAffineTran
     typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
 
 class MeshCollectionDerivedFromBaseByDimensionTransformation(TransformationByDimensionTransformation, MeshCollectionDerivedFromBase, TransformationTrait, BaseModel):
-    """A composition of child transformations, each acting on a named subset of the axes"""
+    """A map over a named subset of the axes: `inputAxes` onto `outputAxes`, one for one, by a `scale` and/or a `translation`, or by an `affine` -- or by none of them, which is the identity on the named axes. The axes it does not name pass through untouched, which is how a registration crosses a rank boundary: a (c,y,x) dataset placed into a (t,z,y,x) world names y and x and says nothing about t and z"""
     typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
 
 class MeshCollectionDerivedFromBaseFieldTransformation(TransformationFieldTransformation, MeshCollectionDerivedFromBase, TransformationTrait, BaseModel):
@@ -4394,7 +5209,7 @@ class MeshCollectionDerivedFromBaseScaleTransformation(TransformationScaleTransf
     typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
 
 class MeshCollectionDerivedFromBaseSequenceTransformation(TransformationSequenceTransformation, MeshCollectionDerivedFromBase, TransformationTrait, BaseModel):
-    """An ordered composition of child transformations, applied first to last"""
+    """An ordered composition of steps, applied first to last: one edge, carrying its map as `steps`. The ingest writes one for a stepped lens and for a downsampled pyramid level (a scale, then the half-voxel translation)"""
     typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
 
 class MeshCollectionDerivedFromBaseTranslationTransformation(TransformationTranslationTransformation, MeshCollectionDerivedFromBase, TransformationTrait, BaseModel):
@@ -4409,12 +5224,15 @@ class MeshCollectionDerivedFromBaseCatchAll(MeshCollectionDerivedFromBase, BaseM
     """Catch all class for MeshCollectionDerivedFromBase"""
     typename: str = Field(alias='__typename', exclude=True)
 
-class MeshCollection(MikroFetchable, BaseModel):
-    """An immutable, versioned collection of meshes, stored as one fabriks prefix. Ask its `store` for an access grant and query the Parquet directly (e.g. with DuckDB) rather than paginating meshes through GraphQL"""
+class MeshCollection(MeshCollectionTrait, MikroFetchable, BaseModel):
+    """An immutable collection of meshes, stored as one fabriks prefix. Ask its `store` for an access grant and query the Parquet directly (e.g. with DuckDB) rather than paginating meshes through GraphQL"""
     typename: Literal['MeshCollection'] = Field(alias='__typename', default='MeshCollection', exclude=True)
     id: ID
-    version: str
-    spec_version: str = Field(alias='specVersion')
+    name: str | None = Field(default=None)
+    label: str
+    "What to call this collection: its name, or its store's key when it has none"
+    spec_version: str | None = Field(default=None, alias='specVersion')
+    "The format version this collection's store conforms to, read off the store's manifest and namespaced (`fabriks/1`). Null while the store has not been read"
     grid: Any
     "The octree grid, as read from the store's manifest. Its `cellSize` is in voxels, one size per vertex component -- the same order the catalog's bbox columns use, which is not necessarily the coordinate system's axis order"
     encoding: Any
@@ -4429,7 +5247,7 @@ class MeshCollection(MikroFetchable, BaseModel):
 
     class Meta:
         """Meta class for MeshCollection"""
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FabriksStore on FabriksStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment MeshCollection on MeshCollection {\n  id\n  version\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...FabriksStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FabriksStore on FabriksStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n      field {\n        id\n      }\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    scale\n    translation\n    affine\n  }\n  __typename\n}\n\nfragment MeshCollection on MeshCollection {\n  id\n  name\n  label\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...FabriksStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}'
         name = 'MeshCollection'
         type = 'MeshCollection'
 
@@ -4442,7 +5260,7 @@ class NetworkCollectionDerivedFromBaseAffineTransformation(TransformationAffineT
     typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
 
 class NetworkCollectionDerivedFromBaseByDimensionTransformation(TransformationByDimensionTransformation, NetworkCollectionDerivedFromBase, TransformationTrait, BaseModel):
-    """A composition of child transformations, each acting on a named subset of the axes"""
+    """A map over a named subset of the axes: `inputAxes` onto `outputAxes`, one for one, by a `scale` and/or a `translation`, or by an `affine` -- or by none of them, which is the identity on the named axes. The axes it does not name pass through untouched, which is how a registration crosses a rank boundary: a (c,y,x) dataset placed into a (t,z,y,x) world names y and x and says nothing about t and z"""
     typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
 
 class NetworkCollectionDerivedFromBaseFieldTransformation(TransformationFieldTransformation, NetworkCollectionDerivedFromBase, TransformationTrait, BaseModel):
@@ -4466,7 +5284,7 @@ class NetworkCollectionDerivedFromBaseScaleTransformation(TransformationScaleTra
     typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
 
 class NetworkCollectionDerivedFromBaseSequenceTransformation(TransformationSequenceTransformation, NetworkCollectionDerivedFromBase, TransformationTrait, BaseModel):
-    """An ordered composition of child transformations, applied first to last"""
+    """An ordered composition of steps, applied first to last: one edge, carrying its map as `steps`. The ingest writes one for a stepped lens and for a downsampled pyramid level (a scale, then the half-voxel translation)"""
     typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
 
 class NetworkCollectionDerivedFromBaseTranslationTransformation(TransformationTranslationTransformation, NetworkCollectionDerivedFromBase, TransformationTrait, BaseModel):
@@ -4481,12 +5299,15 @@ class NetworkCollectionDerivedFromBaseCatchAll(NetworkCollectionDerivedFromBase,
     """Catch all class for NetworkCollectionDerivedFromBase"""
     typename: str = Field(alias='__typename', exclude=True)
 
-class NetworkCollection(MikroFetchable, BaseModel):
-    """An immutable, versioned collection of networks, stored as one konnektion prefix. Ask its `store` for an access grant and query the Parquet directly (e.g. with DuckDB) rather than paginating nodes through GraphQL"""
+class NetworkCollection(NetworkCollectionTrait, MikroFetchable, BaseModel):
+    """An immutable collection of networks, stored as one konnektion prefix. Ask its `store` for an access grant and query the Parquet directly (e.g. with DuckDB) rather than paginating nodes through GraphQL"""
     typename: Literal['NetworkCollection'] = Field(alias='__typename', default='NetworkCollection', exclude=True)
     id: ID
-    version: str
-    spec_version: str = Field(alias='specVersion')
+    name: str | None = Field(default=None)
+    label: str
+    "What to call this collection: its name, or its store's key when it has none"
+    spec_version: str | None = Field(default=None, alias='specVersion')
+    "The format version this collection's store conforms to, read off the store's manifest and namespaced (`konnektion/1`). Null while the store has not been read"
     grid: Any
     "The octree grid, as read from the store's manifest. Its `cellSize` is in voxels, one size per position component -- the same order the catalog's bbox columns use, which is not necessarily the coordinate system's axis order"
     encoding: Any
@@ -4501,18 +5322,18 @@ class NetworkCollection(MikroFetchable, BaseModel):
 
     class Meta:
         """Meta class for NetworkCollection"""
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment KonnektionStore on KonnektionStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  attributes\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment NetworkCollection on NetworkCollection {\n  id\n  version\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...KonnektionStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment KonnektionStore on KonnektionStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  attributes\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n      field {\n        id\n      }\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    scale\n    translation\n    affine\n  }\n  __typename\n}\n\nfragment NetworkCollection on NetworkCollection {\n  id\n  name\n  label\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...KonnektionStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}'
         name = 'NetworkCollection'
         type = 'NetworkCollection'
 
-class TableDatasetColumnsReferences(HasParquestStoreTrait, BaseModel):
+class TableDatasetColumnsReferences(HasParquestStoreTrait, TableDatasetLensTrait, BaseModel):
     """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
     typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
     id: ID
     model_config = ConfigDict(frozen=True)
 
-class TableDatasetColumnsNodeReferences(BaseModel):
-    """An immutable, versioned collection of networks, stored as one konnektion prefix. Ask its `store` for an access grant and query the Parquet directly (e.g. with DuckDB) rather than paginating nodes through GraphQL"""
+class TableDatasetColumnsNodeReferences(NetworkCollectionTrait, BaseModel):
+    """An immutable collection of networks, stored as one konnektion prefix. Ask its `store` for an access grant and query the Parquet directly (e.g. with DuckDB) rather than paginating nodes through GraphQL"""
     typename: Literal['NetworkCollection'] = Field(alias='__typename', default='NetworkCollection', exclude=True)
     id: ID
     model_config = ConfigDict(frozen=True)
@@ -4543,7 +5364,7 @@ class TableDatasetDerivedFromBaseAffineTransformation(TransformationAffineTransf
     typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
 
 class TableDatasetDerivedFromBaseByDimensionTransformation(TransformationByDimensionTransformation, TableDatasetDerivedFromBase, TransformationTrait, BaseModel):
-    """A composition of child transformations, each acting on a named subset of the axes"""
+    """A map over a named subset of the axes: `inputAxes` onto `outputAxes`, one for one, by a `scale` and/or a `translation`, or by an `affine` -- or by none of them, which is the identity on the named axes. The axes it does not name pass through untouched, which is how a registration crosses a rank boundary: a (c,y,x) dataset placed into a (t,z,y,x) world names y and x and says nothing about t and z"""
     typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
 
 class TableDatasetDerivedFromBaseFieldTransformation(TransformationFieldTransformation, TableDatasetDerivedFromBase, TransformationTrait, BaseModel):
@@ -4567,7 +5388,7 @@ class TableDatasetDerivedFromBaseScaleTransformation(TransformationScaleTransfor
     typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
 
 class TableDatasetDerivedFromBaseSequenceTransformation(TransformationSequenceTransformation, TableDatasetDerivedFromBase, TransformationTrait, BaseModel):
-    """An ordered composition of child transformations, applied first to last"""
+    """An ordered composition of steps, applied first to last: one edge, carrying its map as `steps`. The ingest writes one for a stepped lens and for a downsampled pyramid level (a scale, then the half-voxel translation)"""
     typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
 
 class TableDatasetDerivedFromBaseTranslationTransformation(TransformationTranslationTransformation, TableDatasetDerivedFromBase, TransformationTrait, BaseModel):
@@ -4582,7 +5403,7 @@ class TableDatasetDerivedFromBaseCatchAll(TableDatasetDerivedFromBase, BaseModel
     """Catch all class for TableDatasetDerivedFromBase"""
     typename: str = Field(alias='__typename', exclude=True)
 
-class TableDataset(HasParquestStoreTrait, MikroFetchable, BaseModel):
+class TableDataset(HasParquestStoreTrait, TableDatasetLensTrait, MikroFetchable, BaseModel):
     """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
     typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
     id: ID
@@ -4604,7 +5425,7 @@ class TableDataset(HasParquestStoreTrait, MikroFetchable, BaseModel):
 
     class Meta:
         """Meta class for TableDataset"""
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    references {\n      id\n      __typename\n    }\n    nodeReferences {\n      id\n      __typename\n    }\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n      field {\n        id\n      }\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    scale\n    translation\n    affine\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    references {\n      id\n      __typename\n    }\n    nodeReferences {\n      id\n      __typename\n    }\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}'
         name = 'TableDataset'
         type = 'TableDataset'
 
@@ -4737,6 +5558,147 @@ class CreateArrayDatasetMutation(BaseModel):
     class Meta:
         """Meta class for CreateArrayDataset """
         document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ArrayDataset on ArrayDataset {\n  id\n  name\n  axisNames\n  shape\n  multiscale\n  intrinsicSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  dataArrays {\n    id\n    level\n    shape\n    chunkShape\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nmutation CreateArrayDataset($input: CreateArrayDatasetInput!) {\n  createArrayDataset(input: $input) {\n    ...ArrayDataset\n    __typename\n  }\n}'
+
+class CreateChartMutation(BaseModel):
+    """ A chart adopts a world with exactly one metric, unit-carrying axis -- an existing
+ `coordinateSystem`, or one made from a single `axis` -- and is then filled with layers,
+ one mutation per kind, or all at once with `createChartFromCoordinateSystem`. None of
+ them writes an edge: the data must already be registered into the chart's world."""
+    create_chart: Chart = Field(alias='createChart')
+    'Create a chart: a composition of data laid out along one metric axis. Over an existing coordinate system with exactly one metric, unit-carrying axis, or over one created from a single axis'
+
+    class Arguments(BaseModel):
+        """Arguments for CreateChart """
+        input: CreateChartInput
+
+    class Meta:
+        """Meta class for CreateChart """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Chart on Chart {\n  id\n  name\n  description\n  axis {\n    ...Axis\n    __typename\n  }\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  layers {\n    ...ChartLayer\n    __typename\n  }\n  __typename\n}\n\nmutation CreateChart($input: CreateChartInput!) {\n  createChart(input: $input) {\n    ...Chart\n    __typename\n  }\n}'
+
+class CreateChartFromCoordinateSystemMutation(BaseModel):
+    """No documentation found for this operation."""
+    create_chart_from_coordinate_system: Chart = Field(alias='createChartFromCoordinateSystem')
+    'Bootstrap a chart over an existing coordinate system, drawing every array, table and annotation collection already laid along its axis. Authors no edges'
+
+    class Arguments(BaseModel):
+        """Arguments for CreateChartFromCoordinateSystem """
+        input: CreateChartFromCoordinateSystemInput
+
+    class Meta:
+        """Meta class for CreateChartFromCoordinateSystem """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Chart on Chart {\n  id\n  name\n  description\n  axis {\n    ...Axis\n    __typename\n  }\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  layers {\n    ...ChartLayer\n    __typename\n  }\n  __typename\n}\n\nmutation CreateChartFromCoordinateSystem($input: CreateChartFromCoordinateSystemInput!) {\n  createChartFromCoordinateSystem(input: $input) {\n    ...Chart\n    __typename\n  }\n}'
+
+class UpdateChartMutation(BaseModel):
+    """No documentation found for this operation."""
+    update_chart: Chart = Field(alias='updateChart')
+    'Rename or re-describe a chart. Its world is fixed'
+
+    class Arguments(BaseModel):
+        """Arguments for UpdateChart """
+        input: UpdateChartInput
+
+    class Meta:
+        """Meta class for UpdateChart """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Chart on Chart {\n  id\n  name\n  description\n  axis {\n    ...Axis\n    __typename\n  }\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  layers {\n    ...ChartLayer\n    __typename\n  }\n  __typename\n}\n\nmutation UpdateChart($input: UpdateChartInput!) {\n  updateChart(input: $input) {\n    ...Chart\n    __typename\n  }\n}'
+
+class DeleteChartMutation(BaseModel):
+    """No documentation found for this operation."""
+    delete_chart: ID = Field(alias='deleteChart')
+    "Delete a chart and its layers. The data they drew and the chart's world are untouched"
+
+    class Arguments(BaseModel):
+        """Arguments for DeleteChart """
+        input: DeleteChartInput
+
+    class Meta:
+        """Meta class for DeleteChart """
+        document = 'mutation DeleteChart($input: DeleteChartInput!) {\n  deleteChart(input: $input)\n}'
+
+class CreateTraceChartLayerMutation(BaseModel):
+    """No documentation found for this operation."""
+    create_trace_chart_layer: ChartLayerTraceChartLayer = Field(alias='createTraceChartLayer')
+    "Draw an array as a trace in a chart: a lens with one metric axis free, laid along the chart's axis by the graph, and optionally one CHANNEL or INDEX axis free as one line per position"
+
+    class Arguments(BaseModel):
+        """Arguments for CreateTraceChartLayer """
+        input: CreateTraceChartLayerInput
+
+    class Meta:
+        """Meta class for CreateTraceChartLayer """
+        document = 'fragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nmutation CreateTraceChartLayer($input: CreateTraceChartLayerInput!) {\n  createTraceChartLayer(input: $input) {\n    ...ChartLayer\n    __typename\n  }\n}'
+
+class CreateSeriesChartLayerMutation(BaseModel):
+    """No documentation found for this operation."""
+    create_series_chart_layer: ChartLayerSeriesChartLayer = Field(alias='createSeriesChartLayer')
+    "Draw a table as a series in a chart: one numeric column as the value, against the coordinate column the graph lays along the chart's axis"
+
+    class Arguments(BaseModel):
+        """Arguments for CreateSeriesChartLayer """
+        input: CreateSeriesChartLayerInput
+
+    class Meta:
+        """Meta class for CreateSeriesChartLayer """
+        document = 'fragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nmutation CreateSeriesChartLayer($input: CreateSeriesChartLayerInput!) {\n  createSeriesChartLayer(input: $input) {\n    ...ChartLayer\n    __typename\n  }\n}'
+
+class CreateAnnotationChartLayerMutation(BaseModel):
+    """ With no `annotationCollection` this makes the drawing surface: a collection whose space
+ is the chart's axis plus a VALUE axis. Marks then go in with `createAnnotation`."""
+    create_annotation_chart_layer: ChartLayerAnnotationChartLayer = Field(alias='createAnnotationChartLayer')
+    "Draw an annotation collection's marks in a chart, or make a new drawing surface for the chart when no collection is named"
+
+    class Arguments(BaseModel):
+        """Arguments for CreateAnnotationChartLayer """
+        input: CreateAnnotationChartLayerInput
+
+    class Meta:
+        """Meta class for CreateAnnotationChartLayer """
+        document = 'fragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nmutation CreateAnnotationChartLayer($input: CreateAnnotationChartLayerInput!) {\n  createAnnotationChartLayer(input: $input) {\n    ...ChartLayer\n    __typename\n  }\n}'
+
+class UpdateChartLayerMutationUpdateChartLayerBase(BaseModel):
+    """A layer drawn in a chart. It carries view state only. Where its data sits along the chart's axis -- `pathToWorld`, `asAffine`, `alongAxis`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one registration moves every layer that looks through it. The concrete kind says what the layer reads: TraceChartLayer an array, SeriesChartLayer a table, AnnotationChartLayer drawn marks"""
+    model_config = ConfigDict(frozen=True)
+
+class UpdateChartLayerMutationUpdateChartLayerBaseAnnotationChartLayer(ChartLayerAnnotationChartLayer, UpdateChartLayerMutationUpdateChartLayerBase, BaseModel):
+    """A layer that draws an annotation collection's marks in a chart. One layer per collection: per-mark styling lives on the annotations themselves"""
+    typename: Literal['AnnotationChartLayer'] = Field(alias='__typename', default='AnnotationChartLayer', exclude=True)
+
+class UpdateChartLayerMutationUpdateChartLayerBaseSeriesChartLayer(ChartLayerSeriesChartLayer, UpdateChartLayerMutationUpdateChartLayerBase, BaseModel):
+    """A layer that reads one numeric column of a table against a coordinate column. The value column is the layer's; the coordinate column is the graph's -- whichever of the table's coordinate columns its registration lays along the chart's axis"""
+    typename: Literal['SeriesChartLayer'] = Field(alias='__typename', default='SeriesChartLayer', exclude=True)
+
+class UpdateChartLayerMutationUpdateChartLayerBaseTraceChartLayer(ChartLayerTraceChartLayer, UpdateChartLayerMutationUpdateChartLayerBase, BaseModel):
+    """A layer that reads an array along one axis. Its lens leaves one metric axis free -- `alongAxis`, laid along the chart -- and optionally one enumerating axis, `seriesAxis`, drawn as one line per position. Whether it is drawn as a line, markers, both or steps is `mark`"""
+    typename: Literal['TraceChartLayer'] = Field(alias='__typename', default='TraceChartLayer', exclude=True)
+
+class UpdateChartLayerMutationUpdateChartLayerBaseCatchAll(UpdateChartLayerMutationUpdateChartLayerBase, BaseModel):
+    """Catch all class for UpdateChartLayerMutationUpdateChartLayerBase"""
+    typename: str = Field(alias='__typename', exclude=True)
+
+class UpdateChartLayerMutation(BaseModel):
+    """ View state only: a layer's kind and its source are fixed at creation."""
+    update_chart_layer: Annotated[UpdateChartLayerMutationUpdateChartLayerBaseAnnotationChartLayer | UpdateChartLayerMutationUpdateChartLayerBaseSeriesChartLayer | UpdateChartLayerMutationUpdateChartLayerBaseTraceChartLayer, Field(discriminator='typename')] | UpdateChartLayerMutationUpdateChartLayerBaseCatchAll = Field(alias='updateChartLayer')
+    'Restyle a chart layer. View state only'
+
+    class Arguments(BaseModel):
+        """Arguments for UpdateChartLayer """
+        input: UpdateChartLayerInput
+
+    class Meta:
+        """Meta class for UpdateChartLayer """
+        document = 'fragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nmutation UpdateChartLayer($input: UpdateChartLayerInput!) {\n  updateChartLayer(input: $input) {\n    ...ChartLayer\n    __typename\n  }\n}'
+
+class DeleteChartLayerMutation(BaseModel):
+    """No documentation found for this operation."""
+    delete_chart_layer: ID = Field(alias='deleteChartLayer')
+    'Delete a chart layer. Deletes nothing it drew'
+
+    class Arguments(BaseModel):
+        """Arguments for DeleteChartLayer """
+        input: DeleteChartLayerInput
+
+    class Meta:
+        """Meta class for DeleteChartLayer """
+        document = 'mutation DeleteChartLayer($input: DeleteChartLayerInput!) {\n  deleteChartLayer(input: $input)\n}'
 
 class CreateCoordinateSystemMutation(BaseModel):
     """No documentation found for this operation."""
@@ -5143,7 +6105,7 @@ class CreateLayerMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateLayer """
-        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    intensityIndex\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    redIndex\n    greenIndex\n    blueIndex\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    phasorRender {\n      phasorAxis\n      intensityAxis\n      intensityIndex\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    networkCollection: collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    pointColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    pointFilterBys: filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation CreateLayer($input: CreateLayerInput!) {\n  createLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    redLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    greenLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    blueLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    phasorRender {\n      phasorAxis\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    labelRender {\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        lens\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    meshLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    collection {\n      id\n      name\n      label\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      lens\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    networkLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    networkCollection: collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      lens\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      lens\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    pointColorBys: colorBys {\n      kind\n      table\n      column\n      lens\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    pointFilterBys: filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  ... on VectorLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n  }\n  __typename\n}\n\nmutation CreateLayer($input: CreateLayerInput!) {\n  createLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
 
 class CreateIntensityLayerMutation(BaseModel):
     """ One channel through one colormap -- or one solid RGBA tint, for a colour that is a
@@ -5158,7 +6120,7 @@ class CreateIntensityLayerMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateIntensityLayer """
-        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    intensityIndex\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    redIndex\n    greenIndex\n    blueIndex\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    phasorRender {\n      phasorAxis\n      intensityAxis\n      intensityIndex\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    networkCollection: collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    pointColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    pointFilterBys: filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation CreateIntensityLayer($input: CreateIntensityLayerInput!) {\n  createIntensityLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    redLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    greenLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    blueLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    phasorRender {\n      phasorAxis\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    labelRender {\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        lens\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    meshLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    collection {\n      id\n      name\n      label\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      lens\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    networkLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    networkCollection: collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      lens\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      lens\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    pointColorBys: colorBys {\n      kind\n      table\n      column\n      lens\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    pointFilterBys: filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  ... on VectorLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n  }\n  __typename\n}\n\nmutation CreateIntensityLayer($input: CreateIntensityLayerInput!) {\n  createIntensityLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
 
 class CreateVolumeLayerMutation(BaseModel):
     """ The same layer drawn through z rather than flat. A projection collapses an axis, it does
@@ -5173,7 +6135,7 @@ class CreateVolumeLayerMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateVolumeLayer """
-        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    intensityIndex\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    redIndex\n    greenIndex\n    blueIndex\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    phasorRender {\n      phasorAxis\n      intensityAxis\n      intensityIndex\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    networkCollection: collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    pointColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    pointFilterBys: filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation CreateVolumeLayer($input: CreateVolumeLayerInput!) {\n  createVolumeLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    redLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    greenLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    blueLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    phasorRender {\n      phasorAxis\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    labelRender {\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        lens\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    meshLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    collection {\n      id\n      name\n      label\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      lens\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    networkLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    networkCollection: collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      lens\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      lens\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    pointColorBys: colorBys {\n      kind\n      table\n      column\n      lens\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    pointFilterBys: filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  ... on VectorLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n  }\n  __typename\n}\n\nmutation CreateVolumeLayer($input: CreateVolumeLayerInput!) {\n  createVolumeLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
 
 class CreateRgbLayerMutation(BaseModel):
     """ Three channels as the red, green and blue of one picture. Never inferred and always
@@ -5190,7 +6152,7 @@ class CreateRgbLayerMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateRgbLayer """
-        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    intensityIndex\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    redIndex\n    greenIndex\n    blueIndex\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    phasorRender {\n      phasorAxis\n      intensityAxis\n      intensityIndex\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    networkCollection: collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    pointColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    pointFilterBys: filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation CreateRgbLayer($input: CreateRgbLayerInput!) {\n  createRgbLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    redLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    greenLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    blueLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    phasorRender {\n      phasorAxis\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    labelRender {\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        lens\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    meshLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    collection {\n      id\n      name\n      label\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      lens\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    networkLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    networkCollection: collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      lens\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      lens\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    pointColorBys: colorBys {\n      kind\n      table\n      column\n      lens\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    pointFilterBys: filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  ... on VectorLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n  }\n  __typename\n}\n\nmutation CreateRgbLayer($input: CreateRgbLayerInput!) {\n  createRgbLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
 
 class CreateLabelLayerMutation(BaseModel):
     """No documentation found for this operation."""
@@ -5203,7 +6165,7 @@ class CreateLabelLayerMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateLabelLayer """
-        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    intensityIndex\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    redIndex\n    greenIndex\n    blueIndex\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    phasorRender {\n      phasorAxis\n      intensityAxis\n      intensityIndex\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    networkCollection: collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    pointColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    pointFilterBys: filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation CreateLabelLayer($input: CreateLabelLayerInput!) {\n  createLabelLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    redLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    greenLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    blueLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    phasorRender {\n      phasorAxis\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    labelRender {\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        lens\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    meshLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    collection {\n      id\n      name\n      label\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      lens\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    networkLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    networkCollection: collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      lens\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      lens\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    pointColorBys: colorBys {\n      kind\n      table\n      column\n      lens\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    pointFilterBys: filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  ... on VectorLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n  }\n  __typename\n}\n\nmutation CreateLabelLayer($input: CreateLabelLayerInput!) {\n  createLabelLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
 
 class CreateMeshLayerMutation(BaseModel):
     """No documentation found for this operation."""
@@ -5216,7 +6178,7 @@ class CreateMeshLayerMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateMeshLayer """
-        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    intensityIndex\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    redIndex\n    greenIndex\n    blueIndex\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    phasorRender {\n      phasorAxis\n      intensityAxis\n      intensityIndex\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    networkCollection: collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    pointColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    pointFilterBys: filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation CreateMeshLayer($input: CreateMeshLayerInput!) {\n  createMeshLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    redLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    greenLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    blueLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    phasorRender {\n      phasorAxis\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    labelRender {\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        lens\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    meshLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    collection {\n      id\n      name\n      label\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      lens\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    networkLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    networkCollection: collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      lens\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      lens\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    pointColorBys: colorBys {\n      kind\n      table\n      column\n      lens\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    pointFilterBys: filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  ... on VectorLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n  }\n  __typename\n}\n\nmutation CreateMeshLayer($input: CreateMeshLayerInput!) {\n  createMeshLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
 
 class UpdateMeshLayerMutation(BaseModel):
     """No documentation found for this operation."""
@@ -5229,7 +6191,7 @@ class UpdateMeshLayerMutation(BaseModel):
 
     class Meta:
         """Meta class for UpdateMeshLayer """
-        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    intensityIndex\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    redIndex\n    greenIndex\n    blueIndex\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    phasorRender {\n      phasorAxis\n      intensityAxis\n      intensityIndex\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    networkCollection: collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    pointColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    pointFilterBys: filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation UpdateMeshLayer($input: UpdateMeshLayerInput!) {\n  updateMeshLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    redLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    greenLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    blueLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    phasorRender {\n      phasorAxis\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    labelRender {\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        lens\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    meshLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    collection {\n      id\n      name\n      label\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      lens\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    networkLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    networkCollection: collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      lens\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      lens\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    pointColorBys: colorBys {\n      kind\n      table\n      column\n      lens\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    pointFilterBys: filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  ... on VectorLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n  }\n  __typename\n}\n\nmutation UpdateMeshLayer($input: UpdateMeshLayerInput!) {\n  updateMeshLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
 
 class CreateNetworkLayerMutation(BaseModel):
     """ A node/edge network -- a traced arbor, a vessel tree, a connectome -- rather than a surface.
@@ -5245,7 +6207,7 @@ class CreateNetworkLayerMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateNetworkLayer """
-        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    intensityIndex\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    redIndex\n    greenIndex\n    blueIndex\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    phasorRender {\n      phasorAxis\n      intensityAxis\n      intensityIndex\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    networkCollection: collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    pointColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    pointFilterBys: filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation CreateNetworkLayer($input: CreateNetworkLayerInput!) {\n  createNetworkLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    redLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    greenLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    blueLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    phasorRender {\n      phasorAxis\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    labelRender {\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        lens\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    meshLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    collection {\n      id\n      name\n      label\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      lens\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    networkLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    networkCollection: collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      lens\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      lens\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    pointColorBys: colorBys {\n      kind\n      table\n      column\n      lens\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    pointFilterBys: filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  ... on VectorLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n  }\n  __typename\n}\n\nmutation CreateNetworkLayer($input: CreateNetworkLayerInput!) {\n  createNetworkLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
 
 class UpdateNetworkLayerMutation(BaseModel):
     """No documentation found for this operation."""
@@ -5258,7 +6220,7 @@ class UpdateNetworkLayerMutation(BaseModel):
 
     class Meta:
         """Meta class for UpdateNetworkLayer """
-        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    intensityIndex\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    redIndex\n    greenIndex\n    blueIndex\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    phasorRender {\n      phasorAxis\n      intensityAxis\n      intensityIndex\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    networkCollection: collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    pointColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    pointFilterBys: filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation UpdateNetworkLayer($input: UpdateNetworkLayerInput!) {\n  updateNetworkLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    redLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    greenLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    blueLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    phasorRender {\n      phasorAxis\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    labelRender {\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        lens\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    meshLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    collection {\n      id\n      name\n      label\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      lens\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    networkLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    networkCollection: collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      lens\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      lens\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    pointColorBys: colorBys {\n      kind\n      table\n      column\n      lens\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    pointFilterBys: filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  ... on VectorLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n  }\n  __typename\n}\n\nmutation UpdateNetworkLayer($input: UpdateNetworkLayerInput!) {\n  updateNetworkLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
 
 class UpdateLabelLayerMutation(BaseModel):
     """ Retune a label layer after creation -- above all, switch or republish its colour picker.
@@ -5273,7 +6235,7 @@ class UpdateLabelLayerMutation(BaseModel):
 
     class Meta:
         """Meta class for UpdateLabelLayer """
-        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    intensityIndex\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    redIndex\n    greenIndex\n    blueIndex\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    phasorRender {\n      phasorAxis\n      intensityAxis\n      intensityIndex\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    networkCollection: collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    pointColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    pointFilterBys: filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation UpdateLabelLayer($input: UpdateLabelLayerInput!) {\n  updateLabelLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    redLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    greenLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    blueLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    phasorRender {\n      phasorAxis\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    labelRender {\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        lens\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    meshLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    collection {\n      id\n      name\n      label\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      lens\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    networkLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    networkCollection: collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      lens\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      lens\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    pointColorBys: colorBys {\n      kind\n      table\n      column\n      lens\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    pointFilterBys: filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  ... on VectorLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n  }\n  __typename\n}\n\nmutation UpdateLabelLayer($input: UpdateLabelLayerInput!) {\n  updateLabelLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
 
 class CreatePointLayerMutation(BaseModel):
     """ A point cloud drawn from a table dataset's coordinate columns. Its objects ARE
@@ -5288,7 +6250,7 @@ class CreatePointLayerMutation(BaseModel):
 
     class Meta:
         """Meta class for CreatePointLayer """
-        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    intensityIndex\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    redIndex\n    greenIndex\n    blueIndex\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    phasorRender {\n      phasorAxis\n      intensityAxis\n      intensityIndex\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    networkCollection: collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    pointColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    pointFilterBys: filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation CreatePointLayer($input: CreatePointLayerInput!) {\n  createPointLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    redLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    greenLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    blueLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    phasorRender {\n      phasorAxis\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    labelRender {\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        lens\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    meshLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    collection {\n      id\n      name\n      label\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      lens\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    networkLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    networkCollection: collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      lens\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      lens\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    pointColorBys: colorBys {\n      kind\n      table\n      column\n      lens\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    pointFilterBys: filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  ... on VectorLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n  }\n  __typename\n}\n\nmutation CreatePointLayer($input: CreatePointLayerInput!) {\n  createPointLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
 
 class UpdatePointLayerMutation(BaseModel):
     """ Retune it afterwards — above all, switch or republish its colour picker. The
@@ -5302,7 +6264,7 @@ class UpdatePointLayerMutation(BaseModel):
 
     class Meta:
         """Meta class for UpdatePointLayer """
-        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    intensityIndex\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    redIndex\n    greenIndex\n    blueIndex\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    phasorRender {\n      phasorAxis\n      intensityAxis\n      intensityIndex\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    networkCollection: collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    pointColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    pointFilterBys: filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation UpdatePointLayer($input: UpdatePointLayerInput!) {\n  updatePointLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    redLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    greenLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    blueLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    phasorRender {\n      phasorAxis\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    labelRender {\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        lens\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    meshLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    collection {\n      id\n      name\n      label\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      lens\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    networkLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    networkCollection: collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      lens\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      lens\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    pointColorBys: colorBys {\n      kind\n      table\n      column\n      lens\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    pointFilterBys: filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  ... on VectorLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n  }\n  __typename\n}\n\nmutation UpdatePointLayer($input: UpdatePointLayerInput!) {\n  updatePointLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
 
 class CreateTrackLayerMutation(BaseModel):
     """ Trajectories from a table dataset, one polyline per value of its TRACK_ID column.
@@ -5317,7 +6279,7 @@ class CreateTrackLayerMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateTrackLayer """
-        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    intensityIndex\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    redIndex\n    greenIndex\n    blueIndex\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    phasorRender {\n      phasorAxis\n      intensityAxis\n      intensityIndex\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    networkCollection: collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    pointColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    pointFilterBys: filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation CreateTrackLayer($input: CreateTrackLayerInput!) {\n  createTrackLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    redLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    greenLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    blueLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    phasorRender {\n      phasorAxis\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    labelRender {\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        lens\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    meshLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    collection {\n      id\n      name\n      label\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      lens\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    networkLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    networkCollection: collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      lens\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      lens\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    pointColorBys: colorBys {\n      kind\n      table\n      column\n      lens\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    pointFilterBys: filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  ... on VectorLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n  }\n  __typename\n}\n\nmutation CreateTrackLayer($input: CreateTrackLayerInput!) {\n  createTrackLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
 
 class UpdateTrackLayerMutation(BaseModel):
     """No documentation found for this operation."""
@@ -5330,12 +6292,13 @@ class UpdateTrackLayerMutation(BaseModel):
 
     class Meta:
         """Meta class for UpdateTrackLayer """
-        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    intensityIndex\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    redIndex\n    greenIndex\n    blueIndex\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    phasorRender {\n      phasorAxis\n      intensityAxis\n      intensityIndex\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    networkCollection: collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    pointColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    pointFilterBys: filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation UpdateTrackLayer($input: UpdateTrackLayerInput!) {\n  updateTrackLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    redLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    greenLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    blueLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    phasorRender {\n      phasorAxis\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    labelRender {\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        lens\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    meshLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    collection {\n      id\n      name\n      label\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      lens\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    networkLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    networkCollection: collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      lens\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      lens\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    pointColorBys: colorBys {\n      kind\n      table\n      column\n      lens\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    pointFilterBys: filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  ... on VectorLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n  }\n  __typename\n}\n\nmutation UpdateTrackLayer($input: UpdateTrackLayerInput!) {\n  updateTrackLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
 
 class CreateLensMutation(BaseModel):
-    """No documentation found for this operation."""
-    create_lens: Lens = Field(alias='createLens')
-    'Create a new lens from an existing dataset and slicing constraints'
+    """ Every create here is get-or-create: a lens is one row per container and normalized
+ selection, so asking for the same selection twice answers with the same id."""
+    create_lens: ArrayLens = Field(alias='createLens')
+    "The array lens making a selection over a dataset by slices: the one that exists for that selection, or a new one with its coordinate system and its edge back into the dataset's grid"
 
     class Arguments(BaseModel):
         """Arguments for CreateLens """
@@ -5343,12 +6306,197 @@ class CreateLensMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateLens """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Slice on Slice {\n  axis\n  start\n  stop\n  step\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Lens on Lens {\n  id\n  dataset {\n    id\n    axisNames\n    dataArrays {\n      id\n      level\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  shape\n  axisNames\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  renderAxes {\n    x\n    y\n    z\n    t\n    intensity\n    __typename\n  }\n  slices {\n    ...Slice\n    __typename\n  }\n  __typename\n}\n\nmutation CreateLens($input: CreateLensInput!) {\n  createLens(input: $input) {\n    ...Lens\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Slice on Slice {\n  axis\n  start\n  stop\n  step\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ArrayLens on ArrayLens {\n  id\n  name\n  kind\n  dataset {\n    id\n    axisNames\n    dataArrays {\n      id\n      level\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  shape\n  axisNames\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  slices {\n    ...Slice\n    __typename\n  }\n  __typename\n}\n\nmutation CreateLens($input: CreateLensInput!) {\n  createLens(input: $input) {\n    ...ArrayLens\n    __typename\n  }\n}'
+
+class CreateTableLensMutation(BaseModel):
+    """No documentation found for this operation."""
+    create_table_lens: TableLens = Field(alias='createTableLens')
+    "The lens keeping these windows of a table dataset's coordinate columns: the one that exists, or a new one. It lives in the table's own space"
+
+    class Arguments(BaseModel):
+        """Arguments for CreateTableLens """
+        input: CreateTableLensInput
+
+    class Meta:
+        """Meta class for CreateTableLens """
+        document = 'fragment Window on Window {\n  axis\n  min\n  max\n  __typename\n}\n\nfragment TableLens on TableLens {\n  id\n  name\n  kind\n  tableDataset {\n    id\n    name\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nmutation CreateTableLens($input: CreateTableLensInput!) {\n  createTableLens(input: $input) {\n    ...TableLens\n    __typename\n  }\n}'
+
+class CreateSparseLensMutation(BaseModel):
+    """No documentation found for this operation."""
+    create_sparse_lens: SparseLens = Field(alias='createSparseLens')
+    "The lens keeping these windows of a sparse dataset's axes: the one that exists, or a new one. A subset of positions, never a re-indexing"
+
+    class Arguments(BaseModel):
+        """Arguments for CreateSparseLens """
+        input: CreateSparseLensInput
+
+    class Meta:
+        """Meta class for CreateSparseLens """
+        document = 'fragment Window on Window {\n  axis\n  min\n  max\n  __typename\n}\n\nfragment SparseLens on SparseLens {\n  id\n  name\n  kind\n  sparseDataset {\n    id\n    name\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  spec\n  __typename\n}\n\nmutation CreateSparseLens($input: CreateSparseLensInput!) {\n  createSparseLens(input: $input) {\n    ...SparseLens\n    __typename\n  }\n}'
+
+class CreateMeshLensMutation(BaseModel):
+    """No documentation found for this operation."""
+    create_mesh_lens: MeshLens = Field(alias='createMeshLens')
+    "The lens keeping these windows of a mesh collection's own space: the one that exists, or a new one"
+
+    class Arguments(BaseModel):
+        """Arguments for CreateMeshLens """
+        input: CreateMeshLensInput
+
+    class Meta:
+        """Meta class for CreateMeshLens """
+        document = 'fragment Window on Window {\n  axis\n  min\n  max\n  __typename\n}\n\nfragment MeshLens on MeshLens {\n  id\n  name\n  kind\n  meshCollection {\n    id\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nmutation CreateMeshLens($input: CreateMeshLensInput!) {\n  createMeshLens(input: $input) {\n    ...MeshLens\n    __typename\n  }\n}'
+
+class CreateNetworkLensMutation(BaseModel):
+    """No documentation found for this operation."""
+    create_network_lens: NetworkLens = Field(alias='createNetworkLens')
+    "The lens keeping these windows of a network collection's own space: the one that exists, or a new one"
+
+    class Arguments(BaseModel):
+        """Arguments for CreateNetworkLens """
+        input: CreateNetworkLensInput
+
+    class Meta:
+        """Meta class for CreateNetworkLens """
+        document = 'fragment Window on Window {\n  axis\n  min\n  max\n  __typename\n}\n\nfragment NetworkLens on NetworkLens {\n  id\n  name\n  kind\n  networkCollection {\n    id\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nmutation CreateNetworkLens($input: CreateNetworkLensInput!) {\n  createNetworkLens(input: $input) {\n    ...NetworkLens\n    __typename\n  }\n}'
+
+class CreateAnnotationLensMutation(BaseModel):
+    """No documentation found for this operation."""
+    create_annotation_lens: AnnotationLens = Field(alias='createAnnotationLens')
+    "The lens keeping these windows of an annotation collection's drawing space: the one that exists, or a new one"
+
+    class Arguments(BaseModel):
+        """Arguments for CreateAnnotationLens """
+        input: CreateAnnotationLensInput
+
+    class Meta:
+        """Meta class for CreateAnnotationLens """
+        document = 'fragment Window on Window {\n  axis\n  min\n  max\n  __typename\n}\n\nfragment AnnotationLens on AnnotationLens {\n  id\n  name\n  kind\n  annotationCollection {\n    id\n    name\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nmutation CreateAnnotationLens($input: CreateAnnotationLensInput!) {\n  createAnnotationLens(input: $input) {\n    ...AnnotationLens\n    __typename\n  }\n}'
+
+class UpdateLensMutationUpdateLensBase(BaseModel):
+    """A selection over a container that lives in a coordinate system: one row per (container, selection), so the same selection asked for twice is the same id. An ArrayLens selects over an array dataset by index slices and, when sliced, owns the crop's space and the edge back into the dataset's grid; every other kind selects over its container by value windows in the container's own axes and lives in the container's space. Every container has its whole lens from creation."""
+    id: ID
+    name: str | None = Field(default=None)
+    "What someone called this selection, or null when nobody has. A label only: it is no part of what the lens selects, and a client shows the selection -- or 'the whole container' -- in its place"
+    kind: LensKind
+    'What this lens selects over: an array by slices, or a table, a sparse dataset, a mesh, a network or an annotation collection by windows'
+    model_config = ConfigDict(frozen=True)
+
+class UpdateLensMutationUpdateLensBaseAnnotationLens(UpdateLensMutationUpdateLensBase, BaseModel):
+    """A selection over an annotation collection by windows in its drawing space"""
+    typename: Literal['AnnotationLens'] = Field(alias='__typename', default='AnnotationLens', exclude=True)
+
+class UpdateLensMutationUpdateLensBaseArrayLens(UpdateLensMutationUpdateLensBase, Lensable, BaseModel):
+    """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
+
+class UpdateLensMutationUpdateLensBaseMeshLens(UpdateLensMutationUpdateLensBase, BaseModel):
+    """A selection over a mesh collection by windows in its own space"""
+    typename: Literal['MeshLens'] = Field(alias='__typename', default='MeshLens', exclude=True)
+
+class UpdateLensMutationUpdateLensBaseNetworkLens(UpdateLensMutationUpdateLensBase, BaseModel):
+    """A selection over a network collection by windows in its own space"""
+    typename: Literal['NetworkLens'] = Field(alias='__typename', default='NetworkLens', exclude=True)
+
+class UpdateLensMutationUpdateLensBaseSparseLens(UpdateLensMutationUpdateLensBase, BaseModel):
+    """A selection over a sparse dataset by windows on its axes: the positions kept, never re-indexed. Lives in the dataset's own space"""
+    typename: Literal['SparseLens'] = Field(alias='__typename', default='SparseLens', exclude=True)
+
+class UpdateLensMutationUpdateLensBaseTableLens(UpdateLensMutationUpdateLensBase, BaseModel):
+    """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
+
+class UpdateLensMutationUpdateLensBaseCatchAll(UpdateLensMutationUpdateLensBase, BaseModel):
+    """Catch all class for UpdateLensMutationUpdateLensBase"""
+    typename: str = Field(alias='__typename', exclude=True)
+
+class UpdateLensMutation(BaseModel):
+    """ Renames only: a different selection is a different lens."""
+    update_lens: Annotated[UpdateLensMutationUpdateLensBaseAnnotationLens | UpdateLensMutationUpdateLensBaseArrayLens | UpdateLensMutationUpdateLensBaseMeshLens | UpdateLensMutationUpdateLensBaseNetworkLens | UpdateLensMutationUpdateLensBaseSparseLens | UpdateLensMutationUpdateLensBaseTableLens, Field(discriminator='typename')] | UpdateLensMutationUpdateLensBaseCatchAll = Field(alias='updateLens')
+    'Rename a lens, or clear its name. What it selects cannot change: a different selection is a different lens'
+
+    class Arguments(BaseModel):
+        """Arguments for UpdateLens """
+        input: UpdateLensInput
+
+    class Meta:
+        """Meta class for UpdateLens """
+        document = 'mutation UpdateLens($input: UpdateLensInput!) {\n  updateLens(input: $input) {\n    id\n    name\n    kind\n    __typename\n  }\n}'
+
+class SetLensDefaultSceneMutationSetLensDefaultSceneDefaultScene(SceneTrait, BaseModel):
+    """A composition of layers over a shared world coordinate system. The scene carries no units of its own -- they are per-axis, on the axes of its world system"""
+    typename: Literal['Scene'] = Field(alias='__typename', default='Scene', exclude=True)
+    id: ID
+    name: str
+    model_config = ConfigDict(frozen=True)
+
+class SetLensDefaultSceneMutationSetLensDefaultSceneBase(BaseModel):
+    """A selection over a container that lives in a coordinate system: one row per (container, selection), so the same selection asked for twice is the same id. An ArrayLens selects over an array dataset by index slices and, when sliced, owns the crop's space and the edge back into the dataset's grid; every other kind selects over its container by value windows in the container's own axes and lives in the container's space. Every container has its whole lens from creation."""
+    id: ID
+    kind: LensKind
+    'What this lens selects over: an array by slices, or a table, a sparse dataset, a mesh, a network or an annotation collection by windows'
+    default_scene: SetLensDefaultSceneMutationSetLensDefaultSceneDefaultScene | None = Field(default=None, alias='defaultScene')
+    "The scene to open for this lens: its own nomination (`setLensDefaultScene`, or `createSceneFromLens`), falling back to its container's whole lens' while it has none. A container's nomination is its whole lens', so a whole lens answers for the container. A nomination, not a derivation"
+    model_config = ConfigDict(frozen=True)
+
+class SetLensDefaultSceneMutationSetLensDefaultSceneBaseAnnotationLens(SetLensDefaultSceneMutationSetLensDefaultSceneBase, BaseModel):
+    """A selection over an annotation collection by windows in its drawing space"""
+    typename: Literal['AnnotationLens'] = Field(alias='__typename', default='AnnotationLens', exclude=True)
+
+class SetLensDefaultSceneMutationSetLensDefaultSceneBaseArrayLens(SetLensDefaultSceneMutationSetLensDefaultSceneBase, Lensable, BaseModel):
+    """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
+
+class SetLensDefaultSceneMutationSetLensDefaultSceneBaseMeshLens(SetLensDefaultSceneMutationSetLensDefaultSceneBase, BaseModel):
+    """A selection over a mesh collection by windows in its own space"""
+    typename: Literal['MeshLens'] = Field(alias='__typename', default='MeshLens', exclude=True)
+
+class SetLensDefaultSceneMutationSetLensDefaultSceneBaseNetworkLens(SetLensDefaultSceneMutationSetLensDefaultSceneBase, BaseModel):
+    """A selection over a network collection by windows in its own space"""
+    typename: Literal['NetworkLens'] = Field(alias='__typename', default='NetworkLens', exclude=True)
+
+class SetLensDefaultSceneMutationSetLensDefaultSceneBaseSparseLens(SetLensDefaultSceneMutationSetLensDefaultSceneBase, BaseModel):
+    """A selection over a sparse dataset by windows on its axes: the positions kept, never re-indexed. Lives in the dataset's own space"""
+    typename: Literal['SparseLens'] = Field(alias='__typename', default='SparseLens', exclude=True)
+
+class SetLensDefaultSceneMutationSetLensDefaultSceneBaseTableLens(SetLensDefaultSceneMutationSetLensDefaultSceneBase, BaseModel):
+    """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
+
+class SetLensDefaultSceneMutationSetLensDefaultSceneBaseCatchAll(SetLensDefaultSceneMutationSetLensDefaultSceneBase, BaseModel):
+    """Catch all class for SetLensDefaultSceneMutationSetLensDefaultSceneBase"""
+    typename: str = Field(alias='__typename', exclude=True)
+
+class SetLensDefaultSceneMutation(BaseModel):
+    """No documentation found for this operation."""
+    set_lens_default_scene: Annotated[SetLensDefaultSceneMutationSetLensDefaultSceneBaseAnnotationLens | SetLensDefaultSceneMutationSetLensDefaultSceneBaseArrayLens | SetLensDefaultSceneMutationSetLensDefaultSceneBaseMeshLens | SetLensDefaultSceneMutationSetLensDefaultSceneBaseNetworkLens | SetLensDefaultSceneMutationSetLensDefaultSceneBaseSparseLens | SetLensDefaultSceneMutationSetLensDefaultSceneBaseTableLens, Field(discriminator='typename')] | SetLensDefaultSceneMutationSetLensDefaultSceneBaseCatchAll = Field(alias='setLensDefaultScene')
+    "Nominate the scene to open for a lens, and take its thumbnail from. Null clears it. On an unsliced lens this writes its dataset's nomination: the lens is the dataset, looked at whole"
+
+    class Arguments(BaseModel):
+        """Arguments for SetLensDefaultScene """
+        input: SetLensDefaultSceneInput
+
+    class Meta:
+        """Meta class for SetLensDefaultScene """
+        document = 'mutation SetLensDefaultScene($input: SetLensDefaultSceneInput!) {\n  setLensDefaultScene(input: $input) {\n    id\n    kind\n    defaultScene {\n      id\n      name\n      __typename\n    }\n    __typename\n  }\n}'
+
+class DeleteLensMutation(BaseModel):
+    """ Refused for a container's whole lens, and while a layer draws through the lens."""
+    delete_lens: ID = Field(alias='deleteLens')
+    "Delete a lens of any kind. Refused while a layer draws through it, and for a container's whole lens"
+
+    class Arguments(BaseModel):
+        """Arguments for DeleteLens """
+        input: DeleteLensInput
+
+    class Meta:
+        """Meta class for DeleteLens """
+        document = 'mutation DeleteLens($input: DeleteLensInput!) {\n  deleteLens(input: $input)\n}'
 
 class CreateMeshCollectionMutation(BaseModel):
     """No documentation found for this operation."""
     create_mesh_collection: MeshCollection = Field(alias='createMeshCollection')
-    'Register an immutable, versioned mesh collection against a coordinate system'
+    'Register an immutable mesh collection against a coordinate system'
 
     class Arguments(BaseModel):
         """Arguments for CreateMeshCollection """
@@ -5356,7 +6504,7 @@ class CreateMeshCollectionMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateMeshCollection """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FabriksStore on FabriksStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment MeshCollection on MeshCollection {\n  id\n  version\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...FabriksStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nmutation CreateMeshCollection($input: CreateMeshCollectionInput!) {\n  createMeshCollection(input: $input) {\n    ...MeshCollection\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FabriksStore on FabriksStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n      field {\n        id\n      }\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    scale\n    translation\n    affine\n  }\n  __typename\n}\n\nfragment MeshCollection on MeshCollection {\n  id\n  name\n  label\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...FabriksStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nmutation CreateMeshCollection($input: CreateMeshCollectionInput!) {\n  createMeshCollection(input: $input) {\n    ...MeshCollection\n    __typename\n  }\n}'
 
 class DeleteMeshCollectionMutation(BaseModel):
     """No documentation found for this operation."""
@@ -5374,7 +6522,7 @@ class DeleteMeshCollectionMutation(BaseModel):
 class CreateNetworkCollectionMutation(BaseModel):
     """No documentation found for this operation."""
     create_network_collection: NetworkCollection = Field(alias='createNetworkCollection')
-    'Register an immutable, versioned network collection from an uploaded konnektion store, in a coordinate system of its own'
+    'Register an immutable network collection from an uploaded konnektion store, in a coordinate system of its own'
 
     class Arguments(BaseModel):
         """Arguments for CreateNetworkCollection """
@@ -5382,7 +6530,7 @@ class CreateNetworkCollectionMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateNetworkCollection """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment KonnektionStore on KonnektionStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  attributes\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment NetworkCollection on NetworkCollection {\n  id\n  version\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...KonnektionStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nmutation CreateNetworkCollection($input: CreateNetworkCollectionInput!) {\n  createNetworkCollection(input: $input) {\n    ...NetworkCollection\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment KonnektionStore on KonnektionStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  attributes\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n      field {\n        id\n      }\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    scale\n    translation\n    affine\n  }\n  __typename\n}\n\nfragment NetworkCollection on NetworkCollection {\n  id\n  name\n  label\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...KonnektionStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nmutation CreateNetworkCollection($input: CreateNetworkCollectionInput!) {\n  createNetworkCollection(input: $input) {\n    ...NetworkCollection\n    __typename\n  }\n}'
 
 class DeleteNetworkCollectionMutation(BaseModel):
     """No documentation found for this operation."""
@@ -5408,7 +6556,7 @@ class CreatePhasorLayerMutation(BaseModel):
 
     class Meta:
         """Meta class for CreatePhasorLayer """
-        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    intensityIndex\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    redIndex\n    greenIndex\n    blueIndex\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    phasorRender {\n      phasorAxis\n      intensityAxis\n      intensityIndex\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    networkCollection: collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    pointColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    pointFilterBys: filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation CreatePhasorLayer($input: CreatePhasorLayerInput!) {\n  createPhasorLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    redLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    greenLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    blueLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    phasorRender {\n      phasorAxis\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    labelRender {\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        lens\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    meshLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    collection {\n      id\n      name\n      label\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      lens\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    networkLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    networkCollection: collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      lens\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      lens\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    pointColorBys: colorBys {\n      kind\n      table\n      column\n      lens\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    pointFilterBys: filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  ... on VectorLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n  }\n  __typename\n}\n\nmutation CreatePhasorLayer($input: CreatePhasorLayerInput!) {\n  createPhasorLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
 
 class CreatePhasorHistogramMutation(BaseModel):
     """No documentation found for this operation."""
@@ -5501,6 +6649,50 @@ class DeleteSceneMutation(BaseModel):
         """Meta class for DeleteScene """
         document = 'mutation DeleteScene($input: DeleteSceneInput!) {\n  deleteScene(input: $input)\n}'
 
+class CreateSceneFromLensMutation(BaseModel):
+    """ Stages one array lens -- a crop, a sub-volume or the whole array -- one layer per
+ channel. Staging a sliced lens' *space* instead would draw its whole dataset."""
+    create_scene_from_lens: Scene = Field(alias='createSceneFromLens')
+    "Bootstrap a renderable scene showing one lens of any kind: a crop, a sub-volume or the whole array as one layer per channel; a window over a table as a point or track layer; a window over a mesh, network or annotation collection as that layer. Composes in the dataset's intrinsic grid, or the container's own space, unless `world` names another space the lens reaches"
+
+    class Arguments(BaseModel):
+        """Arguments for CreateSceneFromLens """
+        input: CreateSceneFromLensInput
+
+    class Meta:
+        """Meta class for CreateSceneFromLens """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nmutation CreateSceneFromLens($input: CreateSceneFromLensInput!) {\n  createSceneFromLens(input: $input) {\n    ...Scene\n    __typename\n  }\n}'
+
+class AutoVisualizeMutationAutoVisualizeBase(BaseModel):
+    """A composition laid out over a coordinate system: a scene (a place) or a chart (one metric axis). It adopts the space as its world, names data by id and owns none of it. Only what every kind has is here -- the layers differ per kind, so select them on the concrete type"""
+    model_config = ConfigDict(frozen=True)
+
+class AutoVisualizeMutationAutoVisualizeBaseChart(Chart, AutoVisualizeMutationAutoVisualizeBase, ChartTrait, BaseModel):
+    """A composition of data laid out along one metric axis, with values read off it. The second kind of composition beside a scene: a scene is a place, a chart is an axis. It names data by id and owns none of it, and it carries no unit of its own -- the unit is its world axis's"""
+    typename: Literal['Chart'] = Field(alias='__typename', default='Chart', exclude=True)
+
+class AutoVisualizeMutationAutoVisualizeBaseScene(Scene, AutoVisualizeMutationAutoVisualizeBase, SceneTrait, BaseModel):
+    """A composition of layers over a shared world coordinate system. The scene carries no units of its own -- they are per-axis, on the axes of its world system"""
+    typename: Literal['Scene'] = Field(alias='__typename', default='Scene', exclude=True)
+
+class AutoVisualizeMutationAutoVisualizeBaseCatchAll(AutoVisualizeMutationAutoVisualizeBase, BaseModel):
+    """Catch all class for AutoVisualizeMutationAutoVisualizeBase"""
+    typename: str = Field(alias='__typename', exclude=True)
+
+class AutoVisualizeMutation(BaseModel):
+    """ Shows a space as whichever composition fits it: a chart over exactly one metric,
+ unit-carrying axis, a scene otherwise."""
+    auto_visualize: Annotated[AutoVisualizeMutationAutoVisualizeBaseChart | AutoVisualizeMutationAutoVisualizeBaseScene, Field(discriminator='typename')] | AutoVisualizeMutationAutoVisualizeBaseCatchAll = Field(alias='autoVisualize')
+    'Show a coordinate system as whichever composition fits it: a chart over a space with exactly one metric, unit-carrying axis, a scene over any other space with a time or space axis. Bootstrapped from what already resides in the space; authors no edges'
+
+    class Arguments(BaseModel):
+        """Arguments for AutoVisualize """
+        input: AutoVisualizeInput
+
+    class Meta:
+        """Meta class for AutoVisualize """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Chart on Chart {\n  id\n  name\n  description\n  axis {\n    ...Axis\n    __typename\n  }\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  layers {\n    ...ChartLayer\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nmutation AutoVisualize($input: AutoVisualizeInput!) {\n  autoVisualize(input: $input) {\n    ... on Scene {\n      ...Scene\n    }\n    ... on Chart {\n      ...Chart\n    }\n    __typename\n  }\n}'
+
 class CreateSceneSnapshotMutation(BaseModel):
     """No documentation found for this operation."""
     create_scene_snapshot: SceneSnapshot = Field(alias='createSceneSnapshot')
@@ -5590,7 +6782,7 @@ class CreateTableDatasetMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateTableDataset """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    references {\n      id\n      __typename\n    }\n    nodeReferences {\n      id\n      __typename\n    }\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}\n\nmutation CreateTableDataset($input: CreateTableDatasetInput!) {\n  createTableDataset(input: $input) {\n    ...TableDataset\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n      field {\n        id\n      }\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    scale\n    translation\n    affine\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    references {\n      id\n      __typename\n    }\n    nodeReferences {\n      id\n      __typename\n    }\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}\n\nmutation CreateTableDataset($input: CreateTableDatasetInput!) {\n  createTableDataset(input: $input) {\n    ...TableDataset\n    __typename\n  }\n}'
 
 class UpdateTableDatasetMutation(BaseModel):
     """No documentation found for this operation."""
@@ -5603,7 +6795,7 @@ class UpdateTableDatasetMutation(BaseModel):
 
     class Meta:
         """Meta class for UpdateTableDataset """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    references {\n      id\n      __typename\n    }\n    nodeReferences {\n      id\n      __typename\n    }\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}\n\nmutation UpdateTableDataset($input: UpdateTableDatasetInput!) {\n  updateTableDataset(input: $input) {\n    ...TableDataset\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n      field {\n        id\n      }\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    scale\n    translation\n    affine\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    references {\n      id\n      __typename\n    }\n    nodeReferences {\n      id\n      __typename\n    }\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}\n\nmutation UpdateTableDataset($input: UpdateTableDatasetInput!) {\n  updateTableDataset(input: $input) {\n    ...TableDataset\n    __typename\n  }\n}'
 
 class DeleteTableDatasetMutation(BaseModel):
     """No documentation found for this operation."""
@@ -5627,7 +6819,7 @@ class CreateTransformationMutationCreateTransformationBaseAffineTransformation(T
     typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
 
 class CreateTransformationMutationCreateTransformationBaseByDimensionTransformation(TransformationByDimensionTransformation, CreateTransformationMutationCreateTransformationBase, TransformationTrait, BaseModel):
-    """A composition of child transformations, each acting on a named subset of the axes"""
+    """A map over a named subset of the axes: `inputAxes` onto `outputAxes`, one for one, by a `scale` and/or a `translation`, or by an `affine` -- or by none of them, which is the identity on the named axes. The axes it does not name pass through untouched, which is how a registration crosses a rank boundary: a (c,y,x) dataset placed into a (t,z,y,x) world names y and x and says nothing about t and z"""
     typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
 
 class CreateTransformationMutationCreateTransformationBaseFieldTransformation(TransformationFieldTransformation, CreateTransformationMutationCreateTransformationBase, TransformationTrait, BaseModel):
@@ -5651,7 +6843,7 @@ class CreateTransformationMutationCreateTransformationBaseScaleTransformation(Tr
     typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
 
 class CreateTransformationMutationCreateTransformationBaseSequenceTransformation(TransformationSequenceTransformation, CreateTransformationMutationCreateTransformationBase, TransformationTrait, BaseModel):
-    """An ordered composition of child transformations, applied first to last"""
+    """An ordered composition of steps, applied first to last: one edge, carrying its map as `steps`. The ingest writes one for a stepped lens and for a downsampled pyramid level (a scale, then the half-voxel translation)"""
     typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
 
 class CreateTransformationMutationCreateTransformationBaseTranslationTransformation(TransformationTranslationTransformation, CreateTransformationMutationCreateTransformationBase, TransformationTrait, BaseModel):
@@ -5677,7 +6869,7 @@ class CreateTransformationMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateTransformation """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nmutation CreateTransformation($input: CreateTransformationInput!) {\n  createTransformation(input: $input) {\n    ...Transformation\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n      field {\n        id\n      }\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    scale\n    translation\n    affine\n  }\n  __typename\n}\n\nmutation CreateTransformation($input: CreateTransformationInput!) {\n  createTransformation(input: $input) {\n    ...Transformation\n    __typename\n  }\n}'
 
 class UpdateTransformationMutationUpdateTransformationBase(BaseModel):
     """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
@@ -5688,7 +6880,7 @@ class UpdateTransformationMutationUpdateTransformationBaseAffineTransformation(T
     typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
 
 class UpdateTransformationMutationUpdateTransformationBaseByDimensionTransformation(TransformationByDimensionTransformation, UpdateTransformationMutationUpdateTransformationBase, TransformationTrait, BaseModel):
-    """A composition of child transformations, each acting on a named subset of the axes"""
+    """A map over a named subset of the axes: `inputAxes` onto `outputAxes`, one for one, by a `scale` and/or a `translation`, or by an `affine` -- or by none of them, which is the identity on the named axes. The axes it does not name pass through untouched, which is how a registration crosses a rank boundary: a (c,y,x) dataset placed into a (t,z,y,x) world names y and x and says nothing about t and z"""
     typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
 
 class UpdateTransformationMutationUpdateTransformationBaseFieldTransformation(TransformationFieldTransformation, UpdateTransformationMutationUpdateTransformationBase, TransformationTrait, BaseModel):
@@ -5712,7 +6904,7 @@ class UpdateTransformationMutationUpdateTransformationBaseScaleTransformation(Tr
     typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
 
 class UpdateTransformationMutationUpdateTransformationBaseSequenceTransformation(TransformationSequenceTransformation, UpdateTransformationMutationUpdateTransformationBase, TransformationTrait, BaseModel):
-    """An ordered composition of child transformations, applied first to last"""
+    """An ordered composition of steps, applied first to last: one edge, carrying its map as `steps`. The ingest writes one for a stepped lens and for a downsampled pyramid level (a scale, then the half-voxel translation)"""
     typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
 
 class UpdateTransformationMutationUpdateTransformationBaseTranslationTransformation(TransformationTranslationTransformation, UpdateTransformationMutationUpdateTransformationBase, TransformationTrait, BaseModel):
@@ -5738,7 +6930,7 @@ class UpdateTransformationMutation(BaseModel):
 
     class Meta:
         """Meta class for UpdateTransformation """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nmutation UpdateTransformation($input: UpdateTransformationInput!) {\n  updateTransformation(input: $input) {\n    ...Transformation\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n      field {\n        id\n      }\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    scale\n    translation\n    affine\n  }\n  __typename\n}\n\nmutation UpdateTransformation($input: UpdateTransformationInput!) {\n  updateTransformation(input: $input) {\n    ...Transformation\n    __typename\n  }\n}'
 
 class DeleteTransformationMutation(BaseModel):
     """No documentation found for this operation."""
@@ -5880,6 +7072,31 @@ class SearchAnnotationCollectionsQuery(BaseModel):
         """Meta class for SearchAnnotationCollections """
         document = 'query SearchAnnotationCollections($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: annotationCollections(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
 
+class SearchAnnotationsQueryOptions(BaseModel):
+    """A human-drawn shape in an annotation collection's coordinate system. It belongs to the collection, not to a scene: delete the scene and the annotation survives"""
+    typename: Literal['Annotation'] = Field(alias='__typename', default='Annotation', exclude=True)
+    value: str
+    label: str
+    model_config = ConfigDict(frozen=True)
+
+class SearchAnnotationsQuery(BaseModel):
+    """ What a port's picker asks. `$requires` is the port's own constraints, handed on
+ unchanged by the frontend, so a port typed on paths is offered the paths."""
+    options: tuple[SearchAnnotationsQueryOptions, ...]
+    "List annotations (human-drawn shapes, each in its collection's coordinate system)"
+
+    class Arguments(BaseModel):
+        """Arguments for SearchAnnotations """
+        search: str | None = Field(default=None)
+        values: list[ID] | None = Field(default=None)
+        requires: list[DescriptorConstraintInput] | None = Field(default=None)
+        limit: int | None = Field(default=None)
+        offset: Annotated[int | None, GraphQLDefault('0')] = Field(default=None)
+
+    class Meta:
+        """Meta class for SearchAnnotations """
+        document = 'query SearchAnnotations($search: String, $values: [ID!], $requires: [DescriptorConstraintInput!], $limit: Int, $offset: Int = 0) {\n  options: annotations(\n    filters: {search: $search, ids: $values, requires: $requires}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
+
 class GetArrayDatasetQuery(BaseModel):
     """No documentation found for this operation."""
     array_dataset: ArrayDataset = Field(alias='arrayDataset')
@@ -5958,10 +7175,10 @@ class AttributePlansQueryAttributePlansEdge(TransformationTrait, BaseModel):
     "The names of the input axes this edge's parameters are ordered by. `scale`, `translation` and the columns of `affine` follow this order -- which is the input system's axis order, NOT the reading layer's axis names, and the two differ often enough that indexing the arrays against them silently misplaces them. A BY_DIMENSION edge names only the subset of axes it acts on; the axes it does not name are the ones it leaves untouched"
     output_axes: tuple[str, ...] = Field(alias='outputAxes')
     "The names of the output axes this edge produces. For a rank-changing BY_DIMENSION edge (placing a (c,y,x) dataset into a (t,z,y,x) world) this is the subset it maps onto; the world's other axes are untouched"
-    input: AttributePlansQueryAttributePlansEdgeInput | None = Field(default=None)
-    'The system this edge maps from. Null for the child of a SEQUENCE or BY_DIMENSION, which takes its endpoints from the wrapper'
-    output: AttributePlansQueryAttributePlansEdgeOutput | None = Field(default=None)
-    'The system this edge maps to. Null for the child of a SEQUENCE or BY_DIMENSION, which takes its endpoints from the wrapper'
+    input: AttributePlansQueryAttributePlansEdgeInput
+    'The system this edge maps from'
+    output: AttributePlansQueryAttributePlansEdgeOutput
+    'The system this edge maps to'
     model_config = ConfigDict(frozen=True)
 
 class AttributePlansQueryAttributePlansPathTransformationBase(BaseModel):
@@ -5977,7 +7194,7 @@ class AttributePlansQueryAttributePlansPathTransformationBaseAffineTransformatio
     typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
 
 class AttributePlansQueryAttributePlansPathTransformationBaseByDimensionTransformation(AttributePlansQueryAttributePlansPathTransformationBase, TransformationTrait, BaseModel):
-    """A composition of child transformations, each acting on a named subset of the axes"""
+    """A map over a named subset of the axes: `inputAxes` onto `outputAxes`, one for one, by a `scale` and/or a `translation`, or by an `affine` -- or by none of them, which is the identity on the named axes. The axes it does not name pass through untouched, which is how a registration crosses a rank boundary: a (c,y,x) dataset placed into a (t,z,y,x) world names y and x and says nothing about t and z"""
     typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
 
 class AttributePlansQueryAttributePlansPathTransformationBaseFieldTransformation(AttributePlansQueryAttributePlansPathTransformationBase, TransformationTrait, BaseModel):
@@ -6001,7 +7218,7 @@ class AttributePlansQueryAttributePlansPathTransformationBaseScaleTransformation
     typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
 
 class AttributePlansQueryAttributePlansPathTransformationBaseSequenceTransformation(AttributePlansQueryAttributePlansPathTransformationBase, TransformationTrait, BaseModel):
-    """An ordered composition of child transformations, applied first to last"""
+    """An ordered composition of steps, applied first to last: one edge, carrying its map as `steps`. The ingest writes one for a stepped lens and for a downsampled pyramid level (a scale, then the half-voxel translation)"""
     typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
 
 class AttributePlansQueryAttributePlansPathTransformationBaseTranslationTransformation(AttributePlansQueryAttributePlansPathTransformationBase, TransformationTrait, BaseModel):
@@ -6074,26 +7291,50 @@ class AttributePlansQueryAttributePlansHopsViaColumn(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 class AttributePlansQueryAttributePlansHopsVia(BaseModel):
-    """The schema fact one hop crosses. `column`: a `Column.references` hop -- the parent row's column whose values are row ids of the next table -- or, on a hop into a matrix, the parent table's INDEX column whose values are positions along `axis`. `axis`: the matrix axis crossed, in either direction. Whichever is set, its name is the name the hop's lookup binds under (`keyColumns[].axis` / `keyHeld`)"""
+    """The schema fact one hop crosses. `column`: a `Column.references` hop -- the parent row's column whose values are row ids of the next table -- or, on a hop into a matrix, or a dense array, the parent table's INDEX column whose values are positions along `axis`. `axis`: the matrix axis crossed, in either direction, or the array axis entered. Whichever is set, its name is the name the hop's lookup binds under (`keyColumns[].axis` / `keyHeld`)"""
     typename: Literal['HopVia'] = Field(alias='__typename', default='HopVia', exclude=True)
     column: AttributePlansQueryAttributePlansHopsViaColumn | None = Field(default=None)
-    "The column whose values are bound: the parent row's reference column, or its INDEX column when the hop enters a matrix"
+    "The column whose values are bound: the parent row's reference column, or its INDEX column when the hop enters a matrix or a dense array"
     axis: str | None = Field(default=None)
-    "The matrix axis crossed: the parent slice's value axis when the hop leaves a matrix, the target's indexed axis when it enters one"
+    "The axis crossed: the parent slice's value axis when the hop leaves a matrix, the target's indexed axis when it enters one, the array's key axis when it enters a dense array"
     model_config = ConfigDict(frozen=True)
 
-class AttributePlansQueryAttributePlansHopsTable(HasParquestStoreTrait, BaseModel):
+class AttributePlansQueryAttributePlansHopsTable(HasParquestStoreTrait, TableDatasetLensTrait, BaseModel):
     """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
     typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
     id: ID
     name: str
     model_config = ConfigDict(frozen=True)
 
-class AttributePlansQueryAttributePlansHopsSparseDataset(BaseModel):
+class AttributePlansQueryAttributePlansHopsSparseDataset(SparseDatasetTrait, BaseModel):
     """A sparse matrix over two enumerated axes -- objects on one, features on the other -- stored as anndata-spelled zarr groups. It exists because a colouring names one *column*, so a colourable measurement is a column of a table: right for a few hundred features and impossible for a transcriptome, where a feature stops being a schema fact and becomes a data one. **Each axis is identified exactly once**, by its own `identifiedBy` -- a source whose contents are the ids, or the table whose rows the positions are. Its stores, axes and coordinate system are fixed at creation; a recomputation is a new dataset"""
     typename: Literal['SparseDataset'] = Field(alias='__typename', default='SparseDataset', exclude=True)
     id: ID
     name: str
+    model_config = ConfigDict(frozen=True)
+
+class AttributePlansQueryAttributePlansHopsArrayDatasetDataArraysStore(HasZarrStoreAccessor, BaseModel):
+    """No documentation"""
+    typename: Literal['ZarrStore'] = Field(alias='__typename', default='ZarrStore', exclude=True)
+    id: ID
+    key: str
+    model_config = ConfigDict(frozen=True)
+
+class AttributePlansQueryAttributePlansHopsArrayDatasetDataArrays(DataArrayTrait, BaseModel):
+    """One level of a dataset's resolution pyramid: a zarr-backed array, with its own voxel-index coordinate system and a stored edge into the dataset's intrinsic space"""
+    typename: Literal['DataArray'] = Field(alias='__typename', default='DataArray', exclude=True)
+    id: ID
+    level: int
+    store: AttributePlansQueryAttributePlansHopsArrayDatasetDataArraysStore
+    model_config = ConfigDict(frozen=True)
+
+class AttributePlansQueryAttributePlansHopsArrayDataset(DatasetTrait, BaseModel):
+    """A multi-dimensional array dataset. Its dimensions and their types live on the axes of its INTRINSIC (pixel grid) coordinate system; physical units live on the physical spaces it has edges into; its pyramid levels are DataArrays, each mapping into its grid"""
+    typename: Literal['ArrayDataset'] = Field(alias='__typename', default='ArrayDataset', exclude=True)
+    id: ID
+    name: str
+    data_arrays: tuple[AttributePlansQueryAttributePlansHopsArrayDatasetDataArrays, ...] = Field(alias='dataArrays')
+    'The multiscale data arrays belonging to this dataset'
     model_config = ConfigDict(frozen=True)
 
 class AttributePlansQueryAttributePlansHopsLookupStore(HasParquetStoreAccesor, BaseModel):
@@ -6124,6 +7365,15 @@ class AttributePlansQueryAttributePlansHopsLookupSparseArray(BaseModel):
     'The store holding this layout. Both layouts of one matrix share it -- one matrix is one upload -- so `path` is what says which of them this is. Ask the store for an access grant and read the three arrays directly'
     model_config = ConfigDict(frozen=True)
 
+class AttributePlansQueryAttributePlansHopsLookupKeyMap(BaseModel):
+    """A held id as a position along a dense array's axis: `position = held * scale + offset`. The inverse of the derivation edge that relates the array to the table whose rows the ids are. Computed in floating point, so round to the nearest position; one that is not a whole number within a small tolerance, or lies outside the axis, identifies nothing in the array: the object has no row there"""
+    typename: Literal['KeyMap'] = Field(alias='__typename', default='KeyMap', exclude=True)
+    scale: float
+    'What the held id is multiplied by'
+    offset: float
+    'What is added after scaling'
+    model_config = ConfigDict(frozen=True)
+
 class AttributePlansQueryAttributePlansHopsLookupKeyColumnsColumn(BaseModel):
     """One declared column of a table dataset: its name, dtype and role. A COORDINATE column is also an axis of the table's space"""
     typename: Literal['Column'] = Field(alias='__typename', default='Column', exclude=True)
@@ -6148,27 +7398,29 @@ class AttributePlansQueryAttributePlansHopsLookupAttributes(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 class AttributePlansQueryAttributePlansHopsLookup(BaseModel):
-    """The lookup half of a hop: read the rows (TABLE) or the slice (SPARSE) the held value identifies. There is no statement here, deliberately -- a TABLE lookup is `keyColumns` and `attributes`, and the DuckDB statement is derived from them by the worker (`core/logic/plan_sql.py`, a standard-library-only module the client carries unchanged): `SELECT <attributes> FROM read_parquet(?) WHERE <key> = ? ...`, bound with the parquet path/URL first (from the worker's own access grant) and then the key values in `keyColumns` order; a MANY hop binds lists and selects the keys too. Do not assume one row per point: (t, i) uniqueness is a convention no unique index backs, so the worker gets rows, plural"""
+    """The lookup half of a hop: read the rows (TABLE), the slice (SPARSE) or the dense row (ARRAY) the held value identifies. There is no statement here, deliberately -- a TABLE lookup is `keyColumns` and `attributes`, and the DuckDB statement is derived from them by the worker (`core/logic/plan_sql.py`, a standard-library-only module the client carries unchanged): `SELECT <attributes> FROM read_parquet(?) WHERE <key> = ? ...`, bound with the parquet path/URL first (from the worker's own access grant) and then the key values in `keyColumns` order; a MANY hop binds lists and selects the keys too. Do not assume one row per point: (t, i) uniqueness is a convention no unique index backs, so the worker gets rows, plural"""
     typename: Literal['LookupStep'] = Field(alias='__typename', default='LookupStep', exclude=True)
     kind: str
-    'Which shape this lookup is: `TABLE` for a row of a parquet, `SPARSE` for a slice of a matrix. The fields of the other shape are null -- a flat discriminator rather than an interface, which over these two would carry nothing in common'
+    'Which shape this lookup is: `TABLE` for a row of a parquet, `SPARSE` for a slice of a matrix, `ARRAY` for one position of a dense array along `keyAxis`. The fields of the other shapes are null -- a flat discriminator rather than an interface, which over these would carry nothing in common'
     store: AttributePlansQueryAttributePlansHopsLookupStore | None = Field(default=None)
     '(TABLE) The parquet store holding the rows. Ask it for an accessGrant to actually read it -- credentials and locations never appear in a plan'
     sparse_array: AttributePlansQueryAttributePlansHopsLookupSparseArray | None = Field(default=None, alias='sparseArray')
     '(SPARSE) The layout to read. Ask its `store` for an accessGrant, open the group at its `path` -- both layouts of a matrix live in one prefix, so the store alone does not say which -- then make two reads: `indptr[i:i+2]` at the id, and the range those two offsets name in `indices` and `data`. There is no SQL and no database in the path'
     key_axis: str | None = Field(default=None, alias='keyAxis')
-    "(SPARSE) The axis the held id is bound to -- what `keyColumns` is for a table. **Always the axis that layout's `indptr` indexes**, which is what makes the read one contiguous range; a plan is published over a layout where that holds, or not at all"
+    "(SPARSE, ARRAY) The axis the held id is bound to -- what `keyColumns` is for a table. SPARSE: **always the axis that layout's `indptr` indexes**, which is what makes the read one contiguous range; a plan is published over a layout where that holds, or not at all. ARRAY: an INDEX or CHANNEL axis of the hop's `arrayDataset`, the same at every level because such an axis is never downsampled"
     key_held: str | None = Field(default=None, alias='keyHeld')
-    "(SPARSE) The name the worker holds the value bound to `keyAxis` under -- what `keyColumns[].axis` is for a table. Equal to `keyAxis` on a landing, where the sample produced it under the axis' name; the parent row's column name on a hop into a matrix"
+    "(SPARSE, ARRAY) The name the worker holds the value bound to `keyAxis` under -- what `keyColumns[].axis` is for a table. Equal to `keyAxis` on a landing, where the sample produced it under the axis' name; the parent row's column name on a hop into a matrix or an array"
     value_axes: tuple[str, ...] = Field(alias='valueAxes')
-    "(SPARSE) What comes back is indexed by: every position along these axes that carries a value. **Not keys** -- the client supplies nothing for them and receives all of them, which is what makes this one object's whole profile. One axis at rank two, so a returned position is a single coordinate and a row of the table that axis references; two at rank three, where a position is raveled and unravels through `sparseArray.indexOrder` into one coordinate per entry here, in order"
+    "(SPARSE) What comes back is indexed by: every position along these axes that carries a value. **Not keys** -- the client supplies nothing for them and receives all of them, which is what makes this one object's whole profile. One axis at rank two, so a returned position is a single coordinate and a row of the table that axis references; two at rank three, where a position is raveled and unravels through `sparseArray.indexOrder` into one coordinate per entry here, in order. (ARRAY) Every other axis of the array, in its own order: read all of each, at the one position along `keyAxis`"
+    key_map: AttributePlansQueryAttributePlansHopsLookupKeyMap | None = Field(default=None, alias='keyMap')
+    "(ARRAY) The held id as a position along `keyAxis`. A matrix axis *is* the row ids; a dense array's positions relate to them by whatever its derivation edge states (`cell_id = cell + 1`), and this is that edge already inverted. Do not re-derive it from the edge's steps"
     key_columns: tuple[AttributePlansQueryAttributePlansHopsLookupKeyColumns, ...] = Field(alias='keyColumns')
     "(TABLE) The key bindings, in bind order: each names the value the worker holds (by axis name, or by the parent hop's column or axis name) and the parquet column it binds"
     attributes: tuple[AttributePlansQueryAttributePlansHopsLookupAttributes, ...]
     "(TABLE) What the statement selects -- every declared non-coordinate column, never `*`. A column whose `references` names another table holds row ids of that table; the plan's later hops say where they lead"
     model_config = ConfigDict(frozen=True)
 
-class AttributePlansQueryAttributePlansHopsJoinPathTable(HasParquestStoreTrait, BaseModel):
+class AttributePlansQueryAttributePlansHopsJoinPathTable(HasParquestStoreTrait, TableDatasetLensTrait, BaseModel):
     """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
     typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
     id: ID
@@ -6190,7 +7442,7 @@ class AttributePlansQueryAttributePlansHopsJoinPath(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 class AttributePlansQueryAttributePlansHops(BaseModel):
-    """One step of a plan's chain through record-land. `hops[0]` is the landing -- the FIELD edge's own target, bound from `sample` -- and every later hop binds from the rows or slice its `parent` returned, under the name `via` states, and lands one declared reference further: a `Column.references`, a matrix axis a table identifies, or the same axis walked into the matrix. Execute in list order; a hop's parent always precedes it. `cardinality` says whether to bind a scalar or a list. The server describes the chain and reads nothing; the client runs it hop by hop with grants it already holds"""
+    """One step of a plan's chain through record-land. `hops[0]` is the landing -- the FIELD edge's own target, bound from `sample` -- and every later hop binds from the rows or slice its `parent` returned, under the name `via` states, and lands one declared reference further: a `Column.references`, a matrix axis a table identifies, the same axis walked into the matrix, or a dense array derived from a table with one of its enumerating axes mapped onto the table's row ids. Nothing hops out of an array. Execute in list order; a hop's parent always precedes it. `cardinality` says whether to bind a scalar or a list. The server describes the chain and reads nothing; the client runs it hop by hop with grants it already holds"""
     typename: Literal['Hop'] = Field(alias='__typename', default='Hop', exclude=True)
     index: int
     "This hop's position in `hops`, what a child names as its `parent`"
@@ -6201,11 +7453,13 @@ class AttributePlansQueryAttributePlansHops(BaseModel):
     via: AttributePlansQueryAttributePlansHopsVia | None = Field(default=None)
     "The declared reference this hop crosses. Null on `hops[0]`, whose crossing is the plan's `edge`"
     table: AttributePlansQueryAttributePlansHopsTable | None = Field(default=None)
-    'The table this hop lands in: the home of its attributes and their `references`. One or the other with `sparseDataset`, never both'
+    'The table this hop lands in: the home of its attributes and their `references`. Exactly one of `table`, `sparseDataset` and `arrayDataset` is set'
     sparse_dataset: AttributePlansQueryAttributePlansHopsSparseDataset | None = Field(default=None, alias='sparseDataset')
     'The matrix this hop lands in, when `lookup.kind` is SPARSE'
+    array_dataset: AttributePlansQueryAttributePlansHopsArrayDataset | None = Field(default=None, alias='arrayDataset')
+    'The dense array this hop lands in, when `lookup.kind` is ARRAY. Its `dataArrays` are the levels to read from, each with its own `store`; level 0 always has one'
     lookup: AttributePlansQueryAttributePlansHopsLookup
-    'How to read what this hop lands in: the rows of a parquet or a slice of a matrix'
+    'How to read what this hop lands in: the rows of a parquet, a slice of a matrix or one position of a dense array'
     join_path: tuple[AttributePlansQueryAttributePlansHopsJoinPath, ...] = Field(alias='joinPath')
     "The picker's name for this hop: the `(table, column)` reference steps from the landing table to here, exactly what a layer's `colorBys[].joinPath` stores -- so a stored colouring finds the hop that resolves it, and its key column, here. Empty on `hops[0]`, and empty once the chain has crossed a matrix, which no `joinPath` can name"
     model_config = ConfigDict(frozen=True)
@@ -6214,7 +7468,7 @@ class AttributePlansQueryAttributePlans(BaseModel):
     """One executable answer to 'what is under this point?': map the point along `path` if the plan is not rooted where you probed, sample the field array, then run the hops -- the landing first, then every declared reference reachable from it, each bound from the one before. Plans are discovered across the fact component -- probe a source image and the plans of the instance mask derived from it are found through the derivation edge -- but never through a registration: which claims compose is a scene's say-so, and this query has no scene. A plan takes no coordinate -- it is the same plan for every point, so fetch it once, cache it, and execute per hover locally with zero round-trips. attributePlans returns instructions, never attributes: anything that wants values runs the plan"""
     typename: Literal['AttributePlan'] = Field(alias='__typename', default='AttributePlan', exclude=True)
     edge: AttributePlansQueryAttributePlansEdge
-    "The FIELD edge this plan was built from. The plan's cache key is this edge's (id, version) together with every `path` step's transformation (id, version): the stores and columns of a table are written once, so a deleted or version-bumped edge -- the FIELD, or any step on the way to it -- is the only thing that can stale a cached plan"
+    "The FIELD edge this plan was built from. The plan's cache key is this edge's (id, version) together with every `path` step's transformation (id, version): the stores and columns of a table are written once, so a deleted or version-bumped edge -- the FIELD, or any step on the way to it -- is the only thing that can stale what a cached plan already says. What it can *reach* still grows: a matrix or a derived array created later extends the chain without touching any of these edges, so refetch when such data arrives"
     path: tuple[AttributePlansQueryAttributePlansPath, ...]
     "The steps from the PROBED system to this plan's root (the FIELD edge's input system -- equal to `sample.system` when the mask's own pixels are the map). Empty when the plan is rooted where you probed. Compose in order, inverting the flagged steps, to map a probed-space point into the space `consumes` and `passthrough` are stated in -- the same contract as `pathToWorld`. The path crosses derivations, levels, lenses and physical spaces, never a registration"
     sample: Annotated[AttributePlansQueryAttributePlansSampleBaseArraySample | AttributePlansQueryAttributePlansSampleBaseMeshSample | AttributePlansQueryAttributePlansSampleBaseNetworkSample, Field(discriminator='typename')] | AttributePlansQueryAttributePlansSampleBaseCatchAll
@@ -6246,7 +7500,124 @@ class AttributePlansQuery(BaseModel):
 
     class Meta:
         """Meta class for AttributePlans """
-        document = 'fragment FabriksStore on FabriksStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  __typename\n}\n\nfragment KonnektionStore on KonnektionStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  attributes\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nquery AttributePlans($system: ID!, $maxDepth: Int, $maxJoinDepth: Int! = 1) {\n  attributePlans(\n    system: $system\n    maxDepth: $maxDepth\n    maxJoinDepth: $maxJoinDepth\n  ) {\n    edge {\n      id\n      kind\n      name\n      version\n      validity\n      inputAxes\n      outputAxes\n      input {\n        id\n        name\n        __typename\n      }\n      output {\n        id\n        name\n        __typename\n      }\n      __typename\n    }\n    path {\n      inverted\n      transformation {\n        id\n        kind\n        version\n        __typename\n      }\n      __typename\n    }\n    sample {\n      consumes\n      produces\n      passthrough\n      system {\n        id\n        name\n        __typename\n      }\n      ... on ArraySample {\n        store {\n          ...ZarrStore\n        }\n      }\n      ... on MeshSample {\n        store {\n          ...FabriksStore\n        }\n      }\n      ... on NetworkSample {\n        store {\n          ...KonnektionStore\n        }\n      }\n      __typename\n    }\n    hops {\n      index\n      parent\n      cardinality\n      via {\n        column {\n          name\n          dtype\n          __typename\n        }\n        axis\n        __typename\n      }\n      table {\n        id\n        name\n        __typename\n      }\n      sparseDataset {\n        id\n        name\n        __typename\n      }\n      lookup {\n        kind\n        store {\n          id\n          key\n          __typename\n        }\n        sparseArray {\n          id\n          path\n          indexedAxis\n          store {\n            id\n            key\n            spec\n            __typename\n          }\n          __typename\n        }\n        keyAxis\n        keyHeld\n        valueAxes\n        keyColumns {\n          axis\n          column {\n            name\n            dtype\n            __typename\n          }\n          __typename\n        }\n        attributes {\n          name\n          dtype\n          __typename\n        }\n        __typename\n      }\n      joinPath {\n        table {\n          id\n          __typename\n        }\n        column {\n          name\n          __typename\n        }\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n}'
+        document = 'fragment FabriksStore on FabriksStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  __typename\n}\n\nfragment KonnektionStore on KonnektionStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  attributes\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nquery AttributePlans($system: ID!, $maxDepth: Int, $maxJoinDepth: Int! = 1) {\n  attributePlans(\n    system: $system\n    maxDepth: $maxDepth\n    maxJoinDepth: $maxJoinDepth\n  ) {\n    edge {\n      id\n      kind\n      name\n      version\n      validity\n      inputAxes\n      outputAxes\n      input {\n        id\n        name\n        __typename\n      }\n      output {\n        id\n        name\n        __typename\n      }\n      __typename\n    }\n    path {\n      inverted\n      transformation {\n        id\n        kind\n        version\n        __typename\n      }\n      __typename\n    }\n    sample {\n      consumes\n      produces\n      passthrough\n      system {\n        id\n        name\n        __typename\n      }\n      ... on ArraySample {\n        store {\n          ...ZarrStore\n        }\n      }\n      ... on MeshSample {\n        store {\n          ...FabriksStore\n        }\n      }\n      ... on NetworkSample {\n        store {\n          ...KonnektionStore\n        }\n      }\n      __typename\n    }\n    hops {\n      index\n      parent\n      cardinality\n      via {\n        column {\n          name\n          dtype\n          __typename\n        }\n        axis\n        __typename\n      }\n      table {\n        id\n        name\n        __typename\n      }\n      sparseDataset {\n        id\n        name\n        __typename\n      }\n      arrayDataset {\n        id\n        name\n        dataArrays {\n          id\n          level\n          store {\n            id\n            key\n            __typename\n          }\n          __typename\n        }\n        __typename\n      }\n      lookup {\n        kind\n        store {\n          id\n          key\n          __typename\n        }\n        sparseArray {\n          id\n          path\n          indexedAxis\n          store {\n            id\n            key\n            spec\n            __typename\n          }\n          __typename\n        }\n        keyAxis\n        keyHeld\n        valueAxes\n        keyMap {\n          scale\n          offset\n          __typename\n        }\n        keyColumns {\n          axis\n          column {\n            name\n            dtype\n            __typename\n          }\n          __typename\n        }\n        attributes {\n          name\n          dtype\n          __typename\n        }\n        __typename\n      }\n      joinPath {\n        table {\n          id\n          __typename\n        }\n        column {\n          name\n          __typename\n        }\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n}'
+
+class GetChartQuery(BaseModel):
+    """No documentation found for this operation."""
+    chart: Chart
+    'Get a single chart by ID'
+
+    class Arguments(BaseModel):
+        """Arguments for GetChart """
+        id: ID
+
+    class Meta:
+        """Meta class for GetChart """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Chart on Chart {\n  id\n  name\n  description\n  axis {\n    ...Axis\n    __typename\n  }\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  layers {\n    ...ChartLayer\n    __typename\n  }\n  __typename\n}\n\nquery GetChart($id: ID!) {\n  chart(id: $id) {\n    ...Chart\n    __typename\n  }\n}'
+
+class SearchChartsQueryOptions(ChartTrait, BaseModel):
+    """A composition of data laid out along one metric axis, with values read off it. The second kind of composition beside a scene: a scene is a place, a chart is an axis. It names data by id and owns none of it, and it carries no unit of its own -- the unit is its world axis's"""
+    typename: Literal['Chart'] = Field(alias='__typename', default='Chart', exclude=True)
+    value: ID
+    label: str
+    model_config = ConfigDict(frozen=True)
+
+class SearchChartsQuery(BaseModel):
+    """No documentation found for this operation."""
+    options: tuple[SearchChartsQueryOptions, ...]
+    'List charts (compositions of data laid out along one metric axis)'
+
+    class Arguments(BaseModel):
+        """Arguments for SearchCharts """
+        search: str | None = Field(default=None)
+        values: list[ID] | None = Field(default=None)
+        limit: int | None = Field(default=None)
+        offset: Annotated[int | None, GraphQLDefault('0')] = Field(default=None)
+
+    class Meta:
+        """Meta class for SearchCharts """
+        document = 'query SearchCharts($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: charts(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
+
+class ListChartsQuery(BaseModel):
+    """No documentation found for this operation."""
+    charts: tuple[Chart, ...]
+    'List charts (compositions of data laid out along one metric axis)'
+
+    class Arguments(BaseModel):
+        """Arguments for ListCharts """
+        filters: ChartFilter | None = Field(default=None)
+        pagination: OffsetPaginationInput | None = Field(default=None)
+
+    class Meta:
+        """Meta class for ListCharts """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Chart on Chart {\n  id\n  name\n  description\n  axis {\n    ...Axis\n    __typename\n  }\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  layers {\n    ...ChartLayer\n    __typename\n  }\n  __typename\n}\n\nquery ListCharts($filters: ChartFilter, $pagination: OffsetPaginationInput) {\n  charts(filters: $filters, pagination: $pagination) {\n    ...Chart\n    __typename\n  }\n}'
+
+class GetChartLayerQueryChartLayerBase(BaseModel):
+    """A layer drawn in a chart. It carries view state only. Where its data sits along the chart's axis -- `pathToWorld`, `asAffine`, `alongAxis`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one registration moves every layer that looks through it. The concrete kind says what the layer reads: TraceChartLayer an array, SeriesChartLayer a table, AnnotationChartLayer drawn marks"""
+    model_config = ConfigDict(frozen=True)
+
+class GetChartLayerQueryChartLayerBaseAnnotationChartLayer(ChartLayerAnnotationChartLayer, GetChartLayerQueryChartLayerBase, BaseModel):
+    """A layer that draws an annotation collection's marks in a chart. One layer per collection: per-mark styling lives on the annotations themselves"""
+    typename: Literal['AnnotationChartLayer'] = Field(alias='__typename', default='AnnotationChartLayer', exclude=True)
+
+class GetChartLayerQueryChartLayerBaseSeriesChartLayer(ChartLayerSeriesChartLayer, GetChartLayerQueryChartLayerBase, BaseModel):
+    """A layer that reads one numeric column of a table against a coordinate column. The value column is the layer's; the coordinate column is the graph's -- whichever of the table's coordinate columns its registration lays along the chart's axis"""
+    typename: Literal['SeriesChartLayer'] = Field(alias='__typename', default='SeriesChartLayer', exclude=True)
+
+class GetChartLayerQueryChartLayerBaseTraceChartLayer(ChartLayerTraceChartLayer, GetChartLayerQueryChartLayerBase, BaseModel):
+    """A layer that reads an array along one axis. Its lens leaves one metric axis free -- `alongAxis`, laid along the chart -- and optionally one enumerating axis, `seriesAxis`, drawn as one line per position. Whether it is drawn as a line, markers, both or steps is `mark`"""
+    typename: Literal['TraceChartLayer'] = Field(alias='__typename', default='TraceChartLayer', exclude=True)
+
+class GetChartLayerQueryChartLayerBaseCatchAll(GetChartLayerQueryChartLayerBase, BaseModel):
+    """Catch all class for GetChartLayerQueryChartLayerBase"""
+    typename: str = Field(alias='__typename', exclude=True)
+
+class GetChartLayerQuery(BaseModel):
+    """No documentation found for this operation."""
+    chart_layer: Annotated[GetChartLayerQueryChartLayerBaseAnnotationChartLayer | GetChartLayerQueryChartLayerBaseSeriesChartLayer | GetChartLayerQueryChartLayerBaseTraceChartLayer, Field(discriminator='typename')] | GetChartLayerQueryChartLayerBaseCatchAll = Field(alias='chartLayer')
+    'Get a single chart layer by ID'
+
+    class Arguments(BaseModel):
+        """Arguments for GetChartLayer """
+        id: ID
+
+    class Meta:
+        """Meta class for GetChartLayer """
+        document = 'fragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nquery GetChartLayer($id: ID!) {\n  chartLayer(id: $id) {\n    ...ChartLayer\n    __typename\n  }\n}'
+
+class ChartLayersQueryChartLayersBase(BaseModel):
+    """A layer drawn in a chart. It carries view state only. Where its data sits along the chart's axis -- `pathToWorld`, `asAffine`, `alongAxis`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one registration moves every layer that looks through it. The concrete kind says what the layer reads: TraceChartLayer an array, SeriesChartLayer a table, AnnotationChartLayer drawn marks"""
+    model_config = ConfigDict(frozen=True)
+
+class ChartLayersQueryChartLayersBaseAnnotationChartLayer(ChartLayerAnnotationChartLayer, ChartLayersQueryChartLayersBase, BaseModel):
+    """A layer that draws an annotation collection's marks in a chart. One layer per collection: per-mark styling lives on the annotations themselves"""
+    typename: Literal['AnnotationChartLayer'] = Field(alias='__typename', default='AnnotationChartLayer', exclude=True)
+
+class ChartLayersQueryChartLayersBaseSeriesChartLayer(ChartLayerSeriesChartLayer, ChartLayersQueryChartLayersBase, BaseModel):
+    """A layer that reads one numeric column of a table against a coordinate column. The value column is the layer's; the coordinate column is the graph's -- whichever of the table's coordinate columns its registration lays along the chart's axis"""
+    typename: Literal['SeriesChartLayer'] = Field(alias='__typename', default='SeriesChartLayer', exclude=True)
+
+class ChartLayersQueryChartLayersBaseTraceChartLayer(ChartLayerTraceChartLayer, ChartLayersQueryChartLayersBase, BaseModel):
+    """A layer that reads an array along one axis. Its lens leaves one metric axis free -- `alongAxis`, laid along the chart -- and optionally one enumerating axis, `seriesAxis`, drawn as one line per position. Whether it is drawn as a line, markers, both or steps is `mark`"""
+    typename: Literal['TraceChartLayer'] = Field(alias='__typename', default='TraceChartLayer', exclude=True)
+
+class ChartLayersQueryChartLayersBaseCatchAll(ChartLayersQueryChartLayersBase, BaseModel):
+    """Catch all class for ChartLayersQueryChartLayersBase"""
+    typename: str = Field(alias='__typename', exclude=True)
+
+class ChartLayersQuery(BaseModel):
+    """No documentation found for this operation."""
+    chart_layers: tuple[Annotated[ChartLayersQueryChartLayersBaseAnnotationChartLayer | ChartLayersQueryChartLayersBaseSeriesChartLayer | ChartLayersQueryChartLayersBaseTraceChartLayer, Field(discriminator='typename')] | ChartLayersQueryChartLayersBaseCatchAll, ...] = Field(alias='chartLayers')
+    'List layers drawn in charts (a heterogeneous list of layer kinds)'
+
+    class Arguments(BaseModel):
+        """Arguments for ChartLayers """
+        filters: ChartLayerFilter | None = Field(default=None)
+        pagination: OffsetPaginationInput | None = Field(default=None)
+
+    class Meta:
+        """Meta class for ChartLayers """
+        document = 'fragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nquery ChartLayers($filters: ChartLayerFilter, $pagination: OffsetPaginationInput) {\n  chartLayers(filters: $filters, pagination: $pagination) {\n    ...ChartLayer\n    __typename\n  }\n}'
 
 class LabelColorByOptionsQuery(BaseModel):
     """ Rooted on a lens -- what a label layer over that lens can be coloured by."""
@@ -6358,7 +7729,7 @@ class GetCoordinateGraphQueryCoordinateGraphTransformationsBaseAffineTransformat
     typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
 
 class GetCoordinateGraphQueryCoordinateGraphTransformationsBaseByDimensionTransformation(TransformationByDimensionTransformation, GetCoordinateGraphQueryCoordinateGraphTransformationsBase, TransformationTrait, BaseModel):
-    """A composition of child transformations, each acting on a named subset of the axes"""
+    """A map over a named subset of the axes: `inputAxes` onto `outputAxes`, one for one, by a `scale` and/or a `translation`, or by an `affine` -- or by none of them, which is the identity on the named axes. The axes it does not name pass through untouched, which is how a registration crosses a rank boundary: a (c,y,x) dataset placed into a (t,z,y,x) world names y and x and says nothing about t and z"""
     typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
 
 class GetCoordinateGraphQueryCoordinateGraphTransformationsBaseFieldTransformation(TransformationFieldTransformation, GetCoordinateGraphQueryCoordinateGraphTransformationsBase, TransformationTrait, BaseModel):
@@ -6382,7 +7753,7 @@ class GetCoordinateGraphQueryCoordinateGraphTransformationsBaseScaleTransformati
     typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
 
 class GetCoordinateGraphQueryCoordinateGraphTransformationsBaseSequenceTransformation(TransformationSequenceTransformation, GetCoordinateGraphQueryCoordinateGraphTransformationsBase, TransformationTrait, BaseModel):
-    """An ordered composition of child transformations, applied first to last"""
+    """An ordered composition of steps, applied first to last: one edge, carrying its map as `steps`. The ingest writes one for a stepped lens and for a downsampled pyramid level (a scale, then the half-voxel translation)"""
     typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
 
 class GetCoordinateGraphQueryCoordinateGraphTransformationsBaseTranslationTransformation(TransformationTranslationTransformation, GetCoordinateGraphQueryCoordinateGraphTransformationsBase, TransformationTrait, BaseModel):
@@ -6398,20 +7769,20 @@ class GetCoordinateGraphQueryCoordinateGraphTransformationsBaseCatchAll(GetCoord
     typename: str = Field(alias='__typename', exclude=True)
 
 class GetCoordinateGraphQueryCoordinateGraph(BaseModel):
-    """The connected component of the coordinate graph around one system: every coordinate system it relates to, and every top-level edge between them. Reachability is undirected -- an edge pointing *into* the system you started from (the edge into a physical space, say) relates to it just as much as one pointing out -- but every edge is returned in its true stored direction, so composing a path is still the client's job and still needs the inversions flagged"""
+    """The connected component of the coordinate graph around one system: every coordinate system it relates to, and every edge between them. Reachability is undirected -- an edge pointing *into* the system you started from (the edge into a physical space, say) relates to it just as much as one pointing out -- but every edge is returned in its true stored direction, so composing a path is still the client's job and still needs the inversions flagged"""
     typename: Literal['CoordinateGraph'] = Field(alias='__typename', default='CoordinateGraph', exclude=True)
     root: CoordinateSystem
     'The coordinate system the walk started from'
     systems: tuple[CoordinateSystem, ...]
     'Every coordinate system reachable from the root, the root included, ordered by ID'
     transformations: tuple[Annotated[GetCoordinateGraphQueryCoordinateGraphTransformationsBaseAffineTransformation | GetCoordinateGraphQueryCoordinateGraphTransformationsBaseByDimensionTransformation | GetCoordinateGraphQueryCoordinateGraphTransformationsBaseFieldTransformation | GetCoordinateGraphQueryCoordinateGraphTransformationsBaseIdentityTransformation | GetCoordinateGraphQueryCoordinateGraphTransformationsBaseMapAxisTransformation | GetCoordinateGraphQueryCoordinateGraphTransformationsBaseRotationTransformation | GetCoordinateGraphQueryCoordinateGraphTransformationsBaseScaleTransformation | GetCoordinateGraphQueryCoordinateGraphTransformationsBaseSequenceTransformation | GetCoordinateGraphQueryCoordinateGraphTransformationsBaseTranslationTransformation | GetCoordinateGraphQueryCoordinateGraphTransformationsBaseUnmappableTransformation, Field(discriminator='typename')] | GetCoordinateGraphQueryCoordinateGraphTransformationsBaseCatchAll, ...]
-    'Every top-level edge with both endpoints in `systems`, ordered by ID. The children of a SEQUENCE / BY_DIMENSION wrapper are not listed here; they hang off their wrapper'
+    "Every edge with both endpoints in `systems`, ordered by ID. A SEQUENCE's steps are part of their edge, not edges of their own"
     model_config = ConfigDict(frozen=True)
 
 class GetCoordinateGraphQuery(BaseModel):
     """No documentation found for this operation."""
     coordinate_graph: GetCoordinateGraphQueryCoordinateGraph = Field(alias='coordinateGraph')
-    "Walk the coordinate graph out from one system: every coordinate system it reaches and every top-level edge between them. Reachability is undirected (an edge pointing into the system relates to it as much as one pointing out), the edges keep their true direction, and nothing is composed -- what the list queries cannot answer is 'which edges relate to *this* one', because relatedness is transitive and a filter is not"
+    "Walk the coordinate graph out from one system: every coordinate system it reaches and every edge between them. Reachability is undirected (an edge pointing into the system relates to it as much as one pointing out), the edges keep their true direction, and nothing is composed -- what the list queries cannot answer is 'which edges relate to *this* one', because relatedness is transitive and a filter is not"
 
     class Arguments(BaseModel):
         """Arguments for GetCoordinateGraph """
@@ -6420,7 +7791,7 @@ class GetCoordinateGraphQuery(BaseModel):
 
     class Meta:
         """Meta class for GetCoordinateGraph """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nquery GetCoordinateGraph($coordinateSystem: ID!, $maxDepth: Int) {\n  coordinateGraph(coordinateSystem: $coordinateSystem, maxDepth: $maxDepth) {\n    root {\n      ...CoordinateSystem\n      __typename\n    }\n    systems {\n      ...CoordinateSystem\n      __typename\n    }\n    transformations {\n      ...Transformation\n      __typename\n    }\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n      field {\n        id\n      }\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    scale\n    translation\n    affine\n  }\n  __typename\n}\n\nquery GetCoordinateGraph($coordinateSystem: ID!, $maxDepth: Int) {\n  coordinateGraph(coordinateSystem: $coordinateSystem, maxDepth: $maxDepth) {\n    root {\n      ...CoordinateSystem\n      __typename\n    }\n    systems {\n      ...CoordinateSystem\n      __typename\n    }\n    transformations {\n      ...Transformation\n      __typename\n    }\n    __typename\n  }\n}'
 
 class GetCoordinateSystemQuery(BaseModel):
     """No documentation found for this operation."""
@@ -6545,7 +7916,7 @@ class SearchFoldersQuery(BaseModel):
         document = 'query SearchFolders($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: folders(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
 
 class GetLayerQueryLayerBase(BaseModel):
-    """A layer placed in a scene and alpha-blended over the layers below it. It carries view state only: a spatial fact is a coordinate system or a transformation edge, never a field here, and every spatial question a layer answers -- `pathToWorld`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one edge updates every layer that looks through it. Which columns hold a point layer's coordinates is likewise the table dataset's declaration, not a per-layer copy. The concrete kind carries its own data source and render settings: IntensityLayer, RgbLayer, PhasorLayer and LabelLayer each state a recipe of fixed shape as fields, ImageLayer carries a composable render graph for the layers that genuinely composite, and AnnotationLayer, PointLayer, TrackLayer and MeshLayer draw from a collection or a table rather than a lens."""
+    """A layer placed in a scene and alpha-blended over the layers below it. It carries view state only: a spatial fact is a coordinate system or a transformation edge, never a field here, and every spatial question a layer answers -- `pathToWorld`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one edge updates every layer that looks through it. Which columns hold a point layer's coordinates is likewise the table dataset's declaration, not a per-layer copy. The concrete kind carries its own data source and render settings: IntensityLayer, RgbLayer, PhasorLayer and LabelLayer each state a recipe of fixed shape as fields, ImageLayer carries a composable render graph for the layers that genuinely composite, and AnnotationLayer, PointLayer, TrackLayer, MeshLayer and NetworkLayer draw through a lens over a collection or a table -- every layer, of every kind, draws through a lens of its source's kind."""
     model_config = ConfigDict(frozen=True)
 
 class GetLayerQueryLayerBaseAnnotationLayer(LayerAnnotationLayer, GetLayerQueryLayerBase, BaseModel):
@@ -6557,7 +7928,7 @@ class GetLayerQueryLayerBaseImageLayer(LayerImageLayer, GetLayerQueryLayerBase, 
     typename: Literal['ImageLayer'] = Field(alias='__typename', default='ImageLayer', exclude=True)
 
 class GetLayerQueryLayerBaseIntensityLayer(LayerIntensityLayer, GetLayerQueryLayerBase, BaseModel):
-    """One channel of a lens through one colormap -- or one solid tint -- with contrast limits and gamma, optionally projected over z. The fluorescence workhorse, and the layer a renderer can take straight to a single-channel texture and a LUT without walking a tree. Its settings are fields rather than a render graph because there is nothing here to composite: the graph form of this was a blend node with a single child, and additively blending one thing is that thing. Anything that *would* need the tree -- a second channel, an authored transfer curve, per-channel opacity -- is an ImageLayer. A tint is not among them: it names the hue one ramp ends at, which is what `colormap` does, so it is a field here rather than a reason to author a graph."""
+    """A single-channel lens through one colormap -- or one solid tint -- with contrast limits and gamma, optionally projected over z. Which channel is drawn is the lens' selection, not a field here. The fluorescence workhorse, and the layer a renderer can take straight to a single-channel texture and a LUT without walking a tree. Its settings are fields rather than a render graph because there is nothing here to composite: the graph form of this was a blend node with a single child, and additively blending one thing is that thing. Anything that *would* need the tree -- a second channel, an authored transfer curve, per-channel opacity -- is an ImageLayer. A tint is not among them: it names the hue one ramp ends at, which is what `colormap` does, so it is a field here rather than a reason to author a graph."""
     typename: Literal['IntensityLayer'] = Field(alias='__typename', default='IntensityLayer', exclude=True)
 
 class GetLayerQueryLayerBaseLabelLayer(LayerLabelLayer, GetLayerQueryLayerBase, BaseModel):
@@ -6581,7 +7952,7 @@ class GetLayerQueryLayerBasePointLayer(LayerPointLayer, GetLayerQueryLayerBase, 
     typename: Literal['PointLayer'] = Field(alias='__typename', default='PointLayer', exclude=True)
 
 class GetLayerQueryLayerBaseRgbLayer(LayerRgbLayer, GetLayerQueryLayerBase, BaseModel):
-    """Three channels of a lens as the red, green and blue components of one picture -- a photograph, a brightfield slide -- sharing one pair of contrast limits. A renderer can upload this as a single RGB texture in one pass. Its own kind rather than a three-child blend because the two are **indistinguishable as graphs**, and a three-marker fluorescence acquisition coloured red/green/blue is by far the commoner reading of that shape -- so as a graph the authored fact was destroyed at write time. Never inferred, for the same reason. There is no per-channel colormap here and no per-channel visibility: the channel *is* the colour, and the three are components of one picture rather than three signals to hide and reorder separately. Wanting to do that means wanting three layers, or an ImageLayer."""
+    """Three single-channel lenses, each a crop of `lens`, as the red, green and blue components of one picture -- a photograph, a brightfield slide -- sharing one pair of contrast limits. A renderer can upload this as a single RGB texture in one pass. Its own kind rather than a three-child blend because the two are **indistinguishable as graphs**, and a three-marker fluorescence acquisition coloured red/green/blue is by far the commoner reading of that shape -- so as a graph the authored fact was destroyed at write time. Never inferred, for the same reason. There is no per-channel colormap here and no per-channel visibility: the channel *is* the colour, and the three are components of one picture rather than three signals to hide and reorder separately. Wanting to do that means wanting three layers, or an ImageLayer."""
     typename: Literal['RgbLayer'] = Field(alias='__typename', default='RgbLayer', exclude=True)
 
 class GetLayerQueryLayerBaseTrackLayer(LayerTrackLayer, GetLayerQueryLayerBase, BaseModel):
@@ -6589,7 +7960,7 @@ class GetLayerQueryLayerBaseTrackLayer(LayerTrackLayer, GetLayerQueryLayerBase, 
     typename: Literal['TrackLayer'] = Field(alias='__typename', default='TrackLayer', exclude=True)
 
 class GetLayerQueryLayerBaseVectorLayer(LayerVectorLayer, GetLayerQueryLayerBase, BaseModel):
-    """A vector-valued lens -- an optical flow, a deformation field, an orientation map -- drawn as glyphs sampled from the grid. The sixth lens-backed kind, and the value domain is what earns it one, for LabelLayer's reason: the lens carries a DISPLACEMENT axis whose positions are the components of a per-point offset, so the axis is read as geometry, and none of the intensity vocabulary (a channel index, a gamma, a projection) survives that. Which axis holds the components is derived (`vectorAxis`), never stored -- a per-layer copy could disagree with the axes themselves. What the layer carries is honestly view state: a glyph style, a sampling stride, a magnitude scale and a magnitude colormap window, and two layers over one field may disagree about all of it -- a coarse overview beside a dense inset."""
+    """A vector-valued lens -- an optical flow, a deformation field, an orientation map -- drawn as glyphs sampled from the grid. The sixth lens-backed kind, and the value domain is what earns it one, for LabelLayer's reason: the lens carries a DISPLACEMENT axis whose positions are the components of a per-point offset, so the axis is read as geometry, and none of the intensity vocabulary (a channel, a gamma, a projection) survives that. Which axis holds the components is derived (`vectorAxis`), never stored -- a per-layer copy could disagree with the axes themselves. What the layer carries is honestly view state: a glyph style, a sampling stride, a magnitude scale and a magnitude colormap window, and two layers over one field may disagree about all of it -- a coarse overview beside a dense inset."""
     typename: Literal['VectorLayer'] = Field(alias='__typename', default='VectorLayer', exclude=True)
 
 class GetLayerQueryLayerBaseCatchAll(GetLayerQueryLayerBase, BaseModel):
@@ -6610,10 +7981,10 @@ class GetLayerQuery(BaseModel):
 
     class Meta:
         """Meta class for GetLayer """
-        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    intensityIndex\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    redIndex\n    greenIndex\n    blueIndex\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    phasorRender {\n      phasorAxis\n      intensityAxis\n      intensityIndex\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    networkCollection: collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    pointColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    pointFilterBys: filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nquery GetLayer($id: ID!) {\n  layer(id: $id) {\n    ...Layer\n    __typename\n  }\n}'
+        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    redLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    greenLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    blueLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    phasorRender {\n      phasorAxis\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    labelRender {\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        lens\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    meshLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    collection {\n      id\n      name\n      label\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      lens\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    networkLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    networkCollection: collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      lens\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      lens\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    pointColorBys: colorBys {\n      kind\n      table\n      column\n      lens\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    pointFilterBys: filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  ... on VectorLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n  }\n  __typename\n}\n\nquery GetLayer($id: ID!) {\n  layer(id: $id) {\n    ...Layer\n    __typename\n  }\n}'
 
 class LayersQueryLayersBase(BaseModel):
-    """A layer placed in a scene and alpha-blended over the layers below it. It carries view state only: a spatial fact is a coordinate system or a transformation edge, never a field here, and every spatial question a layer answers -- `pathToWorld`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one edge updates every layer that looks through it. Which columns hold a point layer's coordinates is likewise the table dataset's declaration, not a per-layer copy. The concrete kind carries its own data source and render settings: IntensityLayer, RgbLayer, PhasorLayer and LabelLayer each state a recipe of fixed shape as fields, ImageLayer carries a composable render graph for the layers that genuinely composite, and AnnotationLayer, PointLayer, TrackLayer and MeshLayer draw from a collection or a table rather than a lens."""
+    """A layer placed in a scene and alpha-blended over the layers below it. It carries view state only: a spatial fact is a coordinate system or a transformation edge, never a field here, and every spatial question a layer answers -- `pathToWorld`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one edge updates every layer that looks through it. Which columns hold a point layer's coordinates is likewise the table dataset's declaration, not a per-layer copy. The concrete kind carries its own data source and render settings: IntensityLayer, RgbLayer, PhasorLayer and LabelLayer each state a recipe of fixed shape as fields, ImageLayer carries a composable render graph for the layers that genuinely composite, and AnnotationLayer, PointLayer, TrackLayer, MeshLayer and NetworkLayer draw through a lens over a collection or a table -- every layer, of every kind, draws through a lens of its source's kind."""
     model_config = ConfigDict(frozen=True)
 
 class LayersQueryLayersBaseAnnotationLayer(LayerAnnotationLayer, LayersQueryLayersBase, BaseModel):
@@ -6625,7 +7996,7 @@ class LayersQueryLayersBaseImageLayer(LayerImageLayer, LayersQueryLayersBase, Ba
     typename: Literal['ImageLayer'] = Field(alias='__typename', default='ImageLayer', exclude=True)
 
 class LayersQueryLayersBaseIntensityLayer(LayerIntensityLayer, LayersQueryLayersBase, BaseModel):
-    """One channel of a lens through one colormap -- or one solid tint -- with contrast limits and gamma, optionally projected over z. The fluorescence workhorse, and the layer a renderer can take straight to a single-channel texture and a LUT without walking a tree. Its settings are fields rather than a render graph because there is nothing here to composite: the graph form of this was a blend node with a single child, and additively blending one thing is that thing. Anything that *would* need the tree -- a second channel, an authored transfer curve, per-channel opacity -- is an ImageLayer. A tint is not among them: it names the hue one ramp ends at, which is what `colormap` does, so it is a field here rather than a reason to author a graph."""
+    """A single-channel lens through one colormap -- or one solid tint -- with contrast limits and gamma, optionally projected over z. Which channel is drawn is the lens' selection, not a field here. The fluorescence workhorse, and the layer a renderer can take straight to a single-channel texture and a LUT without walking a tree. Its settings are fields rather than a render graph because there is nothing here to composite: the graph form of this was a blend node with a single child, and additively blending one thing is that thing. Anything that *would* need the tree -- a second channel, an authored transfer curve, per-channel opacity -- is an ImageLayer. A tint is not among them: it names the hue one ramp ends at, which is what `colormap` does, so it is a field here rather than a reason to author a graph."""
     typename: Literal['IntensityLayer'] = Field(alias='__typename', default='IntensityLayer', exclude=True)
 
 class LayersQueryLayersBaseLabelLayer(LayerLabelLayer, LayersQueryLayersBase, BaseModel):
@@ -6649,7 +8020,7 @@ class LayersQueryLayersBasePointLayer(LayerPointLayer, LayersQueryLayersBase, Ba
     typename: Literal['PointLayer'] = Field(alias='__typename', default='PointLayer', exclude=True)
 
 class LayersQueryLayersBaseRgbLayer(LayerRgbLayer, LayersQueryLayersBase, BaseModel):
-    """Three channels of a lens as the red, green and blue components of one picture -- a photograph, a brightfield slide -- sharing one pair of contrast limits. A renderer can upload this as a single RGB texture in one pass. Its own kind rather than a three-child blend because the two are **indistinguishable as graphs**, and a three-marker fluorescence acquisition coloured red/green/blue is by far the commoner reading of that shape -- so as a graph the authored fact was destroyed at write time. Never inferred, for the same reason. There is no per-channel colormap here and no per-channel visibility: the channel *is* the colour, and the three are components of one picture rather than three signals to hide and reorder separately. Wanting to do that means wanting three layers, or an ImageLayer."""
+    """Three single-channel lenses, each a crop of `lens`, as the red, green and blue components of one picture -- a photograph, a brightfield slide -- sharing one pair of contrast limits. A renderer can upload this as a single RGB texture in one pass. Its own kind rather than a three-child blend because the two are **indistinguishable as graphs**, and a three-marker fluorescence acquisition coloured red/green/blue is by far the commoner reading of that shape -- so as a graph the authored fact was destroyed at write time. Never inferred, for the same reason. There is no per-channel colormap here and no per-channel visibility: the channel *is* the colour, and the three are components of one picture rather than three signals to hide and reorder separately. Wanting to do that means wanting three layers, or an ImageLayer."""
     typename: Literal['RgbLayer'] = Field(alias='__typename', default='RgbLayer', exclude=True)
 
 class LayersQueryLayersBaseTrackLayer(LayerTrackLayer, LayersQueryLayersBase, BaseModel):
@@ -6657,7 +8028,7 @@ class LayersQueryLayersBaseTrackLayer(LayerTrackLayer, LayersQueryLayersBase, Ba
     typename: Literal['TrackLayer'] = Field(alias='__typename', default='TrackLayer', exclude=True)
 
 class LayersQueryLayersBaseVectorLayer(LayerVectorLayer, LayersQueryLayersBase, BaseModel):
-    """A vector-valued lens -- an optical flow, a deformation field, an orientation map -- drawn as glyphs sampled from the grid. The sixth lens-backed kind, and the value domain is what earns it one, for LabelLayer's reason: the lens carries a DISPLACEMENT axis whose positions are the components of a per-point offset, so the axis is read as geometry, and none of the intensity vocabulary (a channel index, a gamma, a projection) survives that. Which axis holds the components is derived (`vectorAxis`), never stored -- a per-layer copy could disagree with the axes themselves. What the layer carries is honestly view state: a glyph style, a sampling stride, a magnitude scale and a magnitude colormap window, and two layers over one field may disagree about all of it -- a coarse overview beside a dense inset."""
+    """A vector-valued lens -- an optical flow, a deformation field, an orientation map -- drawn as glyphs sampled from the grid. The sixth lens-backed kind, and the value domain is what earns it one, for LabelLayer's reason: the lens carries a DISPLACEMENT axis whose positions are the components of a per-point offset, so the axis is read as geometry, and none of the intensity vocabulary (a channel, a gamma, a projection) survives that. Which axis holds the components is derived (`vectorAxis`), never stored -- a per-layer copy could disagree with the axes themselves. What the layer carries is honestly view state: a glyph style, a sampling stride, a magnitude scale and a magnitude colormap window, and two layers over one field may disagree about all of it -- a coarse overview beside a dense inset."""
     typename: Literal['VectorLayer'] = Field(alias='__typename', default='VectorLayer', exclude=True)
 
 class LayersQueryLayersBaseCatchAll(LayersQueryLayersBase, BaseModel):
@@ -6677,12 +8048,45 @@ class LayersQuery(BaseModel):
 
     class Meta:
         """Meta class for Layers """
-        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    intensityIndex\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    redIndex\n    greenIndex\n    blueIndex\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    phasorRender {\n      phasorAxis\n      intensityAxis\n      intensityIndex\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    networkCollection: collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    pointColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    pointFilterBys: filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nquery Layers($filters: LayerFilter, $pagination: OffsetPaginationInput) {\n  layers(filters: $filters, pagination: $pagination) {\n    ...Layer\n    __typename\n  }\n}'
+        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    redLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    greenLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    blueLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    phasorRender {\n      phasorAxis\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    labelRender {\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        lens\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    meshLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    collection {\n      id\n      name\n      label\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      lens\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    networkLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    networkCollection: collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      lens\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      lens\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    pointColorBys: colorBys {\n      kind\n      table\n      column\n      lens\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    pointFilterBys: filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  ... on VectorLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n  }\n  __typename\n}\n\nquery Layers($filters: LayerFilter, $pagination: OffsetPaginationInput) {\n  layers(filters: $filters, pagination: $pagination) {\n    ...Layer\n    __typename\n  }\n}'
+
+class GetLensQueryLensBase(BaseModel):
+    """A selection over a container that lives in a coordinate system: one row per (container, selection), so the same selection asked for twice is the same id. An ArrayLens selects over an array dataset by index slices and, when sliced, owns the crop's space and the edge back into the dataset's grid; every other kind selects over its container by value windows in the container's own axes and lives in the container's space. Every container has its whole lens from creation."""
+    model_config = ConfigDict(frozen=True)
+
+class GetLensQueryLensBaseAnnotationLens(AnnotationLens, GetLensQueryLensBase, BaseModel):
+    """A selection over an annotation collection by windows in its drawing space"""
+    typename: Literal['AnnotationLens'] = Field(alias='__typename', default='AnnotationLens', exclude=True)
+
+class GetLensQueryLensBaseArrayLens(ArrayLens, GetLensQueryLensBase, Lensable, BaseModel):
+    """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
+
+class GetLensQueryLensBaseMeshLens(MeshLens, GetLensQueryLensBase, BaseModel):
+    """A selection over a mesh collection by windows in its own space"""
+    typename: Literal['MeshLens'] = Field(alias='__typename', default='MeshLens', exclude=True)
+
+class GetLensQueryLensBaseNetworkLens(NetworkLens, GetLensQueryLensBase, BaseModel):
+    """A selection over a network collection by windows in its own space"""
+    typename: Literal['NetworkLens'] = Field(alias='__typename', default='NetworkLens', exclude=True)
+
+class GetLensQueryLensBaseSparseLens(SparseLens, GetLensQueryLensBase, BaseModel):
+    """A selection over a sparse dataset by windows on its axes: the positions kept, never re-indexed. Lives in the dataset's own space"""
+    typename: Literal['SparseLens'] = Field(alias='__typename', default='SparseLens', exclude=True)
+
+class GetLensQueryLensBaseTableLens(TableLens, GetLensQueryLensBase, BaseModel):
+    """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
+
+class GetLensQueryLensBaseCatchAll(GetLensQueryLensBase, BaseModel):
+    """Catch all class for GetLensQueryLensBase"""
+    typename: str = Field(alias='__typename', exclude=True)
 
 class GetLensQuery(BaseModel):
-    """No documentation found for this operation."""
-    lens: Lens
-    'Get a single lens by ID'
+    """ `lens(id)` answers with whichever kind the id is. The array arm is the full fragment;
+ the windowed kinds are theirs."""
+    lens: Annotated[GetLensQueryLensBaseAnnotationLens | GetLensQueryLensBaseArrayLens | GetLensQueryLensBaseMeshLens | GetLensQueryLensBaseNetworkLens | GetLensQueryLensBaseSparseLens | GetLensQueryLensBaseTableLens, Field(discriminator='typename')] | GetLensQueryLensBaseCatchAll
+    'Get a single lens of any kind by ID'
 
     class Arguments(BaseModel):
         """Arguments for GetLens """
@@ -6690,7 +8094,420 @@ class GetLensQuery(BaseModel):
 
     class Meta:
         """Meta class for GetLens """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Slice on Slice {\n  axis\n  start\n  stop\n  step\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Lens on Lens {\n  id\n  dataset {\n    id\n    axisNames\n    dataArrays {\n      id\n      level\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  shape\n  axisNames\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  renderAxes {\n    x\n    y\n    z\n    t\n    intensity\n    __typename\n  }\n  slices {\n    ...Slice\n    __typename\n  }\n  __typename\n}\n\nquery GetLens($id: ID!) {\n  lens(id: $id) {\n    ...Lens\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Slice on Slice {\n  axis\n  start\n  stop\n  step\n  __typename\n}\n\nfragment Window on Window {\n  axis\n  min\n  max\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment AnnotationLens on AnnotationLens {\n  id\n  name\n  kind\n  annotationCollection {\n    id\n    name\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nfragment ArrayLens on ArrayLens {\n  id\n  name\n  kind\n  dataset {\n    id\n    axisNames\n    dataArrays {\n      id\n      level\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  shape\n  axisNames\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  slices {\n    ...Slice\n    __typename\n  }\n  __typename\n}\n\nfragment MeshLens on MeshLens {\n  id\n  name\n  kind\n  meshCollection {\n    id\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nfragment NetworkLens on NetworkLens {\n  id\n  name\n  kind\n  networkCollection {\n    id\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nfragment SparseLens on SparseLens {\n  id\n  name\n  kind\n  sparseDataset {\n    id\n    name\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  spec\n  __typename\n}\n\nfragment TableLens on TableLens {\n  id\n  name\n  kind\n  tableDataset {\n    id\n    name\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nquery GetLens($id: ID!) {\n  lens(id: $id) {\n    ... on ArrayLens {\n      ...ArrayLens\n    }\n    ... on TableLens {\n      ...TableLens\n    }\n    ... on SparseLens {\n      ...SparseLens\n    }\n    ... on MeshLens {\n      ...MeshLens\n    }\n    ... on NetworkLens {\n      ...NetworkLens\n    }\n    ... on AnnotationLens {\n      ...AnnotationLens\n    }\n    __typename\n  }\n}'
+
+class GetFullLensQueryArrayDataset(DatasetTrait, BaseModel):
+    """A multi-dimensional array dataset. Its dimensions and their types live on the axes of its INTRINSIC (pixel grid) coordinate system; physical units live on the physical spaces it has edges into; its pyramid levels are DataArrays, each mapping into its grid"""
+    typename: Literal['ArrayDataset'] = Field(alias='__typename', default='ArrayDataset', exclude=True)
+    id: ID
+    full_lens: ArrayLens | None = Field(default=None, alias='fullLens')
+    'The lens that selects this whole dataset: what a viewer opens for it, and the handle to pass wherever a `Lens` is asked for and the whole array is meant. Every dataset is created with one, and there is one; null only for a dataset with no pixel grid to select from -- reading never mints one'
+    model_config = ConfigDict(frozen=True)
+
+class GetFullLensQuery(BaseModel):
+    """ The lens that selects a whole dataset, read rather than made: every dataset is created
+ with one. Null only for a dataset with no pixel grid to select over."""
+    array_dataset: GetFullLensQueryArrayDataset = Field(alias='arrayDataset')
+    'Get a single array dataset by ID'
+
+    class Arguments(BaseModel):
+        """Arguments for GetFullLens """
+        dataset: ID
+
+    class Meta:
+        """Meta class for GetFullLens """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Slice on Slice {\n  axis\n  start\n  stop\n  step\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ArrayLens on ArrayLens {\n  id\n  name\n  kind\n  dataset {\n    id\n    axisNames\n    dataArrays {\n      id\n      level\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  shape\n  axisNames\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  slices {\n    ...Slice\n    __typename\n  }\n  __typename\n}\n\nquery GetFullLens($dataset: ID!) {\n  arrayDataset(id: $dataset) {\n    id\n    fullLens {\n      ...ArrayLens\n      __typename\n    }\n    __typename\n  }\n}'
+
+class GetDatasetLensesQueryArrayDataset(DatasetTrait, BaseModel):
+    """A multi-dimensional array dataset. Its dimensions and their types live on the axes of its INTRINSIC (pixel grid) coordinate system; physical units live on the physical spaces it has edges into; its pyramid levels are DataArrays, each mapping into its grid"""
+    typename: Literal['ArrayDataset'] = Field(alias='__typename', default='ArrayDataset', exclude=True)
+    id: ID
+    lenses: tuple[ArrayLens, ...]
+    'The array lenses over this dataset, oldest first. `sliced: true` keeps the ones that cut something out -- the crops and sub-volumes people work on; `sliced: false` the one that selects everything, which is `fullLens`. A list for people wants `sliced: true` and `fullLens` beside it'
+    model_config = ConfigDict(frozen=True)
+
+class GetDatasetLensesQuery(BaseModel):
+    """ The array lenses over one dataset, oldest first. `sliced: true` keeps the crops and
+ sub-volumes, `false` the whole lens."""
+    array_dataset: GetDatasetLensesQueryArrayDataset = Field(alias='arrayDataset')
+    'Get a single array dataset by ID'
+
+    class Arguments(BaseModel):
+        """Arguments for GetDatasetLenses """
+        dataset: ID
+        sliced: bool | None = Field(default=None)
+
+    class Meta:
+        """Meta class for GetDatasetLenses """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Slice on Slice {\n  axis\n  start\n  stop\n  step\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ArrayLens on ArrayLens {\n  id\n  name\n  kind\n  dataset {\n    id\n    axisNames\n    dataArrays {\n      id\n      level\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  shape\n  axisNames\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  slices {\n    ...Slice\n    __typename\n  }\n  __typename\n}\n\nquery GetDatasetLenses($dataset: ID!, $sliced: Boolean) {\n  arrayDataset(id: $dataset) {\n    id\n    lenses(sliced: $sliced) {\n      ...ArrayLens\n      __typename\n    }\n    __typename\n  }\n}'
+
+class GetLensesQueryLensesBase(BaseModel):
+    """A selection over a container that lives in a coordinate system: one row per (container, selection), so the same selection asked for twice is the same id. An ArrayLens selects over an array dataset by index slices and, when sliced, owns the crop's space and the edge back into the dataset's grid; every other kind selects over its container by value windows in the container's own axes and lives in the container's space. Every container has its whole lens from creation."""
+    id: ID
+    name: str | None = Field(default=None)
+    "What someone called this selection, or null when nobody has. A label only: it is no part of what the lens selects, and a client shows the selection -- or 'the whole container' -- in its place"
+    kind: LensKind
+    'What this lens selects over: an array by slices, or a table, a sparse dataset, a mesh, a network or an annotation collection by windows'
+    model_config = ConfigDict(frozen=True)
+
+class GetLensesQueryLensesBaseAnnotationLens(GetLensesQueryLensesBase, BaseModel):
+    """A selection over an annotation collection by windows in its drawing space"""
+    typename: Literal['AnnotationLens'] = Field(alias='__typename', default='AnnotationLens', exclude=True)
+
+class GetLensesQueryLensesBaseArrayLens(GetLensesQueryLensesBase, Lensable, BaseModel):
+    """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
+
+class GetLensesQueryLensesBaseMeshLens(GetLensesQueryLensesBase, BaseModel):
+    """A selection over a mesh collection by windows in its own space"""
+    typename: Literal['MeshLens'] = Field(alias='__typename', default='MeshLens', exclude=True)
+
+class GetLensesQueryLensesBaseNetworkLens(GetLensesQueryLensesBase, BaseModel):
+    """A selection over a network collection by windows in its own space"""
+    typename: Literal['NetworkLens'] = Field(alias='__typename', default='NetworkLens', exclude=True)
+
+class GetLensesQueryLensesBaseSparseLens(GetLensesQueryLensesBase, BaseModel):
+    """A selection over a sparse dataset by windows on its axes: the positions kept, never re-indexed. Lives in the dataset's own space"""
+    typename: Literal['SparseLens'] = Field(alias='__typename', default='SparseLens', exclude=True)
+
+class GetLensesQueryLensesBaseTableLens(GetLensesQueryLensesBase, BaseModel):
+    """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
+
+class GetLensesQueryLensesBaseCatchAll(GetLensesQueryLensesBase, BaseModel):
+    """Catch all class for GetLensesQueryLensesBase"""
+    typename: str = Field(alias='__typename', exclude=True)
+
+class GetLensesQuery(BaseModel):
+    """ Lenses of every kind. Most have no name and are known by their container's, which
+ is what `filters.search` matches too; `filters.sliced: true` keeps the ones that cut
+ something out, which is what a list meant for people wants."""
+    lenses: tuple[Annotated[GetLensesQueryLensesBaseAnnotationLens | GetLensesQueryLensesBaseArrayLens | GetLensesQueryLensesBaseMeshLens | GetLensesQueryLensesBaseNetworkLens | GetLensesQueryLensesBaseSparseLens | GetLensesQueryLensesBaseTableLens, Field(discriminator='typename')] | GetLensesQueryLensesBaseCatchAll, ...]
+    'List lenses: selections over array datasets (by slices) and over tables, sparse datasets, meshes, networks and annotation collections (by windows), a heterogeneous list of lens kinds'
+
+    class Arguments(BaseModel):
+        """Arguments for GetLenses """
+        filters: LensFilter | None = Field(default=None)
+        pagination: OffsetPaginationInput | None = Field(default=None)
+
+    class Meta:
+        """Meta class for GetLenses """
+        document = 'query GetLenses($filters: LensFilter, $pagination: OffsetPaginationInput) {\n  lenses(filters: $filters, pagination: $pagination) {\n    id\n    name\n    kind\n    __typename\n  }\n}'
+
+class SearchArrayLensesQueryOptionsBase(BaseModel):
+    """A selection over a container that lives in a coordinate system: one row per (container, selection), so the same selection asked for twice is the same id. An ArrayLens selects over an array dataset by index slices and, when sliced, owns the crop's space and the edge back into the dataset's grid; every other kind selects over its container by value windows in the container's own axes and lives in the container's space. Every container has its whole lens from creation."""
+    value: ID
+    label: str
+    "What to call this lens in a list, never empty: its `name` when it has one, else its container's name followed by what it selects of it (`cells.zarr · c[0:1]`); a whole lens is called by its container. What a picker shows for an option"
+    model_config = ConfigDict(frozen=True)
+
+class SearchArrayLensesQueryOptionsBaseAnnotationLens(SearchArrayLensesQueryOptionsBase, BaseModel):
+    """A selection over an annotation collection by windows in its drawing space"""
+    typename: Literal['AnnotationLens'] = Field(alias='__typename', default='AnnotationLens', exclude=True)
+
+class SearchArrayLensesQueryOptionsBaseArrayLens(SearchArrayLensesQueryOptionsBase, Lensable, BaseModel):
+    """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
+
+class SearchArrayLensesQueryOptionsBaseMeshLens(SearchArrayLensesQueryOptionsBase, BaseModel):
+    """A selection over a mesh collection by windows in its own space"""
+    typename: Literal['MeshLens'] = Field(alias='__typename', default='MeshLens', exclude=True)
+
+class SearchArrayLensesQueryOptionsBaseNetworkLens(SearchArrayLensesQueryOptionsBase, BaseModel):
+    """A selection over a network collection by windows in its own space"""
+    typename: Literal['NetworkLens'] = Field(alias='__typename', default='NetworkLens', exclude=True)
+
+class SearchArrayLensesQueryOptionsBaseSparseLens(SearchArrayLensesQueryOptionsBase, BaseModel):
+    """A selection over a sparse dataset by windows on its axes: the positions kept, never re-indexed. Lives in the dataset's own space"""
+    typename: Literal['SparseLens'] = Field(alias='__typename', default='SparseLens', exclude=True)
+
+class SearchArrayLensesQueryOptionsBaseTableLens(SearchArrayLensesQueryOptionsBase, BaseModel):
+    """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
+
+class SearchArrayLensesQueryOptionsBaseCatchAll(SearchArrayLensesQueryOptionsBase, BaseModel):
+    """Catch all class for SearchArrayLensesQueryOptionsBase"""
+    typename: str = Field(alias='__typename', exclude=True)
+
+class SearchArrayLensesQuery(BaseModel):
+    """ What a port's picker asks, one query per lens kind because a port is typed on one kind.
+ `$requires` is the port's own constraints, handed on unchanged by the frontend: the
+ server keeps only the lenses satisfying them, so a `Volume` port is offered volumes.
+ `label` is never empty (a lens nobody named is called by its container and selection)."""
+    options: tuple[Annotated[SearchArrayLensesQueryOptionsBaseAnnotationLens | SearchArrayLensesQueryOptionsBaseArrayLens | SearchArrayLensesQueryOptionsBaseMeshLens | SearchArrayLensesQueryOptionsBaseNetworkLens | SearchArrayLensesQueryOptionsBaseSparseLens | SearchArrayLensesQueryOptionsBaseTableLens, Field(discriminator='typename')] | SearchArrayLensesQueryOptionsBaseCatchAll, ...]
+    'List lenses: selections over array datasets (by slices) and over tables, sparse datasets, meshes, networks and annotation collections (by windows), a heterogeneous list of lens kinds'
+
+    class Arguments(BaseModel):
+        """Arguments for SearchArrayLenses """
+        search: str | None = Field(default=None)
+        values: list[ID] | None = Field(default=None)
+        requires: list[DescriptorConstraintInput] | None = Field(default=None)
+        limit: int | None = Field(default=None)
+        offset: Annotated[int | None, GraphQLDefault('0')] = Field(default=None)
+
+    class Meta:
+        """Meta class for SearchArrayLenses """
+        document = 'query SearchArrayLenses($search: String, $values: [ID!], $requires: [DescriptorConstraintInput!], $limit: Int, $offset: Int = 0) {\n  options: lenses(\n    filters: {kind: ARRAY, search: $search, ids: $values, requires: $requires}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label\n    __typename\n  }\n}'
+
+class SearchTableLensesQueryOptionsBase(BaseModel):
+    """A selection over a container that lives in a coordinate system: one row per (container, selection), so the same selection asked for twice is the same id. An ArrayLens selects over an array dataset by index slices and, when sliced, owns the crop's space and the edge back into the dataset's grid; every other kind selects over its container by value windows in the container's own axes and lives in the container's space. Every container has its whole lens from creation."""
+    value: ID
+    label: str
+    "What to call this lens in a list, never empty: its `name` when it has one, else its container's name followed by what it selects of it (`cells.zarr · c[0:1]`); a whole lens is called by its container. What a picker shows for an option"
+    model_config = ConfigDict(frozen=True)
+
+class SearchTableLensesQueryOptionsBaseAnnotationLens(SearchTableLensesQueryOptionsBase, BaseModel):
+    """A selection over an annotation collection by windows in its drawing space"""
+    typename: Literal['AnnotationLens'] = Field(alias='__typename', default='AnnotationLens', exclude=True)
+
+class SearchTableLensesQueryOptionsBaseArrayLens(SearchTableLensesQueryOptionsBase, Lensable, BaseModel):
+    """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
+
+class SearchTableLensesQueryOptionsBaseMeshLens(SearchTableLensesQueryOptionsBase, BaseModel):
+    """A selection over a mesh collection by windows in its own space"""
+    typename: Literal['MeshLens'] = Field(alias='__typename', default='MeshLens', exclude=True)
+
+class SearchTableLensesQueryOptionsBaseNetworkLens(SearchTableLensesQueryOptionsBase, BaseModel):
+    """A selection over a network collection by windows in its own space"""
+    typename: Literal['NetworkLens'] = Field(alias='__typename', default='NetworkLens', exclude=True)
+
+class SearchTableLensesQueryOptionsBaseSparseLens(SearchTableLensesQueryOptionsBase, BaseModel):
+    """A selection over a sparse dataset by windows on its axes: the positions kept, never re-indexed. Lives in the dataset's own space"""
+    typename: Literal['SparseLens'] = Field(alias='__typename', default='SparseLens', exclude=True)
+
+class SearchTableLensesQueryOptionsBaseTableLens(SearchTableLensesQueryOptionsBase, BaseModel):
+    """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
+
+class SearchTableLensesQueryOptionsBaseCatchAll(SearchTableLensesQueryOptionsBase, BaseModel):
+    """Catch all class for SearchTableLensesQueryOptionsBase"""
+    typename: str = Field(alias='__typename', exclude=True)
+
+class SearchTableLensesQuery(BaseModel):
+    """No documentation found for this operation."""
+    options: tuple[Annotated[SearchTableLensesQueryOptionsBaseAnnotationLens | SearchTableLensesQueryOptionsBaseArrayLens | SearchTableLensesQueryOptionsBaseMeshLens | SearchTableLensesQueryOptionsBaseNetworkLens | SearchTableLensesQueryOptionsBaseSparseLens | SearchTableLensesQueryOptionsBaseTableLens, Field(discriminator='typename')] | SearchTableLensesQueryOptionsBaseCatchAll, ...]
+    'List lenses: selections over array datasets (by slices) and over tables, sparse datasets, meshes, networks and annotation collections (by windows), a heterogeneous list of lens kinds'
+
+    class Arguments(BaseModel):
+        """Arguments for SearchTableLenses """
+        search: str | None = Field(default=None)
+        values: list[ID] | None = Field(default=None)
+        requires: list[DescriptorConstraintInput] | None = Field(default=None)
+        limit: int | None = Field(default=None)
+        offset: Annotated[int | None, GraphQLDefault('0')] = Field(default=None)
+
+    class Meta:
+        """Meta class for SearchTableLenses """
+        document = 'query SearchTableLenses($search: String, $values: [ID!], $requires: [DescriptorConstraintInput!], $limit: Int, $offset: Int = 0) {\n  options: lenses(\n    filters: {kind: TABLE, search: $search, ids: $values, requires: $requires}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label\n    __typename\n  }\n}'
+
+class SearchSparseLensesQueryOptionsBase(BaseModel):
+    """A selection over a container that lives in a coordinate system: one row per (container, selection), so the same selection asked for twice is the same id. An ArrayLens selects over an array dataset by index slices and, when sliced, owns the crop's space and the edge back into the dataset's grid; every other kind selects over its container by value windows in the container's own axes and lives in the container's space. Every container has its whole lens from creation."""
+    value: ID
+    label: str
+    "What to call this lens in a list, never empty: its `name` when it has one, else its container's name followed by what it selects of it (`cells.zarr · c[0:1]`); a whole lens is called by its container. What a picker shows for an option"
+    model_config = ConfigDict(frozen=True)
+
+class SearchSparseLensesQueryOptionsBaseAnnotationLens(SearchSparseLensesQueryOptionsBase, BaseModel):
+    """A selection over an annotation collection by windows in its drawing space"""
+    typename: Literal['AnnotationLens'] = Field(alias='__typename', default='AnnotationLens', exclude=True)
+
+class SearchSparseLensesQueryOptionsBaseArrayLens(SearchSparseLensesQueryOptionsBase, Lensable, BaseModel):
+    """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
+
+class SearchSparseLensesQueryOptionsBaseMeshLens(SearchSparseLensesQueryOptionsBase, BaseModel):
+    """A selection over a mesh collection by windows in its own space"""
+    typename: Literal['MeshLens'] = Field(alias='__typename', default='MeshLens', exclude=True)
+
+class SearchSparseLensesQueryOptionsBaseNetworkLens(SearchSparseLensesQueryOptionsBase, BaseModel):
+    """A selection over a network collection by windows in its own space"""
+    typename: Literal['NetworkLens'] = Field(alias='__typename', default='NetworkLens', exclude=True)
+
+class SearchSparseLensesQueryOptionsBaseSparseLens(SearchSparseLensesQueryOptionsBase, BaseModel):
+    """A selection over a sparse dataset by windows on its axes: the positions kept, never re-indexed. Lives in the dataset's own space"""
+    typename: Literal['SparseLens'] = Field(alias='__typename', default='SparseLens', exclude=True)
+
+class SearchSparseLensesQueryOptionsBaseTableLens(SearchSparseLensesQueryOptionsBase, BaseModel):
+    """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
+
+class SearchSparseLensesQueryOptionsBaseCatchAll(SearchSparseLensesQueryOptionsBase, BaseModel):
+    """Catch all class for SearchSparseLensesQueryOptionsBase"""
+    typename: str = Field(alias='__typename', exclude=True)
+
+class SearchSparseLensesQuery(BaseModel):
+    """No documentation found for this operation."""
+    options: tuple[Annotated[SearchSparseLensesQueryOptionsBaseAnnotationLens | SearchSparseLensesQueryOptionsBaseArrayLens | SearchSparseLensesQueryOptionsBaseMeshLens | SearchSparseLensesQueryOptionsBaseNetworkLens | SearchSparseLensesQueryOptionsBaseSparseLens | SearchSparseLensesQueryOptionsBaseTableLens, Field(discriminator='typename')] | SearchSparseLensesQueryOptionsBaseCatchAll, ...]
+    'List lenses: selections over array datasets (by slices) and over tables, sparse datasets, meshes, networks and annotation collections (by windows), a heterogeneous list of lens kinds'
+
+    class Arguments(BaseModel):
+        """Arguments for SearchSparseLenses """
+        search: str | None = Field(default=None)
+        values: list[ID] | None = Field(default=None)
+        requires: list[DescriptorConstraintInput] | None = Field(default=None)
+        limit: int | None = Field(default=None)
+        offset: Annotated[int | None, GraphQLDefault('0')] = Field(default=None)
+
+    class Meta:
+        """Meta class for SearchSparseLenses """
+        document = 'query SearchSparseLenses($search: String, $values: [ID!], $requires: [DescriptorConstraintInput!], $limit: Int, $offset: Int = 0) {\n  options: lenses(\n    filters: {kind: SPARSE, search: $search, ids: $values, requires: $requires}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label\n    __typename\n  }\n}'
+
+class SearchMeshLensesQueryOptionsBase(BaseModel):
+    """A selection over a container that lives in a coordinate system: one row per (container, selection), so the same selection asked for twice is the same id. An ArrayLens selects over an array dataset by index slices and, when sliced, owns the crop's space and the edge back into the dataset's grid; every other kind selects over its container by value windows in the container's own axes and lives in the container's space. Every container has its whole lens from creation."""
+    value: ID
+    label: str
+    "What to call this lens in a list, never empty: its `name` when it has one, else its container's name followed by what it selects of it (`cells.zarr · c[0:1]`); a whole lens is called by its container. What a picker shows for an option"
+    model_config = ConfigDict(frozen=True)
+
+class SearchMeshLensesQueryOptionsBaseAnnotationLens(SearchMeshLensesQueryOptionsBase, BaseModel):
+    """A selection over an annotation collection by windows in its drawing space"""
+    typename: Literal['AnnotationLens'] = Field(alias='__typename', default='AnnotationLens', exclude=True)
+
+class SearchMeshLensesQueryOptionsBaseArrayLens(SearchMeshLensesQueryOptionsBase, Lensable, BaseModel):
+    """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
+
+class SearchMeshLensesQueryOptionsBaseMeshLens(SearchMeshLensesQueryOptionsBase, BaseModel):
+    """A selection over a mesh collection by windows in its own space"""
+    typename: Literal['MeshLens'] = Field(alias='__typename', default='MeshLens', exclude=True)
+
+class SearchMeshLensesQueryOptionsBaseNetworkLens(SearchMeshLensesQueryOptionsBase, BaseModel):
+    """A selection over a network collection by windows in its own space"""
+    typename: Literal['NetworkLens'] = Field(alias='__typename', default='NetworkLens', exclude=True)
+
+class SearchMeshLensesQueryOptionsBaseSparseLens(SearchMeshLensesQueryOptionsBase, BaseModel):
+    """A selection over a sparse dataset by windows on its axes: the positions kept, never re-indexed. Lives in the dataset's own space"""
+    typename: Literal['SparseLens'] = Field(alias='__typename', default='SparseLens', exclude=True)
+
+class SearchMeshLensesQueryOptionsBaseTableLens(SearchMeshLensesQueryOptionsBase, BaseModel):
+    """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
+
+class SearchMeshLensesQueryOptionsBaseCatchAll(SearchMeshLensesQueryOptionsBase, BaseModel):
+    """Catch all class for SearchMeshLensesQueryOptionsBase"""
+    typename: str = Field(alias='__typename', exclude=True)
+
+class SearchMeshLensesQuery(BaseModel):
+    """No documentation found for this operation."""
+    options: tuple[Annotated[SearchMeshLensesQueryOptionsBaseAnnotationLens | SearchMeshLensesQueryOptionsBaseArrayLens | SearchMeshLensesQueryOptionsBaseMeshLens | SearchMeshLensesQueryOptionsBaseNetworkLens | SearchMeshLensesQueryOptionsBaseSparseLens | SearchMeshLensesQueryOptionsBaseTableLens, Field(discriminator='typename')] | SearchMeshLensesQueryOptionsBaseCatchAll, ...]
+    'List lenses: selections over array datasets (by slices) and over tables, sparse datasets, meshes, networks and annotation collections (by windows), a heterogeneous list of lens kinds'
+
+    class Arguments(BaseModel):
+        """Arguments for SearchMeshLenses """
+        search: str | None = Field(default=None)
+        values: list[ID] | None = Field(default=None)
+        requires: list[DescriptorConstraintInput] | None = Field(default=None)
+        limit: int | None = Field(default=None)
+        offset: Annotated[int | None, GraphQLDefault('0')] = Field(default=None)
+
+    class Meta:
+        """Meta class for SearchMeshLenses """
+        document = 'query SearchMeshLenses($search: String, $values: [ID!], $requires: [DescriptorConstraintInput!], $limit: Int, $offset: Int = 0) {\n  options: lenses(\n    filters: {kind: MESH, search: $search, ids: $values, requires: $requires}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label\n    __typename\n  }\n}'
+
+class SearchNetworkLensesQueryOptionsBase(BaseModel):
+    """A selection over a container that lives in a coordinate system: one row per (container, selection), so the same selection asked for twice is the same id. An ArrayLens selects over an array dataset by index slices and, when sliced, owns the crop's space and the edge back into the dataset's grid; every other kind selects over its container by value windows in the container's own axes and lives in the container's space. Every container has its whole lens from creation."""
+    value: ID
+    label: str
+    "What to call this lens in a list, never empty: its `name` when it has one, else its container's name followed by what it selects of it (`cells.zarr · c[0:1]`); a whole lens is called by its container. What a picker shows for an option"
+    model_config = ConfigDict(frozen=True)
+
+class SearchNetworkLensesQueryOptionsBaseAnnotationLens(SearchNetworkLensesQueryOptionsBase, BaseModel):
+    """A selection over an annotation collection by windows in its drawing space"""
+    typename: Literal['AnnotationLens'] = Field(alias='__typename', default='AnnotationLens', exclude=True)
+
+class SearchNetworkLensesQueryOptionsBaseArrayLens(SearchNetworkLensesQueryOptionsBase, Lensable, BaseModel):
+    """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
+
+class SearchNetworkLensesQueryOptionsBaseMeshLens(SearchNetworkLensesQueryOptionsBase, BaseModel):
+    """A selection over a mesh collection by windows in its own space"""
+    typename: Literal['MeshLens'] = Field(alias='__typename', default='MeshLens', exclude=True)
+
+class SearchNetworkLensesQueryOptionsBaseNetworkLens(SearchNetworkLensesQueryOptionsBase, BaseModel):
+    """A selection over a network collection by windows in its own space"""
+    typename: Literal['NetworkLens'] = Field(alias='__typename', default='NetworkLens', exclude=True)
+
+class SearchNetworkLensesQueryOptionsBaseSparseLens(SearchNetworkLensesQueryOptionsBase, BaseModel):
+    """A selection over a sparse dataset by windows on its axes: the positions kept, never re-indexed. Lives in the dataset's own space"""
+    typename: Literal['SparseLens'] = Field(alias='__typename', default='SparseLens', exclude=True)
+
+class SearchNetworkLensesQueryOptionsBaseTableLens(SearchNetworkLensesQueryOptionsBase, BaseModel):
+    """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
+
+class SearchNetworkLensesQueryOptionsBaseCatchAll(SearchNetworkLensesQueryOptionsBase, BaseModel):
+    """Catch all class for SearchNetworkLensesQueryOptionsBase"""
+    typename: str = Field(alias='__typename', exclude=True)
+
+class SearchNetworkLensesQuery(BaseModel):
+    """No documentation found for this operation."""
+    options: tuple[Annotated[SearchNetworkLensesQueryOptionsBaseAnnotationLens | SearchNetworkLensesQueryOptionsBaseArrayLens | SearchNetworkLensesQueryOptionsBaseMeshLens | SearchNetworkLensesQueryOptionsBaseNetworkLens | SearchNetworkLensesQueryOptionsBaseSparseLens | SearchNetworkLensesQueryOptionsBaseTableLens, Field(discriminator='typename')] | SearchNetworkLensesQueryOptionsBaseCatchAll, ...]
+    'List lenses: selections over array datasets (by slices) and over tables, sparse datasets, meshes, networks and annotation collections (by windows), a heterogeneous list of lens kinds'
+
+    class Arguments(BaseModel):
+        """Arguments for SearchNetworkLenses """
+        search: str | None = Field(default=None)
+        values: list[ID] | None = Field(default=None)
+        requires: list[DescriptorConstraintInput] | None = Field(default=None)
+        limit: int | None = Field(default=None)
+        offset: Annotated[int | None, GraphQLDefault('0')] = Field(default=None)
+
+    class Meta:
+        """Meta class for SearchNetworkLenses """
+        document = 'query SearchNetworkLenses($search: String, $values: [ID!], $requires: [DescriptorConstraintInput!], $limit: Int, $offset: Int = 0) {\n  options: lenses(\n    filters: {kind: NETWORK, search: $search, ids: $values, requires: $requires}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label\n    __typename\n  }\n}'
+
+class SearchAnnotationLensesQueryOptionsBase(BaseModel):
+    """A selection over a container that lives in a coordinate system: one row per (container, selection), so the same selection asked for twice is the same id. An ArrayLens selects over an array dataset by index slices and, when sliced, owns the crop's space and the edge back into the dataset's grid; every other kind selects over its container by value windows in the container's own axes and lives in the container's space. Every container has its whole lens from creation."""
+    value: ID
+    label: str
+    "What to call this lens in a list, never empty: its `name` when it has one, else its container's name followed by what it selects of it (`cells.zarr · c[0:1]`); a whole lens is called by its container. What a picker shows for an option"
+    model_config = ConfigDict(frozen=True)
+
+class SearchAnnotationLensesQueryOptionsBaseAnnotationLens(SearchAnnotationLensesQueryOptionsBase, BaseModel):
+    """A selection over an annotation collection by windows in its drawing space"""
+    typename: Literal['AnnotationLens'] = Field(alias='__typename', default='AnnotationLens', exclude=True)
+
+class SearchAnnotationLensesQueryOptionsBaseArrayLens(SearchAnnotationLensesQueryOptionsBase, Lensable, BaseModel):
+    """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
+
+class SearchAnnotationLensesQueryOptionsBaseMeshLens(SearchAnnotationLensesQueryOptionsBase, BaseModel):
+    """A selection over a mesh collection by windows in its own space"""
+    typename: Literal['MeshLens'] = Field(alias='__typename', default='MeshLens', exclude=True)
+
+class SearchAnnotationLensesQueryOptionsBaseNetworkLens(SearchAnnotationLensesQueryOptionsBase, BaseModel):
+    """A selection over a network collection by windows in its own space"""
+    typename: Literal['NetworkLens'] = Field(alias='__typename', default='NetworkLens', exclude=True)
+
+class SearchAnnotationLensesQueryOptionsBaseSparseLens(SearchAnnotationLensesQueryOptionsBase, BaseModel):
+    """A selection over a sparse dataset by windows on its axes: the positions kept, never re-indexed. Lives in the dataset's own space"""
+    typename: Literal['SparseLens'] = Field(alias='__typename', default='SparseLens', exclude=True)
+
+class SearchAnnotationLensesQueryOptionsBaseTableLens(SearchAnnotationLensesQueryOptionsBase, BaseModel):
+    """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
+
+class SearchAnnotationLensesQueryOptionsBaseCatchAll(SearchAnnotationLensesQueryOptionsBase, BaseModel):
+    """Catch all class for SearchAnnotationLensesQueryOptionsBase"""
+    typename: str = Field(alias='__typename', exclude=True)
+
+class SearchAnnotationLensesQuery(BaseModel):
+    """No documentation found for this operation."""
+    options: tuple[Annotated[SearchAnnotationLensesQueryOptionsBaseAnnotationLens | SearchAnnotationLensesQueryOptionsBaseArrayLens | SearchAnnotationLensesQueryOptionsBaseMeshLens | SearchAnnotationLensesQueryOptionsBaseNetworkLens | SearchAnnotationLensesQueryOptionsBaseSparseLens | SearchAnnotationLensesQueryOptionsBaseTableLens, Field(discriminator='typename')] | SearchAnnotationLensesQueryOptionsBaseCatchAll, ...]
+    'List lenses: selections over array datasets (by slices) and over tables, sparse datasets, meshes, networks and annotation collections (by windows), a heterogeneous list of lens kinds'
+
+    class Arguments(BaseModel):
+        """Arguments for SearchAnnotationLenses """
+        search: str | None = Field(default=None)
+        values: list[ID] | None = Field(default=None)
+        requires: list[DescriptorConstraintInput] | None = Field(default=None)
+        limit: int | None = Field(default=None)
+        offset: Annotated[int | None, GraphQLDefault('0')] = Field(default=None)
+
+    class Meta:
+        """Meta class for SearchAnnotationLenses """
+        document = 'query SearchAnnotationLenses($search: String, $values: [ID!], $requires: [DescriptorConstraintInput!], $limit: Int, $offset: Int = 0) {\n  options: lenses(\n    filters: {kind: ANNOTATION, search: $search, ids: $values, requires: $requires}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label\n    __typename\n  }\n}'
 
 class GetMeshCollectionQuery(BaseModel):
     """No documentation found for this operation."""
@@ -6703,12 +8520,12 @@ class GetMeshCollectionQuery(BaseModel):
 
     class Meta:
         """Meta class for GetMeshCollection """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FabriksStore on FabriksStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment MeshCollection on MeshCollection {\n  id\n  version\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...FabriksStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nquery GetMeshCollection($id: ID!) {\n  meshCollection(id: $id) {\n    ...MeshCollection\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FabriksStore on FabriksStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n      field {\n        id\n      }\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    scale\n    translation\n    affine\n  }\n  __typename\n}\n\nfragment MeshCollection on MeshCollection {\n  id\n  name\n  label\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...FabriksStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nquery GetMeshCollection($id: ID!) {\n  meshCollection(id: $id) {\n    ...MeshCollection\n    __typename\n  }\n}'
 
 class GetMeshCollectionsQuery(BaseModel):
     """No documentation found for this operation."""
     mesh_collections: tuple[MeshCollection, ...] = Field(alias='meshCollections')
-    'List mesh collections (immutable, versioned Parquet-backed mesh sets, each in a coordinate system of its own)'
+    'List mesh collections (immutable Parquet-backed mesh sets, each in a coordinate system of its own)'
 
     class Arguments(BaseModel):
         """Arguments for GetMeshCollections """
@@ -6717,19 +8534,20 @@ class GetMeshCollectionsQuery(BaseModel):
 
     class Meta:
         """Meta class for GetMeshCollections """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FabriksStore on FabriksStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment MeshCollection on MeshCollection {\n  id\n  version\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...FabriksStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nquery GetMeshCollections($filters: MeshCollectionFilter, $pagination: OffsetPaginationInput) {\n  meshCollections(filters: $filters, pagination: $pagination) {\n    ...MeshCollection\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FabriksStore on FabriksStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n      field {\n        id\n      }\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    scale\n    translation\n    affine\n  }\n  __typename\n}\n\nfragment MeshCollection on MeshCollection {\n  id\n  name\n  label\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...FabriksStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nquery GetMeshCollections($filters: MeshCollectionFilter, $pagination: OffsetPaginationInput) {\n  meshCollections(filters: $filters, pagination: $pagination) {\n    ...MeshCollection\n    __typename\n  }\n}'
 
-class SearchMeshCollectionsQueryOptions(BaseModel):
-    """An immutable, versioned collection of meshes, stored as one fabriks prefix. Ask its `store` for an access grant and query the Parquet directly (e.g. with DuckDB) rather than paginating meshes through GraphQL"""
+class SearchMeshCollectionsQueryOptions(MeshCollectionTrait, BaseModel):
+    """An immutable collection of meshes, stored as one fabriks prefix. Ask its `store` for an access grant and query the Parquet directly (e.g. with DuckDB) rather than paginating meshes through GraphQL"""
     typename: Literal['MeshCollection'] = Field(alias='__typename', default='MeshCollection', exclude=True)
     value: ID
     label: str
+    "What to call this collection: its name, or its store's key when it has none"
     model_config = ConfigDict(frozen=True)
 
 class SearchMeshCollectionsQuery(BaseModel):
     """No documentation found for this operation."""
     options: tuple[SearchMeshCollectionsQueryOptions, ...]
-    'List mesh collections (immutable, versioned Parquet-backed mesh sets, each in a coordinate system of its own)'
+    'List mesh collections (immutable Parquet-backed mesh sets, each in a coordinate system of its own)'
 
     class Arguments(BaseModel):
         """Arguments for SearchMeshCollections """
@@ -6740,7 +8558,58 @@ class SearchMeshCollectionsQuery(BaseModel):
 
     class Meta:
         """Meta class for SearchMeshCollections """
-        document = 'query SearchMeshCollections($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: meshCollections(\n    filters: {version: {iContains: $search}, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label: version\n    __typename\n  }\n}'
+        document = 'query SearchMeshCollections($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: meshCollections(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label\n    __typename\n  }\n}'
+
+class GetNetworkCollectionQuery(BaseModel):
+    """No documentation found for this operation."""
+    network_collection: NetworkCollection = Field(alias='networkCollection')
+    'Get a single network collection by ID'
+
+    class Arguments(BaseModel):
+        """Arguments for GetNetworkCollection """
+        id: ID
+
+    class Meta:
+        """Meta class for GetNetworkCollection """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment KonnektionStore on KonnektionStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  attributes\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n      field {\n        id\n      }\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    scale\n    translation\n    affine\n  }\n  __typename\n}\n\nfragment NetworkCollection on NetworkCollection {\n  id\n  name\n  label\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...KonnektionStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nquery GetNetworkCollection($id: ID!) {\n  networkCollection(id: $id) {\n    ...NetworkCollection\n    __typename\n  }\n}'
+
+class GetNetworkCollectionsQuery(BaseModel):
+    """No documentation found for this operation."""
+    network_collections: tuple[NetworkCollection, ...] = Field(alias='networkCollections')
+    'List network collections (immutable Parquet-backed node/edge networks, each in a coordinate system of its own)'
+
+    class Arguments(BaseModel):
+        """Arguments for GetNetworkCollections """
+        filters: NetworkCollectionFilter | None = Field(default=None)
+        pagination: OffsetPaginationInput | None = Field(default=None)
+
+    class Meta:
+        """Meta class for GetNetworkCollections """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment KonnektionStore on KonnektionStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  attributes\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n      field {\n        id\n      }\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    scale\n    translation\n    affine\n  }\n  __typename\n}\n\nfragment NetworkCollection on NetworkCollection {\n  id\n  name\n  label\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...KonnektionStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nquery GetNetworkCollections($filters: NetworkCollectionFilter, $pagination: OffsetPaginationInput) {\n  networkCollections(filters: $filters, pagination: $pagination) {\n    ...NetworkCollection\n    __typename\n  }\n}'
+
+class SearchNetworkCollectionsQueryOptions(NetworkCollectionTrait, BaseModel):
+    """An immutable collection of networks, stored as one konnektion prefix. Ask its `store` for an access grant and query the Parquet directly (e.g. with DuckDB) rather than paginating nodes through GraphQL"""
+    typename: Literal['NetworkCollection'] = Field(alias='__typename', default='NetworkCollection', exclude=True)
+    value: ID
+    label: str
+    "What to call this collection: its name, or its store's key when it has none"
+    model_config = ConfigDict(frozen=True)
+
+class SearchNetworkCollectionsQuery(BaseModel):
+    """No documentation found for this operation."""
+    options: tuple[SearchNetworkCollectionsQueryOptions, ...]
+    'List network collections (immutable Parquet-backed node/edge networks, each in a coordinate system of its own)'
+
+    class Arguments(BaseModel):
+        """Arguments for SearchNetworkCollections """
+        search: str | None = Field(default=None)
+        values: list[ID] | None = Field(default=None)
+        limit: int | None = Field(default=None)
+        offset: Annotated[int | None, GraphQLDefault('0')] = Field(default=None)
+
+    class Meta:
+        """Meta class for SearchNetworkCollections """
+        document = 'query SearchNetworkCollections($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: networkCollections(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label\n    __typename\n  }\n}'
 
 class GetSceneQuery(BaseModel):
     """No documentation found for this operation."""
@@ -6806,7 +8675,7 @@ class GetSceneSnapshotsQuery(BaseModel):
         document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment MediaStore on MediaStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment SceneSnapshot on SceneSnapshot {\n  id\n  name\n  scene {\n    ...Scene\n    __typename\n  }\n  store {\n    ...MediaStore\n    __typename\n  }\n  __typename\n}\n\nquery GetSceneSnapshots($filters: SceneSnapshotFilter, $pagination: OffsetPaginationInput) {\n  sceneSnapshots(filters: $filters, pagination: $pagination) {\n    ...SceneSnapshot\n    __typename\n  }\n}'
 
 class SearchSceneSnapshotsQueryOptions(BaseModel):
-    """A pre-rendered picture of a composition: every layer of the scene, blended. Clients use snapshots to preview without compositing the layers themselves. A picture of the scene, not of any one dataset in it -- though `ArrayDataset.latestSnapshot` will offer one of these where the scene's only anchored dataset is that dataset, since then the picture shows it and nothing else"""
+    """A pre-rendered picture of a composition: every layer of the scene, blended. Clients use snapshots to preview without compositing the layers themselves. A picture of the scene, not of any one lens in it -- `Lens.latestSnapshot` and `ArrayDataset.latestSnapshot` offer the newest picture of the scene the lens nominates, which may stage other data too"""
     typename: Literal['SceneSnapshot'] = Field(alias='__typename', default='SceneSnapshot', exclude=True)
     value: ID
     label: str
@@ -6841,7 +8710,7 @@ class GetSparseDatasetQuery(BaseModel):
         """Meta class for GetSparseDataset """
         document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment SparseStore on SparseStore {\n  id\n  key\n  bucket\n  path\n  spec\n  shape\n  layouts {\n    path\n    encoding\n    encodingVersion\n    indexedAxis\n    indexOrder\n    nnz\n    dtype\n    chunks\n    rangeReadable\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment SparseArray on SparseArray {\n  id\n  indexedAxis\n  indexedAxisName\n  path\n  store {\n    ...SparseStore\n    __typename\n  }\n  __typename\n}\n\nfragment SparseAxisReference on SparseAxisReference {\n  id\n  axis\n  references {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment SparseDataset on SparseDataset {\n  id\n  name\n  description\n  axisNames\n  shape\n  indexableAxes\n  arrays {\n    ...SparseArray\n    __typename\n  }\n  axisReferences {\n    ...SparseAxisReference\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nquery GetSparseDataset($id: ID!) {\n  sparseDataset(id: $id) {\n    ...SparseDataset\n    __typename\n  }\n}'
 
-class SearchSparseDatasetsQueryOptions(BaseModel):
+class SearchSparseDatasetsQueryOptions(SparseDatasetTrait, BaseModel):
     """A sparse matrix over two enumerated axes -- objects on one, features on the other -- stored as anndata-spelled zarr groups. It exists because a colouring names one *column*, so a colourable measurement is a column of a table: right for a few hundred features and impossible for a transcriptome, where a feature stops being a schema fact and becomes a data one. **Each axis is identified exactly once**, by its own `identifiedBy` -- a source whose contents are the ids, or the table whose rows the positions are. Its stores, axes and coordinate system are fixed at creation; a recomputation is a new dataset"""
     typename: Literal['SparseDataset'] = Field(alias='__typename', default='SparseDataset', exclude=True)
     value: ID
@@ -6873,7 +8742,7 @@ class GetTableDatasetQuery(BaseModel):
 
     class Meta:
         """Meta class for GetTableDataset """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    references {\n      id\n      __typename\n    }\n    nodeReferences {\n      id\n      __typename\n    }\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}\n\nquery GetTableDataset($id: ID!) {\n  tableDataset(id: $id) {\n    ...TableDataset\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n      field {\n        id\n      }\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    scale\n    translation\n    affine\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    references {\n      id\n      __typename\n    }\n    nodeReferences {\n      id\n      __typename\n    }\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}\n\nquery GetTableDataset($id: ID!) {\n  tableDataset(id: $id) {\n    ...TableDataset\n    __typename\n  }\n}'
 
 class GetTableDatasetsQuery(BaseModel):
     """No documentation found for this operation."""
@@ -6887,7 +8756,7 @@ class GetTableDatasetsQuery(BaseModel):
 
     class Meta:
         """Meta class for GetTableDatasets """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    references {\n      id\n      __typename\n    }\n    nodeReferences {\n      id\n      __typename\n    }\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}\n\nquery GetTableDatasets($filters: TableDatasetFilter, $pagination: OffsetPaginationInput) {\n  tableDatasets(filters: $filters, pagination: $pagination) {\n    ...TableDataset\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n      field {\n        id\n      }\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    scale\n    translation\n    affine\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    references {\n      id\n      __typename\n    }\n    nodeReferences {\n      id\n      __typename\n    }\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}\n\nquery GetTableDatasets($filters: TableDatasetFilter, $pagination: OffsetPaginationInput) {\n  tableDatasets(filters: $filters, pagination: $pagination) {\n    ...TableDataset\n    __typename\n  }\n}'
 
 class GetTransformationQueryTransformationBase(BaseModel):
     """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
@@ -6898,7 +8767,7 @@ class GetTransformationQueryTransformationBaseAffineTransformation(Transformatio
     typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
 
 class GetTransformationQueryTransformationBaseByDimensionTransformation(TransformationByDimensionTransformation, GetTransformationQueryTransformationBase, TransformationTrait, BaseModel):
-    """A composition of child transformations, each acting on a named subset of the axes"""
+    """A map over a named subset of the axes: `inputAxes` onto `outputAxes`, one for one, by a `scale` and/or a `translation`, or by an `affine` -- or by none of them, which is the identity on the named axes. The axes it does not name pass through untouched, which is how a registration crosses a rank boundary: a (c,y,x) dataset placed into a (t,z,y,x) world names y and x and says nothing about t and z"""
     typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
 
 class GetTransformationQueryTransformationBaseFieldTransformation(TransformationFieldTransformation, GetTransformationQueryTransformationBase, TransformationTrait, BaseModel):
@@ -6922,7 +8791,7 @@ class GetTransformationQueryTransformationBaseScaleTransformation(Transformation
     typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
 
 class GetTransformationQueryTransformationBaseSequenceTransformation(TransformationSequenceTransformation, GetTransformationQueryTransformationBase, TransformationTrait, BaseModel):
-    """An ordered composition of child transformations, applied first to last"""
+    """An ordered composition of steps, applied first to last: one edge, carrying its map as `steps`. The ingest writes one for a stepped lens and for a downsampled pyramid level (a scale, then the half-voxel translation)"""
     typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
 
 class GetTransformationQueryTransformationBaseTranslationTransformation(TransformationTranslationTransformation, GetTransformationQueryTransformationBase, TransformationTrait, BaseModel):
@@ -6948,7 +8817,7 @@ class GetTransformationQuery(BaseModel):
 
     class Meta:
         """Meta class for GetTransformation """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nquery GetTransformation($id: ID!) {\n  transformation(id: $id) {\n    ...Transformation\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n      field {\n        id\n      }\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    scale\n    translation\n    affine\n  }\n  __typename\n}\n\nquery GetTransformation($id: ID!) {\n  transformation(id: $id) {\n    ...Transformation\n    __typename\n  }\n}'
 
 class GetTransformationsQueryTransformationsBase(BaseModel):
     """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
@@ -6959,7 +8828,7 @@ class GetTransformationsQueryTransformationsBaseAffineTransformation(Transformat
     typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
 
 class GetTransformationsQueryTransformationsBaseByDimensionTransformation(TransformationByDimensionTransformation, GetTransformationsQueryTransformationsBase, TransformationTrait, BaseModel):
-    """A composition of child transformations, each acting on a named subset of the axes"""
+    """A map over a named subset of the axes: `inputAxes` onto `outputAxes`, one for one, by a `scale` and/or a `translation`, or by an `affine` -- or by none of them, which is the identity on the named axes. The axes it does not name pass through untouched, which is how a registration crosses a rank boundary: a (c,y,x) dataset placed into a (t,z,y,x) world names y and x and says nothing about t and z"""
     typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
 
 class GetTransformationsQueryTransformationsBaseFieldTransformation(TransformationFieldTransformation, GetTransformationsQueryTransformationsBase, TransformationTrait, BaseModel):
@@ -6983,7 +8852,7 @@ class GetTransformationsQueryTransformationsBaseScaleTransformation(Transformati
     typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
 
 class GetTransformationsQueryTransformationsBaseSequenceTransformation(TransformationSequenceTransformation, GetTransformationsQueryTransformationsBase, TransformationTrait, BaseModel):
-    """An ordered composition of child transformations, applied first to last"""
+    """An ordered composition of steps, applied first to last: one edge, carrying its map as `steps`. The ingest writes one for a stepped lens and for a downsampled pyramid level (a scale, then the half-voxel translation)"""
     typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
 
 class GetTransformationsQueryTransformationsBaseTranslationTransformation(TransformationTranslationTransformation, GetTransformationsQueryTransformationsBase, TransformationTrait, BaseModel):
@@ -7010,7 +8879,7 @@ class GetTransformationsQuery(BaseModel):
 
     class Meta:
         """Meta class for GetTransformations """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nquery GetTransformations($filters: TransformationFilter, $pagination: OffsetPaginationInput) {\n  transformations(filters: $filters, pagination: $pagination) {\n    ...Transformation\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n      field {\n        id\n      }\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    scale\n    translation\n    affine\n  }\n  __typename\n}\n\nquery GetTransformations($filters: TransformationFilter, $pagination: OffsetPaginationInput) {\n  transformations(filters: $filters, pagination: $pagination) {\n    ...Transformation\n    __typename\n  }\n}'
 
 class WatchFilesSubscriptionFiles(BaseModel):
     """No documentation"""
@@ -7552,7 +9421,7 @@ Returns:
 Create a new dataset from array-like data with optional coordinate anchors and OME metadata
 
 Args:
-    data: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer (required)
+    data: The `ArrayLike` scalar type represents a reference to a store previously created by the user on a datalayer (required)
     scales: Input type for one pyramid level: the array backing it, and how it was downsampled. Its scale factor is derived from its actual shape, never supplied (required) (list) (required)
     name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
     axes: Input type for one structural axis of a dataset's pixel grid: its name and its semantic kind. Units and spacings do not belong here -- they belong to a physical space, a separate coordinate system plus one edge (required) (list) (required)
@@ -7588,7 +9457,7 @@ Returns:
 Create a new dataset from array-like data with optional coordinate anchors and OME metadata
 
 Args:
-    data: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer (required)
+    data: The `ArrayLike` scalar type represents a reference to a store previously created by the user on a datalayer (required)
     scales: Input type for one pyramid level: the array backing it, and how it was downsampled. Its scale factor is derived from its actual shape, never supplied (required) (list) (required)
     name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
     axes: Input type for one structural axis of a dataset's pixel grid: its name and its semantic kind. Units and spacings do not belong here -- they belong to a physical space, a separate coordinate system plus one edge (required) (list) (required)
@@ -7617,6 +9486,560 @@ Returns:
             _input['sourceFiles'] = source_files
         variables['input'] = _input
         return self.execute(CreateArrayDatasetMutation, variables, task=task).create_array_dataset
+
+    async def acreate_chart(self, name: str, description: str | None | UnsetType=UNSET, coordinate_system: IDCoercible | None | UnsetType=UNSET, axis: PhysicalAxisInput | None | UnsetType=UNSET, task: TaskLike | None=None) -> Chart:
+        """CreateChart 
+ A chart adopts a world with exactly one metric, unit-carrying axis -- an existing
+ `coordinateSystem`, or one made from a single `axis` -- and is then filled with layers,
+ one mutation per kind, or all at once with `createChartFromCoordinateSystem`. None of
+ them writes an edge: the data must already be registered into the chart's world.
+
+Args:
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    coordinate_system: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    axis: Input type for one axis of a unit-carrying coordinate system: its name, its semantic kind and its physical unit
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    Chart
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['name'] = name
+        if description is not UNSET:
+            _input['description'] = description
+        if coordinate_system is not UNSET:
+            _input['coordinateSystem'] = coordinate_system
+        if axis is not UNSET:
+            _input['axis'] = axis
+        variables['input'] = _input
+        return (await self.aexecute(CreateChartMutation, variables, task=task)).create_chart
+
+    def create_chart(self, name: str, description: str | None | UnsetType=UNSET, coordinate_system: IDCoercible | None | UnsetType=UNSET, axis: PhysicalAxisInput | None | UnsetType=UNSET, task: TaskLike | None=None) -> Chart:
+        """CreateChart 
+ A chart adopts a world with exactly one metric, unit-carrying axis -- an existing
+ `coordinateSystem`, or one made from a single `axis` -- and is then filled with layers,
+ one mutation per kind, or all at once with `createChartFromCoordinateSystem`. None of
+ them writes an edge: the data must already be registered into the chart's world.
+
+Args:
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    coordinate_system: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    axis: Input type for one axis of a unit-carrying coordinate system: its name, its semantic kind and its physical unit
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    Chart
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['name'] = name
+        if description is not UNSET:
+            _input['description'] = description
+        if coordinate_system is not UNSET:
+            _input['coordinateSystem'] = coordinate_system
+        if axis is not UNSET:
+            _input['axis'] = axis
+        variables['input'] = _input
+        return self.execute(CreateChartMutation, variables, task=task).create_chart
+
+    async def acreate_chart_from_coordinate_system(self, coordinate_system: IDCoercible, policy: ChartPolicyInput, name: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> Chart:
+        """CreateChartFromCoordinateSystem 
+
+Bootstrap a chart over an existing coordinate system, drawing every array, table and annotation collection already laid along its axis. Authors no edges
+
+Args:
+    coordinate_system: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    policy: How a chart is drawn from what is already placed in a space (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    Chart
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['coordinateSystem'] = coordinate_system
+        if name is not UNSET:
+            _input['name'] = name
+        _input['policy'] = policy
+        variables['input'] = _input
+        return (await self.aexecute(CreateChartFromCoordinateSystemMutation, variables, task=task)).create_chart_from_coordinate_system
+
+    def create_chart_from_coordinate_system(self, coordinate_system: IDCoercible, policy: ChartPolicyInput, name: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> Chart:
+        """CreateChartFromCoordinateSystem 
+
+Bootstrap a chart over an existing coordinate system, drawing every array, table and annotation collection already laid along its axis. Authors no edges
+
+Args:
+    coordinate_system: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    policy: How a chart is drawn from what is already placed in a space (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    Chart
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['coordinateSystem'] = coordinate_system
+        if name is not UNSET:
+            _input['name'] = name
+        _input['policy'] = policy
+        variables['input'] = _input
+        return self.execute(CreateChartFromCoordinateSystemMutation, variables, task=task).create_chart_from_coordinate_system
+
+    async def aupdate_chart(self, id: IDCoercible, name: str | None | UnsetType=UNSET, description: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> Chart:
+        """UpdateChart 
+
+Rename or re-describe a chart. Its world is fixed
+
+Args:
+    id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    Chart
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['id'] = id
+        if name is not UNSET:
+            _input['name'] = name
+        if description is not UNSET:
+            _input['description'] = description
+        variables['input'] = _input
+        return (await self.aexecute(UpdateChartMutation, variables, task=task)).update_chart
+
+    def update_chart(self, id: IDCoercible, name: str | None | UnsetType=UNSET, description: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> Chart:
+        """UpdateChart 
+
+Rename or re-describe a chart. Its world is fixed
+
+Args:
+    id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    Chart
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['id'] = id
+        if name is not UNSET:
+            _input['name'] = name
+        if description is not UNSET:
+            _input['description'] = description
+        variables['input'] = _input
+        return self.execute(UpdateChartMutation, variables, task=task).update_chart
+
+    async def adelete_chart(self, id: IDCoercible, task: TaskLike | None=None) -> ID:
+        """DeleteChart 
+
+Delete a chart and its layers. The data they drew and the chart's world are untouched
+
+Args:
+    id: The ID of the chart to delete
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ID
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['id'] = id
+        variables['input'] = _input
+        return (await self.aexecute(DeleteChartMutation, variables, task=task)).delete_chart
+
+    def delete_chart(self, id: IDCoercible, task: TaskLike | None=None) -> ID:
+        """DeleteChart 
+
+Delete a chart and its layers. The data they drew and the chart's world are untouched
+
+Args:
+    id: The ID of the chart to delete
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ID
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['id'] = id
+        variables['input'] = _input
+        return self.execute(DeleteChartMutation, variables, task=task).delete_chart
+
+    async def acreate_trace_chart_layer(self, chart: IDCoercible, lens: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerTraceChartLayer:
+        """CreateTraceChartLayer 
+
+Draw an array as a trace in a chart: a lens with one metric axis free, laid along the chart's axis by the graph, and optionally one CHANNEL or INDEX axis free as one line per position
+
+Args:
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    color: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list)
+    mark: ChartMark
+    line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    marker_size: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    chart: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ChartLayerTraceChartLayer
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        if name is not UNSET:
+            _input['name'] = name
+        if visible is not UNSET:
+            _input['visible'] = visible
+        if order is not UNSET:
+            _input['order'] = order
+        if opacity is not UNSET:
+            _input['opacity'] = opacity
+        if color is not UNSET:
+            _input['color'] = color
+        if mark is not UNSET:
+            _input['mark'] = mark
+        if line_width is not UNSET:
+            _input['lineWidth'] = line_width
+        if marker_size is not UNSET:
+            _input['markerSize'] = marker_size
+        _input['chart'] = chart
+        _input['lens'] = lens
+        variables['input'] = _input
+        return (await self.aexecute(CreateTraceChartLayerMutation, variables, task=task)).create_trace_chart_layer
+
+    def create_trace_chart_layer(self, chart: IDCoercible, lens: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerTraceChartLayer:
+        """CreateTraceChartLayer 
+
+Draw an array as a trace in a chart: a lens with one metric axis free, laid along the chart's axis by the graph, and optionally one CHANNEL or INDEX axis free as one line per position
+
+Args:
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    color: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list)
+    mark: ChartMark
+    line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    marker_size: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    chart: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ChartLayerTraceChartLayer
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        if name is not UNSET:
+            _input['name'] = name
+        if visible is not UNSET:
+            _input['visible'] = visible
+        if order is not UNSET:
+            _input['order'] = order
+        if opacity is not UNSET:
+            _input['opacity'] = opacity
+        if color is not UNSET:
+            _input['color'] = color
+        if mark is not UNSET:
+            _input['mark'] = mark
+        if line_width is not UNSET:
+            _input['lineWidth'] = line_width
+        if marker_size is not UNSET:
+            _input['markerSize'] = marker_size
+        _input['chart'] = chart
+        _input['lens'] = lens
+        variables['input'] = _input
+        return self.execute(CreateTraceChartLayerMutation, variables, task=task).create_trace_chart_layer
+
+    async def acreate_series_chart_layer(self, chart: IDCoercible, lens: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, value_column: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerSeriesChartLayer:
+        """CreateSeriesChartLayer 
+
+Draw a table as a series in a chart: one numeric column as the value, against the coordinate column the graph lays along the chart's axis
+
+Args:
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    color: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list)
+    mark: ChartMark
+    line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    marker_size: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    chart: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    value_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ChartLayerSeriesChartLayer
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        if name is not UNSET:
+            _input['name'] = name
+        if visible is not UNSET:
+            _input['visible'] = visible
+        if order is not UNSET:
+            _input['order'] = order
+        if opacity is not UNSET:
+            _input['opacity'] = opacity
+        if color is not UNSET:
+            _input['color'] = color
+        if mark is not UNSET:
+            _input['mark'] = mark
+        if line_width is not UNSET:
+            _input['lineWidth'] = line_width
+        if marker_size is not UNSET:
+            _input['markerSize'] = marker_size
+        _input['chart'] = chart
+        _input['lens'] = lens
+        if value_column is not UNSET:
+            _input['valueColumn'] = value_column
+        variables['input'] = _input
+        return (await self.aexecute(CreateSeriesChartLayerMutation, variables, task=task)).create_series_chart_layer
+
+    def create_series_chart_layer(self, chart: IDCoercible, lens: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, value_column: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerSeriesChartLayer:
+        """CreateSeriesChartLayer 
+
+Draw a table as a series in a chart: one numeric column as the value, against the coordinate column the graph lays along the chart's axis
+
+Args:
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    color: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list)
+    mark: ChartMark
+    line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    marker_size: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    chart: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    value_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ChartLayerSeriesChartLayer
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        if name is not UNSET:
+            _input['name'] = name
+        if visible is not UNSET:
+            _input['visible'] = visible
+        if order is not UNSET:
+            _input['order'] = order
+        if opacity is not UNSET:
+            _input['opacity'] = opacity
+        if color is not UNSET:
+            _input['color'] = color
+        if mark is not UNSET:
+            _input['mark'] = mark
+        if line_width is not UNSET:
+            _input['lineWidth'] = line_width
+        if marker_size is not UNSET:
+            _input['markerSize'] = marker_size
+        _input['chart'] = chart
+        _input['lens'] = lens
+        if value_column is not UNSET:
+            _input['valueColumn'] = value_column
+        variables['input'] = _input
+        return self.execute(CreateSeriesChartLayerMutation, variables, task=task).create_series_chart_layer
+
+    async def acreate_annotation_chart_layer(self, chart: IDCoercible, lens: IDCoercible | None | UnsetType=UNSET, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerAnnotationChartLayer:
+        """CreateAnnotationChartLayer 
+ With no `annotationCollection` this makes the drawing surface: a collection whose space
+ is the chart's axis plus a VALUE axis. Marks then go in with `createAnnotation`.
+
+Args:
+    chart: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ChartLayerAnnotationChartLayer
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['chart'] = chart
+        if lens is not UNSET:
+            _input['lens'] = lens
+        if name is not UNSET:
+            _input['name'] = name
+        if visible is not UNSET:
+            _input['visible'] = visible
+        if order is not UNSET:
+            _input['order'] = order
+        if opacity is not UNSET:
+            _input['opacity'] = opacity
+        variables['input'] = _input
+        return (await self.aexecute(CreateAnnotationChartLayerMutation, variables, task=task)).create_annotation_chart_layer
+
+    def create_annotation_chart_layer(self, chart: IDCoercible, lens: IDCoercible | None | UnsetType=UNSET, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerAnnotationChartLayer:
+        """CreateAnnotationChartLayer 
+ With no `annotationCollection` this makes the drawing surface: a collection whose space
+ is the chart's axis plus a VALUE axis. Marks then go in with `createAnnotation`.
+
+Args:
+    chart: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ChartLayerAnnotationChartLayer
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['chart'] = chart
+        if lens is not UNSET:
+            _input['lens'] = lens
+        if name is not UNSET:
+            _input['name'] = name
+        if visible is not UNSET:
+            _input['visible'] = visible
+        if order is not UNSET:
+            _input['order'] = order
+        if opacity is not UNSET:
+            _input['opacity'] = opacity
+        variables['input'] = _input
+        return self.execute(CreateAnnotationChartLayerMutation, variables, task=task).create_annotation_chart_layer
+
+    async def aupdate_chart_layer(self, id: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotated[UpdateChartLayerMutationUpdateChartLayerBaseAnnotationChartLayer | UpdateChartLayerMutationUpdateChartLayerBaseSeriesChartLayer | UpdateChartLayerMutationUpdateChartLayerBaseTraceChartLayer, Field(discriminator='typename')] | UpdateChartLayerMutationUpdateChartLayerBaseCatchAll:
+        """UpdateChartLayer 
+ View state only: a layer's kind and its source are fixed at creation.
+
+Args:
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    color: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list)
+    mark: ChartMark
+    line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    marker_size: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ChartLayer
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        if name is not UNSET:
+            _input['name'] = name
+        if visible is not UNSET:
+            _input['visible'] = visible
+        if order is not UNSET:
+            _input['order'] = order
+        if opacity is not UNSET:
+            _input['opacity'] = opacity
+        if color is not UNSET:
+            _input['color'] = color
+        if mark is not UNSET:
+            _input['mark'] = mark
+        if line_width is not UNSET:
+            _input['lineWidth'] = line_width
+        if marker_size is not UNSET:
+            _input['markerSize'] = marker_size
+        _input['id'] = id
+        variables['input'] = _input
+        return (await self.aexecute(UpdateChartLayerMutation, variables, task=task)).update_chart_layer
+
+    def update_chart_layer(self, id: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotated[UpdateChartLayerMutationUpdateChartLayerBaseAnnotationChartLayer | UpdateChartLayerMutationUpdateChartLayerBaseSeriesChartLayer | UpdateChartLayerMutationUpdateChartLayerBaseTraceChartLayer, Field(discriminator='typename')] | UpdateChartLayerMutationUpdateChartLayerBaseCatchAll:
+        """UpdateChartLayer 
+ View state only: a layer's kind and its source are fixed at creation.
+
+Args:
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    color: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list)
+    mark: ChartMark
+    line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    marker_size: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ChartLayer
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        if name is not UNSET:
+            _input['name'] = name
+        if visible is not UNSET:
+            _input['visible'] = visible
+        if order is not UNSET:
+            _input['order'] = order
+        if opacity is not UNSET:
+            _input['opacity'] = opacity
+        if color is not UNSET:
+            _input['color'] = color
+        if mark is not UNSET:
+            _input['mark'] = mark
+        if line_width is not UNSET:
+            _input['lineWidth'] = line_width
+        if marker_size is not UNSET:
+            _input['markerSize'] = marker_size
+        _input['id'] = id
+        variables['input'] = _input
+        return self.execute(UpdateChartLayerMutation, variables, task=task).update_chart_layer
+
+    async def adelete_chart_layer(self, id: IDCoercible, task: TaskLike | None=None) -> ID:
+        """DeleteChartLayer 
+
+Delete a chart layer. Deletes nothing it drew
+
+Args:
+    id: The ID of the chart layer to delete
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ID
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['id'] = id
+        variables['input'] = _input
+        return (await self.aexecute(DeleteChartLayerMutation, variables, task=task)).delete_chart_layer
+
+    def delete_chart_layer(self, id: IDCoercible, task: TaskLike | None=None) -> ID:
+        """DeleteChartLayer 
+
+Delete a chart layer. Deletes nothing it drew
+
+Args:
+    id: The ID of the chart layer to delete
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ID
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['id'] = id
+        variables['input'] = _input
+        return self.execute(DeleteChartLayerMutation, variables, task=task).delete_chart_layer
 
     async def acreate_coordinate_system(self, name: str, axes: Iterable[PhysicalAxisInput], registrations: Iterable[RegistrationPathInput], epoch: datetime | None | UnsetType=UNSET, task: TaskLike | None=None) -> CoordinateSystem:
         """CreateCoordinateSystem 
@@ -8996,7 +11419,7 @@ Returns:
         variables['input'] = _input
         return self.execute(CreateLayerMutation, variables, task=task).create_layer
 
-    async def acreate_intensity_layer(self, lens: IDCoercible, scene: IDCoercible, intensity_axis: str | None | UnsetType=UNSET, intensity_index: int | None | UnsetType=UNSET, colormap: ColorMap | None | UnsetType=UNSET, color: Iterable[int] | None | UnsetType=UNSET, clim_min: float | None | UnsetType=UNSET, clim_max: float | None | UnsetType=UNSET, gamma: float | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> LayerIntensityLayer:
+    async def acreate_intensity_layer(self, lens: IDCoercible, scene: IDCoercible, colormap: ColorMap | None | UnsetType=UNSET, color: Iterable[int] | None | UnsetType=UNSET, clim_min: float | None | UnsetType=UNSET, clim_max: float | None | UnsetType=UNSET, gamma: float | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> LayerIntensityLayer:
         """CreateIntensityLayer 
  One channel through one colormap -- or one solid RGBA tint, for a colour that is a
  measured fact (an emission wavelength, the acquisition software's own choice) and matches
@@ -9005,8 +11428,6 @@ Returns:
 Args:
     lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
-    intensity_axis: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    intensity_index: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
     colormap: ColorMap
     color: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
     clim_min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
@@ -9025,10 +11446,6 @@ Returns:
         _input: dict[str, builtins.object] = {}
         _input['lens'] = lens
         _input['scene'] = scene
-        if intensity_axis is not UNSET:
-            _input['intensityAxis'] = intensity_axis
-        if intensity_index is not UNSET:
-            _input['intensityIndex'] = intensity_index
         if colormap is not UNSET:
             _input['colormap'] = colormap
         if color is not UNSET:
@@ -9050,7 +11467,7 @@ Returns:
         variables['input'] = _input
         return (await self.aexecute(CreateIntensityLayerMutation, variables, task=task)).create_intensity_layer
 
-    def create_intensity_layer(self, lens: IDCoercible, scene: IDCoercible, intensity_axis: str | None | UnsetType=UNSET, intensity_index: int | None | UnsetType=UNSET, colormap: ColorMap | None | UnsetType=UNSET, color: Iterable[int] | None | UnsetType=UNSET, clim_min: float | None | UnsetType=UNSET, clim_max: float | None | UnsetType=UNSET, gamma: float | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> LayerIntensityLayer:
+    def create_intensity_layer(self, lens: IDCoercible, scene: IDCoercible, colormap: ColorMap | None | UnsetType=UNSET, color: Iterable[int] | None | UnsetType=UNSET, clim_min: float | None | UnsetType=UNSET, clim_max: float | None | UnsetType=UNSET, gamma: float | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> LayerIntensityLayer:
         """CreateIntensityLayer 
  One channel through one colormap -- or one solid RGBA tint, for a colour that is a
  measured fact (an emission wavelength, the acquisition software's own choice) and matches
@@ -9059,8 +11476,6 @@ Returns:
 Args:
     lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
-    intensity_axis: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    intensity_index: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
     colormap: ColorMap
     color: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
     clim_min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
@@ -9079,10 +11494,6 @@ Returns:
         _input: dict[str, builtins.object] = {}
         _input['lens'] = lens
         _input['scene'] = scene
-        if intensity_axis is not UNSET:
-            _input['intensityAxis'] = intensity_axis
-        if intensity_index is not UNSET:
-            _input['intensityIndex'] = intensity_index
         if colormap is not UNSET:
             _input['colormap'] = colormap
         if color is not UNSET:
@@ -9104,7 +11515,7 @@ Returns:
         variables['input'] = _input
         return self.execute(CreateIntensityLayerMutation, variables, task=task).create_intensity_layer
 
-    async def acreate_volume_layer(self, lens: IDCoercible, scene: IDCoercible, mode: ProjectionMode | None | UnsetType=UNSET, intensity_axis: str | None | UnsetType=UNSET, intensity_index: int | None | UnsetType=UNSET, colormap: ColorMap | None | UnsetType=UNSET, color: Iterable[int] | None | UnsetType=UNSET, clim_min: float | None | UnsetType=UNSET, clim_max: float | None | UnsetType=UNSET, gamma: float | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> LayerIntensityLayer:
+    async def acreate_volume_layer(self, lens: IDCoercible, scene: IDCoercible, mode: ProjectionMode | None | UnsetType=UNSET, colormap: ColorMap | None | UnsetType=UNSET, color: Iterable[int] | None | UnsetType=UNSET, clim_min: float | None | UnsetType=UNSET, clim_max: float | None | UnsetType=UNSET, gamma: float | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> LayerIntensityLayer:
         """CreateVolumeLayer 
  The same layer drawn through z rather than flat. A projection collapses an axis, it does
  not composite anything, so this returns an IntensityLayer with `projectionMode` set
@@ -9114,8 +11525,6 @@ Args:
     lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     mode: ProjectionMode
-    intensity_axis: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    intensity_index: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
     colormap: ColorMap
     color: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
     clim_min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
@@ -9136,10 +11545,6 @@ Returns:
         _input['scene'] = scene
         if mode is not UNSET:
             _input['mode'] = mode
-        if intensity_axis is not UNSET:
-            _input['intensityAxis'] = intensity_axis
-        if intensity_index is not UNSET:
-            _input['intensityIndex'] = intensity_index
         if colormap is not UNSET:
             _input['colormap'] = colormap
         if color is not UNSET:
@@ -9161,7 +11566,7 @@ Returns:
         variables['input'] = _input
         return (await self.aexecute(CreateVolumeLayerMutation, variables, task=task)).create_volume_layer
 
-    def create_volume_layer(self, lens: IDCoercible, scene: IDCoercible, mode: ProjectionMode | None | UnsetType=UNSET, intensity_axis: str | None | UnsetType=UNSET, intensity_index: int | None | UnsetType=UNSET, colormap: ColorMap | None | UnsetType=UNSET, color: Iterable[int] | None | UnsetType=UNSET, clim_min: float | None | UnsetType=UNSET, clim_max: float | None | UnsetType=UNSET, gamma: float | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> LayerIntensityLayer:
+    def create_volume_layer(self, lens: IDCoercible, scene: IDCoercible, mode: ProjectionMode | None | UnsetType=UNSET, colormap: ColorMap | None | UnsetType=UNSET, color: Iterable[int] | None | UnsetType=UNSET, clim_min: float | None | UnsetType=UNSET, clim_max: float | None | UnsetType=UNSET, gamma: float | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> LayerIntensityLayer:
         """CreateVolumeLayer 
  The same layer drawn through z rather than flat. A projection collapses an axis, it does
  not composite anything, so this returns an IntensityLayer with `projectionMode` set
@@ -9171,8 +11576,6 @@ Args:
     lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     mode: ProjectionMode
-    intensity_axis: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    intensity_index: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
     colormap: ColorMap
     color: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
     clim_min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
@@ -9193,10 +11596,6 @@ Returns:
         _input['scene'] = scene
         if mode is not UNSET:
             _input['mode'] = mode
-        if intensity_axis is not UNSET:
-            _input['intensityAxis'] = intensity_axis
-        if intensity_index is not UNSET:
-            _input['intensityIndex'] = intensity_index
         if colormap is not UNSET:
             _input['colormap'] = colormap
         if color is not UNSET:
@@ -9218,7 +11617,7 @@ Returns:
         variables['input'] = _input
         return self.execute(CreateVolumeLayerMutation, variables, task=task).create_volume_layer
 
-    async def acreate_rgb_layer(self, lens: IDCoercible, scene: IDCoercible, intensity_axis: str | None | UnsetType=UNSET, red_index: int | None | UnsetType=UNSET, green_index: int | None | UnsetType=UNSET, blue_index: int | None | UnsetType=UNSET, clim_min: float | None | UnsetType=UNSET, clim_max: float | None | UnsetType=UNSET, white_balance: Iterable[float] | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> LayerRgbLayer:
+    async def acreate_rgb_layer(self, lens: IDCoercible, scene: IDCoercible, red_lens: IDCoercible, green_lens: IDCoercible, blue_lens: IDCoercible, clim_min: float | None | UnsetType=UNSET, clim_max: float | None | UnsetType=UNSET, white_balance: Iterable[float] | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> LayerRgbLayer:
         """CreateRgbLayer 
  Three channels as the red, green and blue of one picture. Never inferred and always
  stated: a flat three-channel image is a three-marker fluorescence acquisition far more
@@ -9229,10 +11628,9 @@ Returns:
 Args:
     lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
-    intensity_axis: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    red_index: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
-    green_index: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
-    blue_index: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    red_lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    green_lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    blue_lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     clim_min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     clim_max: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     white_balance: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list)
@@ -9248,14 +11646,9 @@ Returns:
         _input: dict[str, builtins.object] = {}
         _input['lens'] = lens
         _input['scene'] = scene
-        if intensity_axis is not UNSET:
-            _input['intensityAxis'] = intensity_axis
-        if red_index is not UNSET:
-            _input['redIndex'] = red_index
-        if green_index is not UNSET:
-            _input['greenIndex'] = green_index
-        if blue_index is not UNSET:
-            _input['blueIndex'] = blue_index
+        _input['redLens'] = red_lens
+        _input['greenLens'] = green_lens
+        _input['blueLens'] = blue_lens
         if clim_min is not UNSET:
             _input['climMin'] = clim_min
         if clim_max is not UNSET:
@@ -9271,7 +11664,7 @@ Returns:
         variables['input'] = _input
         return (await self.aexecute(CreateRgbLayerMutation, variables, task=task)).create_rgb_layer
 
-    def create_rgb_layer(self, lens: IDCoercible, scene: IDCoercible, intensity_axis: str | None | UnsetType=UNSET, red_index: int | None | UnsetType=UNSET, green_index: int | None | UnsetType=UNSET, blue_index: int | None | UnsetType=UNSET, clim_min: float | None | UnsetType=UNSET, clim_max: float | None | UnsetType=UNSET, white_balance: Iterable[float] | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> LayerRgbLayer:
+    def create_rgb_layer(self, lens: IDCoercible, scene: IDCoercible, red_lens: IDCoercible, green_lens: IDCoercible, blue_lens: IDCoercible, clim_min: float | None | UnsetType=UNSET, clim_max: float | None | UnsetType=UNSET, white_balance: Iterable[float] | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> LayerRgbLayer:
         """CreateRgbLayer 
  Three channels as the red, green and blue of one picture. Never inferred and always
  stated: a flat three-channel image is a three-marker fluorescence acquisition far more
@@ -9282,10 +11675,9 @@ Returns:
 Args:
     lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
-    intensity_axis: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    red_index: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
-    green_index: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
-    blue_index: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    red_lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    green_lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    blue_lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     clim_min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     clim_max: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     white_balance: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list)
@@ -9301,14 +11693,9 @@ Returns:
         _input: dict[str, builtins.object] = {}
         _input['lens'] = lens
         _input['scene'] = scene
-        if intensity_axis is not UNSET:
-            _input['intensityAxis'] = intensity_axis
-        if red_index is not UNSET:
-            _input['redIndex'] = red_index
-        if green_index is not UNSET:
-            _input['greenIndex'] = green_index
-        if blue_index is not UNSET:
-            _input['blueIndex'] = blue_index
+        _input['redLens'] = red_lens
+        _input['greenLens'] = green_lens
+        _input['blueLens'] = blue_lens
         if clim_min is not UNSET:
             _input['climMin'] = clim_min
         if clim_max is not UNSET:
@@ -9388,14 +11775,14 @@ Returns:
         variables['input'] = _input
         return self.execute(CreateLabelLayerMutation, variables, task=task).create_label_layer
 
-    async def acreate_mesh_layer(self, scene: IDCoercible, mesh_collection: IDCoercible, material_color: Iterable[int] | None | UnsetType=UNSET, wireframe: bool | None | UnsetType=UNSET, shading: MeshShading | None | UnsetType=UNSET, max_level: int | None | UnsetType=UNSET, color_bys: Iterable[MeshColorByInput] | None | UnsetType=UNSET, active_color_by: int | None | UnsetType=UNSET, filter_bys: Iterable[MeshFilterByInput] | None | UnsetType=UNSET, active_filter_bys: Iterable[int] | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> LayerMeshLayer:
+    async def acreate_mesh_layer(self, scene: IDCoercible, lens: IDCoercible, material_color: Iterable[int] | None | UnsetType=UNSET, wireframe: bool | None | UnsetType=UNSET, shading: MeshShading | None | UnsetType=UNSET, max_level: int | None | UnsetType=UNSET, color_bys: Iterable[MeshColorByInput] | None | UnsetType=UNSET, active_color_by: int | None | UnsetType=UNSET, filter_bys: Iterable[MeshFilterByInput] | None | UnsetType=UNSET, active_filter_bys: Iterable[int] | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> LayerMeshLayer:
         """CreateMeshLayer 
 
 Create a layer that renders a 3D mesh (surface reconstruction / isosurface) in a scene
 
 Args:
     scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
-    mesh_collection: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     material_color: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
     wireframe: The `Boolean` scalar type represents `true` or `false`.
     shading: MeshShading
@@ -9416,7 +11803,7 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['scene'] = scene
-        _input['meshCollection'] = mesh_collection
+        _input['lens'] = lens
         if material_color is not UNSET:
             _input['materialColor'] = material_color
         if wireframe is not UNSET:
@@ -9444,14 +11831,14 @@ Returns:
         variables['input'] = _input
         return (await self.aexecute(CreateMeshLayerMutation, variables, task=task)).create_mesh_layer
 
-    def create_mesh_layer(self, scene: IDCoercible, mesh_collection: IDCoercible, material_color: Iterable[int] | None | UnsetType=UNSET, wireframe: bool | None | UnsetType=UNSET, shading: MeshShading | None | UnsetType=UNSET, max_level: int | None | UnsetType=UNSET, color_bys: Iterable[MeshColorByInput] | None | UnsetType=UNSET, active_color_by: int | None | UnsetType=UNSET, filter_bys: Iterable[MeshFilterByInput] | None | UnsetType=UNSET, active_filter_bys: Iterable[int] | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> LayerMeshLayer:
+    def create_mesh_layer(self, scene: IDCoercible, lens: IDCoercible, material_color: Iterable[int] | None | UnsetType=UNSET, wireframe: bool | None | UnsetType=UNSET, shading: MeshShading | None | UnsetType=UNSET, max_level: int | None | UnsetType=UNSET, color_bys: Iterable[MeshColorByInput] | None | UnsetType=UNSET, active_color_by: int | None | UnsetType=UNSET, filter_bys: Iterable[MeshFilterByInput] | None | UnsetType=UNSET, active_filter_bys: Iterable[int] | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> LayerMeshLayer:
         """CreateMeshLayer 
 
 Create a layer that renders a 3D mesh (surface reconstruction / isosurface) in a scene
 
 Args:
     scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
-    mesh_collection: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     material_color: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
     wireframe: The `Boolean` scalar type represents `true` or `false`.
     shading: MeshShading
@@ -9472,7 +11859,7 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['scene'] = scene
-        _input['meshCollection'] = mesh_collection
+        _input['lens'] = lens
         if material_color is not UNSET:
             _input['materialColor'] = material_color
         if wireframe is not UNSET:
@@ -9608,7 +11995,7 @@ Returns:
         variables['input'] = _input
         return self.execute(UpdateMeshLayerMutation, variables, task=task).update_mesh_layer
 
-    async def acreate_network_layer(self, scene: IDCoercible, network_collection: IDCoercible, material_color: Iterable[int] | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, node_size_column: str | None | UnsetType=UNSET, edge_width_column: str | None | UnsetType=UNSET, directed: bool | None | UnsetType=UNSET, show_nodes: bool | None | UnsetType=UNSET, max_level: int | None | UnsetType=UNSET, color_bys: Iterable[NetworkColorByInput] | None | UnsetType=UNSET, active_color_by: int | None | UnsetType=UNSET, filter_bys: Iterable[NetworkFilterByInput] | None | UnsetType=UNSET, active_filter_bys: Iterable[int] | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> LayerNetworkLayer:
+    async def acreate_network_layer(self, scene: IDCoercible, lens: IDCoercible, material_color: Iterable[int] | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, node_size_column: str | None | UnsetType=UNSET, edge_width_column: str | None | UnsetType=UNSET, directed: bool | None | UnsetType=UNSET, show_nodes: bool | None | UnsetType=UNSET, max_level: int | None | UnsetType=UNSET, color_bys: Iterable[NetworkColorByInput] | None | UnsetType=UNSET, active_color_by: int | None | UnsetType=UNSET, filter_bys: Iterable[NetworkFilterByInput] | None | UnsetType=UNSET, active_filter_bys: Iterable[int] | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> LayerNetworkLayer:
         """CreateNetworkLayer 
  A node/edge network -- a traced arbor, a vessel tree, a connectome -- rather than a surface.
  Its own mutation and not a mesh layer with a flag, for the reason the two collections are two
@@ -9617,7 +12004,7 @@ Returns:
 
 Args:
     scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
-    network_collection: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     material_color: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
     line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     node_size_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
@@ -9641,7 +12028,7 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['scene'] = scene
-        _input['networkCollection'] = network_collection
+        _input['lens'] = lens
         if material_color is not UNSET:
             _input['materialColor'] = material_color
         if line_width is not UNSET:
@@ -9675,7 +12062,7 @@ Returns:
         variables['input'] = _input
         return (await self.aexecute(CreateNetworkLayerMutation, variables, task=task)).create_network_layer
 
-    def create_network_layer(self, scene: IDCoercible, network_collection: IDCoercible, material_color: Iterable[int] | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, node_size_column: str | None | UnsetType=UNSET, edge_width_column: str | None | UnsetType=UNSET, directed: bool | None | UnsetType=UNSET, show_nodes: bool | None | UnsetType=UNSET, max_level: int | None | UnsetType=UNSET, color_bys: Iterable[NetworkColorByInput] | None | UnsetType=UNSET, active_color_by: int | None | UnsetType=UNSET, filter_bys: Iterable[NetworkFilterByInput] | None | UnsetType=UNSET, active_filter_bys: Iterable[int] | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> LayerNetworkLayer:
+    def create_network_layer(self, scene: IDCoercible, lens: IDCoercible, material_color: Iterable[int] | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, node_size_column: str | None | UnsetType=UNSET, edge_width_column: str | None | UnsetType=UNSET, directed: bool | None | UnsetType=UNSET, show_nodes: bool | None | UnsetType=UNSET, max_level: int | None | UnsetType=UNSET, color_bys: Iterable[NetworkColorByInput] | None | UnsetType=UNSET, active_color_by: int | None | UnsetType=UNSET, filter_bys: Iterable[NetworkFilterByInput] | None | UnsetType=UNSET, active_filter_bys: Iterable[int] | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> LayerNetworkLayer:
         """CreateNetworkLayer 
  A node/edge network -- a traced arbor, a vessel tree, a connectome -- rather than a surface.
  Its own mutation and not a mesh layer with a flag, for the reason the two collections are two
@@ -9684,7 +12071,7 @@ Returns:
 
 Args:
     scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
-    network_collection: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     material_color: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
     line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     node_size_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
@@ -9708,7 +12095,7 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['scene'] = scene
-        _input['networkCollection'] = network_collection
+        _input['lens'] = lens
         if material_color is not UNSET:
             _input['materialColor'] = material_color
         if line_width is not UNSET:
@@ -9930,7 +12317,7 @@ Returns:
         variables['input'] = _input
         return self.execute(UpdateLabelLayerMutation, variables, task=task).update_label_layer
 
-    async def acreate_point_layer(self, scene: IDCoercible, table_dataset: IDCoercible, color_bys: Iterable[LabelColorByInput] | None | UnsetType=UNSET, active_color_by: int | None | UnsetType=UNSET, filter_bys: Iterable[LabelFilterByInput] | None | UnsetType=UNSET, active_filter_bys: Iterable[int] | None | UnsetType=UNSET, size_column: str | None | UnsetType=UNSET, color_column: str | None | UnsetType=UNSET, point_size: float | None | UnsetType=UNSET, colormap: ColorMap | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> LayerPointLayer:
+    async def acreate_point_layer(self, scene: IDCoercible, lens: IDCoercible, color_bys: Iterable[LabelColorByInput] | None | UnsetType=UNSET, active_color_by: int | None | UnsetType=UNSET, filter_bys: Iterable[LabelFilterByInput] | None | UnsetType=UNSET, active_filter_bys: Iterable[int] | None | UnsetType=UNSET, size_column: str | None | UnsetType=UNSET, point_size: float | None | UnsetType=UNSET, colormap: ColorMap | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> LayerPointLayer:
         """CreatePointLayer 
  A point cloud drawn from a table dataset's coordinate columns. Its objects ARE
  rows of that table, so a colouring by one of its own columns needs no FIELD
@@ -9938,13 +12325,12 @@ Returns:
 
 Args:
     scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
-    table_dataset: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     color_bys: One entry of a label layer's colour picker: colour objects by a column of the table this mask's FIELD edge keys into, instead of by hashing their id (required) (list)
     active_color_by: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
     filter_bys: One entry of a label layer's filter picker: draw only the objects whose row in a table this mask's FIELD edge keys into satisfies this rule. Which half applies follows from the column's declared role -- bounds for a measure column, an explicit value set for a categorical one (required) (list)
     active_filter_bys: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
     size_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    color_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
     point_size: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     colormap: ColorMap
     blending: Blending
@@ -9959,7 +12345,7 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['scene'] = scene
-        _input['tableDataset'] = table_dataset
+        _input['lens'] = lens
         if color_bys is not UNSET:
             _input['colorBys'] = color_bys
         if active_color_by is not UNSET:
@@ -9970,8 +12356,6 @@ Returns:
             _input['activeFilterBys'] = active_filter_bys
         if size_column is not UNSET:
             _input['sizeColumn'] = size_column
-        if color_column is not UNSET:
-            _input['colorColumn'] = color_column
         if point_size is not UNSET:
             _input['pointSize'] = point_size
         if colormap is not UNSET:
@@ -9987,7 +12371,7 @@ Returns:
         variables['input'] = _input
         return (await self.aexecute(CreatePointLayerMutation, variables, task=task)).create_point_layer
 
-    def create_point_layer(self, scene: IDCoercible, table_dataset: IDCoercible, color_bys: Iterable[LabelColorByInput] | None | UnsetType=UNSET, active_color_by: int | None | UnsetType=UNSET, filter_bys: Iterable[LabelFilterByInput] | None | UnsetType=UNSET, active_filter_bys: Iterable[int] | None | UnsetType=UNSET, size_column: str | None | UnsetType=UNSET, color_column: str | None | UnsetType=UNSET, point_size: float | None | UnsetType=UNSET, colormap: ColorMap | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> LayerPointLayer:
+    def create_point_layer(self, scene: IDCoercible, lens: IDCoercible, color_bys: Iterable[LabelColorByInput] | None | UnsetType=UNSET, active_color_by: int | None | UnsetType=UNSET, filter_bys: Iterable[LabelFilterByInput] | None | UnsetType=UNSET, active_filter_bys: Iterable[int] | None | UnsetType=UNSET, size_column: str | None | UnsetType=UNSET, point_size: float | None | UnsetType=UNSET, colormap: ColorMap | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> LayerPointLayer:
         """CreatePointLayer 
  A point cloud drawn from a table dataset's coordinate columns. Its objects ARE
  rows of that table, so a colouring by one of its own columns needs no FIELD
@@ -9995,13 +12379,12 @@ Returns:
 
 Args:
     scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
-    table_dataset: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     color_bys: One entry of a label layer's colour picker: colour objects by a column of the table this mask's FIELD edge keys into, instead of by hashing their id (required) (list)
     active_color_by: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
     filter_bys: One entry of a label layer's filter picker: draw only the objects whose row in a table this mask's FIELD edge keys into satisfies this rule. Which half applies follows from the column's declared role -- bounds for a measure column, an explicit value set for a categorical one (required) (list)
     active_filter_bys: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
     size_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    color_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
     point_size: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     colormap: ColorMap
     blending: Blending
@@ -10016,7 +12399,7 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['scene'] = scene
-        _input['tableDataset'] = table_dataset
+        _input['lens'] = lens
         if color_bys is not UNSET:
             _input['colorBys'] = color_bys
         if active_color_by is not UNSET:
@@ -10027,8 +12410,6 @@ Returns:
             _input['activeFilterBys'] = active_filter_bys
         if size_column is not UNSET:
             _input['sizeColumn'] = size_column
-        if color_column is not UNSET:
-            _input['colorColumn'] = color_column
         if point_size is not UNSET:
             _input['pointSize'] = point_size
         if colormap is not UNSET:
@@ -10140,7 +12521,7 @@ Returns:
         variables['input'] = _input
         return self.execute(UpdatePointLayerMutation, variables, task=task).update_point_layer
 
-    async def acreate_track_layer(self, scene: IDCoercible, table_dataset: IDCoercible, color_by_column: str | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, colormap: ColorMap | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> LayerTrackLayer:
+    async def acreate_track_layer(self, scene: IDCoercible, lens: IDCoercible, color_by_column: str | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, colormap: ColorMap | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> LayerTrackLayer:
         """CreateTrackLayer 
  Trajectories from a table dataset, one polyline per value of its TRACK_ID column.
  The trajectory itself is the table's declaration — coordinate, track and time
@@ -10148,7 +12529,7 @@ Returns:
 
 Args:
     scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
-    table_dataset: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     color_by_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
     line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     colormap: ColorMap
@@ -10164,7 +12545,7 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['scene'] = scene
-        _input['tableDataset'] = table_dataset
+        _input['lens'] = lens
         if color_by_column is not UNSET:
             _input['colorByColumn'] = color_by_column
         if line_width is not UNSET:
@@ -10182,7 +12563,7 @@ Returns:
         variables['input'] = _input
         return (await self.aexecute(CreateTrackLayerMutation, variables, task=task)).create_track_layer
 
-    def create_track_layer(self, scene: IDCoercible, table_dataset: IDCoercible, color_by_column: str | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, colormap: ColorMap | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> LayerTrackLayer:
+    def create_track_layer(self, scene: IDCoercible, lens: IDCoercible, color_by_column: str | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, colormap: ColorMap | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> LayerTrackLayer:
         """CreateTrackLayer 
  Trajectories from a table dataset, one polyline per value of its TRACK_ID column.
  The trajectory itself is the table's declaration — coordinate, track and time
@@ -10190,7 +12571,7 @@ Returns:
 
 Args:
     scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
-    table_dataset: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     color_by_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
     line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     colormap: ColorMap
@@ -10206,7 +12587,7 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['scene'] = scene
-        _input['tableDataset'] = table_dataset
+        _input['lens'] = lens
         if color_by_column is not UNSET:
             _input['colorByColumn'] = color_by_column
         if line_width is not UNSET:
@@ -10302,53 +12683,447 @@ Returns:
         variables['input'] = _input
         return self.execute(UpdateTrackLayerMutation, variables, task=task).update_track_layer
 
-    async def acreate_lens(self, dataset: IDCoercible, slices: Iterable[SliceInput], task: TaskLike | None=None) -> Lens:
+    async def acreate_lens(self, dataset: IDCoercible | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, slices: Iterable[SliceInput] | None | UnsetType=UNSET, box: LensBoxInput | None | UnsetType=UNSET, annotation: IDCoercible | None | UnsetType=UNSET, name: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> ArrayLens:
         """CreateLens 
-
-Create a new lens from an existing dataset and slicing constraints
+ Every create here is get-or-create: a lens is one row per container and normalized
+ selection, so asking for the same selection twice answers with the same id.
 
 Args:
-    dataset: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
-    slices: Input type for a slice along one axis of a dataset (required) (list) (required)
+    dataset: The array dataset to select over. Exactly one of this and `lens`
+    lens: An array lens to cut from, in place of `dataset`: a crop of a crop. The slices are stated in this lens' own index space and composed through it; the result is the dataset's lens for the voxels that keeps
+    slices: Slices selecting a window of the dataset (or of the lens), one per axis to restrict. Omit, or pass an empty list, for everything: the dataset's whole lens, or the lens cut from. The same selection, however spelled, is the same lens
+    box: In place of `slices`: a box in any coordinate system the dataset reaches, cut to the voxels whose cells it meets. With `dataset` only: a box names its own frame, it is not relative to a crop
+    annotation: In place of `slices`: an annotation, cut to the voxels under its stored box (crop to the ROI). With `dataset`, of the whole dataset; with `lens`, what that lens selects under the box. The cut is recorded: the annotation lists the lens as one of its `derivedLenses`
+    name: What to call this selection. Applied when the lens has no name yet; a lens that already makes this selection and is named keeps its name: finding a selection is not a request to rename it, `updateLens` is
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
-    Lens
+    ArrayLens
 """
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
-        _input['dataset'] = dataset
-        _input['slices'] = slices
+        if dataset is not UNSET:
+            _input['dataset'] = dataset
+        if lens is not UNSET:
+            _input['lens'] = lens
+        if slices is not UNSET:
+            _input['slices'] = slices
+        if box is not UNSET:
+            _input['box'] = box
+        if annotation is not UNSET:
+            _input['annotation'] = annotation
+        if name is not UNSET:
+            _input['name'] = name
         variables['input'] = _input
         return (await self.aexecute(CreateLensMutation, variables, task=task)).create_lens
 
-    def create_lens(self, dataset: IDCoercible, slices: Iterable[SliceInput], task: TaskLike | None=None) -> Lens:
+    def create_lens(self, dataset: IDCoercible | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, slices: Iterable[SliceInput] | None | UnsetType=UNSET, box: LensBoxInput | None | UnsetType=UNSET, annotation: IDCoercible | None | UnsetType=UNSET, name: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> ArrayLens:
         """CreateLens 
-
-Create a new lens from an existing dataset and slicing constraints
+ Every create here is get-or-create: a lens is one row per container and normalized
+ selection, so asking for the same selection twice answers with the same id.
 
 Args:
-    dataset: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
-    slices: Input type for a slice along one axis of a dataset (required) (list) (required)
+    dataset: The array dataset to select over. Exactly one of this and `lens`
+    lens: An array lens to cut from, in place of `dataset`: a crop of a crop. The slices are stated in this lens' own index space and composed through it; the result is the dataset's lens for the voxels that keeps
+    slices: Slices selecting a window of the dataset (or of the lens), one per axis to restrict. Omit, or pass an empty list, for everything: the dataset's whole lens, or the lens cut from. The same selection, however spelled, is the same lens
+    box: In place of `slices`: a box in any coordinate system the dataset reaches, cut to the voxels whose cells it meets. With `dataset` only: a box names its own frame, it is not relative to a crop
+    annotation: In place of `slices`: an annotation, cut to the voxels under its stored box (crop to the ROI). With `dataset`, of the whole dataset; with `lens`, what that lens selects under the box. The cut is recorded: the annotation lists the lens as one of its `derivedLenses`
+    name: What to call this selection. Applied when the lens has no name yet; a lens that already makes this selection and is named keeps its name: finding a selection is not a request to rename it, `updateLens` is
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
-    Lens
+    ArrayLens
 """
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
-        _input['dataset'] = dataset
-        _input['slices'] = slices
+        if dataset is not UNSET:
+            _input['dataset'] = dataset
+        if lens is not UNSET:
+            _input['lens'] = lens
+        if slices is not UNSET:
+            _input['slices'] = slices
+        if box is not UNSET:
+            _input['box'] = box
+        if annotation is not UNSET:
+            _input['annotation'] = annotation
+        if name is not UNSET:
+            _input['name'] = name
         variables['input'] = _input
         return self.execute(CreateLensMutation, variables, task=task).create_lens
 
-    async def acreate_mesh_collection(self, version: str, store: FabriksCoercible, axes: Iterable[AxisInput | AxisName], folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, provenance_metadata: Any | None | UnsetType=UNSET, task: TaskLike | None=None) -> MeshCollection:
-        """CreateMeshCollection 
+    async def acreate_table_lens(self, table_dataset: IDCoercible | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, windows: Iterable[WindowInput] | None | UnsetType=UNSET, task: TaskLike | None=None) -> TableLens:
+        """CreateTableLens 
 
-Register an immutable, versioned mesh collection against a coordinate system
+The lens keeping these windows of a table dataset's coordinate columns: the one that exists, or a new one. It lives in the table's own space
 
 Args:
-    version: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    table_dataset: The table dataset to select over. Exactly one of this and `lens`
+    lens: A lens over the table dataset to select within, in place of the container: the windows then intersect with its own, and the result is the table dataset's lens for what that keeps
+    windows: Windows, one per axis to restrict, each keeping the positions whose value lies between its min and its max (an omitted side is open). Omit for everything: the table dataset's whole lens, or the lens cut from
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    TableLens
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        if table_dataset is not UNSET:
+            _input['tableDataset'] = table_dataset
+        if lens is not UNSET:
+            _input['lens'] = lens
+        if windows is not UNSET:
+            _input['windows'] = windows
+        variables['input'] = _input
+        return (await self.aexecute(CreateTableLensMutation, variables, task=task)).create_table_lens
+
+    def create_table_lens(self, table_dataset: IDCoercible | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, windows: Iterable[WindowInput] | None | UnsetType=UNSET, task: TaskLike | None=None) -> TableLens:
+        """CreateTableLens 
+
+The lens keeping these windows of a table dataset's coordinate columns: the one that exists, or a new one. It lives in the table's own space
+
+Args:
+    table_dataset: The table dataset to select over. Exactly one of this and `lens`
+    lens: A lens over the table dataset to select within, in place of the container: the windows then intersect with its own, and the result is the table dataset's lens for what that keeps
+    windows: Windows, one per axis to restrict, each keeping the positions whose value lies between its min and its max (an omitted side is open). Omit for everything: the table dataset's whole lens, or the lens cut from
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    TableLens
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        if table_dataset is not UNSET:
+            _input['tableDataset'] = table_dataset
+        if lens is not UNSET:
+            _input['lens'] = lens
+        if windows is not UNSET:
+            _input['windows'] = windows
+        variables['input'] = _input
+        return self.execute(CreateTableLensMutation, variables, task=task).create_table_lens
+
+    async def acreate_sparse_lens(self, sparse_dataset: IDCoercible | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, windows: Iterable[WindowInput] | None | UnsetType=UNSET, task: TaskLike | None=None) -> SparseLens:
+        """CreateSparseLens 
+
+The lens keeping these windows of a sparse dataset's axes: the one that exists, or a new one. A subset of positions, never a re-indexing
+
+Args:
+    sparse_dataset: The sparse dataset to select over. Exactly one of this and `lens`
+    lens: A lens over the sparse dataset to select within, in place of the container: the windows then intersect with its own, and the result is the sparse dataset's lens for what that keeps
+    windows: Windows, one per axis to restrict, each keeping the positions whose value lies between its min and its max (an omitted side is open). Omit for everything: the sparse dataset's whole lens, or the lens cut from
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    SparseLens
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        if sparse_dataset is not UNSET:
+            _input['sparseDataset'] = sparse_dataset
+        if lens is not UNSET:
+            _input['lens'] = lens
+        if windows is not UNSET:
+            _input['windows'] = windows
+        variables['input'] = _input
+        return (await self.aexecute(CreateSparseLensMutation, variables, task=task)).create_sparse_lens
+
+    def create_sparse_lens(self, sparse_dataset: IDCoercible | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, windows: Iterable[WindowInput] | None | UnsetType=UNSET, task: TaskLike | None=None) -> SparseLens:
+        """CreateSparseLens 
+
+The lens keeping these windows of a sparse dataset's axes: the one that exists, or a new one. A subset of positions, never a re-indexing
+
+Args:
+    sparse_dataset: The sparse dataset to select over. Exactly one of this and `lens`
+    lens: A lens over the sparse dataset to select within, in place of the container: the windows then intersect with its own, and the result is the sparse dataset's lens for what that keeps
+    windows: Windows, one per axis to restrict, each keeping the positions whose value lies between its min and its max (an omitted side is open). Omit for everything: the sparse dataset's whole lens, or the lens cut from
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    SparseLens
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        if sparse_dataset is not UNSET:
+            _input['sparseDataset'] = sparse_dataset
+        if lens is not UNSET:
+            _input['lens'] = lens
+        if windows is not UNSET:
+            _input['windows'] = windows
+        variables['input'] = _input
+        return self.execute(CreateSparseLensMutation, variables, task=task).create_sparse_lens
+
+    async def acreate_mesh_lens(self, mesh_collection: IDCoercible | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, windows: Iterable[WindowInput] | None | UnsetType=UNSET, task: TaskLike | None=None) -> MeshLens:
+        """CreateMeshLens 
+
+The lens keeping these windows of a mesh collection's own space: the one that exists, or a new one
+
+Args:
+    mesh_collection: The mesh collection to select over. Exactly one of this and `lens`
+    lens: A lens over the mesh collection to select within, in place of the container: the windows then intersect with its own, and the result is the mesh collection's lens for what that keeps
+    windows: Windows, one per axis to restrict, each keeping the positions whose value lies between its min and its max (an omitted side is open). Omit for everything: the mesh collection's whole lens, or the lens cut from
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    MeshLens
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        if mesh_collection is not UNSET:
+            _input['meshCollection'] = mesh_collection
+        if lens is not UNSET:
+            _input['lens'] = lens
+        if windows is not UNSET:
+            _input['windows'] = windows
+        variables['input'] = _input
+        return (await self.aexecute(CreateMeshLensMutation, variables, task=task)).create_mesh_lens
+
+    def create_mesh_lens(self, mesh_collection: IDCoercible | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, windows: Iterable[WindowInput] | None | UnsetType=UNSET, task: TaskLike | None=None) -> MeshLens:
+        """CreateMeshLens 
+
+The lens keeping these windows of a mesh collection's own space: the one that exists, or a new one
+
+Args:
+    mesh_collection: The mesh collection to select over. Exactly one of this and `lens`
+    lens: A lens over the mesh collection to select within, in place of the container: the windows then intersect with its own, and the result is the mesh collection's lens for what that keeps
+    windows: Windows, one per axis to restrict, each keeping the positions whose value lies between its min and its max (an omitted side is open). Omit for everything: the mesh collection's whole lens, or the lens cut from
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    MeshLens
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        if mesh_collection is not UNSET:
+            _input['meshCollection'] = mesh_collection
+        if lens is not UNSET:
+            _input['lens'] = lens
+        if windows is not UNSET:
+            _input['windows'] = windows
+        variables['input'] = _input
+        return self.execute(CreateMeshLensMutation, variables, task=task).create_mesh_lens
+
+    async def acreate_network_lens(self, network_collection: IDCoercible | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, windows: Iterable[WindowInput] | None | UnsetType=UNSET, task: TaskLike | None=None) -> NetworkLens:
+        """CreateNetworkLens 
+
+The lens keeping these windows of a network collection's own space: the one that exists, or a new one
+
+Args:
+    network_collection: The network collection to select over. Exactly one of this and `lens`
+    lens: A lens over the network collection to select within, in place of the container: the windows then intersect with its own, and the result is the network collection's lens for what that keeps
+    windows: Windows, one per axis to restrict, each keeping the positions whose value lies between its min and its max (an omitted side is open). Omit for everything: the network collection's whole lens, or the lens cut from
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    NetworkLens
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        if network_collection is not UNSET:
+            _input['networkCollection'] = network_collection
+        if lens is not UNSET:
+            _input['lens'] = lens
+        if windows is not UNSET:
+            _input['windows'] = windows
+        variables['input'] = _input
+        return (await self.aexecute(CreateNetworkLensMutation, variables, task=task)).create_network_lens
+
+    def create_network_lens(self, network_collection: IDCoercible | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, windows: Iterable[WindowInput] | None | UnsetType=UNSET, task: TaskLike | None=None) -> NetworkLens:
+        """CreateNetworkLens 
+
+The lens keeping these windows of a network collection's own space: the one that exists, or a new one
+
+Args:
+    network_collection: The network collection to select over. Exactly one of this and `lens`
+    lens: A lens over the network collection to select within, in place of the container: the windows then intersect with its own, and the result is the network collection's lens for what that keeps
+    windows: Windows, one per axis to restrict, each keeping the positions whose value lies between its min and its max (an omitted side is open). Omit for everything: the network collection's whole lens, or the lens cut from
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    NetworkLens
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        if network_collection is not UNSET:
+            _input['networkCollection'] = network_collection
+        if lens is not UNSET:
+            _input['lens'] = lens
+        if windows is not UNSET:
+            _input['windows'] = windows
+        variables['input'] = _input
+        return self.execute(CreateNetworkLensMutation, variables, task=task).create_network_lens
+
+    async def acreate_annotation_lens(self, annotation_collection: IDCoercible | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, windows: Iterable[WindowInput] | None | UnsetType=UNSET, task: TaskLike | None=None) -> AnnotationLens:
+        """CreateAnnotationLens 
+
+The lens keeping these windows of an annotation collection's drawing space: the one that exists, or a new one
+
+Args:
+    annotation_collection: The annotation collection to select over. Exactly one of this and `lens`
+    lens: A lens over the annotation collection to select within, in place of the container: the windows then intersect with its own, and the result is the annotation collection's lens for what that keeps
+    windows: Windows, one per axis to restrict, each keeping the positions whose value lies between its min and its max (an omitted side is open). Omit for everything: the annotation collection's whole lens, or the lens cut from
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    AnnotationLens
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        if annotation_collection is not UNSET:
+            _input['annotationCollection'] = annotation_collection
+        if lens is not UNSET:
+            _input['lens'] = lens
+        if windows is not UNSET:
+            _input['windows'] = windows
+        variables['input'] = _input
+        return (await self.aexecute(CreateAnnotationLensMutation, variables, task=task)).create_annotation_lens
+
+    def create_annotation_lens(self, annotation_collection: IDCoercible | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, windows: Iterable[WindowInput] | None | UnsetType=UNSET, task: TaskLike | None=None) -> AnnotationLens:
+        """CreateAnnotationLens 
+
+The lens keeping these windows of an annotation collection's drawing space: the one that exists, or a new one
+
+Args:
+    annotation_collection: The annotation collection to select over. Exactly one of this and `lens`
+    lens: A lens over the annotation collection to select within, in place of the container: the windows then intersect with its own, and the result is the annotation collection's lens for what that keeps
+    windows: Windows, one per axis to restrict, each keeping the positions whose value lies between its min and its max (an omitted side is open). Omit for everything: the annotation collection's whole lens, or the lens cut from
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    AnnotationLens
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        if annotation_collection is not UNSET:
+            _input['annotationCollection'] = annotation_collection
+        if lens is not UNSET:
+            _input['lens'] = lens
+        if windows is not UNSET:
+            _input['windows'] = windows
+        variables['input'] = _input
+        return self.execute(CreateAnnotationLensMutation, variables, task=task).create_annotation_lens
+
+    async def aupdate_lens(self, id: IDCoercible, name: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotated[UpdateLensMutationUpdateLensBaseAnnotationLens | UpdateLensMutationUpdateLensBaseArrayLens | UpdateLensMutationUpdateLensBaseMeshLens | UpdateLensMutationUpdateLensBaseNetworkLens | UpdateLensMutationUpdateLensBaseSparseLens | UpdateLensMutationUpdateLensBaseTableLens, Field(discriminator='typename')] | UpdateLensMutationUpdateLensBaseCatchAll:
+        """UpdateLens 
+ Renames only: a different selection is a different lens.
+
+Args:
+    id: The ID of the lens to update
+    name: The new name, or null (or blank) to clear it
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    UpdateLensMutationUpdateLens
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['id'] = id
+        if name is not UNSET:
+            _input['name'] = name
+        variables['input'] = _input
+        return (await self.aexecute(UpdateLensMutation, variables, task=task)).update_lens
+
+    def update_lens(self, id: IDCoercible, name: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotated[UpdateLensMutationUpdateLensBaseAnnotationLens | UpdateLensMutationUpdateLensBaseArrayLens | UpdateLensMutationUpdateLensBaseMeshLens | UpdateLensMutationUpdateLensBaseNetworkLens | UpdateLensMutationUpdateLensBaseSparseLens | UpdateLensMutationUpdateLensBaseTableLens, Field(discriminator='typename')] | UpdateLensMutationUpdateLensBaseCatchAll:
+        """UpdateLens 
+ Renames only: a different selection is a different lens.
+
+Args:
+    id: The ID of the lens to update
+    name: The new name, or null (or blank) to clear it
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    UpdateLensMutationUpdateLens
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['id'] = id
+        if name is not UNSET:
+            _input['name'] = name
+        variables['input'] = _input
+        return self.execute(UpdateLensMutation, variables, task=task).update_lens
+
+    async def aset_lens_default_scene(self, lens: IDCoercible, scene: IDCoercible | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotated[SetLensDefaultSceneMutationSetLensDefaultSceneBaseAnnotationLens | SetLensDefaultSceneMutationSetLensDefaultSceneBaseArrayLens | SetLensDefaultSceneMutationSetLensDefaultSceneBaseMeshLens | SetLensDefaultSceneMutationSetLensDefaultSceneBaseNetworkLens | SetLensDefaultSceneMutationSetLensDefaultSceneBaseSparseLens | SetLensDefaultSceneMutationSetLensDefaultSceneBaseTableLens, Field(discriminator='typename')] | SetLensDefaultSceneMutationSetLensDefaultSceneBaseCatchAll:
+        """SetLensDefaultScene 
+
+Nominate the scene to open for a lens, and take its thumbnail from. Null clears it. On an unsliced lens this writes its dataset's nomination: the lens is the dataset, looked at whole
+
+Args:
+    lens: The lens to nominate a scene for
+    scene: The scene to nominate, or null to clear the nomination
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    SetLensDefaultSceneMutationSetLensDefaultScene
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['lens'] = lens
+        if scene is not UNSET:
+            _input['scene'] = scene
+        variables['input'] = _input
+        return (await self.aexecute(SetLensDefaultSceneMutation, variables, task=task)).set_lens_default_scene
+
+    def set_lens_default_scene(self, lens: IDCoercible, scene: IDCoercible | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotated[SetLensDefaultSceneMutationSetLensDefaultSceneBaseAnnotationLens | SetLensDefaultSceneMutationSetLensDefaultSceneBaseArrayLens | SetLensDefaultSceneMutationSetLensDefaultSceneBaseMeshLens | SetLensDefaultSceneMutationSetLensDefaultSceneBaseNetworkLens | SetLensDefaultSceneMutationSetLensDefaultSceneBaseSparseLens | SetLensDefaultSceneMutationSetLensDefaultSceneBaseTableLens, Field(discriminator='typename')] | SetLensDefaultSceneMutationSetLensDefaultSceneBaseCatchAll:
+        """SetLensDefaultScene 
+
+Nominate the scene to open for a lens, and take its thumbnail from. Null clears it. On an unsliced lens this writes its dataset's nomination: the lens is the dataset, looked at whole
+
+Args:
+    lens: The lens to nominate a scene for
+    scene: The scene to nominate, or null to clear the nomination
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    SetLensDefaultSceneMutationSetLensDefaultScene
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['lens'] = lens
+        if scene is not UNSET:
+            _input['scene'] = scene
+        variables['input'] = _input
+        return self.execute(SetLensDefaultSceneMutation, variables, task=task).set_lens_default_scene
+
+    async def adelete_lens(self, id: IDCoercible, task: TaskLike | None=None) -> ID:
+        """DeleteLens 
+ Refused for a container's whole lens, and while a layer draws through the lens.
+
+Args:
+    id: The ID of the lens to delete
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ID
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['id'] = id
+        variables['input'] = _input
+        return (await self.aexecute(DeleteLensMutation, variables, task=task)).delete_lens
+
+    def delete_lens(self, id: IDCoercible, task: TaskLike | None=None) -> ID:
+        """DeleteLens 
+ Refused for a container's whole lens, and while a layer draws through the lens.
+
+Args:
+    id: The ID of the lens to delete
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ID
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['id'] = id
+        variables['input'] = _input
+        return self.execute(DeleteLensMutation, variables, task=task).delete_lens
+
+    async def acreate_mesh_collection(self, store: FabriksCoercible, axes: Iterable[AxisInput | AxisName], name: str | None | UnsetType=UNSET, folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, provenance_metadata: Any | None | UnsetType=UNSET, task: TaskLike | None=None) -> MeshCollection:
+        """CreateMeshCollection 
+
+Register an immutable mesh collection against a coordinate system
+
+Args:
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
     store: A reference to an uploaded **fabriks store**: one prefix holding `fabriks.json`, both catalogs and every octree level. Request it with `requestFabriksUpload`, write the tree, land the manifest last, then `finishFabriksUpload` -- which reads the manifest and refuses a prefix without one. A collection registered this way declares no grid and no encoding: the server reads them from the artifact, so they cannot be stated wrong (required)
     axes: Input type for one structural axis of a dataset's pixel grid: its name and its semantic kind. Units and spacings do not belong here -- they belong to a physical space, a separate coordinate system plus one edge (required) (list) (required)
     folder: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
@@ -10362,7 +13137,8 @@ Returns:
 """
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
-        _input['version'] = version
+        if name is not UNSET:
+            _input['name'] = name
         _input['store'] = store
         _input['axes'] = axes
         if folder is not UNSET:
@@ -10376,13 +13152,13 @@ Returns:
         variables['input'] = _input
         return (await self.aexecute(CreateMeshCollectionMutation, variables, task=task)).create_mesh_collection
 
-    def create_mesh_collection(self, version: str, store: FabriksCoercible, axes: Iterable[AxisInput | AxisName], folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, provenance_metadata: Any | None | UnsetType=UNSET, task: TaskLike | None=None) -> MeshCollection:
+    def create_mesh_collection(self, store: FabriksCoercible, axes: Iterable[AxisInput | AxisName], name: str | None | UnsetType=UNSET, folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, provenance_metadata: Any | None | UnsetType=UNSET, task: TaskLike | None=None) -> MeshCollection:
         """CreateMeshCollection 
 
-Register an immutable, versioned mesh collection against a coordinate system
+Register an immutable mesh collection against a coordinate system
 
 Args:
-    version: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
     store: A reference to an uploaded **fabriks store**: one prefix holding `fabriks.json`, both catalogs and every octree level. Request it with `requestFabriksUpload`, write the tree, land the manifest last, then `finishFabriksUpload` -- which reads the manifest and refuses a prefix without one. A collection registered this way declares no grid and no encoding: the server reads them from the artifact, so they cannot be stated wrong (required)
     axes: Input type for one structural axis of a dataset's pixel grid: its name and its semantic kind. Units and spacings do not belong here -- they belong to a physical space, a separate coordinate system plus one edge (required) (list) (required)
     folder: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
@@ -10396,7 +13172,8 @@ Returns:
 """
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
-        _input['version'] = version
+        if name is not UNSET:
+            _input['name'] = name
         _input['store'] = store
         _input['axes'] = axes
         if folder is not UNSET:
@@ -10446,13 +13223,13 @@ Returns:
         variables['input'] = _input
         return self.execute(DeleteMeshCollectionMutation, variables, task=task).delete_mesh_collection
 
-    async def acreate_network_collection(self, version: str, store: KonnektionCoercible, axes: Iterable[AxisInput | AxisName], folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, provenance_metadata: Any | None | UnsetType=UNSET, task: TaskLike | None=None) -> NetworkCollection:
+    async def acreate_network_collection(self, store: KonnektionCoercible, axes: Iterable[AxisInput | AxisName], name: str | None | UnsetType=UNSET, folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, provenance_metadata: Any | None | UnsetType=UNSET, task: TaskLike | None=None) -> NetworkCollection:
         """CreateNetworkCollection 
 
-Register an immutable, versioned network collection from an uploaded konnektion store, in a coordinate system of its own
+Register an immutable network collection from an uploaded konnektion store, in a coordinate system of its own
 
 Args:
-    version: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
     store: A reference to an uploaded **konnektion store**: one prefix holding `konnektion.json`, both catalogs and every octree level of a node/edge network. Named for the wire format the way `FabriksLike` is, and a separate scalar because it is a separate format -- a graph, not a surface. Request it with `requestKonnektionUpload`, write the tree, land the manifest last, then `finishKonnektionUpload` -- which reads the manifest and refuses a prefix without one. A collection registered this way declares no grid and no encoding: the server reads them from the artifact, so they cannot be stated wrong (required)
     axes: Input type for one structural axis of a dataset's pixel grid: its name and its semantic kind. Units and spacings do not belong here -- they belong to a physical space, a separate coordinate system plus one edge (required) (list) (required)
     folder: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
@@ -10466,7 +13243,8 @@ Returns:
 """
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
-        _input['version'] = version
+        if name is not UNSET:
+            _input['name'] = name
         _input['store'] = store
         _input['axes'] = axes
         if folder is not UNSET:
@@ -10480,13 +13258,13 @@ Returns:
         variables['input'] = _input
         return (await self.aexecute(CreateNetworkCollectionMutation, variables, task=task)).create_network_collection
 
-    def create_network_collection(self, version: str, store: KonnektionCoercible, axes: Iterable[AxisInput | AxisName], folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, provenance_metadata: Any | None | UnsetType=UNSET, task: TaskLike | None=None) -> NetworkCollection:
+    def create_network_collection(self, store: KonnektionCoercible, axes: Iterable[AxisInput | AxisName], name: str | None | UnsetType=UNSET, folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, provenance_metadata: Any | None | UnsetType=UNSET, task: TaskLike | None=None) -> NetworkCollection:
         """CreateNetworkCollection 
 
-Register an immutable, versioned network collection from an uploaded konnektion store, in a coordinate system of its own
+Register an immutable network collection from an uploaded konnektion store, in a coordinate system of its own
 
 Args:
-    version: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
     store: A reference to an uploaded **konnektion store**: one prefix holding `konnektion.json`, both catalogs and every octree level of a node/edge network. Named for the wire format the way `FabriksLike` is, and a separate scalar because it is a separate format -- a graph, not a surface. Request it with `requestKonnektionUpload`, write the tree, land the manifest last, then `finishKonnektionUpload` -- which reads the manifest and refuses a prefix without one. A collection registered this way declares no grid and no encoding: the server reads them from the artifact, so they cannot be stated wrong (required)
     axes: Input type for one structural axis of a dataset's pixel grid: its name and its semantic kind. Units and spacings do not belong here -- they belong to a physical space, a separate coordinate system plus one edge (required) (list) (required)
     folder: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
@@ -10500,7 +13278,8 @@ Returns:
 """
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
-        _input['version'] = version
+        if name is not UNSET:
+            _input['name'] = name
         _input['store'] = store
         _input['axes'] = axes
         if folder is not UNSET:
@@ -10550,7 +13329,7 @@ Returns:
         variables['input'] = _input
         return self.execute(DeleteNetworkCollectionMutation, variables, task=task).delete_network_collection
 
-    async def acreate_phasor_layer(self, lens: IDCoercible, scene: IDCoercible, phasor_axis: str | None | UnsetType=UNSET, intensity_axis: str | None | UnsetType=UNSET, intensity_index: int | None | UnsetType=UNSET, harmonic: int | None | UnsetType=UNSET, transfer: PhasorTransferInput | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> LayerPhasorLayer:
+    async def acreate_phasor_layer(self, lens: IDCoercible, scene: IDCoercible, phasor_axis: str | None | UnsetType=UNSET, harmonic: int | None | UnsetType=UNSET, transfer: PhasorTransferInput | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> LayerPhasorLayer:
         """CreatePhasorLayer 
 
 Create a phasor layer, reducing one axis of a lens to a phasor and coloring each pixel by it: a lifetime overlay over a FLIM (microtime) cube, or a spectral one over a hyperspectral cube. For a phasor composited *with* an ordinary intensity channel, use createLayer with a PhasorNode in the graph
@@ -10559,8 +13338,6 @@ Args:
     lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     phasor_axis: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    intensity_axis: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    intensity_index: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
     harmonic: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
     transfer: How a phasor becomes the pixel's color: the transfer function of a phasor source
     blending: Blending
@@ -10578,10 +13355,6 @@ Returns:
         _input['scene'] = scene
         if phasor_axis is not UNSET:
             _input['phasorAxis'] = phasor_axis
-        if intensity_axis is not UNSET:
-            _input['intensityAxis'] = intensity_axis
-        if intensity_index is not UNSET:
-            _input['intensityIndex'] = intensity_index
         if harmonic is not UNSET:
             _input['harmonic'] = harmonic
         if transfer is not UNSET:
@@ -10597,7 +13370,7 @@ Returns:
         variables['input'] = _input
         return (await self.aexecute(CreatePhasorLayerMutation, variables, task=task)).create_phasor_layer
 
-    def create_phasor_layer(self, lens: IDCoercible, scene: IDCoercible, phasor_axis: str | None | UnsetType=UNSET, intensity_axis: str | None | UnsetType=UNSET, intensity_index: int | None | UnsetType=UNSET, harmonic: int | None | UnsetType=UNSET, transfer: PhasorTransferInput | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> LayerPhasorLayer:
+    def create_phasor_layer(self, lens: IDCoercible, scene: IDCoercible, phasor_axis: str | None | UnsetType=UNSET, harmonic: int | None | UnsetType=UNSET, transfer: PhasorTransferInput | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> LayerPhasorLayer:
         """CreatePhasorLayer 
 
 Create a phasor layer, reducing one axis of a lens to a phasor and coloring each pixel by it: a lifetime overlay over a FLIM (microtime) cube, or a spectral one over a hyperspectral cube. For a phasor composited *with* an ordinary intensity channel, use createLayer with a PhasorNode in the graph
@@ -10606,8 +13379,6 @@ Args:
     lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     phasor_axis: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    intensity_axis: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    intensity_index: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
     harmonic: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
     transfer: How a phasor becomes the pixel's color: the transfer function of a phasor source
     blending: Blending
@@ -10625,10 +13396,6 @@ Returns:
         _input['scene'] = scene
         if phasor_axis is not UNSET:
             _input['phasorAxis'] = phasor_axis
-        if intensity_axis is not UNSET:
-            _input['intensityAxis'] = intensity_axis
-        if intensity_index is not UNSET:
-            _input['intensityIndex'] = intensity_index
         if harmonic is not UNSET:
             _input['harmonic'] = harmonic
         if transfer is not UNSET:
@@ -11068,6 +13835,114 @@ Returns:
         variables['input'] = _input
         return self.execute(DeleteSceneMutation, variables, task=task).delete_scene
 
+    async def acreate_scene_from_lens(self, lens: IDCoercible, nominate: bool, name: str | None | UnsetType=UNSET, kind: BootstrapLayerKind | None | UnsetType=UNSET, world: IDCoercible | None | UnsetType=UNSET, task: TaskLike | None=None) -> Scene:
+        """CreateSceneFromLens 
+ Stages one array lens -- a crop, a sub-volume or the whole array -- one layer per
+ channel. Staging a sliced lens' *space* instead would draw its whole dataset.
+
+Args:
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    kind: BootstrapLayerKind
+    world: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    nominate: The `Boolean` scalar type represents `true` or `false`. (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    Scene
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['lens'] = lens
+        if name is not UNSET:
+            _input['name'] = name
+        if kind is not UNSET:
+            _input['kind'] = kind
+        if world is not UNSET:
+            _input['world'] = world
+        _input['nominate'] = nominate
+        variables['input'] = _input
+        return (await self.aexecute(CreateSceneFromLensMutation, variables, task=task)).create_scene_from_lens
+
+    def create_scene_from_lens(self, lens: IDCoercible, nominate: bool, name: str | None | UnsetType=UNSET, kind: BootstrapLayerKind | None | UnsetType=UNSET, world: IDCoercible | None | UnsetType=UNSET, task: TaskLike | None=None) -> Scene:
+        """CreateSceneFromLens 
+ Stages one array lens -- a crop, a sub-volume or the whole array -- one layer per
+ channel. Staging a sliced lens' *space* instead would draw its whole dataset.
+
+Args:
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    kind: BootstrapLayerKind
+    world: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    nominate: The `Boolean` scalar type represents `true` or `false`. (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    Scene
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['lens'] = lens
+        if name is not UNSET:
+            _input['name'] = name
+        if kind is not UNSET:
+            _input['kind'] = kind
+        if world is not UNSET:
+            _input['world'] = world
+        _input['nominate'] = nominate
+        variables['input'] = _input
+        return self.execute(CreateSceneFromLensMutation, variables, task=task).create_scene_from_lens
+
+    async def aauto_visualize(self, coordinate_system: IDCoercible | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, name: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotated[AutoVisualizeMutationAutoVisualizeBaseChart | AutoVisualizeMutationAutoVisualizeBaseScene, Field(discriminator='typename')] | AutoVisualizeMutationAutoVisualizeBaseCatchAll:
+        """AutoVisualize 
+ Shows a space as whichever composition fits it: a chart over exactly one metric,
+ unit-carrying axis, a scene otherwise.
+
+Args:
+    coordinate_system: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    AutoVisualizeMutationAutoVisualize
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        if coordinate_system is not UNSET:
+            _input['coordinateSystem'] = coordinate_system
+        if lens is not UNSET:
+            _input['lens'] = lens
+        if name is not UNSET:
+            _input['name'] = name
+        variables['input'] = _input
+        return (await self.aexecute(AutoVisualizeMutation, variables, task=task)).auto_visualize
+
+    def auto_visualize(self, coordinate_system: IDCoercible | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, name: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotated[AutoVisualizeMutationAutoVisualizeBaseChart | AutoVisualizeMutationAutoVisualizeBaseScene, Field(discriminator='typename')] | AutoVisualizeMutationAutoVisualizeBaseCatchAll:
+        """AutoVisualize 
+ Shows a space as whichever composition fits it: a chart over exactly one metric,
+ unit-carrying axis, a scene otherwise.
+
+Args:
+    coordinate_system: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    AutoVisualizeMutationAutoVisualize
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        if coordinate_system is not UNSET:
+            _input['coordinateSystem'] = coordinate_system
+        if lens is not UNSET:
+            _input['lens'] = lens
+        if name is not UNSET:
+            _input['name'] = name
+        variables['input'] = _input
+        return self.execute(AutoVisualizeMutation, variables, task=task).auto_visualize
+
     async def acreate_scene_snapshot(self, file: ImageFileCoercible, scene: IDCoercible, name: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> SceneSnapshot:
         """CreateSceneSnapshot 
 
@@ -11355,7 +14230,7 @@ Create a table dataset from a Parquet store. Its declared coordinate columns bec
 
 Args:
     name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-    data: The `ParquetLike` scalar type represents a reference to a parquet objected stored previously created by the user on a datalayer (required)
+    data: The `ParquetLike` scalar type represents a reference to a parquet object previously created by the user on a datalayer (required)
     columns: One column of the table -- THE one declaration a column gets. **Every column of the Parquet is declared, and the declaration is checked against the file** -- same names, same order, same types -- so a declaration that has drifted from the data is refused rather than stored. That check is the whole reason `name` is here: it is a fact about the file, and stating it is how a caller says which file they think they are describing. `dtype` is **optional** -- the server read every column's type off the Parquet when the upload finished, so it is checked when given and taken from the file when not. Given, it is a **DuckDB** type name (`BIGINT`, `DOUBLE`, `VARCHAR`), not a pandas one where a float64 is a `double`. A non-null `axisType` makes the column an axis of the table's own space; **the axis-typed columns, in this list's (= the file's) order, ARE the space** -- a table has no byte order, its axes are named columns, and an edge wanting a different order states its own `inputAxes`/`outputAxes`. `identifiedBy` says what the values are, for an axis and a data column alike (required) (list) (required)
     description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
     folder: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
@@ -11392,7 +14267,7 @@ Create a table dataset from a Parquet store. Its declared coordinate columns bec
 
 Args:
     name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-    data: The `ParquetLike` scalar type represents a reference to a parquet objected stored previously created by the user on a datalayer (required)
+    data: The `ParquetLike` scalar type represents a reference to a parquet object previously created by the user on a datalayer (required)
     columns: One column of the table -- THE one declaration a column gets. **Every column of the Parquet is declared, and the declaration is checked against the file** -- same names, same order, same types -- so a declaration that has drifted from the data is refused rather than stored. That check is the whole reason `name` is here: it is a fact about the file, and stating it is how a caller says which file they think they are describing. `dtype` is **optional** -- the server read every column's type off the Parquet when the upload finished, so it is checked when given and taken from the file when not. Given, it is a **DuckDB** type name (`BIGINT`, `DOUBLE`, `VARCHAR`), not a pandas one where a float64 is a `double`. A non-null `axisType` makes the column an axis of the table's own space; **the axis-typed columns, in this list's (= the file's) order, ARE the space** -- a table has no byte order, its axes are named columns, and an edge wanting a different order states its own `inputAxes`/`outputAxes`. `identifiedBy` says what the values are, for an axis and a data column alike (required) (list) (required)
     description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
     folder: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
@@ -11996,6 +14871,64 @@ Returns:
             variables['offset'] = offset
         return self.execute(SearchAnnotationCollectionsQuery, variables, task=task).options
 
+    async def asearch_annotations(self, search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, requires: list[DescriptorConstraintInput] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[SearchAnnotationsQueryOptions, ...]:
+        """SearchAnnotations 
+ What a port's picker asks. `$requires` is the port's own constraints, handed on
+ unchanged by the frontend, so a port typed on paths is offered the paths.
+
+Args:
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    requires (list[DescriptorConstraintInput] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    list[SearchAnnotationsQueryAnnotations]
+"""
+        variables: dict[str, builtins.object] = {}
+        if search is not UNSET:
+            variables['search'] = search
+        if values is not UNSET:
+            variables['values'] = values
+        if requires is not UNSET:
+            variables['requires'] = requires
+        if limit is not UNSET:
+            variables['limit'] = limit
+        if offset is not UNSET:
+            variables['offset'] = offset
+        return (await self.aexecute(SearchAnnotationsQuery, variables, task=task)).options
+
+    def search_annotations(self, search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, requires: list[DescriptorConstraintInput] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[SearchAnnotationsQueryOptions, ...]:
+        """SearchAnnotations 
+ What a port's picker asks. `$requires` is the port's own constraints, handed on
+ unchanged by the frontend, so a port typed on paths is offered the paths.
+
+Args:
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    requires (list[DescriptorConstraintInput] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    list[SearchAnnotationsQueryAnnotations]
+"""
+        variables: dict[str, builtins.object] = {}
+        if search is not UNSET:
+            variables['search'] = search
+        if values is not UNSET:
+            variables['values'] = values
+        if requires is not UNSET:
+            variables['requires'] = requires
+        if limit is not UNSET:
+            variables['limit'] = limit
+        if offset is not UNSET:
+            variables['offset'] = offset
+        return self.execute(SearchAnnotationsQuery, variables, task=task).options
+
     async def aget_array_dataset(self, id: IDCoercible, task: TaskLike | None=None) -> ArrayDataset:
         """GetArrayDataset 
 
@@ -12181,6 +15114,202 @@ Returns:
         if max_join_depth is not UNSET:
             variables['maxJoinDepth'] = max_join_depth
         return self.execute(AttributePlansQuery, variables, task=task).attribute_plans
+
+    async def aget_chart(self, id: IDCoercible, task: TaskLike | None=None) -> Chart:
+        """GetChart 
+
+Get a single chart by ID
+
+Args:
+    id (ID): No description
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    Chart
+"""
+        variables: dict[str, builtins.object] = {}
+        variables['id'] = id
+        return (await self.aexecute(GetChartQuery, variables, task=task)).chart
+
+    def get_chart(self, id: IDCoercible, task: TaskLike | None=None) -> Chart:
+        """GetChart 
+
+Get a single chart by ID
+
+Args:
+    id (ID): No description
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    Chart
+"""
+        variables: dict[str, builtins.object] = {}
+        variables['id'] = id
+        return self.execute(GetChartQuery, variables, task=task).chart
+
+    async def asearch_charts(self, search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[SearchChartsQueryOptions, ...]:
+        """SearchCharts 
+
+List charts (compositions of data laid out along one metric axis)
+
+Args:
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    list[SearchChartsQueryCharts]
+"""
+        variables: dict[str, builtins.object] = {}
+        if search is not UNSET:
+            variables['search'] = search
+        if values is not UNSET:
+            variables['values'] = values
+        if limit is not UNSET:
+            variables['limit'] = limit
+        if offset is not UNSET:
+            variables['offset'] = offset
+        return (await self.aexecute(SearchChartsQuery, variables, task=task)).options
+
+    def search_charts(self, search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[SearchChartsQueryOptions, ...]:
+        """SearchCharts 
+
+List charts (compositions of data laid out along one metric axis)
+
+Args:
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    list[SearchChartsQueryCharts]
+"""
+        variables: dict[str, builtins.object] = {}
+        if search is not UNSET:
+            variables['search'] = search
+        if values is not UNSET:
+            variables['values'] = values
+        if limit is not UNSET:
+            variables['limit'] = limit
+        if offset is not UNSET:
+            variables['offset'] = offset
+        return self.execute(SearchChartsQuery, variables, task=task).options
+
+    async def alist_charts(self, filters: ChartFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[Chart, ...]:
+        """ListCharts 
+
+List charts (compositions of data laid out along one metric axis)
+
+Args:
+    filters (ChartFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    list[Chart]
+"""
+        variables: dict[str, builtins.object] = {}
+        if filters is not UNSET:
+            variables['filters'] = filters
+        if pagination is not UNSET:
+            variables['pagination'] = pagination
+        return (await self.aexecute(ListChartsQuery, variables, task=task)).charts
+
+    def list_charts(self, filters: ChartFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[Chart, ...]:
+        """ListCharts 
+
+List charts (compositions of data laid out along one metric axis)
+
+Args:
+    filters (ChartFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    list[Chart]
+"""
+        variables: dict[str, builtins.object] = {}
+        if filters is not UNSET:
+            variables['filters'] = filters
+        if pagination is not UNSET:
+            variables['pagination'] = pagination
+        return self.execute(ListChartsQuery, variables, task=task).charts
+
+    async def aget_chart_layer(self, id: IDCoercible, task: TaskLike | None=None) -> Annotated[GetChartLayerQueryChartLayerBaseAnnotationChartLayer | GetChartLayerQueryChartLayerBaseSeriesChartLayer | GetChartLayerQueryChartLayerBaseTraceChartLayer, Field(discriminator='typename')] | GetChartLayerQueryChartLayerBaseCatchAll:
+        """GetChartLayer 
+
+Get a single chart layer by ID
+
+Args:
+    id (ID): No description
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ChartLayer
+"""
+        variables: dict[str, builtins.object] = {}
+        variables['id'] = id
+        return (await self.aexecute(GetChartLayerQuery, variables, task=task)).chart_layer
+
+    def get_chart_layer(self, id: IDCoercible, task: TaskLike | None=None) -> Annotated[GetChartLayerQueryChartLayerBaseAnnotationChartLayer | GetChartLayerQueryChartLayerBaseSeriesChartLayer | GetChartLayerQueryChartLayerBaseTraceChartLayer, Field(discriminator='typename')] | GetChartLayerQueryChartLayerBaseCatchAll:
+        """GetChartLayer 
+
+Get a single chart layer by ID
+
+Args:
+    id (ID): No description
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ChartLayer
+"""
+        variables: dict[str, builtins.object] = {}
+        variables['id'] = id
+        return self.execute(GetChartLayerQuery, variables, task=task).chart_layer
+
+    async def achart_layers(self, filters: ChartLayerFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[Annotated[ChartLayersQueryChartLayersBaseAnnotationChartLayer | ChartLayersQueryChartLayersBaseSeriesChartLayer | ChartLayersQueryChartLayersBaseTraceChartLayer, Field(discriminator='typename')] | ChartLayersQueryChartLayersBaseCatchAll, ...]:
+        """ChartLayers 
+
+List layers drawn in charts (a heterogeneous list of layer kinds)
+
+Args:
+    filters (ChartLayerFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    list[ChartLayer]
+"""
+        variables: dict[str, builtins.object] = {}
+        if filters is not UNSET:
+            variables['filters'] = filters
+        if pagination is not UNSET:
+            variables['pagination'] = pagination
+        return (await self.aexecute(ChartLayersQuery, variables, task=task)).chart_layers
+
+    def chart_layers(self, filters: ChartLayerFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[Annotated[ChartLayersQueryChartLayersBaseAnnotationChartLayer | ChartLayersQueryChartLayersBaseSeriesChartLayer | ChartLayersQueryChartLayersBaseTraceChartLayer, Field(discriminator='typename')] | ChartLayersQueryChartLayersBaseCatchAll, ...]:
+        """ChartLayers 
+
+List layers drawn in charts (a heterogeneous list of layer kinds)
+
+Args:
+    filters (ChartLayerFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    list[ChartLayer]
+"""
+        variables: dict[str, builtins.object] = {}
+        if filters is not UNSET:
+            variables['filters'] = filters
+        if pagination is not UNSET:
+            variables['pagination'] = pagination
+        return self.execute(ChartLayersQuery, variables, task=task).chart_layers
 
     async def alabel_color_by_options(self, lens: IDCoercible, filters: ColumnOptionFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, max_join_depth: int | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[ColorByOption, ...]:
         """LabelColorByOptions 
@@ -12489,7 +15618,7 @@ Returns:
     async def aget_coordinate_graph(self, coordinate_system: IDCoercible, max_depth: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> GetCoordinateGraphQueryCoordinateGraph:
         """GetCoordinateGraph 
 
-Walk the coordinate graph out from one system: every coordinate system it reaches and every top-level edge between them. Reachability is undirected (an edge pointing into the system relates to it as much as one pointing out), the edges keep their true direction, and nothing is composed -- what the list queries cannot answer is 'which edges relate to *this* one', because relatedness is transitive and a filter is not
+Walk the coordinate graph out from one system: every coordinate system it reaches and every edge between them. Reachability is undirected (an edge pointing into the system relates to it as much as one pointing out), the edges keep their true direction, and nothing is composed -- what the list queries cannot answer is 'which edges relate to *this* one', because relatedness is transitive and a filter is not
 
 Args:
     coordinate_system (ID): No description
@@ -12508,7 +15637,7 @@ Returns:
     def get_coordinate_graph(self, coordinate_system: IDCoercible, max_depth: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> GetCoordinateGraphQueryCoordinateGraph:
         """GetCoordinateGraph 
 
-Walk the coordinate graph out from one system: every coordinate system it reaches and every top-level edge between them. Reachability is undirected (an edge pointing into the system relates to it as much as one pointing out), the edges keep their true direction, and nothing is composed -- what the list queries cannot answer is 'which edges relate to *this* one', because relatedness is transitive and a filter is not
+Walk the coordinate graph out from one system: every coordinate system it reaches and every edge between them. Reachability is undirected (an edge pointing into the system relates to it as much as one pointing out), the edges keep their true direction, and nothing is composed -- what the list queries cannot answer is 'which edges relate to *this* one', because relatedness is transitive and a filter is not
 
 Args:
     coordinate_system (ID): No description
@@ -12892,37 +16021,501 @@ Returns:
             variables['pagination'] = pagination
         return self.execute(LayersQuery, variables, task=task).layers
 
-    async def aget_lens(self, id: IDCoercible, task: TaskLike | None=None) -> Lens:
+    async def aget_lens(self, id: IDCoercible, task: TaskLike | None=None) -> Annotated[GetLensQueryLensBaseAnnotationLens | GetLensQueryLensBaseArrayLens | GetLensQueryLensBaseMeshLens | GetLensQueryLensBaseNetworkLens | GetLensQueryLensBaseSparseLens | GetLensQueryLensBaseTableLens, Field(discriminator='typename')] | GetLensQueryLensBaseCatchAll:
         """GetLens 
-
-Get a single lens by ID
+ `lens(id)` answers with whichever kind the id is. The array arm is the full fragment;
+ the windowed kinds are theirs.
 
 Args:
     id (ID): No description
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
-    Lens
+    GetLensQueryLens
 """
         variables: dict[str, builtins.object] = {}
         variables['id'] = id
         return (await self.aexecute(GetLensQuery, variables, task=task)).lens
 
-    def get_lens(self, id: IDCoercible, task: TaskLike | None=None) -> Lens:
+    def get_lens(self, id: IDCoercible, task: TaskLike | None=None) -> Annotated[GetLensQueryLensBaseAnnotationLens | GetLensQueryLensBaseArrayLens | GetLensQueryLensBaseMeshLens | GetLensQueryLensBaseNetworkLens | GetLensQueryLensBaseSparseLens | GetLensQueryLensBaseTableLens, Field(discriminator='typename')] | GetLensQueryLensBaseCatchAll:
         """GetLens 
-
-Get a single lens by ID
+ `lens(id)` answers with whichever kind the id is. The array arm is the full fragment;
+ the windowed kinds are theirs.
 
 Args:
     id (ID): No description
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
-    Lens
+    GetLensQueryLens
 """
         variables: dict[str, builtins.object] = {}
         variables['id'] = id
         return self.execute(GetLensQuery, variables, task=task).lens
+
+    async def aget_full_lens(self, dataset: IDCoercible, task: TaskLike | None=None) -> GetFullLensQueryArrayDataset:
+        """GetFullLens 
+ The lens that selects a whole dataset, read rather than made: every dataset is created
+ with one. Null only for a dataset with no pixel grid to select over.
+
+Args:
+    dataset (ID): No description
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    GetFullLensQueryArrayDataset
+"""
+        variables: dict[str, builtins.object] = {}
+        variables['dataset'] = dataset
+        return (await self.aexecute(GetFullLensQuery, variables, task=task)).array_dataset
+
+    def get_full_lens(self, dataset: IDCoercible, task: TaskLike | None=None) -> GetFullLensQueryArrayDataset:
+        """GetFullLens 
+ The lens that selects a whole dataset, read rather than made: every dataset is created
+ with one. Null only for a dataset with no pixel grid to select over.
+
+Args:
+    dataset (ID): No description
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    GetFullLensQueryArrayDataset
+"""
+        variables: dict[str, builtins.object] = {}
+        variables['dataset'] = dataset
+        return self.execute(GetFullLensQuery, variables, task=task).array_dataset
+
+    async def aget_dataset_lenses(self, dataset: IDCoercible, sliced: bool | None | UnsetType=UNSET, task: TaskLike | None=None) -> GetDatasetLensesQueryArrayDataset:
+        """GetDatasetLenses 
+ The array lenses over one dataset, oldest first. `sliced: true` keeps the crops and
+ sub-volumes, `false` the whole lens.
+
+Args:
+    dataset (ID): No description
+    sliced (bool | None, optional): No description. 
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    GetDatasetLensesQueryArrayDataset
+"""
+        variables: dict[str, builtins.object] = {}
+        variables['dataset'] = dataset
+        if sliced is not UNSET:
+            variables['sliced'] = sliced
+        return (await self.aexecute(GetDatasetLensesQuery, variables, task=task)).array_dataset
+
+    def get_dataset_lenses(self, dataset: IDCoercible, sliced: bool | None | UnsetType=UNSET, task: TaskLike | None=None) -> GetDatasetLensesQueryArrayDataset:
+        """GetDatasetLenses 
+ The array lenses over one dataset, oldest first. `sliced: true` keeps the crops and
+ sub-volumes, `false` the whole lens.
+
+Args:
+    dataset (ID): No description
+    sliced (bool | None, optional): No description. 
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    GetDatasetLensesQueryArrayDataset
+"""
+        variables: dict[str, builtins.object] = {}
+        variables['dataset'] = dataset
+        if sliced is not UNSET:
+            variables['sliced'] = sliced
+        return self.execute(GetDatasetLensesQuery, variables, task=task).array_dataset
+
+    async def aget_lenses(self, filters: LensFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[Annotated[GetLensesQueryLensesBaseAnnotationLens | GetLensesQueryLensesBaseArrayLens | GetLensesQueryLensesBaseMeshLens | GetLensesQueryLensesBaseNetworkLens | GetLensesQueryLensesBaseSparseLens | GetLensesQueryLensesBaseTableLens, Field(discriminator='typename')] | GetLensesQueryLensesBaseCatchAll, ...]:
+        """GetLenses 
+ Lenses of every kind. Most have no name and are known by their container's, which
+ is what `filters.search` matches too; `filters.sliced: true` keeps the ones that cut
+ something out, which is what a list meant for people wants.
+
+Args:
+    filters (LensFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    list[GetLensesQueryLenses]
+"""
+        variables: dict[str, builtins.object] = {}
+        if filters is not UNSET:
+            variables['filters'] = filters
+        if pagination is not UNSET:
+            variables['pagination'] = pagination
+        return (await self.aexecute(GetLensesQuery, variables, task=task)).lenses
+
+    def get_lenses(self, filters: LensFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[Annotated[GetLensesQueryLensesBaseAnnotationLens | GetLensesQueryLensesBaseArrayLens | GetLensesQueryLensesBaseMeshLens | GetLensesQueryLensesBaseNetworkLens | GetLensesQueryLensesBaseSparseLens | GetLensesQueryLensesBaseTableLens, Field(discriminator='typename')] | GetLensesQueryLensesBaseCatchAll, ...]:
+        """GetLenses 
+ Lenses of every kind. Most have no name and are known by their container's, which
+ is what `filters.search` matches too; `filters.sliced: true` keeps the ones that cut
+ something out, which is what a list meant for people wants.
+
+Args:
+    filters (LensFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    list[GetLensesQueryLenses]
+"""
+        variables: dict[str, builtins.object] = {}
+        if filters is not UNSET:
+            variables['filters'] = filters
+        if pagination is not UNSET:
+            variables['pagination'] = pagination
+        return self.execute(GetLensesQuery, variables, task=task).lenses
+
+    async def asearch_array_lenses(self, search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, requires: list[DescriptorConstraintInput] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[Annotated[SearchArrayLensesQueryOptionsBaseAnnotationLens | SearchArrayLensesQueryOptionsBaseArrayLens | SearchArrayLensesQueryOptionsBaseMeshLens | SearchArrayLensesQueryOptionsBaseNetworkLens | SearchArrayLensesQueryOptionsBaseSparseLens | SearchArrayLensesQueryOptionsBaseTableLens, Field(discriminator='typename')] | SearchArrayLensesQueryOptionsBaseCatchAll, ...]:
+        """SearchArrayLenses 
+ What a port's picker asks, one query per lens kind because a port is typed on one kind.
+ `$requires` is the port's own constraints, handed on unchanged by the frontend: the
+ server keeps only the lenses satisfying them, so a `Volume` port is offered volumes.
+ `label` is never empty (a lens nobody named is called by its container and selection).
+
+Args:
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    requires (list[DescriptorConstraintInput] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    list[SearchArrayLensesQueryLenses]
+"""
+        variables: dict[str, builtins.object] = {}
+        if search is not UNSET:
+            variables['search'] = search
+        if values is not UNSET:
+            variables['values'] = values
+        if requires is not UNSET:
+            variables['requires'] = requires
+        if limit is not UNSET:
+            variables['limit'] = limit
+        if offset is not UNSET:
+            variables['offset'] = offset
+        return (await self.aexecute(SearchArrayLensesQuery, variables, task=task)).options
+
+    def search_array_lenses(self, search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, requires: list[DescriptorConstraintInput] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[Annotated[SearchArrayLensesQueryOptionsBaseAnnotationLens | SearchArrayLensesQueryOptionsBaseArrayLens | SearchArrayLensesQueryOptionsBaseMeshLens | SearchArrayLensesQueryOptionsBaseNetworkLens | SearchArrayLensesQueryOptionsBaseSparseLens | SearchArrayLensesQueryOptionsBaseTableLens, Field(discriminator='typename')] | SearchArrayLensesQueryOptionsBaseCatchAll, ...]:
+        """SearchArrayLenses 
+ What a port's picker asks, one query per lens kind because a port is typed on one kind.
+ `$requires` is the port's own constraints, handed on unchanged by the frontend: the
+ server keeps only the lenses satisfying them, so a `Volume` port is offered volumes.
+ `label` is never empty (a lens nobody named is called by its container and selection).
+
+Args:
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    requires (list[DescriptorConstraintInput] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    list[SearchArrayLensesQueryLenses]
+"""
+        variables: dict[str, builtins.object] = {}
+        if search is not UNSET:
+            variables['search'] = search
+        if values is not UNSET:
+            variables['values'] = values
+        if requires is not UNSET:
+            variables['requires'] = requires
+        if limit is not UNSET:
+            variables['limit'] = limit
+        if offset is not UNSET:
+            variables['offset'] = offset
+        return self.execute(SearchArrayLensesQuery, variables, task=task).options
+
+    async def asearch_table_lenses(self, search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, requires: list[DescriptorConstraintInput] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[Annotated[SearchTableLensesQueryOptionsBaseAnnotationLens | SearchTableLensesQueryOptionsBaseArrayLens | SearchTableLensesQueryOptionsBaseMeshLens | SearchTableLensesQueryOptionsBaseNetworkLens | SearchTableLensesQueryOptionsBaseSparseLens | SearchTableLensesQueryOptionsBaseTableLens, Field(discriminator='typename')] | SearchTableLensesQueryOptionsBaseCatchAll, ...]:
+        """SearchTableLenses 
+
+List lenses: selections over array datasets (by slices) and over tables, sparse datasets, meshes, networks and annotation collections (by windows), a heterogeneous list of lens kinds
+
+Args:
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    requires (list[DescriptorConstraintInput] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    list[SearchTableLensesQueryLenses]
+"""
+        variables: dict[str, builtins.object] = {}
+        if search is not UNSET:
+            variables['search'] = search
+        if values is not UNSET:
+            variables['values'] = values
+        if requires is not UNSET:
+            variables['requires'] = requires
+        if limit is not UNSET:
+            variables['limit'] = limit
+        if offset is not UNSET:
+            variables['offset'] = offset
+        return (await self.aexecute(SearchTableLensesQuery, variables, task=task)).options
+
+    def search_table_lenses(self, search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, requires: list[DescriptorConstraintInput] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[Annotated[SearchTableLensesQueryOptionsBaseAnnotationLens | SearchTableLensesQueryOptionsBaseArrayLens | SearchTableLensesQueryOptionsBaseMeshLens | SearchTableLensesQueryOptionsBaseNetworkLens | SearchTableLensesQueryOptionsBaseSparseLens | SearchTableLensesQueryOptionsBaseTableLens, Field(discriminator='typename')] | SearchTableLensesQueryOptionsBaseCatchAll, ...]:
+        """SearchTableLenses 
+
+List lenses: selections over array datasets (by slices) and over tables, sparse datasets, meshes, networks and annotation collections (by windows), a heterogeneous list of lens kinds
+
+Args:
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    requires (list[DescriptorConstraintInput] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    list[SearchTableLensesQueryLenses]
+"""
+        variables: dict[str, builtins.object] = {}
+        if search is not UNSET:
+            variables['search'] = search
+        if values is not UNSET:
+            variables['values'] = values
+        if requires is not UNSET:
+            variables['requires'] = requires
+        if limit is not UNSET:
+            variables['limit'] = limit
+        if offset is not UNSET:
+            variables['offset'] = offset
+        return self.execute(SearchTableLensesQuery, variables, task=task).options
+
+    async def asearch_sparse_lenses(self, search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, requires: list[DescriptorConstraintInput] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[Annotated[SearchSparseLensesQueryOptionsBaseAnnotationLens | SearchSparseLensesQueryOptionsBaseArrayLens | SearchSparseLensesQueryOptionsBaseMeshLens | SearchSparseLensesQueryOptionsBaseNetworkLens | SearchSparseLensesQueryOptionsBaseSparseLens | SearchSparseLensesQueryOptionsBaseTableLens, Field(discriminator='typename')] | SearchSparseLensesQueryOptionsBaseCatchAll, ...]:
+        """SearchSparseLenses 
+
+List lenses: selections over array datasets (by slices) and over tables, sparse datasets, meshes, networks and annotation collections (by windows), a heterogeneous list of lens kinds
+
+Args:
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    requires (list[DescriptorConstraintInput] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    list[SearchSparseLensesQueryLenses]
+"""
+        variables: dict[str, builtins.object] = {}
+        if search is not UNSET:
+            variables['search'] = search
+        if values is not UNSET:
+            variables['values'] = values
+        if requires is not UNSET:
+            variables['requires'] = requires
+        if limit is not UNSET:
+            variables['limit'] = limit
+        if offset is not UNSET:
+            variables['offset'] = offset
+        return (await self.aexecute(SearchSparseLensesQuery, variables, task=task)).options
+
+    def search_sparse_lenses(self, search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, requires: list[DescriptorConstraintInput] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[Annotated[SearchSparseLensesQueryOptionsBaseAnnotationLens | SearchSparseLensesQueryOptionsBaseArrayLens | SearchSparseLensesQueryOptionsBaseMeshLens | SearchSparseLensesQueryOptionsBaseNetworkLens | SearchSparseLensesQueryOptionsBaseSparseLens | SearchSparseLensesQueryOptionsBaseTableLens, Field(discriminator='typename')] | SearchSparseLensesQueryOptionsBaseCatchAll, ...]:
+        """SearchSparseLenses 
+
+List lenses: selections over array datasets (by slices) and over tables, sparse datasets, meshes, networks and annotation collections (by windows), a heterogeneous list of lens kinds
+
+Args:
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    requires (list[DescriptorConstraintInput] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    list[SearchSparseLensesQueryLenses]
+"""
+        variables: dict[str, builtins.object] = {}
+        if search is not UNSET:
+            variables['search'] = search
+        if values is not UNSET:
+            variables['values'] = values
+        if requires is not UNSET:
+            variables['requires'] = requires
+        if limit is not UNSET:
+            variables['limit'] = limit
+        if offset is not UNSET:
+            variables['offset'] = offset
+        return self.execute(SearchSparseLensesQuery, variables, task=task).options
+
+    async def asearch_mesh_lenses(self, search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, requires: list[DescriptorConstraintInput] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[Annotated[SearchMeshLensesQueryOptionsBaseAnnotationLens | SearchMeshLensesQueryOptionsBaseArrayLens | SearchMeshLensesQueryOptionsBaseMeshLens | SearchMeshLensesQueryOptionsBaseNetworkLens | SearchMeshLensesQueryOptionsBaseSparseLens | SearchMeshLensesQueryOptionsBaseTableLens, Field(discriminator='typename')] | SearchMeshLensesQueryOptionsBaseCatchAll, ...]:
+        """SearchMeshLenses 
+
+List lenses: selections over array datasets (by slices) and over tables, sparse datasets, meshes, networks and annotation collections (by windows), a heterogeneous list of lens kinds
+
+Args:
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    requires (list[DescriptorConstraintInput] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    list[SearchMeshLensesQueryLenses]
+"""
+        variables: dict[str, builtins.object] = {}
+        if search is not UNSET:
+            variables['search'] = search
+        if values is not UNSET:
+            variables['values'] = values
+        if requires is not UNSET:
+            variables['requires'] = requires
+        if limit is not UNSET:
+            variables['limit'] = limit
+        if offset is not UNSET:
+            variables['offset'] = offset
+        return (await self.aexecute(SearchMeshLensesQuery, variables, task=task)).options
+
+    def search_mesh_lenses(self, search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, requires: list[DescriptorConstraintInput] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[Annotated[SearchMeshLensesQueryOptionsBaseAnnotationLens | SearchMeshLensesQueryOptionsBaseArrayLens | SearchMeshLensesQueryOptionsBaseMeshLens | SearchMeshLensesQueryOptionsBaseNetworkLens | SearchMeshLensesQueryOptionsBaseSparseLens | SearchMeshLensesQueryOptionsBaseTableLens, Field(discriminator='typename')] | SearchMeshLensesQueryOptionsBaseCatchAll, ...]:
+        """SearchMeshLenses 
+
+List lenses: selections over array datasets (by slices) and over tables, sparse datasets, meshes, networks and annotation collections (by windows), a heterogeneous list of lens kinds
+
+Args:
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    requires (list[DescriptorConstraintInput] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    list[SearchMeshLensesQueryLenses]
+"""
+        variables: dict[str, builtins.object] = {}
+        if search is not UNSET:
+            variables['search'] = search
+        if values is not UNSET:
+            variables['values'] = values
+        if requires is not UNSET:
+            variables['requires'] = requires
+        if limit is not UNSET:
+            variables['limit'] = limit
+        if offset is not UNSET:
+            variables['offset'] = offset
+        return self.execute(SearchMeshLensesQuery, variables, task=task).options
+
+    async def asearch_network_lenses(self, search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, requires: list[DescriptorConstraintInput] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[Annotated[SearchNetworkLensesQueryOptionsBaseAnnotationLens | SearchNetworkLensesQueryOptionsBaseArrayLens | SearchNetworkLensesQueryOptionsBaseMeshLens | SearchNetworkLensesQueryOptionsBaseNetworkLens | SearchNetworkLensesQueryOptionsBaseSparseLens | SearchNetworkLensesQueryOptionsBaseTableLens, Field(discriminator='typename')] | SearchNetworkLensesQueryOptionsBaseCatchAll, ...]:
+        """SearchNetworkLenses 
+
+List lenses: selections over array datasets (by slices) and over tables, sparse datasets, meshes, networks and annotation collections (by windows), a heterogeneous list of lens kinds
+
+Args:
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    requires (list[DescriptorConstraintInput] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    list[SearchNetworkLensesQueryLenses]
+"""
+        variables: dict[str, builtins.object] = {}
+        if search is not UNSET:
+            variables['search'] = search
+        if values is not UNSET:
+            variables['values'] = values
+        if requires is not UNSET:
+            variables['requires'] = requires
+        if limit is not UNSET:
+            variables['limit'] = limit
+        if offset is not UNSET:
+            variables['offset'] = offset
+        return (await self.aexecute(SearchNetworkLensesQuery, variables, task=task)).options
+
+    def search_network_lenses(self, search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, requires: list[DescriptorConstraintInput] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[Annotated[SearchNetworkLensesQueryOptionsBaseAnnotationLens | SearchNetworkLensesQueryOptionsBaseArrayLens | SearchNetworkLensesQueryOptionsBaseMeshLens | SearchNetworkLensesQueryOptionsBaseNetworkLens | SearchNetworkLensesQueryOptionsBaseSparseLens | SearchNetworkLensesQueryOptionsBaseTableLens, Field(discriminator='typename')] | SearchNetworkLensesQueryOptionsBaseCatchAll, ...]:
+        """SearchNetworkLenses 
+
+List lenses: selections over array datasets (by slices) and over tables, sparse datasets, meshes, networks and annotation collections (by windows), a heterogeneous list of lens kinds
+
+Args:
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    requires (list[DescriptorConstraintInput] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    list[SearchNetworkLensesQueryLenses]
+"""
+        variables: dict[str, builtins.object] = {}
+        if search is not UNSET:
+            variables['search'] = search
+        if values is not UNSET:
+            variables['values'] = values
+        if requires is not UNSET:
+            variables['requires'] = requires
+        if limit is not UNSET:
+            variables['limit'] = limit
+        if offset is not UNSET:
+            variables['offset'] = offset
+        return self.execute(SearchNetworkLensesQuery, variables, task=task).options
+
+    async def asearch_annotation_lenses(self, search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, requires: list[DescriptorConstraintInput] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[Annotated[SearchAnnotationLensesQueryOptionsBaseAnnotationLens | SearchAnnotationLensesQueryOptionsBaseArrayLens | SearchAnnotationLensesQueryOptionsBaseMeshLens | SearchAnnotationLensesQueryOptionsBaseNetworkLens | SearchAnnotationLensesQueryOptionsBaseSparseLens | SearchAnnotationLensesQueryOptionsBaseTableLens, Field(discriminator='typename')] | SearchAnnotationLensesQueryOptionsBaseCatchAll, ...]:
+        """SearchAnnotationLenses 
+
+List lenses: selections over array datasets (by slices) and over tables, sparse datasets, meshes, networks and annotation collections (by windows), a heterogeneous list of lens kinds
+
+Args:
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    requires (list[DescriptorConstraintInput] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    list[SearchAnnotationLensesQueryLenses]
+"""
+        variables: dict[str, builtins.object] = {}
+        if search is not UNSET:
+            variables['search'] = search
+        if values is not UNSET:
+            variables['values'] = values
+        if requires is not UNSET:
+            variables['requires'] = requires
+        if limit is not UNSET:
+            variables['limit'] = limit
+        if offset is not UNSET:
+            variables['offset'] = offset
+        return (await self.aexecute(SearchAnnotationLensesQuery, variables, task=task)).options
+
+    def search_annotation_lenses(self, search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, requires: list[DescriptorConstraintInput] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[Annotated[SearchAnnotationLensesQueryOptionsBaseAnnotationLens | SearchAnnotationLensesQueryOptionsBaseArrayLens | SearchAnnotationLensesQueryOptionsBaseMeshLens | SearchAnnotationLensesQueryOptionsBaseNetworkLens | SearchAnnotationLensesQueryOptionsBaseSparseLens | SearchAnnotationLensesQueryOptionsBaseTableLens, Field(discriminator='typename')] | SearchAnnotationLensesQueryOptionsBaseCatchAll, ...]:
+        """SearchAnnotationLenses 
+
+List lenses: selections over array datasets (by slices) and over tables, sparse datasets, meshes, networks and annotation collections (by windows), a heterogeneous list of lens kinds
+
+Args:
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    requires (list[DescriptorConstraintInput] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    list[SearchAnnotationLensesQueryLenses]
+"""
+        variables: dict[str, builtins.object] = {}
+        if search is not UNSET:
+            variables['search'] = search
+        if values is not UNSET:
+            variables['values'] = values
+        if requires is not UNSET:
+            variables['requires'] = requires
+        if limit is not UNSET:
+            variables['limit'] = limit
+        if offset is not UNSET:
+            variables['offset'] = offset
+        return self.execute(SearchAnnotationLensesQuery, variables, task=task).options
 
     async def aget_mesh_collection(self, id: IDCoercible, task: TaskLike | None=None) -> MeshCollection:
         """GetMeshCollection 
@@ -12959,7 +16552,7 @@ Returns:
     async def aget_mesh_collections(self, filters: MeshCollectionFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[MeshCollection, ...]:
         """GetMeshCollections 
 
-List mesh collections (immutable, versioned Parquet-backed mesh sets, each in a coordinate system of its own)
+List mesh collections (immutable Parquet-backed mesh sets, each in a coordinate system of its own)
 
 Args:
     filters (MeshCollectionFilter | None, optional): No description. 
@@ -12979,7 +16572,7 @@ Returns:
     def get_mesh_collections(self, filters: MeshCollectionFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[MeshCollection, ...]:
         """GetMeshCollections 
 
-List mesh collections (immutable, versioned Parquet-backed mesh sets, each in a coordinate system of its own)
+List mesh collections (immutable Parquet-backed mesh sets, each in a coordinate system of its own)
 
 Args:
     filters (MeshCollectionFilter | None, optional): No description. 
@@ -12999,7 +16592,7 @@ Returns:
     async def asearch_mesh_collections(self, search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[SearchMeshCollectionsQueryOptions, ...]:
         """SearchMeshCollections 
 
-List mesh collections (immutable, versioned Parquet-backed mesh sets, each in a coordinate system of its own)
+List mesh collections (immutable Parquet-backed mesh sets, each in a coordinate system of its own)
 
 Args:
     search (str | None, optional): No description. 
@@ -13025,7 +16618,7 @@ Returns:
     def search_mesh_collections(self, search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[SearchMeshCollectionsQueryOptions, ...]:
         """SearchMeshCollections 
 
-List mesh collections (immutable, versioned Parquet-backed mesh sets, each in a coordinate system of its own)
+List mesh collections (immutable Parquet-backed mesh sets, each in a coordinate system of its own)
 
 Args:
     search (str | None, optional): No description. 
@@ -13047,6 +16640,130 @@ Returns:
         if offset is not UNSET:
             variables['offset'] = offset
         return self.execute(SearchMeshCollectionsQuery, variables, task=task).options
+
+    async def aget_network_collection(self, id: IDCoercible, task: TaskLike | None=None) -> NetworkCollection:
+        """GetNetworkCollection 
+
+Get a single network collection by ID
+
+Args:
+    id (ID): No description
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    NetworkCollection
+"""
+        variables: dict[str, builtins.object] = {}
+        variables['id'] = id
+        return (await self.aexecute(GetNetworkCollectionQuery, variables, task=task)).network_collection
+
+    def get_network_collection(self, id: IDCoercible, task: TaskLike | None=None) -> NetworkCollection:
+        """GetNetworkCollection 
+
+Get a single network collection by ID
+
+Args:
+    id (ID): No description
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    NetworkCollection
+"""
+        variables: dict[str, builtins.object] = {}
+        variables['id'] = id
+        return self.execute(GetNetworkCollectionQuery, variables, task=task).network_collection
+
+    async def aget_network_collections(self, filters: NetworkCollectionFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[NetworkCollection, ...]:
+        """GetNetworkCollections 
+
+List network collections (immutable Parquet-backed node/edge networks, each in a coordinate system of its own)
+
+Args:
+    filters (NetworkCollectionFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    list[NetworkCollection]
+"""
+        variables: dict[str, builtins.object] = {}
+        if filters is not UNSET:
+            variables['filters'] = filters
+        if pagination is not UNSET:
+            variables['pagination'] = pagination
+        return (await self.aexecute(GetNetworkCollectionsQuery, variables, task=task)).network_collections
+
+    def get_network_collections(self, filters: NetworkCollectionFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[NetworkCollection, ...]:
+        """GetNetworkCollections 
+
+List network collections (immutable Parquet-backed node/edge networks, each in a coordinate system of its own)
+
+Args:
+    filters (NetworkCollectionFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    list[NetworkCollection]
+"""
+        variables: dict[str, builtins.object] = {}
+        if filters is not UNSET:
+            variables['filters'] = filters
+        if pagination is not UNSET:
+            variables['pagination'] = pagination
+        return self.execute(GetNetworkCollectionsQuery, variables, task=task).network_collections
+
+    async def asearch_network_collections(self, search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[SearchNetworkCollectionsQueryOptions, ...]:
+        """SearchNetworkCollections 
+
+List network collections (immutable Parquet-backed node/edge networks, each in a coordinate system of its own)
+
+Args:
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    list[SearchNetworkCollectionsQueryNetworkCollections]
+"""
+        variables: dict[str, builtins.object] = {}
+        if search is not UNSET:
+            variables['search'] = search
+        if values is not UNSET:
+            variables['values'] = values
+        if limit is not UNSET:
+            variables['limit'] = limit
+        if offset is not UNSET:
+            variables['offset'] = offset
+        return (await self.aexecute(SearchNetworkCollectionsQuery, variables, task=task)).options
+
+    def search_network_collections(self, search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[SearchNetworkCollectionsQueryOptions, ...]:
+        """SearchNetworkCollections 
+
+List network collections (immutable Parquet-backed node/edge networks, each in a coordinate system of its own)
+
+Args:
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    list[SearchNetworkCollectionsQueryNetworkCollections]
+"""
+        variables: dict[str, builtins.object] = {}
+        if search is not UNSET:
+            variables['search'] = search
+        if values is not UNSET:
+            variables['values'] = values
+        if limit is not UNSET:
+            variables['limit'] = limit
+        if offset is not UNSET:
+            variables['offset'] = offset
+        return self.execute(SearchNetworkCollectionsQuery, variables, task=task).options
 
     async def aget_scene(self, id: IDCoercible, task: TaskLike | None=None) -> Scene:
         """GetScene 
@@ -13511,33 +17228,42 @@ AnimationFilter.model_rebuild()
 AnimationWaypointInput.model_rebuild()
 AnnotationCollectionDerivedFromInput.model_rebuild()
 AnnotationCollectionFilter.model_rebuild()
+AnnotationDerivedFromInput.model_rebuild()
 AnnotationFilter.model_rebuild()
 AnnotationSpecInput.model_rebuild()
 ApertureElementInput.model_rebuild()
 ArrayDatasetFilter.model_rebuild()
 BeamSplitterElementInput.model_rebuild()
 CCDElementInput.model_rebuild()
+ChartFilter.model_rebuild()
+ChartLayerFilter.model_rebuild()
 ColumnColorByInput.model_rebuild()
 ColumnInput.model_rebuild()
 CoordinateAnchorInput.model_rebuild()
 CoordinateSystemDerivedFromInput.model_rebuild()
 CoordinateSystemFilter.model_rebuild()
 CreateAnnotationCollectionInput.model_rebuild()
+CreateAnnotationLensInput.model_rebuild()
 CreateArrayDatasetInput.model_rebuild()
+CreateChartInput.model_rebuild()
 CreateCoordinateSystemInput.model_rebuild()
 CreateLabelLayerInput.model_rebuild()
 CreateLayerInput.model_rebuild()
 CreateLensInput.model_rebuild()
 CreateMeshCollectionInput.model_rebuild()
 CreateMeshLayerInput.model_rebuild()
+CreateMeshLensInput.model_rebuild()
 CreateNetworkCollectionInput.model_rebuild()
 CreateNetworkLayerInput.model_rebuild()
+CreateNetworkLensInput.model_rebuild()
 CreatePhasorLayerInput.model_rebuild()
 CreatePointLayerInput.model_rebuild()
 CreateSceneFromCoordinateSystemInput.model_rebuild()
 CreateSceneInput.model_rebuild()
 CreateSparseDatasetInput.model_rebuild()
+CreateSparseLensInput.model_rebuild()
 CreateTableDatasetInput.model_rebuild()
+CreateTableLensInput.model_rebuild()
 CreateTransformationInput.model_rebuild()
 DatasetDerivedFromInput.model_rebuild()
 DetectorElementInput.model_rebuild()
@@ -13547,13 +17273,16 @@ LampElementInput.model_rebuild()
 LaserElementInput.model_rebuild()
 LayerFilter.model_rebuild()
 LayerNodeInput.model_rebuild()
+LensBoxInput.model_rebuild()
 LensDerivedFromInput.model_rebuild()
 LensElementInput.model_rebuild()
+LensFilter.model_rebuild()
 LightPortInput.model_rebuild()
 LightpathGraphInput.model_rebuild()
 MeshCollectionDerivedFromInput.model_rebuild()
 MeshCollectionFilter.model_rebuild()
 MirrorElementInput.model_rebuild()
+NetworkCollectionFilter.model_rebuild()
 ObjectiveElementInput.model_rebuild()
 OptikitStateInput.model_rebuild()
 OtherElementInput.model_rebuild()
@@ -13566,7 +17295,6 @@ RegistrationPathInput.model_rebuild()
 SampleElementInput.model_rebuild()
 SceneSnapshotFilter.model_rebuild()
 ShutterElementInput.model_rebuild()
-SparseColorByInput.model_rebuild()
 TableDatasetDerivedFromInput.model_rebuild()
 TableDatasetFilter.model_rebuild()
 TransformationFilter.model_rebuild()

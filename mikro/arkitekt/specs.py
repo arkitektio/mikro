@@ -7,7 +7,7 @@ An action that convolves a z-stack does not take "a lens", it takes a volume::
     @app.action
     def deconvolve(image: Volume) -> Volume: ...
 
-Each spec is a :class:`~mikro.api.schema.Lens` annotated with rekuest's own
+Each spec is an :class:`~mikro.api.schema.ArrayLens` annotated with rekuest's own
 ``Requires`` and ``Provides``, nothing more. Both are written out because a port
 keeps only its side: an argument the ``Requires`` (the UI offers only lenses that
 fit), a return the ``Provides`` (what the action says it made). A run tests them on
@@ -18,7 +18,7 @@ Write your own the same way, as a plain assignment
 (``from arkitekt import DescriptorOperator, Provides, Requires``)::
 
     DualColorVolume = Annotated[
-        Lens,
+        ArrayLens,
         Requires(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=3),
         Provides(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=3),
         Requires(key=N_CHANNELS, operator=DescriptorOperator.EQUALS, value=2),
@@ -44,7 +44,7 @@ from typing import Annotated, Any
 from arkitekt_spec.actions import DescriptorOperator
 from arkitekt_spec.declare.annotations import Provides, Requires
 
-from mikro.api.schema import Lens
+from mikro.api.schema import Annotation, ArrayLens
 from mikro.traits import AxisSource, axis_table
 
 # --- The descriptor keys --------------------------------------------------------
@@ -66,6 +66,8 @@ N_TIMEPOINTS = "@mikro/n_timepoints"
 """Its total extent along its TIME axes."""
 VALUE_KIND = "@mikro/value_kind"
 """What its values mean. Provenance: stated by whoever made the data, never computed."""
+ANNOTATION_KIND = "@mikro/annotation_kind"
+"""The shape one annotation is drawn as, as the names of ``AnnotationKind``."""
 
 
 def lens_descriptors(lens: AxisSource) -> dict[str, Any]:
@@ -95,38 +97,59 @@ def lens_descriptors(lens: AxisSource) -> dict[str, Any]:
     }
 
 
+def annotation_descriptors(annotation: Any) -> dict[str, Any]:  # noqa: ANN401 - the generated Annotation
+    """The descriptors of one annotation: its shape, and the axes of the space it is drawn in.
+
+    The same keys the mikro server declares for ``@mikro/annotation``. The space
+    is its collection's, so the counts tell a box on a plane from one in a volume.
+
+    Args:
+        annotation: The annotation to describe.
+
+    Returns:
+        Its descriptors, by key.
+    """
+    system = annotation.coordinate_system
+    counts = Counter(str(getattr(axis.type, "value", axis.type)) for axis in (system.axes if system else ()))
+    return {
+        ANNOTATION_KIND: str(getattr(annotation.kind, "value", annotation.kind)),
+        N_SPACE_AXES: counts["SPACE"],
+        N_TIME_AXES: counts["TIME"],
+    }
+
+
 # --- By spatial rank: exactly one of these holds for any lens -------------------
 
 Scalar = Annotated[
-    Lens,
+    ArrayLens,
     Requires(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=0),
     Provides(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=0),
 ]
 """No spatial axis at all."""
 
 Profile = Annotated[
-    Lens,
+    ArrayLens,
     Requires(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=1),
     Provides(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=1),
 ]
 """One spatial axis: a line profile, a depth trace."""
 
 Image = Annotated[
-    Lens,
+    ArrayLens,
     Requires(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=2),
     Provides(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=2),
 ]
 """Two spatial axes: a plane."""
 
 Volume = Annotated[
-    Lens,
+    ArrayLens,
     Requires(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=3),
     Provides(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=3),
 ]
 """Three spatial axes: a stack, even one whose z holds a single plane."""
 
 Hypervolume = Annotated[
-    Lens,
+    ArrayLens,
     Requires(key=N_SPACE_AXES, operator=DescriptorOperator.GTE, value=4),
     Provides(key=N_SPACE_AXES, operator=DescriptorOperator.GTE, value=4),
 ]
@@ -135,42 +158,42 @@ Hypervolume = Annotated[
 # --- By what else it carries: any of these may hold beside a spatial rank ------
 
 Timeseries = Annotated[
-    Lens,
+    ArrayLens,
     Requires(key=N_TIME_AXES, operator=DescriptorOperator.GTE, value=1),
     Provides(key=N_TIME_AXES, operator=DescriptorOperator.GTE, value=1),
 ]
 """Has a TIME axis, of any length."""
 
 Multichannel = Annotated[
-    Lens,
+    ArrayLens,
     Requires(key=N_CHANNEL_AXES, operator=DescriptorOperator.GTE, value=1),
     Provides(key=N_CHANNEL_AXES, operator=DescriptorOperator.GTE, value=1),
 ]
 """Has a CHANNEL axis, of any length."""
 
 Spectral = Annotated[
-    Lens,
+    ArrayLens,
     Requires(key=N_SPECTRUM_AXES, operator=DescriptorOperator.GTE, value=1),
     Provides(key=N_SPECTRUM_AXES, operator=DescriptorOperator.GTE, value=1),
 ]
 """Has a SPECTRUM axis: a spectrally resolved acquisition."""
 
 Flim = Annotated[
-    Lens,
+    ArrayLens,
     Requires(key=N_MICROTIME_AXES, operator=DescriptorOperator.GTE, value=1),
     Provides(key=N_MICROTIME_AXES, operator=DescriptorOperator.GTE, value=1),
 ]
 """Has a MICROTIME axis: fluorescence-lifetime arrival-time bins."""
 
 Still = Annotated[
-    Lens,
+    ArrayLens,
     Requires(key=N_TIMEPOINTS, operator=DescriptorOperator.LTE, value=1),
     Provides(key=N_TIMEPOINTS, operator=DescriptorOperator.LTE, value=1),
 ]
 """At most one timepoint: no time axis, or one pinned to a single frame."""
 
 SingleChannel = Annotated[
-    Lens,
+    ArrayLens,
     Requires(key=N_CHANNELS, operator=DescriptorOperator.LTE, value=1),
     Provides(key=N_CHANNELS, operator=DescriptorOperator.LTE, value=1),
 ]
@@ -179,7 +202,7 @@ SingleChannel = Annotated[
 # --- The common combinations ----------------------------------------------------
 
 TimelapseImage = Annotated[
-    Lens,
+    ArrayLens,
     Requires(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=2),
     Provides(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=2),
     Requires(key=N_TIME_AXES, operator=DescriptorOperator.GTE, value=1),
@@ -188,7 +211,7 @@ TimelapseImage = Annotated[
 """A plane over time."""
 
 TimelapseVolume = Annotated[
-    Lens,
+    ArrayLens,
     Requires(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=3),
     Provides(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=3),
     Requires(key=N_TIME_AXES, operator=DescriptorOperator.GTE, value=1),
@@ -197,7 +220,7 @@ TimelapseVolume = Annotated[
 """A stack over time."""
 
 MultichannelImage = Annotated[
-    Lens,
+    ArrayLens,
     Requires(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=2),
     Provides(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=2),
     Requires(key=N_CHANNEL_AXES, operator=DescriptorOperator.GTE, value=1),
@@ -206,7 +229,7 @@ MultichannelImage = Annotated[
 """A plane with a channel axis."""
 
 MultichannelVolume = Annotated[
-    Lens,
+    ArrayLens,
     Requires(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=3),
     Provides(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=3),
     Requires(key=N_CHANNEL_AXES, operator=DescriptorOperator.GTE, value=1),
@@ -215,7 +238,7 @@ MultichannelVolume = Annotated[
 """A stack with a channel axis."""
 
 SingleChannelImage = Annotated[
-    Lens,
+    ArrayLens,
     Requires(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=2),
     Provides(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=2),
     Requires(key=N_CHANNELS, operator=DescriptorOperator.LTE, value=1),
@@ -224,7 +247,7 @@ SingleChannelImage = Annotated[
 """A plane with at most one channel."""
 
 SingleChannelVolume = Annotated[
-    Lens,
+    ArrayLens,
     Requires(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=3),
     Provides(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=3),
     Requires(key=N_CHANNELS, operator=DescriptorOperator.LTE, value=1),
@@ -233,7 +256,7 @@ SingleChannelVolume = Annotated[
 """A stack with at most one channel."""
 
 RGBImage = Annotated[
-    Lens,
+    ArrayLens,
     Requires(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=2),
     Provides(key=N_SPACE_AXES, operator=DescriptorOperator.EQUALS, value=2),
     Requires(key=N_CHANNEL_AXES, operator=DescriptorOperator.EQUALS, value=1),
@@ -247,7 +270,7 @@ brightfield slide."""
 # --- By what the values mean ----------------------------------------------------
 
 LabelMask = Annotated[
-    Lens,
+    ArrayLens,
     Requires(key=VALUE_KIND, operator=DescriptorOperator.EQUALS, value="categorical"),
     Provides(key=VALUE_KIND, operator=DescriptorOperator.EQUALS, value="categorical"),
 ]
@@ -256,7 +279,20 @@ tested on the lens: an action that returns one says it made labels, and only an
 action that takes one is offered them."""
 
 
+# --- Annotations, by the shape they are drawn as --------------------------------
+
+PathAnnotation = Annotated[
+    Annotation,
+    Requires(key=ANNOTATION_KIND, operator=DescriptorOperator.EQUALS, value="PATH"),
+    Provides(key=ANNOTATION_KIND, operator=DescriptorOperator.EQUALS, value="PATH"),
+]
+"""One annotation drawn as a PATH: an open run of vertices, what a tracing or a
+centreline is. Named ``PathAnnotation`` rather than ``Path`` so that it does not
+shadow ``pathlib.Path`` in the app that imports it."""
+
+
 __all__ = [
+    "ANNOTATION_KIND",
     "N_CHANNELS",
     "N_CHANNEL_AXES",
     "N_MICROTIME_AXES",
@@ -272,6 +308,7 @@ __all__ = [
     "Multichannel",
     "MultichannelImage",
     "MultichannelVolume",
+    "PathAnnotation",
     "Profile",
     "RGBImage",
     "Scalar",
@@ -284,5 +321,6 @@ __all__ = [
     "TimelapseVolume",
     "Timeseries",
     "Volume",
+    "annotation_descriptors",
     "lens_descriptors",
 ]

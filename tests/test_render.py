@@ -24,19 +24,23 @@ from mikro.inputs.render import (
     rgba,
 )
 
+#: Three single-channel lens ids, as `dataset.lens(c=i).id` hands them back. A channel node
+#: names the lens it samples; the builders never see the dataset.
+RGB = ("10", "11", "12")
+
 
 def test_composite_graph_nests_channels_under_a_blend_node() -> None:
     graph = composite_graph(
         [
-            ChannelSpec(intensity_index=0, colormap=ColorMap.CYAN),
-            ChannelSpec(intensity_index=1),
+            ChannelSpec(lens="10", colormap=ColorMap.CYAN),
+            ChannelSpec(lens="11"),
         ]
     )
 
     assert graph.root.kind == "blend"
     assert graph.root.children is not None
     assert [child.kind for child in graph.root.children] == ["channel", "channel"]
-    assert [child.intensity_index for child in graph.root.children] == [0, 1]
+    assert [child.lens for child in graph.root.children] == ["10", "11"]
 
 
 def test_composite_graph_sorts_a_flat_spec_into_the_right_nodes() -> None:
@@ -45,8 +49,7 @@ def test_composite_graph_sorts_a_flat_spec_into_the_right_nodes() -> None:
     (node,) = composite_graph(
         [
             ChannelSpec(
-                intensity_axis="c",
-                intensity_index=2,
+                lens="12",
                 mode=ProjectionMode.MIP,
                 label="nuclei",
                 visible=False,
@@ -69,7 +72,7 @@ def test_composite_graph_sorts_a_flat_spec_into_the_right_nodes() -> None:
 
     assert node.kind == "channel"
     assert node.mode is None
-    assert (node.intensity_axis, node.intensity_index) == ("c", 2)
+    assert node.lens == "12"
     assert (node.label, node.visible) == ("nuclei", False)
     assert node.transfer is not None
     assert node.transfer.colormap == ColorMap.MAGMA.value
@@ -78,9 +81,11 @@ def test_composite_graph_sorts_a_flat_spec_into_the_right_nodes() -> None:
     assert node.transfer.invert is True
 
 
-def test_composite_graph_defaults_to_the_first_position_of_the_channel_axis() -> None:
+def test_a_spec_naming_no_lens_samples_the_layers_own() -> None:
+    """A null lens is the server's spelling of "the layer's own lens", which then has to
+    pin one channel itself -- so the builder must not invent one."""
     (node,) = composite_graph([ChannelSpec()]).root.children
-    assert (node.intensity_axis, node.intensity_index) == ("c", 0)
+    assert node.lens is None
 
 
 def test_composite_graph_defaults_to_additive_blending() -> None:
@@ -113,11 +118,11 @@ def test_channel_spec_rejects_a_categorical_channel() -> None:
 
 
 def test_channel_graph_is_a_single_channel_composite() -> None:
-    graph = channel_graph(colormap=ColorMap.INFERNO, gamma=0.8, intensity_index=1)
+    graph = channel_graph(colormap=ColorMap.INFERNO, gamma=0.8, lens="11")
 
     assert graph.root.children is not None
     (node,) = graph.root.children
-    assert node.intensity_index == 1
+    assert node.lens == "11"
     assert node.transfer is not None
     assert node.transfer.colormap == ColorMap.INFERNO.value
     assert node.transfer.gamma == 0.8
@@ -132,19 +137,19 @@ def test_channel_graph_leaves_unset_transfer_settings_unset() -> None:
     assert node.transfer.gamma is None
 
 
-def test_channel_graph_accepts_no_intensity_axis() -> None:
+def test_channel_graph_names_no_lens_by_default() -> None:
     """Data that is single-valued per rendered plane -- a bare z-stack, a time
-    series -- has no axis to composite as separate colours."""
-    (node,) = channel_graph(intensity_axis=None).root.children
-    assert node.intensity_axis is None
+    series -- is drawn through the layer's own lens, so there is nothing to name."""
+    (node,) = channel_graph().root.children
+    assert node.lens is None
 
 
 def test_rgb_graph_composites_three_display_channels() -> None:
-    graph = rgb_graph()
+    graph = rgb_graph(RGB)
 
     assert graph.root.children is not None
     assert len(graph.root.children) == 3
-    assert [node.intensity_index for node in graph.root.children] == [0, 1, 2]
+    assert [node.lens for node in graph.root.children] == ["10", "11", "12"]
     assert [node.transfer.color for node in graph.root.children] == [
         (255, 0, 0, 255),
         (0, 255, 0, 255),
@@ -155,48 +160,48 @@ def test_rgb_graph_composites_three_display_channels() -> None:
 def test_rgb_graph_defaults_to_the_full_eight_bit_range() -> None:
     """An RGB image is already display-referred, so stretching it would change
     the colours it was authored with."""
-    for node in rgb_graph().root.children:
+    for node in rgb_graph(RGB).root.children:
         assert (node.transfer.clim_min, node.transfer.clim_max) == (0.0, 255.0)
 
 
-def test_rgb_graph_maps_explicit_channel_positions() -> None:
-    graph = rgb_graph(channels=(3, 1, 0))
-    assert [node.intensity_index for node in graph.root.children] == [3, 1, 0]
+def test_rgb_graph_reads_its_lenses_in_red_green_blue_order() -> None:
+    graph = rgb_graph(("13", "11", "10"))
+    assert [node.lens for node in graph.root.children] == ["13", "11", "10"]
 
 
-@pytest.mark.parametrize("channels", [(0, 1), (0, 1, 2, 3)])
-def test_rgb_graph_rejects_anything_but_three_channels(channels: tuple) -> None:
-    with pytest.raises(ValueError, match="exactly three channels"):
-        rgb_graph(channels=channels)
+@pytest.mark.parametrize("lenses", [("10", "11"), ("10", "11", "12", "13")])
+def test_rgb_graph_rejects_anything_but_three_lenses(lenses: tuple) -> None:
+    with pytest.raises(ValueError, match="exactly three channel lenses"):
+        rgb_graph(lenses)
 
 
 def test_a_spec_without_a_mode_gets_no_projection_node() -> None:
     """The flat `blend -> channel` tree is what a 2D image should still produce."""
-    (node,) = composite_graph([ChannelSpec(intensity_index=1)]).root.children
+    (node,) = composite_graph([ChannelSpec(lens="11")]).root.children
     assert node.kind == "channel"
-    assert node.intensity_index == 1
+    assert node.lens == "11"
 
 
 def test_each_channel_of_a_composite_projects_independently() -> None:
     children = composite_graph(
-        [ChannelSpec(intensity_index=i, mode=ProjectionMode.MIP) for i in range(3)]
+        [ChannelSpec(lens=lens, mode=ProjectionMode.MIP) for lens in RGB]
     ).root.children
     assert [c.kind for c in children] == ["projection"] * 3
-    assert [c.children[0].intensity_index for c in children] == [0, 1, 2]
+    assert [c.children[0].lens for c in children] == list(RGB)
 
 
 def test_composite_graph_accepts_mappings() -> None:
     """Callers that build settings programmatically hold a dict; `ChannelSpec(**d)`
     at every call site is noise, and the attribute access used to blow up."""
-    (node,) = composite_graph([{"intensity_index": 2, "mode": ProjectionMode.MIP}]).root.children
+    (node,) = composite_graph([{"lens": "12", "mode": ProjectionMode.MIP}]).root.children
     assert node.kind == "projection"
-    assert node.children[0].intensity_index == 2
+    assert node.children[0].lens == "12"
 
 
 def test_rgb_graph_can_project() -> None:
-    children = rgb_graph(mode=ProjectionMode.MIP).root.children
+    children = rgb_graph(RGB, mode=ProjectionMode.MIP).root.children
     assert [c.kind for c in children] == ["projection"] * 3
-    assert rgb_graph().root.children[0].kind == "channel"
+    assert rgb_graph(RGB).root.children[0].kind == "channel"
 
 
 # ---------------------------------------------------------------------------

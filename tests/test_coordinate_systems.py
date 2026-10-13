@@ -7,20 +7,12 @@ scene staged over it, a lens on a dataset, an ROI drawn on the lens, and a
 segmentation hung off that lens by an identity derivation -- one test per step,
 on synthetic volumes small enough to upload in a moment.
 
-Two things constrain what a registration edge can be asserted about, both
-verified against this backend rather than assumed:
-
-* `register` authors a BY_DIMENSION edge, and BY_DIMENSION is absent from
-  ``TransformationTrait.MATRIX_KINDS``. ``_bfs_path`` skips any kind not in that
-  tuple, so ``matrix_to`` / ``transform_points_to`` raise "No composable
-  transformation path" across exactly the edges `register` creates. These tests
-  therefore read the stored edge instead of composing a matrix through it.
-* Nothing reads a registration's numbers back. ``ByDimensionTransformInput``
-  takes `scale` / `translation` / `affine`, but ``ByDimensionTransformation``
-  exposes none of them -- only `inputAxes`, `outputAxes` and child
-  `transformations`, and the server returns that child list empty. So the voxel
-  size handed to `register` is not observable at all, and BY_DIMENSION cannot be
-  given a client-side matrix until it is.
+What a registration edge is, as verified against this backend rather than assumed:
+`register` authors a BY_DIMENSION edge, which carries its own `scale` /
+`translation` / `affine` over the `inputAxes` it names. These tests assert those
+stored numbers directly; composing a path across such an edge by axis name
+(``axis_map_to``, ``transform_points_to(axes=)``) is unit-tested in
+``test_coordinate_traits.py``.
 """
 
 import json
@@ -41,6 +33,7 @@ from mikro.api.schema import (
     CoordinateAnchorInput,
     CoordinateSystem,
     GetCoordinateGraphQueryCoordinateGraph,
+    LayerFilter,
     OmeMetadataInput,
     ScenePolicyInput,
     TransformKind,
@@ -244,13 +237,9 @@ def test_register_places_a_dataset_in_the_world(mikro: Mikro, deployed_app: Depl
     assert tuple(edge.output_axes) == ("z", "y", "x")
     assert "c" not in edge.input_axes
 
-    # The backend materialises per-axis children now, so this is the assertion the old
-    # pin (`by_dimension_children == ()`) said to become: the voxel size handed to
-    # `register` comes back as a SCALE child over the shared spatial axes.
-    scales = [child for child in edge.by_dimension_children if child.kind == TransformKind.SCALE]
-    assert scales, "the voxel size handed to `register` is materialised as a SCALE child"
-    assert tuple(scales[0].scale) == (0.2, 0.2, 0.2)
-    assert tuple(scales[0].output_axes) == ("z", "y", "x")
+    # A BY_DIMENSION carries its map on itself: the voxel size handed to `register`
+    # comes back as the edge's own scale, over the axes it names.
+    assert tuple(edge.scale) == (0.2, 0.2, 0.2)
 
 
 @pytest.mark.integration
@@ -314,16 +303,16 @@ def test_stage_composes_registered_datasets(mikro: Mikro, deployed_app: Deployed
 
 
 @pytest.mark.integration
-def test_the_multiscale_edge_parses_with_its_children(
+def test_the_multiscale_edge_parses_with_its_steps(
     mikro: Mikro,
     registered_dataset: Placed,
 ) -> None:
-    """Every edge in the graph resolves to its concrete type, children included.
+    """Every edge in the graph resolves to its concrete type, and a sequence carries its map.
 
-    A composite edge's children are a union discriminated on ``__typename``, so
-    a child selection omitting it cannot be tagged and takes the whole parent
-    down with it -- the pyramid's own downscale edge used to come back as a
-    fieldless CatchAll. This is the regression test for that.
+    The pyramid's own downscale edge is a SEQUENCE -- a scale, then the half-voxel
+    translation -- and its steps are fields of the edge itself, not edges of their
+    own. An arm the fragment fails to select degrades the whole edge to a fieldless
+    CatchAll, which is what the first assertion guards.
     """
     graph = mikro.get_coordinate_graph(coordinate_system=registered_dataset.world.id)
     # Typed loosely on purpose: these are heterogeneous unions whose useful
@@ -337,14 +326,13 @@ def test_the_multiscale_edge_parses_with_its_children(
     sequences = [t for t in edges if t.kind == TransformKind.SEQUENCE]
     assert len(sequences) == 1, "One coarser level means one downscale edge"
 
-    children: dict[Any, Any] = {child.kind: child for child in sequences[0].sequence_children}
-    assert set(children) == {TransformKind.SCALE, TransformKind.TRANSLATION}
+    steps: dict[Any, Any] = {step.kind: step for step in sequences[0].steps}
+    assert set(steps) == {TransformKind.SCALE, TransformKind.TRANSLATION}
 
-    scale = children[TransformKind.SCALE]
-    assert tuple(scale.input_axes) == _DIMS, "A child carries the axes it acts on"
+    # A step's parameters are in the axis order of the sequence's input.
     # ``dataset_arrays`` halves the spatial axes only; the channel axis keeps
     # its extent at every level, so it scales by one.
-    assert tuple(scale.scale) == (1.0, 2.0, 2.0, 2.0)
+    assert tuple(steps[TransformKind.SCALE].scale) == (1.0, 2.0, 2.0, 2.0)
 
 
 @pytest.mark.integration
@@ -363,6 +351,63 @@ def test_lens_reads_back_the_volume(registered_dataset: Placed) -> None:
     assert np.allclose(read_back.to_numpy(), expected.to_numpy()), (
         "The uploaded voxels should come back unchanged"
     )
+
+
+@pytest.mark.integration
+def test_a_selection_is_one_lens_however_often_it_is_asked_for(mikro: Mikro, registered_dataset: Placed) -> None:
+    """A lens is a row per dataset and selection, and the whole one is read, not made."""
+    dataset = registered_dataset.dataset
+
+    whole = dataset.lens()
+    assert whole.id == dataset.lens().id
+    assert whole.id == mikro.create_lens(dataset=dataset.id, slices=[]).id
+    assert not whole.slices, "The whole lens cuts nothing out"
+    # A selection that keeps every position is the whole lens, spelled differently.
+    assert dataset.lens(c=0).id == whole.id
+
+    crop = dataset.lens(z=(0, 2), x=(0, 8))
+    assert crop.id != whole.id
+    assert crop.id == dataset.lens(x=slice(0, 8), z=(0, 2)).id
+    # Read back in the server's one spelling: dataset axis order, a step always there.
+    assert [(s.axis, s.start, s.stop, s.step) for s in crop.slices] == [("z", 0, 2, 1), ("x", 0, 8, 1)]
+    assert tuple(crop.shape) == (1, 2, registered_dataset.data.shape[2], 8)
+    assert np.array_equal(
+        crop.data.compute().to_numpy(),
+        registered_dataset.data.isel(z=slice(0, 2), x=slice(0, 8)).to_numpy(),
+    )
+
+    last = dataset.lens(z=-1)
+    assert tuple(last.shape)[1] == 1
+    assert [(s.axis, s.start) for s in last.slices] == [("z", registered_dataset.data.shape[1] - 1)]
+
+
+@pytest.mark.integration
+def test_a_lens_fetched_by_id_comes_back_as_its_kind(mikro: Mikro, registered_dataset: Placed) -> None:
+    """`lens(id)` answers with any kind; an array lens is one you can read pixels off."""
+    from mikro.api.schema import ArrayLens, LensKind
+
+    crop = registered_dataset.dataset.lens(z=(0, 2))
+    fetched = mikro.get_lens(crop.id)
+
+    assert isinstance(fetched, ArrayLens)
+    assert fetched.kind == LensKind.ARRAY
+    assert tuple(fetched.data.shape) == tuple(crop.shape)
+
+
+@pytest.mark.integration
+def test_a_scene_is_staged_from_a_lens_and_its_layers_say_how_they_face_the_screen(
+    mikro: Mikro, registered_dataset: Placed
+) -> None:
+    """A crop is staged from the lens, and `render_axes` is the layer's, not the lens'."""
+    crop = registered_dataset.dataset.lens(z=(0, 2))
+    scene = mikro.create_scene_from_lens(lens=crop.id, nominate=False, name="a staged crop")
+
+    layers = mikro.layers(filters=LayerFilter(scene=scene.id))
+    assert layers, "One layer per channel"
+    for layer in layers:
+        assert str(layer.lens.id) == str(crop.id), "Every layer draws through the staged lens"
+        assert (layer.render_axes.y, layer.render_axes.x) == ("y", "x")
+    assert not hasattr(crop, "render_axes")
 
 
 @pytest.mark.integration
@@ -395,6 +440,39 @@ def test_draw_annotates_the_lens(mikro: Mikro, registered_dataset: Placed) -> No
     assert edge.kind == TransformKind.IDENTITY, (
         "Same axes, same voxels: the drawing sits exactly on the surface"
     )
+
+
+@pytest.mark.integration
+def test_a_path_drawn_on_a_scene_maps_onto_the_voxels_of_a_crop(mikro: Mikro, registered_dataset: Placed) -> None:
+    """A shape drawn on a scene is in the world's units, and the graph carries it onto a lens.
+
+    The scene's drawing space copies the world's space axes and is registered
+    into it; the dataset reaches the same world by its own registration, and the
+    crop is one more edge away. Two of those three edges are BY_DIMENSION, so
+    this is the path `transform_points_to` could not walk -- and the channel is
+    an axis of the crop the path says nothing about, which is what `axes=` is for.
+    """
+    scene = registered_dataset.world.stage(name="a scene to draw on")
+    in_um = np.array([[0.4, 1.0, 1.2], [0.6, 1.6, 2.0]])
+    annotation = mikro.create_annotation(kind=AnnotationKind.PATH, vectors=in_um, scene=scene.id, name="a path")
+
+    drawing = annotation.coordinate_system
+    assert drawing is not None
+    assert [axis.name for axis in drawing.axes] == ["z", "y", "x"], "A scene is drawn on in space"
+
+    crop = registered_dataset.dataset.lens(z=(1, 4), y=(2, 16), x=(4, 16))
+    surface = crop.coordinate_system
+    assert surface is not None
+
+    on_crop = drawing.transform_points_to(surface, in_um, axes=("z", "y", "x"))
+    assert np.allclose(on_crop, in_um / VOXEL_UM - np.array([1.0, 2.0, 4.0]))
+
+    with pytest.raises(ValueError, match="'c'"):
+        drawing.matrix_to(surface)
+
+    # And back: a voxel of the crop, with or without its channel, is a place in the drawing.
+    mapped = surface.axis_map_to(drawing)
+    assert np.allclose(mapped.apply(on_crop, input_axes=("z", "y", "x")), in_um)
 
 
 @pytest.mark.integration

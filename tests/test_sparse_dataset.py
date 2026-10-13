@@ -32,9 +32,11 @@ from mikro.api.schema import (
     LabelRenderInput,
     SparseAxisInput,
     SparseColorByInput,
+    SparseDatasetSpec,
     TableIdentifiesInput,
 )
 from mikro.inputs.picker import label_render, sparse_color_by
+from mikro.traits import SparseDatasetTrait
 
 pytest.importorskip("scipy", reason="the store cases need a real CSR matrix")
 pytest.importorskip("sporadik", reason="the sparse wire format is an extra: pip install 'mikro[sparse]'")
@@ -136,7 +138,7 @@ def test_a_qualitative_colormap_is_refused_on_a_sparse_colouring():
     """A slice is a value per object, and nothing stores categories sparsely."""
     with pytest.raises(ValidationError, match="qualitative"):
         SparseColorByInput(
-            kind="SPARSE", dataset="1", at=[{"axis": "gene", "value": 4}], colormap=ColorMap.DISTINCT
+            kind="SPARSE", lens="1", colormap=ColorMap.DISTINCT
         )
 
 
@@ -151,7 +153,7 @@ def test_the_colour_rule_survives_the_discriminated_union():
     with pytest.raises(ValidationError, match="qualitative"):
         LabelRenderInput(
             colorBys=[
-                {"kind": "SPARSE", "dataset": "1", "at": [{"axis": "gene", "value": 4}], "colormap": "DISTINCT"}
+                {"kind": "SPARSE", "lens": "1", "colormap": "DISTINCT"}
             ]
         )
 
@@ -159,83 +161,126 @@ def test_the_colour_rule_survives_the_discriminated_union():
 def test_an_inverted_window_is_refused_but_a_degenerate_one_is_not():
     """Never stricter than the server: ``min == max`` is legal there, so it is legal here."""
     with pytest.raises(ValidationError, match="inverted"):
-        SparseColorByInput(kind="SPARSE", dataset="1", at=[{"axis": "gene", "value": 4}], min=5.0, max=1.0)
-    SparseColorByInput(kind="SPARSE", dataset="1", at=[{"axis": "gene", "value": 4}], min=1.0, max=1.0)
+        SparseColorByInput(kind="SPARSE", lens="1", min=5.0, max=1.0)
+    SparseColorByInput(kind="SPARSE", lens="1", min=1.0, max=1.0)
 
 
-class _Reference:
-    def __init__(self, axis_name: str):
-        self.axis = axis_name
+class _Window:
+    def __init__(self, axis_name: str, low: float | None, high: float | None):
+        self.axis, self.min, self.max = axis_name, low, high
 
 
-class _SparseDataset:
-    """The fields the `SparseDataset` fragment already selects. Nothing here needs a round trip."""
+class _Named:
+    id = "42"
+    name = "expression"
+
+
+class _SparseLens:
+    """The fields the `SparseLens` fragment selects. Nothing here needs a round trip."""
+
+    id = "7"
+    sparse_dataset = _Named()
+    windows = (_Window("gene", 7.0, 7.0),)
+    spec = (SparseDatasetSpec.VECTOR, SparseDatasetSpec.SLICE)
+
+
+def test_a_slice_is_accepted_and_names_its_lens():
+    assert sparse_color_by(_SparseLens()).lens == "7"
+
+
+def test_a_lens_that_is_not_a_slice_is_refused():
+    """The server answers "can a picker read this" as one member of the lens' spec.
+
+    Reading that answer, rather than re-deriving it from the windows, is what keeps this from
+    ever being stricter than the server: a range, a pin on the keyed axis and a pin no layout
+    indexes all come back without SLICE, and the whole lens never has it.
+    """
+
+    class Range(_SparseLens):
+        windows = (_Window("gene", 0.0, 9.0),)
+        spec = (SparseDatasetSpec.MATRIX,)
+
+    class Whole(_SparseLens):
+        windows = ()
+        spec = (SparseDatasetSpec.MATRIX,)
+
+    with pytest.raises(ValueError, match=r"gene=0\.0\.\.9\.0\) is not a slice"):
+        sparse_color_by(Range())
+    with pytest.raises(ValueError, match="the whole lens"):
+        sparse_color_by(Whole())
+
+
+def test_an_id_or_a_lens_without_a_spec_defers_instead_of_refusing():
+    """Guarded by field, not by type.
+
+    A bare id, or a lens read through a selection that does not carry `spec`, cannot answer
+    the question -- so it is passed through and the server asks instead.
+    """
+
+    class Bare:
+        id = "7"
+
+    assert sparse_color_by("7").lens == "7"
+    assert sparse_color_by(Bare()).lens == "7"
+
+
+def test_two_colourings_through_one_lens_are_one_entry():
+    """A SPARSE entry's source is its lens, which is what the server keys its duplicate check on."""
+    with pytest.raises(ValueError, match="renders identically"):
+        label_render([sparse_color_by("1"), sparse_color_by("1", label="again")])
+
+    # Genuinely different slices are still two entries.
+    label_render([sparse_color_by("1"), sparse_color_by("2")])
+
+
+class _Client:
+    """Stands in for the client: records the one mutation `lens()` sends."""
+
+    def __init__(self):
+        self.sent = None
+
+    def create_sparse_lens(self, **kwargs):
+        self.sent = kwargs
+        return _SparseLens()
+
+
+class _SparseDataset(SparseDatasetTrait):
+    """The fields the `SparseDataset` fragment already selects."""
 
     id = "42"
     name = "expression"
     axis_names = ("object", "gene")
     shape = (1000, 300)
-    indexable_axes = ("gene",)
-    axis_references = (_Reference("gene"),)
 
 
-def test_a_colouring_may_only_name_the_axes_the_matrix_identifies():
-    """Naming the keyed axis is the mistake, and the weaker "is this a known axis" misses it.
+def test_a_pinned_position_is_a_window_whose_min_is_its_max():
+    """`createSparseLens(windows:)` has no "position" of its own: a pin is `min == max`."""
+    client = _Client()
+    _SparseDataset().lens(client, gene=7)
+    assert client.sent["sparse_dataset"] == "42"
+    (window,) = client.sent["windows"]
+    assert (window.axis, window.min, window.max) == ("gene", 7.0, 7.0)
 
-    The remaining axis is the one the layer supplies ids for, so a colouring names every
-    *other* axis -- which is also what catches an unknown name and a duplicate entry.
-    """
-    sparse_color_by(_SparseDataset(), {"gene": 7})
-    with pytest.raises(ValueError, match="selected along"):
-        sparse_color_by(_SparseDataset(), {"object": 3})
-    with pytest.raises(ValueError, match="selected along"):
-        sparse_color_by(_SparseDataset(), {"nonexistent": 1})
+
+def test_no_windows_is_the_whole_lens():
+    client = _Client()
+    _SparseDataset().lens(client)
+    assert client.sent["windows"] == []
+
+
+def test_a_range_keeps_an_open_side_open():
+    client = _Client()
+    _SparseDataset().lens(client, gene=(10, None))
+    (window,) = client.sent["windows"]
+    assert (window.min, window.max) == (10.0, None)
 
 
 def test_a_position_outside_the_matrix_is_refused():
     """A position is a row of the table that axis references, not an id of its own."""
-    with pytest.raises(ValueError, match=r"runs 0\.\.299"):
-        sparse_color_by(_SparseDataset(), {"gene": 5000})
+    with pytest.raises(ValueError, match=r"outside 0\.\.299"):
+        _SparseDataset().lens(_Client(), gene=5000)
 
 
-def test_a_colouring_along_an_axis_no_layout_indexes_is_refused():
-    """Reading one slice from the wrong layout is a scan of every byte: 1 777 ms against 2.2 ms."""
-
-    class NoLayout(_SparseDataset):
-        indexable_axes = ("object",)
-
-    with pytest.raises(ValueError, match="No layout indexes"):
-        sparse_color_by(NoLayout(), {"gene": 7})
-
-
-def test_an_id_or_an_option_defers_instead_of_refusing():
-    """Guarded by field, not by type.
-
-    A `ColorByOption` names its dataset with an object carrying only `id` and `name`, and
-    round-tripping one back is what `join_path_of` exists to support. Anything that cannot
-    answer the questions is passed through and the server asks them instead.
-    """
-
-    class Option:
-        id = "42"
-        name = "expression"
-
-    assert sparse_color_by("42", {"gene": 7}).dataset == "42"
-    assert sparse_color_by(Option(), {"gene": 7}).dataset == "42"
-    assert sparse_color_by(_SparseDataset(), {"gene": 7}).dataset == "42"
-
-
-def test_two_slices_naming_the_same_position_are_one_entry():
-    """The server sorts ``at`` before keying its duplicate check, so this side must too.
-
-    Without it the pair passes here and is refused on the far side, which is the wrong way
-    round -- and it is the same failure the picker's duplicate key had to be widened for once
-    already.
-    """
-    first = sparse_color_by("1", {"gene": 1, "adduct": 0})
-    reordered = sparse_color_by("1", {"adduct": 0, "gene": 1})
-    with pytest.raises(ValueError, match="renders identically"):
-        label_render([first, reordered])
-
-    # Genuinely different slices are still two entries.
-    label_render([sparse_color_by("1", {"gene": 1}), sparse_color_by("1", {"gene": 2})])
+def test_an_axis_the_matrix_does_not_have_is_refused():
+    with pytest.raises(ValueError, match="Invalid axis 'nonexistent'"):
+        _SparseDataset().lens(_Client(), nonexistent=1)

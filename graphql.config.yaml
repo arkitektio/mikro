@@ -109,6 +109,13 @@ projects:
             - mikro.traits.GraphColorByInputTrait
           TableDataset:
             - mikro.traits.HasParquestStoreTrait
+            - mikro.traits.TableDatasetLensTrait
+          SparseDataset:
+            - mikro.traits.SparseDatasetTrait
+          MeshCollection:
+            - mikro.traits.MeshCollectionTrait
+          NetworkCollection:
+            - mikro.traits.NetworkCollectionTrait
           ZarrStore:
             - mikro.traits.HasZarrStoreAccessor
           ParquetStore:
@@ -117,12 +124,14 @@ projects:
             - mikro.traits.HasDownloadAccessor
           MediaStore:
             - mikro.traits.HasPresignedDownloadAccessor
-          Lens:
+          ArrayLens:
             - mikro.traits.Lensable
           ArrayDataset:
             - mikro.traits.DatasetTrait
           Scene:
             - mikro.traits.SceneTrait
+          Chart:
+            - mikro.traits.ChartTrait
           CoordinateSystem:
             - mikro.traits.CoordinateSystemTrait
           ScaleTransformation:

@@ -100,6 +100,16 @@ class TestNormalizeSelection:
     def test_a_triple_carries_its_step(self) -> None:
         assert normalize_selection("x", (0, 128, 2)) == (0, 128, 2)
 
+    def test_the_last_index_is_pinned_with_an_open_stop(self) -> None:
+        """`-1:0` selects nothing, in Python and to the server alike."""
+        assert normalize_selection("c", -1) == (-1, None, None)
+        assert normalize_selection("c", -2) == (-2, -1, None)
+
+    @pytest.mark.parametrize("selection", [slice(None, None, -1), (8, 0, -2), (0, 8, 0)])
+    def test_a_step_that_does_not_run_forwards_is_refused(self, selection: object) -> None:
+        with pytest.raises(ValueError, match="Invalid step .* for axis 'x'"):
+            normalize_selection("x", selection)  # type: ignore[arg-type]
+
     def test_a_bool_is_refused(self) -> None:
         """`bool` is a subclass of `int`, so no annotation excludes it — and
         silently reading `c=True` as index 1 is worse than refusing it."""

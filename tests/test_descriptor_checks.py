@@ -32,7 +32,7 @@ def _described(mikro: Mikro, shape: tuple[int, ...], axes: list[str]) -> dict[st
     data = xr.DataArray(np.zeros(shape, dtype="uint8"), dims=axes)
     stored = mikro.create_array_dataset(data=data, scales=[], name="described", axes=axes)
     lens = mikro.get_lens(stored.lens().id)
-    describe = declared.registry.structure_registry.get_fullfilled_structure("@mikro/lens").describe
+    describe = declared.registry.structure_registry.get_fullfilled_structure("@mikro/arraylens").describe
     assert describe is not None
     return dict(describe(lens))
 

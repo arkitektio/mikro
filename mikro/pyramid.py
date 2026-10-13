@@ -40,7 +40,7 @@ from mikro.vocabulary import (
 )
 
 if TYPE_CHECKING:
-    from mikro.api.schema import AxisInput, ScaleInput, ScaleMethod
+    from mikro.api.schema import AxisInput, ScaleInput
 
 
 # The reductions xarray's ``coarsen`` can apply, plus ``nearest`` which is a

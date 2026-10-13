@@ -12,7 +12,7 @@ signal is per-object over time, not per-pixel over space.
   sparse in time), whose `cell` axis is identified by the mask and whose `frame`
   axis by a small frame table. Its picker entries are ``sparse_color_by`` slices at
   event-rich frames: **"activity at t = N s" as a colouring**, the first sparse
-  ``at`` used as time anywhere (sparse axes are INDEX by design, so time is a frame
+  slice pinned in time anywhere (sparse axes are INDEX by design, so time is a frame
   index — the frame table is what maps it back to seconds).
 
 Cells belong to three ensembles that share event times, so the colourings mean
@@ -347,7 +347,6 @@ if __name__ == "__main__":
             lens=mikro.create_lens(movie_ds, slices=[]),
             render_graph=channel_graph(
                 colormap=ColorMap.GREY,
-                intensity_axis=None,
                 mode=ProjectionMode.MIP,
                 clim_min=float(BACKGROUND),
                 clim_max=float(np.percentile(movie.values, 99.9)),
@@ -370,7 +369,7 @@ if __name__ == "__main__":
                                      max=float(dff.max()), label="Peak ΔF/F"),
                     categorical_color_by(stats, "ensemble", label="Ensemble"),
                     *(
-                        sparse_color_by(expression, {"frame": frame}, colormap=ColorMap.MAGMA,
+                        sparse_color_by(expression.lens(frame=frame), colormap=ColorMap.MAGMA,
                                         min=0.0, max=float(dff.max()),
                                         label=f"ΔF/F at {frame * DT:.1f} s")
                         for frame in headline

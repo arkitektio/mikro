@@ -110,7 +110,17 @@
                     "mikro.traits.GraphColorByInputTrait"
                 ],
                 "TableDataset": [
-                    "mikro.traits.HasParquestStoreTrait"
+                    "mikro.traits.HasParquestStoreTrait",
+                    "mikro.traits.TableDatasetLensTrait"
+                ],
+                "SparseDataset": [
+                    "mikro.traits.SparseDatasetTrait"
+                ],
+                "MeshCollection": [
+                    "mikro.traits.MeshCollectionTrait"
+                ],
+                "NetworkCollection": [
+                    "mikro.traits.NetworkCollectionTrait"
                 ],
                 "ZarrStore": [
                     "mikro.traits.HasZarrStoreAccessor"
@@ -124,7 +134,7 @@
                 "MediaStore": [
                     "mikro.traits.HasPresignedDownloadAccessor"
                 ],
-                "Lens": [
+                "ArrayLens": [
                     "mikro.traits.Lensable"
                 ],
                 "ArrayDataset": [
@@ -132,6 +142,9 @@
                 ],
                 "Scene": [
                     "mikro.traits.SceneTrait"
+                ],
+                "Chart": [
+                    "mikro.traits.ChartTrait"
                 ],
                 "CoordinateSystem": [
                     "mikro.traits.CoordinateSystemTrait"

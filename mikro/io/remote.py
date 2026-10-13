@@ -31,7 +31,7 @@ import tempfile
 import threading
 import time
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import obstore
 from obstore.exceptions import (

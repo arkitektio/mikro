@@ -20,15 +20,24 @@ IDENTIFIERS = {
     "@mikro/animation",
     "@mikro/annotation",
     "@mikro/annotationcollection",
+    "@mikro/annotationlens",
     "@mikro/arraydataset",
+    "@mikro/chart",
     "@mikro/coordinatesystem",
     "@mikro/folder",
     "@mikro/file",
-    "@mikro/lens",
+    "@mikro/arraylens",
     "@mikro/meshcollection",
+    "@mikro/meshlens",
+    "@mikro/networkcollection",
+    "@mikro/networklens",
     "@mikro/scene",
     "@mikro/scenesnapshot",
+    "@mikro/sparsedataset",
+    "@mikro/sparselens",
     "@mikro/tabledataset",
+    "@mikro/tablelens",
+    "@mikro/transformation",
 }
 
 
@@ -63,8 +72,114 @@ def test_a_lens_and_a_dataset_say_how_they_are_described() -> None:
     from mikro.arkitekt.specs import lens_descriptors
 
     structures = declared.registry.structure_registry
-    assert structures.get_fullfilled_structure("@mikro/lens").describe is lens_descriptors
+    assert structures.get_fullfilled_structure("@mikro/arraylens").describe is lens_descriptors
     assert structures.get_fullfilled_structure("@mikro/arraydataset").describe is lens_descriptors
     # Nothing else carries descriptors a port could constrain on.
     described = {i for i, s in structures.identifier_structure_map.items() if s.describe}
-    assert described == {"@mikro/lens", "@mikro/arraydataset"}
+    assert described == {"@mikro/arraylens", "@mikro/arraydataset", "@mikro/annotation"}
+
+
+def test_an_annotation_is_described_by_its_shape_and_the_axes_it_is_drawn_in() -> None:
+    """The keys the server declares for `@mikro/annotation`, in the schema's spelling."""
+    from types import SimpleNamespace
+
+    from mikro.api.schema import AnnotationKind, AxisType
+    from mikro.arkitekt.specs import annotation_descriptors
+
+    structures = declared.registry.structure_registry
+    assert structures.get_fullfilled_structure("@mikro/annotation").describe is annotation_descriptors
+
+    plane = SimpleNamespace(axes=[SimpleNamespace(type=AxisType.SPACE), SimpleNamespace(type=AxisType.SPACE)])
+    box = SimpleNamespace(kind=AnnotationKind.RECTANGLE, coordinate_system=plane)
+    assert annotation_descriptors(box) == {
+        "@mikro/annotation_kind": "RECTANGLE",
+        "@mikro/n_space_axes": 2,
+        "@mikro/n_time_axes": 0,
+    }
+
+
+def test_a_lens_structure_is_the_array_lens_and_every_kind_has_its_own() -> None:
+    """`@mikro/arraylens` is pixels: a port typed on it is never handed a table lens."""
+    from mikro.api import schema
+    from mikro.mikro import Mikro
+
+    structures = declared.registry.structure_registry.identifier_structure_map
+    kinds = {
+        "@mikro/arraylens": schema.ArrayLens,
+        "@mikro/tablelens": schema.TableLens,
+        "@mikro/sparselens": schema.SparseLens,
+        "@mikro/meshlens": schema.MeshLens,
+        "@mikro/networklens": schema.NetworkLens,
+        "@mikro/annotationlens": schema.AnnotationLens,
+    }
+    assert {i: structures[i].cls for i in kinds} == kinds
+    # The same fragment answers a federated batch expansion, by its concrete type:
+    # the interface is no entity.
+    assert {i: Mikro.FRAGMENTS[i] for i in kinds} == kinds
+    assert {f.Meta.type for f in kinds.values()} == {
+        "ArrayLens", "TableLens", "SparseLens", "MeshLens", "NetworkLens", "AnnotationLens",
+    }
+
+
+def test_every_lens_kind_and_an_annotation_are_picked_by_a_search_that_takes_the_ports_constraints() -> None:
+    """A port typed on a lens or an annotation gets a picker, and the picker's query has
+    a `$requires` for the frontend to fill from the port: one widget per structure
+    then offers each port only what that port accepts."""
+    from arkitekt_spec.scalars import get_search_query_variables
+
+    structures = declared.registry.structure_registry
+    kinds = {"array": "ARRAY", "table": "TABLE", "sparse": "SPARSE", "mesh": "MESH", "network": "NETWORK", "annotation": "ANNOTATION"}
+    for name, kind in kinds.items():
+        widget = structures.get_fullfilled_structure(f"@mikro/{name}lens").default_widget
+        assert widget is not None and widget.kind == "SEARCH" and widget.ward == "mikro", name
+        assert get_search_query_variables(widget.query)[:3] == ["search", "values", "requires"], name
+        # Each kind's query offers its own kind only: a table lens is never offered to a port typed on pixels.
+        assert f"kind: {kind}," in widget.query, name
+
+    annotation = structures.get_fullfilled_structure("@mikro/annotation").default_widget
+    assert annotation is not None and annotation.kind == "SEARCH"
+    assert "requires" in get_search_query_variables(annotation.query)
+
+
+def test_a_path_is_an_annotation_that_must_be_drawn_as_one() -> None:
+    """`PathAnnotation` is the constraint a picker hands the server, spelled as the server declares the key."""
+    from typing import get_args
+
+    from arkitekt_spec.declare.annotations import Provides, Requires
+
+    from mikro.api.schema import Annotation
+    from mikro.arkitekt.specs import PathAnnotation
+
+    cls, *markers = get_args(PathAnnotation)
+    assert cls is Annotation
+    stated = {type(marker): (marker.key, str(getattr(marker.operator, "value", marker.operator)), marker.value) for marker in markers}
+    assert stated == {Requires: ("@mikro/annotation_kind", "EQUALS", "PATH"), Provides: ("@mikro/annotation_kind", "EQUALS", "PATH")}
+
+
+def test_a_lens_picked_after_an_annotation_is_narrowed_to_what_that_annotation_reaches() -> None:
+    """`reachable_from("path")`: the catalog picker, its query naming the argument, the plain search over it as fallback."""
+    from pathlib import Path
+
+    from graphql import build_schema, parse, validate
+
+    from mikro.api.schema import LensKind
+    from mikro.arkitekt.widgets import reachable_from, reachable_lenses_query
+
+    widget = reachable_from("path")
+    assert widget.kind == "CUSTOM" and widget.component == "StructurePicker"
+    assert widget.dependencies == ("path",)
+    props = {prop.key: prop.static_value for prop in widget.props}
+    assert props["ward"] == "mikro" and props["bind"] == "value"
+    assert "reachableFrom: $path" in props["query"] and "kind: ARRAY" in props["query"]
+    assert widget.fallback.kind == "SEARCH" and widget.fallback.dependencies == ("path",)
+
+    # The query is text, written here and not generated: held to the schema the client was generated from.
+    # `assume_valid_sdl`: the dump carries federation directives (`@key`, `@link`) it does not define.
+    schema = build_schema((Path(declared.__file__).parents[1] / "api" / "schema.graphql").read_text(), assume_valid_sdl=True)
+    for kind in LensKind:
+        assert validate(schema, parse(reachable_lenses_query("shape", kind))) == [], kind
+        assert f"kind: {kind.value}," in reachable_lenses_query("shape", kind)
+
+    for bad in ("search", "values", "requires", "my path", "1st", "a/b"):
+        with pytest.raises(ValueError, match="reachable_from"):
+            reachable_from(bad)

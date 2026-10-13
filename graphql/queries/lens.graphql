@@ -1,5 +1,157 @@
+# `lens(id)` answers with whichever kind the id is. The array arm is the full fragment;
+# the windowed kinds are theirs.
 query GetLens($id: ID!) {
   lens(id: $id) {
-    ...Lens
+    ... on ArrayLens {
+      ...ArrayLens
+    }
+    ... on TableLens {
+      ...TableLens
+    }
+    ... on SparseLens {
+      ...SparseLens
+    }
+    ... on MeshLens {
+      ...MeshLens
+    }
+    ... on NetworkLens {
+      ...NetworkLens
+    }
+    ... on AnnotationLens {
+      ...AnnotationLens
+    }
+  }
+}
+
+# The lens that selects a whole dataset, read rather than made: every dataset is created
+# with one. Null only for a dataset with no pixel grid to select over.
+query GetFullLens($dataset: ID!) {
+  arrayDataset(id: $dataset) {
+    id
+    fullLens {
+      ...ArrayLens
+    }
+  }
+}
+
+# The array lenses over one dataset, oldest first. `sliced: true` keeps the crops and
+# sub-volumes, `false` the whole lens.
+query GetDatasetLenses($dataset: ID!, $sliced: Boolean) {
+  arrayDataset(id: $dataset) {
+    id
+    lenses(sliced: $sliced) {
+      ...ArrayLens
+    }
+  }
+}
+
+# Lenses of every kind. Most have no name and are known by their container's, which
+# is what `filters.search` matches too; `filters.sliced: true` keeps the ones that cut
+# something out, which is what a list meant for people wants.
+query GetLenses($filters: LensFilter, $pagination: OffsetPaginationInput) {
+  lenses(filters: $filters, pagination: $pagination) {
+    id
+    name
+    kind
+  }
+}
+
+# What a port's picker asks, one query per lens kind because a port is typed on one kind.
+# `$requires` is the port's own constraints, handed on unchanged by the frontend: the
+# server keeps only the lenses satisfying them, so a `Volume` port is offered volumes.
+# `label` is never empty (a lens nobody named is called by its container and selection).
+query SearchArrayLenses(
+  $search: String
+  $values: [ID!]
+  $requires: [DescriptorConstraintInput!]
+  $limit: Int
+  $offset: Int = 0
+) {
+  options: lenses(
+    filters: { kind: ARRAY, search: $search, ids: $values, requires: $requires }
+    pagination: { limit: $limit, offset: $offset }
+  ) {
+    value: id
+    label
+  }
+}
+
+query SearchTableLenses(
+  $search: String
+  $values: [ID!]
+  $requires: [DescriptorConstraintInput!]
+  $limit: Int
+  $offset: Int = 0
+) {
+  options: lenses(
+    filters: { kind: TABLE, search: $search, ids: $values, requires: $requires }
+    pagination: { limit: $limit, offset: $offset }
+  ) {
+    value: id
+    label
+  }
+}
+
+query SearchSparseLenses(
+  $search: String
+  $values: [ID!]
+  $requires: [DescriptorConstraintInput!]
+  $limit: Int
+  $offset: Int = 0
+) {
+  options: lenses(
+    filters: { kind: SPARSE, search: $search, ids: $values, requires: $requires }
+    pagination: { limit: $limit, offset: $offset }
+  ) {
+    value: id
+    label
+  }
+}
+
+query SearchMeshLenses(
+  $search: String
+  $values: [ID!]
+  $requires: [DescriptorConstraintInput!]
+  $limit: Int
+  $offset: Int = 0
+) {
+  options: lenses(
+    filters: { kind: MESH, search: $search, ids: $values, requires: $requires }
+    pagination: { limit: $limit, offset: $offset }
+  ) {
+    value: id
+    label
+  }
+}
+
+query SearchNetworkLenses(
+  $search: String
+  $values: [ID!]
+  $requires: [DescriptorConstraintInput!]
+  $limit: Int
+  $offset: Int = 0
+) {
+  options: lenses(
+    filters: { kind: NETWORK, search: $search, ids: $values, requires: $requires }
+    pagination: { limit: $limit, offset: $offset }
+  ) {
+    value: id
+    label
+  }
+}
+
+query SearchAnnotationLenses(
+  $search: String
+  $values: [ID!]
+  $requires: [DescriptorConstraintInput!]
+  $limit: Int
+  $offset: Int = 0
+) {
+  options: lenses(
+    filters: { kind: ANNOTATION, search: $search, ids: $values, requires: $requires }
+    pagination: { limit: $limit, offset: $offset }
+  ) {
+    value: id
+    label
   }
 }

@@ -1,0 +1,99 @@
+# A chart is the second composition beside a scene: a scene is a place, a chart is one
+# metric axis with values read off it. A layer names its data (a lens, a table, an
+# annotation collection) and owns none of it; where the data sits along the axis is the
+# graph's answer (`alongAxis`, `placement`, `asAffine`), never a column of the layer.
+#
+# The kinds are inlined rather than spread as named fragments, for the reason spelled out
+# on the scene's `Layer` fragment: a nested fragment spread inside an *interface* fragment
+# breaks the generated module's import.
+fragment ChartLayer on ChartLayer {
+  id
+  kind
+  name
+  chart {
+    id
+    name
+  }
+  visible
+  order
+  opacity
+  color
+  # Derived on read, all four. `alongAxis` is the source axis the registration lays along
+  # the chart, so it follows the edge: null once the layer is no longer placed.
+  alongAxis
+  placement
+  placementValidity
+  asAffine {
+    matrix
+    inputAxes
+    outputAxes
+    total
+  }
+  ... on TraceChartLayer {
+    lens {
+      id
+      dataset {
+        id
+        name
+      }
+    }
+    # The CHANNEL or INDEX axis left free beside `alongAxis`: one line per position.
+    seriesAxis
+    mark
+    lineWidth
+    markerSize
+  }
+  ... on SeriesChartLayer {
+    # The table lens the series draws through; `windows` is empty for the whole table.
+    tableLens: lens {
+      id
+      name
+      windows {
+        axis
+        min
+        max
+      }
+    }
+    tableDataset {
+      id
+      name
+    }
+    valueColumn
+    coordinateColumn
+    valueUnit
+    mark
+    lineWidth
+    markerSize
+  }
+  ... on AnnotationChartLayer {
+    annotationLens: lens {
+      id
+      name
+      windows {
+        axis
+        min
+        max
+      }
+    }
+    annotationCollection {
+      id
+      name
+    }
+  }
+}
+
+fragment Chart on Chart {
+  id
+  name
+  description
+  # The world's one axis, repeated by the server so nobody unwraps a list of one.
+  axis {
+    ...Axis
+  }
+  worldCoordinateSystem {
+    ...CoordinateSystem
+  }
+  layers {
+    ...ChartLayer
+  }
+}

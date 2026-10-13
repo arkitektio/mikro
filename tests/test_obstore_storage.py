@@ -20,6 +20,7 @@ from mikro.io.obstore import (
     awrite_dataarray_to_zarr,
     write_dataarray_to_zarr,
 )
+from mikro.io.chunking import ChunkLayout
 from mikro.scalars import ArrayLike
 
 
@@ -89,7 +90,7 @@ def test_write_dataarray_to_zarr_numpy_roundtrips_with_chunks() -> None:
 
 
 def test_write_dataarray_to_zarr_streams_dask_arrays() -> None:
-    # A larger array so rechunk actually splits it into multiple on-disk chunks.
+    # Large enough to be many shards, so the per-block streaming is what is exercised.
     source = np.arange(2 * 50 * 2048 * 2048, dtype="uint16").reshape(1, 2, 50, 2048, 2048)
     array = xr.DataArray(
         da.from_array(source, chunks=(1, 1, 10, 2048, 2048)), dims=list("ctzyx")
@@ -99,8 +100,8 @@ def test_write_dataarray_to_zarr_streams_dask_arrays() -> None:
     write_dataarray_to_zarr(sp, array)
 
     back = zarr.open_array(sp, mode="r")
-    # rechunk targets ~20MB chunks, so the z axis is split rather than written whole.
-    assert back.chunks[2] < 50
+    # Fifty slices is a volume: bricks 64 wide and as deep as the stack.
+    assert back.chunks == (1, 1, 50, 64, 64)
     assert np.array_equal(back[:], source)
 
 
@@ -120,7 +121,7 @@ async def test_awrite_dataarray_to_zarr_roundtrips() -> None:
 
 @pytest.mark.asyncio
 async def test_awrite_dataarray_to_zarr_streams_dask_arrays(monkeypatch) -> None:
-    # A larger array so rechunk actually splits it into multiple on-disk chunks.
+    # Large enough to be many shards, so the per-block streaming is what is exercised.
     source = np.arange(2 * 50 * 2048 * 2048, dtype="uint16").reshape(1, 2, 50, 2048, 2048)
     array = xr.DataArray(
         da.from_array(source, chunks=(1, 1, 10, 2048, 2048)), dims=list("ctzyx")
@@ -146,8 +147,8 @@ async def test_awrite_dataarray_to_zarr_streams_dask_arrays(monkeypatch) -> None
         monkeypatch.setattr(dac.Array, "compute", original_compute)
 
     back = zarr.open_array(sp, mode="r")
-    # rechunk targets ~20MB chunks, so the z axis is split rather than written whole.
-    assert back.chunks[2] < 50
+    # Fifty slices is a volume: bricks 64 wide and as deep as the stack.
+    assert back.chunks == (1, 1, 50, 64, 64)
     assert np.array_equal(back[:], source)
 
 
@@ -197,20 +198,32 @@ def test_write_dataarray_to_zarr_shards_large_dask_arrays() -> None:
     assert np.array_equal(back[:], source)
 
 
-def test_write_dataarray_to_zarr_leaves_small_arrays_unsharded() -> None:
-    # Below the size threshold (small uploads, low pyramid levels) the layout is
-    # exactly what it was before sharding existed: plain chunks, no sharding codec.
-    array = xr.DataArray(
-        np.zeros((1, 1, 4, 256, 256), dtype="uint16"),
-        dims=list("ctzyx"),
-    )
-    sp = _store_path("small-unsharded")
+def test_write_dataarray_to_zarr_leaves_a_single_chunk_unsharded() -> None:
+    # A shard exists to group chunks; an array that is one chunk has nothing to group.
+    array = xr.DataArray(np.zeros((1, 1, 1, 200, 200), dtype="uint16"), dims=list("ctzyx"))
+    sp = _store_path("single-chunk")
 
     write_dataarray_to_zarr(sp, array)
 
     back = zarr.open_array(sp, mode="r")
+    assert back.chunks == (1, 1, 1, 200, 200)
     assert back.shards is None
     assert all(codec.__class__.__name__ != "ShardingCodec" for codec in back.metadata.codecs)
+
+
+def test_write_dataarray_to_zarr_shards_small_arrays_too() -> None:
+    # A coarse pyramid level is fetched whole, and only chunks of one shard coalesce into
+    # one request -- so it is sharded however small it is, with the same brick as level 0.
+    source = np.arange(2 * 4 * 300 * 300, dtype="uint16").reshape(2, 1, 4, 300, 300)
+    array = xr.DataArray(source, dims=list("ctzyx"))
+    sp = _store_path("small-sharded")
+
+    write_dataarray_to_zarr(sp, array)
+
+    back = zarr.open_array(sp, mode="r")
+    assert back.chunks == (1, 1, 1, 256, 256)
+    assert back.shards == (2, 1, 4, 512, 512)
+    assert np.array_equal(back[:], source)
 
 
 def test_write_dataarray_to_zarr_shards_numpy_arrays() -> None:
@@ -226,30 +239,34 @@ def test_write_dataarray_to_zarr_shards_numpy_arrays() -> None:
     assert np.array_equal(back[:], source)
 
 
-def test_write_dataarray_to_zarr_honors_explicit_chunk_and_shard_overrides() -> None:
+def test_write_dataarray_to_zarr_honors_an_explicit_layout() -> None:
     array = xr.DataArray(np.zeros((8, 1024, 1024), dtype="uint8"), dims=["z", "y", "x"])
     sp = _store_path("override")
 
-    write_dataarray_to_zarr(sp, array, chunks=(2, 256, 256), shards=(8, 1024, 1024))
+    write_dataarray_to_zarr(
+        sp, array, layout=ChunkLayout(chunks=(2, 256, 256), shards=(8, 1024, 1024))
+    )
     back = zarr.open_array(sp, mode="r")
     assert back.chunks == (2, 256, 256)
     assert back.shards == (8, 1024, 1024)
 
-    # An explicit chunk shape without shards means "unsharded", even above the threshold.
+    # A layout without shards means "unsharded".
     sp2 = _store_path("override-unsharded")
-    write_dataarray_to_zarr(sp2, array, chunks=(2, 256, 256))
+    write_dataarray_to_zarr(sp2, array, layout=ChunkLayout(chunks=(2, 256, 256)))
     assert zarr.open_array(sp2, mode="r").shards is None
 
-    with pytest.raises(ValueError, match="without the inner chunks"):
-        write_dataarray_to_zarr(_store_path("bad"), array, shards=(8, 1024, 1024))
+    with pytest.raises(ValueError, match="do not have the array's 3 dimensions"):
+        write_dataarray_to_zarr(_store_path("bad"), array, layout=ChunkLayout(chunks=(256, 256)))
 
 
 @pytest.mark.asyncio
-async def test_awrite_dataarray_to_zarr_forwards_sharding_overrides() -> None:
+async def test_awrite_dataarray_to_zarr_forwards_the_layout() -> None:
     array = xr.DataArray(np.zeros((8, 512, 512), dtype="uint8"), dims=["z", "y", "x"])
     sp = _store_path("async-override")
 
-    await awrite_dataarray_to_zarr(sp, array, chunks=(2, 256, 256), shards=(4, 512, 512))
+    await awrite_dataarray_to_zarr(
+        sp, array, layout=ChunkLayout(chunks=(2, 256, 256), shards=(4, 512, 512))
+    )
 
     back = zarr.open_array(sp, mode="r")
     assert back.chunks == (2, 256, 256)
@@ -257,7 +274,8 @@ async def test_awrite_dataarray_to_zarr_forwards_sharding_overrides() -> None:
 
 
 def test_write_dataarray_to_zarr_streams_arbitrary_dims() -> None:
-    # A large non-ctzyx array must chunk and round-trip via the generic chunker.
+    # Dimensions are chunked by what they are, not by whether all five of ctzyx are there:
+    # a bare zyx stack gets the same volume bricks a ctzyx one does.
     source = np.arange(50 * 2048 * 2048, dtype="uint16").reshape(50, 2048, 2048)
     array = xr.DataArray(da.from_array(source, chunks=(10, 2048, 2048)), dims=["z", "y", "x"])
     sp = _store_path("arbitrary")
@@ -265,7 +283,6 @@ def test_write_dataarray_to_zarr_streams_arbitrary_dims() -> None:
     write_dataarray_to_zarr(sp, array)
 
     back = zarr.open_array(sp, mode="r")
-    # ~20MB target splits the z axis rather than writing all 50 planes in one chunk.
-    assert back.chunks[0] < 50
+    assert back.chunks == (50, 64, 64)
     assert back.metadata.dimension_names == ("z", "y", "x")
     assert np.array_equal(back[:], source)

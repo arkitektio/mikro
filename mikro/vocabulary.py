@@ -41,6 +41,9 @@ AxisTypeName = Literal[
     "MICROTIME",
     "SPECTRUM",
     "INDEX",
+    # The height a mark is drawn at, in a chart's drawing space only: the server
+    # refuses it on anything that holds data, so no bare-name convention names it.
+    "VALUE",
 ]
 
 #: The bare-name convention. Every name the convention actually knows is listed;
@@ -101,6 +104,8 @@ AXIS_TYPE_ORDER: Final[Mapping[AxisTypeName, int]] = {
     "DISPLACEMENT": 1,
     "INDEX": 1,
     "SPACE": 2,
+    # Last: a drawing space is (the chart's axis, value), whatever the axis measures.
+    "VALUE": 3,
 }
 
 #: Axis types a pyramid may re-bin. Halving a CHANNEL or INDEX axis would invent
@@ -144,11 +149,18 @@ TransformKind = Literal[
 #: dispatch rejects at runtime.
 ResolvedTransformKind = Union[TransformKind, Literal["SEQUENCE"]]
 
-#: The kinds with a closed-form homogeneous matrix. SEQUENCE has one too, but
-#: only after a network round-trip (`resolve_matrix`); the rest have none.
+#: The kinds with a closed-form homogeneous matrix. A SEQUENCE is one of them: it
+#: carries its ordered steps, so it composes from what the edge already holds. Its
+#: matrix still fails when a step is of a kind that has none (a FIELD, an UNMAPPABLE).
 MATRIX_KINDS: Final[frozenset[ResolvedTransformKind]] = frozenset(
-    {"IDENTITY", "SCALE", "TRANSLATION", "AFFINE", "ROTATION", "MAP_AXIS"}
+    {"IDENTITY", "SCALE", "TRANSLATION", "AFFINE", "ROTATION", "MAP_AXIS", "SEQUENCE"}
 )
+
+#: The kinds a path may be composed through. BY_DIMENSION has no matrix of its own
+#: -- it acts on a named subset of the axes and may change rank -- but it composes
+#: by axis name, and it is the edge of every registration and every scene drawing
+#: space, so a path that could not cross it would stop at the first scene.
+COMPOSABLE_KINDS: Final[frozenset[ResolvedTransformKind]] = MATRIX_KINDS | frozenset({"BY_DIMENSION"})
 
 
 # --- Pyramids ---------------------------------------------------------------
@@ -182,12 +194,21 @@ AxisSelection = Union[
 SliceBounds = tuple[int | None, int | None, int | None]
 
 
+def _forward(axis: str, start: int | None, stop: int | None, step: int | None) -> SliceBounds:
+    """The bounds, refused when their step runs backwards or nowhere."""
+    if step is not None and step <= 0:
+        raise ValueError(
+            f"Invalid step {step} for axis {axis!r}: a lens narrows an axis, it does "
+            "not reverse it. Select forwards and flip the array you read"
+        )
+    return (start, stop, step)
+
+
 def normalize_selection(axis: str, selection: AxisSelection) -> SliceBounds:
     """One selection as ``(start, stop, step)``, or a refusal naming the axis.
 
     The single spelling of the selection contract, shared by
-    ``DatasetTrait.lens`` (which turns it into a ``SliceInput``) and
-    ``specs._selected_extent`` (which measures what it keeps). Shape only —
+    ``DatasetTrait.lens``, which turns it into a ``SliceInput``. Shape only —
     anything needing the axis' extent, including bounds checking, belongs to the
     caller that knows it.
 
@@ -198,16 +219,48 @@ def normalize_selection(axis: str, selection: AxisSelection) -> SliceBounds:
     if isinstance(selection, bool):
         raise TypeError(f"Invalid selection for axis {axis!r}: {selection!r}")
     if isinstance(selection, int):
-        return (selection, selection + 1, None)
+        # The last index has no stop to name: `-1:0` is empty, in Python and to the
+        # server alike, so it is left open.
+        return (selection, None if selection == -1 else selection + 1, None)
     if isinstance(selection, slice):
-        return (selection.start, selection.stop, selection.step)
+        return _forward(axis, selection.start, selection.stop, selection.step)
     if isinstance(selection, (tuple, list)) and 2 <= len(selection) <= 3:
         start, stop = selection[0], selection[1]
         step = selection[2] if len(selection) == 3 else None
-        return (start, stop, step)
+        return _forward(axis, start, stop, step)
     raise TypeError(
         f"Invalid selection for axis {axis!r}: {selection!r}. Pass an int, a "
         f"slice(), or a (start, stop[, step]) tuple"
+    )
+
+
+#: One window along one axis of a container that is not an array, as the ``lens()`` of
+#: a table, a sparse dataset or a collection takes it. A number pins one position
+#: (``min == max``); a ``(min, max)`` pair keeps a range, ``None`` leaving that side open.
+WindowSelection = Union[int, float, tuple[float | None, float | None]]
+
+#: The normalized form: ``(min, max)``, either of which may be ``None``.
+WindowBounds = tuple[float | None, float | None]
+
+
+def normalize_window(axis: str, selection: WindowSelection) -> WindowBounds:
+    """One window as ``(min, max)``, or a refusal naming the axis.
+
+    The windowed sibling of `normalize_selection`. Shape only, for the same reason:
+    whether the axis exists, and how far it runs, is the container's to say.
+    """
+    if isinstance(selection, bool):
+        raise TypeError(f"Invalid window for axis {axis!r}: {selection!r}")
+    if isinstance(selection, (int, float)):
+        return (float(selection), float(selection))
+    if isinstance(selection, (tuple, list)) and len(selection) == 2:
+        low, high = selection
+        if low is not None and high is not None and low > high:
+            raise ValueError(f"Invalid window for axis {axis!r}: min={low} is above max={high}")
+        return (None if low is None else float(low), None if high is None else float(high))
+    raise TypeError(
+        f"Invalid window for axis {axis!r}: {selection!r}. Pass a number to pin one "
+        "position, or a (min, max) pair"
     )
 
 
@@ -397,6 +450,7 @@ QUALITATIVE_COLORMAP_VALUES: Final[frozenset[str]] = frozenset({"HUES", "DISTINC
 __all__ = [
     "AXIS_TYPE_ORDER",
     "COARSENABLE_AXIS_TYPES",
+    "COMPOSABLE_KINDS",
     "MATRIX_KINDS",
     "QUALITATIVE_COLORMAP_VALUES",
     "AxisSelection",
@@ -410,10 +464,13 @@ __all__ = [
     "TransformKind",
     "UnknownArrowType",
     "UnknownAxisName",
+    "WindowBounds",
+    "WindowSelection",
     "axis_type_rank",
     "default_axis_type",
     "duckdb_type",
     "normalize_selection",
+    "normalize_window",
 ]
 
 

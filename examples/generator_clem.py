@@ -338,7 +338,7 @@ if __name__ == "__main__":
                 blending=Blending.ADDITIVE, opacity=0.7, order=order,
             )
         point_layer = mikro.create_point_layer(
-            scene=scene, table_dataset=beads, point_size=0.25, colormap=ColorMap.YELLOW,
+            scene=scene, lens=beads.lens().id, point_size=0.25, colormap=ColorMap.YELLOW,
             opacity=0.9, order=3,
         )
         if (point_layer.y_column, point_layer.x_column) != ("y", "x"):

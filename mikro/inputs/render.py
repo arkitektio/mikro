@@ -6,9 +6,12 @@ nesting for the simplest possible "show this in green", so these builders cover
 the shapes that actually recur::
 
     channel_graph(colormap=ColorMap.INFERNO, gamma=0.8)
-    composite_graph([ChannelSpec(intensity_index=0, colormap=ColorMap.CYAN),
-                     ChannelSpec(intensity_index=1, colormap=ColorMap.MAGENTA)])
-    rgb_graph()
+    composite_graph([ChannelSpec(lens=dapi.id, colormap=ColorMap.CYAN),
+                     ChannelSpec(lens=gfp.id, colormap=ColorMap.MAGENTA)])
+    rgb_graph([red.id, green.id, blue.id])
+
+A channel node samples one single-channel **lens** -- ``dataset.lens(c=0)`` -- and a
+node naming none samples the layer's own lens, which then has to pin one channel itself.
 
 For the common cases you may not need a graph at all: staging a scene from
 a coordinate system — ``dataset.intrinsic_system.stage(policy=ScenePolicyInput(...))``
@@ -23,6 +26,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from typing import Union
 
 from pydantic import BaseModel, ConfigDict
+from rath.scalars import ID
 
 from mikro.api.schema import (
     Blending,
@@ -153,7 +157,7 @@ def color_for_wavelength(
 
 
 class ChannelSpec(BaseModel):
-    """One channel of a composite: which positions to read, and how to colour them.
+    """One channel of a composite: which lens to sample, and how to colour it.
 
     Flat on purpose — the split between the channel node and its transfer
     function is a detail of the wire format, not something worth making a caller
@@ -166,8 +170,9 @@ class ChannelSpec(BaseModel):
     """
 
     # -- channel-node settings
-    intensity_axis: str | None = "c"
-    intensity_index: int = 0
+    #: The single-channel lens this node samples, ``dataset.lens(c=1).id``. None
+    #: means the layer's own lens, which must then pin one channel itself.
+    lens: ID | None = None
     mode: ProjectionMode | None = None
     label: str | None = None
     visible: bool | None = None
@@ -198,8 +203,7 @@ def _channel_node(spec: ChannelSpec) -> LayerNodeInput:
     kind: LayerNodeKind = "channel"
     return LayerNodeInput(
         kind=kind,
-        intensity_axis=spec.intensity_axis,
-        intensity_index=spec.intensity_index,
+        lens=spec.lens,
         label=spec.label,
         visible=spec.visible,
         transfer=TransferFunctionInput(
@@ -247,14 +251,14 @@ def composite_graph(
 ) -> LayerRenderGraphInput:
     """Composite several channels into one layer.
 
-    Each `ChannelSpec` mixes channel settings (``intensity_axis``,
-    ``intensity_index``, ``mode``) with transfer settings (``colormap``,
+    Each `ChannelSpec` mixes channel settings (``lens``, ``mode``) with
+    transfer settings (``colormap``,
     ``color``, ``clim_min``/``clim_max``, ``gamma``, ``opacity``, ``invert``);
     they are sorted into the right nodes for you.
 
         composite_graph([
-            ChannelSpec(intensity_index=0, colormap=ColorMap.CYAN),
-            ChannelSpec(intensity_index=1, colormap=ColorMap.MAGENTA, opacity=0.7),
+            ChannelSpec(lens=dataset.lens(c=0).id, colormap=ColorMap.CYAN),
+            ChannelSpec(lens=dataset.lens(c=1).id, colormap=ColorMap.MAGENTA, opacity=0.7),
         ])
     """
     kind: LayerNodeKind = "blend"
@@ -270,8 +274,7 @@ def composite_graph(
 def channel_graph(
     colormap: ColorMap | None = None,
     color: RGBAColor | None = None,
-    intensity_axis: str | None = "c",
-    intensity_index: int = 0,
+    lens: ID | None = None,
     clim_min: float | None = None,
     clim_max: float | None = None,
     gamma: float | None = None,
@@ -282,21 +285,16 @@ def channel_graph(
 ) -> LayerRenderGraphInput:
     """A single channel with a fully specified transfer function.
 
-    ``intensity_axis`` names the axis whose positions are composited *together*
-    as separate colour channels, so it has to be a CHANNEL axis — the server
-    rejects a TIME or SPACE axis outright, and for good reason: pointing it at
-    ``t`` stacks every frame of a timelapse on top of each other at once and
-    consumes the axis the time slider would have walked.
-
-    Pass ``intensity_axis=None`` for data that is single-valued per rendered
-    plane — a bare z-stack, a time series. The projection ``mode`` and the time
-    slider already know which axis they walk.
+    ``lens`` is the single-channel lens the node samples. Left out, the node
+    samples the layer's own lens -- right for data that is single-valued per
+    rendered plane (a bare z-stack, a time series), and for a layer already made
+    over one channel's lens. The projection ``mode`` and the time slider already
+    know which axis they walk.
     """
     return composite_graph(
         [
             ChannelSpec(
-                intensity_axis=intensity_axis,
-                intensity_index=intensity_index,
+                lens=lens,
                 mode=mode,
                 colormap=colormap,
                 color=color,
@@ -312,14 +310,16 @@ def channel_graph(
 
 
 def rgb_graph(
+    lenses: Sequence[ID],
     clim_min: float = 0.0,
     clim_max: float = 255.0,
-    intensity_axis: str = "c",
-    channels: Sequence[int] = (0, 1, 2),
     mode: ProjectionMode | None = None,
 ) -> LayerRenderGraphInput:
     """Three channels composited as red, green and blue — a photograph, a
     brightfield slide, anything already in display colour.
+
+    ``lenses`` are the three single-channel lenses, in red, green, blue order:
+    ``[dataset.lens(c=i).id for i in range(3)]``.
 
     The contrast window defaults to a full 8-bit range rather than being read
     off the data: an RGB image is already display-referred, so stretching it
@@ -329,8 +329,8 @@ def rgb_graph(
     It is here because without it the only way to get a projection was to
     hand-build the three specs, which is what the converters were doing.
     """
-    if len(channels) != 3:
-        raise ValueError(f"An RGB graph needs exactly three channels, got {len(channels)}")
+    if len(lenses) != 3:
+        raise ValueError(f"An RGB graph needs exactly three channel lenses, got {len(lenses)}")
     colors: tuple[RGBAColor, RGBAColor, RGBAColor] = (
         (255, 0, 0),
         (0, 255, 0),
@@ -339,15 +339,14 @@ def rgb_graph(
     return composite_graph(
         [
             ChannelSpec(
-                intensity_axis=intensity_axis,
-                intensity_index=index,
+                lens=lens,
                 color=color,
                 colormap=ColorMap.INTENSITY,
                 clim_min=clim_min,
                 clim_max=clim_max,
                 mode=mode,
             )
-            for index, color in zip(channels, colors)
+            for lens, color in zip(lenses, colors)
         ]
     )
 

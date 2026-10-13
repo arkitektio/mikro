@@ -200,7 +200,7 @@ if __name__ == "__main__":
         # (x, y, z) over a (z, y, x) source — an IDENTITY would pass the rank
         # check and draw every streamline transposed.
         collection = mikro.create_network_collection(
-            version=f"v20260901-dti-streamlines-seed{SEED}",
+            name=f"v20260901-dti-streamlines-seed{SEED}",
             store=built,
             axes=list(COLLECTION_AXES),
             derived_from=[
@@ -237,7 +237,7 @@ if __name__ == "__main__":
 
         network_layer = mikro.create_network_layer(
             scene=scene.id,
-            network_collection=collection.id,
+            lens=collection.lens().id,
             material_color=[255, 200, 80, 255],
             show_nodes=False,  # streamlines are their segments; node glyphs are noise here
             directed=False,
@@ -270,7 +270,7 @@ if __name__ == "__main__":
         print("Uploading glass brain…")
         built_mesh = build_collection({1: mesh}, levels=LEVELS)
         mesh_collection = mikro.create_mesh_collection(
-            version=f"v20260901-dti-glass-brain-network-seed{SEED}",
+            name=f"v20260901-dti-glass-brain-network-seed{SEED}",
             store=built_mesh,
             axes=[AxisInput(name=d, type=AxisType.SPACE) for d in COLLECTION_AXES],
             derived_from=[
@@ -283,7 +283,7 @@ if __name__ == "__main__":
         )
         mesh_layer = mikro.create_mesh_layer(
             scene=scene.id,
-            mesh_collection=mesh_collection.id,
+            lens=mesh_collection.lens().id,
             material_color=[205, 215, 255, 255],
             wireframe=False,
             opacity=0.18,

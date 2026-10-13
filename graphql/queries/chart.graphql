@@ -1,0 +1,38 @@
+query GetChart($id: ID!) {
+  chart(id: $id) {
+    ...Chart
+  }
+}
+
+query SearchCharts(
+  $search: String
+  $values: [ID!]
+  $limit: Int
+  $offset: Int = 0
+) {
+  options: charts(
+    filters: { search: $search, ids: $values }
+    pagination: { limit: $limit, offset: $offset }
+  ) {
+    value: id
+    label: name
+  }
+}
+
+query ListCharts($filters: ChartFilter, $pagination: OffsetPaginationInput) {
+  charts(filters: $filters, pagination: $pagination) {
+    ...Chart
+  }
+}
+
+query GetChartLayer($id: ID!) {
+  chartLayer(id: $id) {
+    ...ChartLayer
+  }
+}
+
+query ChartLayers($filters: ChartLayerFilter, $pagination: OffsetPaginationInput) {
+  chartLayers(filters: $filters, pagination: $pagination) {
+    ...ChartLayer
+  }
+}

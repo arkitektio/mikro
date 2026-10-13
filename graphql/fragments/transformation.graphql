@@ -1,31 +1,3 @@
-# The parameters a child carries, for the composite kinds (SEQUENCE,
-# BY_DIMENSION). `__typename` is load-bearing rather than
-# decorative: the generated child models are a union discriminated on it, so a
-# child selection without it cannot be tagged and the *whole* parent edge fails
-# validation and degrades to a fieldless CatchAll.
-#
-# `inputAxes` and `outputAxes` are on the Transformation interface, so every
-# child carries the axis subset it acts on without an inline fragment.
-fragment TransformationChild on Transformation {
-  __typename
-  id
-  kind
-  inputAxes
-  outputAxes
-  ... on ScaleTransformation {
-    scale
-  }
-  ... on TranslationTransformation {
-    translation
-  }
-  ... on AffineTransformation {
-    affine
-  }
-  ... on RotationTransformation {
-    affine
-  }
-}
-
 fragment Transformation on Transformation {
   id
   kind
@@ -58,16 +30,28 @@ fragment Transformation on Transformation {
       ...CoordinateSystem
     }
   }
+  # A SEQUENCE carries its map on itself: ordered steps, each a kind and that kind's
+  # parameters in the axis order of the sequence's input. A step is not an edge -- no id, no
+  # endpoints -- so there is nothing further to fetch, and the whole matrix composes from this.
   ... on SequenceTransformation {
-    sequenceChildren: transformations {
-      ...TransformationChild
+    steps {
+      kind
+      scale
+      translation
+      affine
+      reason
+      field {
+        id
+      }
     }
   }
+  # A BY_DIMENSION states its map over the axes it names: a scale and/or a translation, or an
+  # affine. All three empty is the identity on those axes.
   ... on ByDimensionTransformation {
     inputAxes
     outputAxes
-    byDimensionChildren: transformations {
-      ...TransformationChild
-    }
+    scale
+    translation
+    affine
   }
 }

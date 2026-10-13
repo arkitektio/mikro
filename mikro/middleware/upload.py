@@ -79,6 +79,7 @@ if TYPE_CHECKING:
     from mikro.api.schema import (
         BigFileUploadGrant,
         FabriksUploadGrant,
+        KonnektionUploadGrant,
         MediaUploadGrant,
         ParquetUploadGrant,
         SparseUploadGrant,

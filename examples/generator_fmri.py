@@ -321,7 +321,6 @@ if __name__ == "__main__":
             lens=mikro.create_lens(bold_ds, slices=[]),
             render_graph=channel_graph(
                 colormap=ColorMap.GREY,
-                intensity_axis=None,
                 mode=ProjectionMode.MIP,
                 clim_min=0.0,
                 clim_max=float(np.percentile(bold.values, 99.5)),
@@ -351,7 +350,7 @@ if __name__ == "__main__":
                     measure_color_by(table, "amplitude_pct", colormap=ColorMap.VIRIDIS, min=0.0,
                                      max=float(stats["amplitude_pct"].max()), label="Amplitude"),
                     *(
-                        sparse_color_by(psc_matrix, {"frame": frame}, colormap=ColorMap.MAGMA,
+                        sparse_color_by(psc_matrix.lens(frame=frame), colormap=ColorMap.MAGMA,
                                         min=0.0, max=float(psc.max()),
                                         label=f"Response at {frame * TR:.0f} s")
                         for frame in headline

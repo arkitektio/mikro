@@ -183,7 +183,7 @@ wheels = [
 
 [[package]]
 name = "arkitekt-spec"
-version = "3.5.0"
+version = "3.9.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "docstring-parser" },
@@ -192,9 +192,9 @@ dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/1b/13/03225d3e4f792260245c42f66bd7ff88a1d8a2019418b64f1a197b3ce480/arkitekt_spec-3.5.0.tar.gz", hash = "sha256:88bd024d2ce2c9ba093c0f3adcf3435fa48278d186187fc550a4426c582450c3", size = 180793, upload-time = "2026-10-07T14:16:39.067Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b4/14/c5e7468a4c7de96f984e168015cacec6f60ed3140463f9e10b8f14f048b8/arkitekt_spec-3.9.0.tar.gz", hash = "sha256:f22611dffbb267b905bc0565de659b53958d67441a910f928d5b66dce1dd8e45", size = 194499, upload-time = "2026-10-13T14:47:37.018Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e4/fc/cce339c57dc8477fce86b3d9cbdd0603b0bcdc47123633f3e9c1377e08a6/arkitekt_spec-3.5.0-py3-none-any.whl", hash = "sha256:1aed3f377b73b2ee4f88a17ea0007936a843c9cd9ae531919d7513ec044e1ffd", size = 218390, upload-time = "2026-10-07T14:16:37.814Z" },
+    { url = "https://files.pythonhosted.org/packages/bb/05/4841bbef9d58bf5e1aaa697abd213ef74ede7a3429f67d191d59005ba476/arkitekt_spec-3.9.0-py3-none-any.whl", hash = "sha256:376dd505ef1daea12d79f788440efec5488fc68924aed569fab8be3e713f305e", size = 233007, upload-time = "2026-10-13T14:47:35.524Z" },
 ]
 
 [[package]]
@@ -1364,7 +1364,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "arkitekt-spec", specifier = ">=3.5" },
+    { name = "arkitekt-spec", specifier = ">=3.9" },
     { name = "dask", specifier = ">=2024.12.1" },
     { name = "duckdb", marker = "extra == 'complete'", specifier = ">=1.0" },
     { name = "duckdb", marker = "extra == 'table'", specifier = ">=1.0" },
@@ -1392,7 +1392,7 @@ requires-dist = [
     { name = "xarray", specifier = ">=2024.11.0" },
     { name = "zarr", specifier = ">=3.1" },
 ]
-provides-extras = ["complete", "mesh", "meshopt", "network", "sparse", "table", "turms"]
+provides-extras = ["complete", "mesh", "meshopt", "network", "sparse", "table"]
 
 [package.metadata.requires-dev]
 dev = [

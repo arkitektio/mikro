@@ -20,10 +20,10 @@ query SearchMeshCollections(
   $offset: Int = 0
 ) {
   options: meshCollections(
-    filters: { version: { iContains: $search }, ids: $values }
+    filters: { search: $search, ids: $values }
     pagination: { limit: $limit, offset: $offset }
   ) {
     value: id
-    label: version
+    label
   }
 }

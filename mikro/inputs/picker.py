@@ -42,7 +42,6 @@ from collections.abc import Iterable, Mapping, Sequence
 
 from mikro.api.schema import (
     UNSET,
-    AxisPositionInput,
     ColorMap,
     ColorSourceKind,
     ColumnColorByInput,
@@ -166,8 +165,7 @@ def categorical_color_by(
 
 
 def sparse_color_by(
-    dataset,
-    at: Mapping[str, int],
+    lens,
     *,
     colormap: ColorMap = ColorMap.MAGMA,
     min: float | None = None,
@@ -177,13 +175,14 @@ def sparse_color_by(
     """Colour a mask's objects by one slice of a sparse matrix.
 
     The other way a set of ids reaches a number. Where a column colouring names a table and a
-    column, this names a matrix and a *position* -- and the slice at that position is a value
-    per object, which is what a colouring is.
+    column, this names a *lens*: the sparse lens pinning one position on every axis the matrix
+    identifies itself by, and the slice it keeps is a value per object, which is what a
+    colouring is. Cut it from the dataset -- ``expression.lens(gene=4711)`` -- and every
+    picker reading that gene shares the one lens.
 
-    ``at`` maps axis name to position, e.g. ``{"gene": 4711}``. The position is a row of the
-    table that axis references, so finding it is a query against that table rather than
-    anything the server enumerates: a matrix with 19 059 features offers one picker entry, not
-    19 059.
+    The position is a row of the table that axis references, so finding it is a query against
+    that table rather than anything the server enumerates: a matrix with 19 059 features
+    offers one picker entry, not 19 059.
 
     **Always measured**, so a qualitative colormap is refused here: a slice is a value per
     object and nothing stores categories sparsely -- the zeros would be a category too. Pass `min`/`max`
@@ -194,15 +193,12 @@ def sparse_color_by(
     slice from the wrong layout is a scan of every byte rather than a contiguous range. If that
     refusal fires, upload the transposed matrix and register it on the same dataset.
     """
-    if not at:
-        raise ValueError("a sparse colouring reads one slice, so it needs a position: `at={'<axis>': <index>}`")
-    _check_slice(dataset, at)
+    _check_slice(lens)
     # The window and the colormap are checked by `SparseColorByInputTrait`, on the input
     # itself, because `label_render` also accepts entries built without coming through here.
     return SparseColorByInput(
         kind=ColorSourceKind.SPARSE,
-        dataset=dataset if isinstance(dataset, str) else getattr(dataset, "id", dataset),
-        at=[AxisPositionInput(axis=axis, value=int(value)) for axis, value in at.items()],
+        lens=lens if isinstance(lens, str) else getattr(lens, "id", lens),
         colormap=colormap,
         min=min,
         max=max,
@@ -210,61 +206,39 @@ def sparse_color_by(
     )
 
 
-def _check_slice(dataset: object, at: Mapping[str, int]) -> None:
-    """Check `at` against the dataset, when the caller handed over the dataset rather than an id.
+def _check_slice(lens: object) -> None:
+    """Refuse a lens that is not a slice, when the caller handed over the lens rather than an id.
 
-    The three refusals `create_label_layer` makes about a sparse slice that do not need the
-    coordinate graph -- the fourth, that the dataset is reachable from the layer's source by a
-    FIELD edge, needs it and stays server-only, which is what keeps this a subset.
+    The server asks three things of a sparse colouring's lens that do not need the coordinate
+    graph -- it windows exactly the axes the matrix identifies itself by, each at one whole
+    position inside its extent, and some layout indexes one of them -- and answers all three
+    at once as the `SLICE` member of the lens' `spec`, materialized when the lens is made. So
+    this reads the answer instead of re-deriving it, which is what keeps it from ever being
+    stricter than the server. The fourth question, whether the matrix is reachable from the
+    layer's source by a FIELD edge, needs the graph and stays server-only.
 
-    Every field read is already selected by the `SparseDataset` fragment, and `MikroFetchable`
-    defines no `__getattr__`, so this costs no round trip.
-
-    **Guarded by field, not by type.** A `ColorByOption` names its dataset with an object
-    carrying only `id` and `name`, and round-tripping one back is a thing `join_path_of`
-    exists to support -- so anything that cannot answer these questions is passed through, and
-    the server asks them instead.
+    **Guarded by field, not by type.** A bare id, or an object that does not carry `spec`,
+    is passed through, and the server asks instead.
     """
-    identified = getattr(dataset, "axis_references", None)
-    if identified is None:
-        # A `ColorByOption` states the same set directly, under a different name.
-        axes = getattr(dataset, "axes", None)
-        identified = None if axes is None else [type("_R", (), {"axis": a})() for a in axes]
-    if identified is None:
+    spec = getattr(lens, "spec", None)
+    if spec is None:
         return
-
-    named, wanted = sorted(at), sorted(reference.axis for reference in identified)
-    if named != wanted:
-        name = getattr(dataset, "name", None) or getattr(dataset, "id", "the dataset")
-        rest = [a for a in (getattr(dataset, "axis_names", None) or ()) if a not in wanted]
-        raise ValueError(
-            f"`at` names {named}, but {name!r} is selected along {wanted} -- the axes it "
-            f"identifies itself. The other axis ({rest}) is the one the layer supplies ids for."
-        )
-
-    # Same condition the server guards its own bound check with: a store whose rank disagrees
-    # with the declared axes has no extent to compare against.
-    axis_names = list(getattr(dataset, "axis_names", None) or ())
-    shape = list(getattr(dataset, "shape", None) or ())
-    if len(axis_names) == len(shape):
-        for axis, value in at.items():
-            extent = shape[axis_names.index(axis)]
-            if not 0 <= int(value) < int(extent):
-                raise ValueError(
-                    f"`at` names position {value} along {axis!r}, which runs 0..{int(extent) - 1}. "
-                    "A position is a row of the table that axis references, not an id of its own."
-                )
-
-    # `any`, not `all`: requiring a layout per named axis would hide legal colourings, and the
-    # picker's offer path applies the same rule -- the two must not disagree.
-    indexable = getattr(dataset, "indexable_axes", None)
-    if indexable is not None and not any(axis in indexable for axis in at):
-        raise ValueError(
-            f"No layout indexes any of {named}, so reading one slice is a scan of every byte "
-            f"rather than a contiguous range -- 1 777 ms against 2.2 ms, measured. It is "
-            f"indexed on: {list(indexable)}. Upload the matrix compressed along one of the "
-            "axes `at` names and register it on the same dataset."
-        )
+    if "SLICE" in {getattr(member, "value", member) for member in spec}:
+        return
+    windows = [
+        f"{window.axis}={window.min:g}" if window.min == window.max and window.min is not None
+        else f"{window.axis}={window.min}..{window.max}"
+        for window in getattr(lens, "windows", ())
+    ]
+    dataset = getattr(lens, "sparse_dataset", None)
+    name = getattr(dataset, "name", None) or "the matrix"
+    raise ValueError(
+        f"Lens {getattr(lens, 'id', '?')} over {name!r} ({', '.join(windows) or 'the whole lens'}) is not a "
+        "slice. A sparse colouring reads one value per object, so its lens pins one whole-number "
+        "position on every axis the matrix identifies itself by -- and on no other, since the "
+        "remaining axis is the one the layer supplies ids for -- with a layout indexed along one "
+        "of them. Cut it with `dataset.lens(<axis>=<position>)`."
+    )
 
 
 def graph_color_by(
@@ -419,22 +393,11 @@ def mesh_filter_by(*args, **kwargs) -> MeshFilterByInput:
 def _fingerprint(entry) -> tuple:
     """What makes two picker entries the same rendering. Everything but the caption.
 
-    `at` is sorted by axis before it is compared, because the server sorts it too before
-    keying its own duplicate check. Without that, ``{"gene": 1, "adduct": 0}`` and
-    ``{"adduct": 0, "gene": 1}`` are one entry to the server and two here -- so the pair would
-    pass this check and then be refused on the far side, which is the wrong way round.
-
-    Conditionally, because this is generic over both variants of an entry and a COLUMN
-    colouring has no `at` at all.
+    A SPARSE entry's source is its lens and nothing else, which is what the server keys its
+    own duplicate check on: one slice is one lens, however it was spelled when it was cut.
     """
     dumped = entry.model_dump(by_alias=True)
     dumped.pop("label", None)
-    # A tuple, not a list -- the field is `tuple[AxisPositionInput, ...]` and `model_dump`
-    # keeps the container type. Normalised to a list, which is fine because both sides of the
-    # comparison go through here.
-    at = dumped.get("at")
-    if isinstance(at, (list, tuple)):
-        dumped["at"] = sorted(at, key=lambda position: str(position.get("axis")))
     return repr(sorted(dumped.items(), key=lambda item: item[0]))
 
 
@@ -449,8 +412,6 @@ def label_render(
     contour_width: float | None = None,
     opacity: float | None = None,
     seed: int | None = None,
-    intensity_axis: str | None = None,
-    intensity_index: int | None = None,
 ) -> LabelRenderInput:
     """A label layer's whole render state: its pickers, and how its ids are drawn.
 
@@ -501,6 +462,4 @@ def label_render(
         contour_width=contour_width,
         opacity=opacity,
         seed=seed,
-        intensity_axis=intensity_axis,
-        intensity_index=intensity_index,
     )

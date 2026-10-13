@@ -1,5 +1,62 @@
+# Every create here is get-or-create: a lens is one row per container and normalized
+# selection, so asking for the same selection twice answers with the same id.
 mutation CreateLens($input: CreateLensInput!) {
   createLens(input: $input) {
-    ...Lens
+    ...ArrayLens
   }
+}
+
+mutation CreateTableLens($input: CreateTableLensInput!) {
+  createTableLens(input: $input) {
+    ...TableLens
+  }
+}
+
+mutation CreateSparseLens($input: CreateSparseLensInput!) {
+  createSparseLens(input: $input) {
+    ...SparseLens
+  }
+}
+
+mutation CreateMeshLens($input: CreateMeshLensInput!) {
+  createMeshLens(input: $input) {
+    ...MeshLens
+  }
+}
+
+mutation CreateNetworkLens($input: CreateNetworkLensInput!) {
+  createNetworkLens(input: $input) {
+    ...NetworkLens
+  }
+}
+
+mutation CreateAnnotationLens($input: CreateAnnotationLensInput!) {
+  createAnnotationLens(input: $input) {
+    ...AnnotationLens
+  }
+}
+
+# Renames only: a different selection is a different lens.
+mutation UpdateLens($input: UpdateLensInput!) {
+  updateLens(input: $input) {
+    id
+    name
+    kind
+  }
+}
+
+mutation SetLensDefaultScene($input: SetLensDefaultSceneInput!) {
+  setLensDefaultScene(input: $input) {
+    id
+    kind
+    defaultScene {
+      id
+      name
+    }
+  }
+}
+
+# Refused for a container's whole lens, and while a layer draws through the lens.
+mutation DeleteLens($input: DeleteLensInput!) {
+  deleteLens(input: $input)
 }

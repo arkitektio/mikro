@@ -6,7 +6,7 @@ from kanne.scalars import Unit
 
 from .checks import ArrayDeclarationError, SparseDeclarationError, TableDeclarationError
 from .inputs.spaces import create_space, space_2d, space_3d, timelapse_3d
-from .io.chunking import rechunk
+from .io.chunking import ChunkLayout
 from .mikro import Mikro
 from .pyramid import axes_for, build_pyramid, canonical, dataset_arrays, scales_from
 from .vocabulary import (
@@ -33,7 +33,7 @@ __all__ = [
     "space_2d",
     "space_3d",
     "timelapse_3d",
-    "rechunk",
+    "ChunkLayout",
     # The declaration a caller writes against is the generated input; what lives
     # here is the refusal each create path can raise before its bytes move.
     "ArrayDeclarationError",

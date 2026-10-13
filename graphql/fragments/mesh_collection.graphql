@@ -1,6 +1,7 @@
 fragment MeshCollection on MeshCollection {
   id
-  version
+  name
+  label
   specVersion
   grid
   encoding

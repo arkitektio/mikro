@@ -89,10 +89,24 @@ query AttributePlans($system: ID!, $maxDepth: Int, $maxJoinDepth: Int! = 1) {
         id
         name
       }
+      # Set when `lookup.kind` is ARRAY: the dense array the hop lands in, with the
+      # levels to read from. Exactly one of the three containers is set.
+      arrayDataset {
+        id
+        name
+        dataArrays {
+          id
+          level
+          store {
+            id
+            key
+          }
+        }
+      }
       lookup {
-        # TABLE or SPARSE. The other shape's fields are null: a table lookup is a read
-        # of a parquet's rows, a sparse one is two reads of a zarr group and no
-        # database at all.
+        # TABLE, SPARSE or ARRAY. The other shapes' fields are null: a table lookup is a
+        # read of a parquet's rows, a sparse one is two reads of a zarr group and no
+        # database at all, an array one is one position along `keyAxis`.
         kind
         store {
           id
@@ -111,6 +125,12 @@ query AttributePlans($system: ID!, $maxDepth: Int, $maxJoinDepth: Int! = 1) {
         keyAxis
         keyHeld
         valueAxes
+        # (ARRAY) The held id as a position along `keyAxis`: `position = held * scale +
+        # offset`, the derivation edge already inverted. Round to the nearest position.
+        keyMap {
+          scale
+          offset
+        }
         keyColumns {
           axis
           column {

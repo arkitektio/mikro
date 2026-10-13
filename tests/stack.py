@@ -16,12 +16,16 @@ from pathlib import Path
 from graphql import OperationType
 from rath.links.aiohttp import AIOHttpLink
 from rath.links.auth import ComposedAuthLink
+from rath.links.compose import compose
+from rath.links.dictinglink import DictingLink
+from rath.links.file import FileExtraction
 from rath.links.graphql_ws import GraphQLWSLink
+from rath.links.split import SplitLink
 
 from mikro.datalayer import DataLayer
 from mikro.middleware.upload import UploadMiddleware
 from mikro.mikro import Mikro
-from mikro.rath import MikroLinkComposition, MikroRath, SplitLink
+from mikro.rath import MikroRath
 
 from dokker import Deployment, testing
 from dokker.log_watcher import LogWatcher
@@ -112,9 +116,11 @@ class MikroStack:
         return Mikro(
             datalayer=datalayer,
             rath=MikroRath(
-                link=MikroLinkComposition(
-                    auth=ComposedAuthLink(token_loader=token_loader, token_refresher=token_loader),
-                    split=SplitLink(
+                link=compose(
+                    FileExtraction(),
+                    DictingLink(),
+                    ComposedAuthLink(token_loader=token_loader, token_refresher=token_loader),
+                    SplitLink(
                         left=AIOHttpLink(endpoint_url=self.http_url),
                         right=GraphQLWSLink(ws_endpoint_url=self.ws_url),
                         split=lambda o: o.node.operation != OperationType.SUBSCRIPTION,

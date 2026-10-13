@@ -1,5 +1,5 @@
 import os
-from collections.abc import AsyncGenerator, Awaitable, Callable, Generator, Mapping, Sequence
+from collections.abc import AsyncGenerator, Generator, Mapping, Sequence
 from typing import Any, ClassVar
 
 from koil import unkoil_gen
@@ -42,33 +42,28 @@ class Mikro(Composition, MikroApi):
         uploads); the async path (``aexecute``/``asubscribe``) calls
         ``aprocess_variables``.
 
-    You shouldn't need to create this directly, instead use the builder functions
-    to generate a new instance of this composition.
-
-    ```python
-
-    from mikro import Mikro
-
-    async def aget_token():
-        return "XXXX"
-
-    m = Mikro(
-        datalayer= DataLayer(endpoint_url="s3.amazonaws.com", access_key="XXXX", secret_key="XXXX"),
-        mikro = MikroRath(link=MikroLinkComposition(auth=AuthTokenLink(token_loader=aget_token)))),
-    )
-    ```
+    You shouldn't need to create this directly: an app gets one from the mikro
+    service (``mikro.arkitekt.service``), which builds the rath and its links.
     """
 
     FRAGMENTS: ClassVar[Mapping[str, type]] = {
         "@mikro/arraydataset": schema.ArrayDataset,
         "@mikro/tabledataset": schema.TableDataset,
         "@mikro/meshcollection": schema.MeshCollection,
+        "@mikro/networkcollection": schema.NetworkCollection,
+        "@mikro/sparsedataset": schema.SparseDataset,
         "@mikro/annotationcollection": schema.AnnotationCollection,
         "@mikro/annotation": schema.Annotation,
-        "@mikro/lens": schema.Lens,
+        "@mikro/arraylens": schema.ArrayLens,
+        "@mikro/tablelens": schema.TableLens,
+        "@mikro/sparselens": schema.SparseLens,
+        "@mikro/meshlens": schema.MeshLens,
+        "@mikro/networklens": schema.NetworkLens,
+        "@mikro/annotationlens": schema.AnnotationLens,
         "@mikro/coordinatesystem": schema.CoordinateSystem,
         "@mikro/scene": schema.Scene,
         "@mikro/scenesnapshot": schema.SceneSnapshot,
+        "@mikro/chart": schema.Chart,
         "@mikro/animation": schema.Animation,
         "@mikro/folder": schema.Folder,
         "@mikro/file": schema.File,

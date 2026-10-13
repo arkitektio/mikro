@@ -75,7 +75,7 @@ async def astore_xarray_input(
         logger.debug(
             f"Uploading zarr t to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
         )
-        await awrite_dataarray_to_zarr(store_path, array)
+        await awrite_dataarray_to_zarr(store_path, array, layout=xarray.layout)
         logger.info(
             f"Successfully uploaded zarr to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}"
         )
@@ -385,7 +385,7 @@ def _store_xarray_via_obstore(
         logger.debug(
             f"Uploading zarr (sync/obstore) to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
         )
-        write_dataarray_to_zarr(store_path, xarray.value)
+        write_dataarray_to_zarr(store_path, xarray.value, layout=xarray.layout)
         logger.info(
             f"Successfully uploaded zarr (sync/obstore) to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}"
         )
@@ -484,163 +484,6 @@ async def astore_konnektion_collection(
         logger.info(
             f"Successfully uploaded konnektion collection to s3://{credentials.bucket}/{credentials.key} "
             f"at {endpoint_url} ({manifest.counts})"
-        )
-        return credentials.store
-    except Exception as e:
-        raise UploadError(
-            f"Error while uploading to s3://{credentials.bucket}/{credentials.key} on {endpoint_url}"
-        ) from e
-
-
-async def astore_media_file(
-    file: ImageFileLike,
-    credentials: "MediaUploadGrant",
-    datalayer: "DataLayer",
-) -> str:
-    """Store a media file in the DataLayer asynchronously via obstore."""
-    from mikro.io.obstore import create_s3_store
-
-    endpoint_url = await datalayer.get_endpoint_url()
-    store = create_s3_store(endpoint_url, credentials, proxy=datalayer.proxy)
-
-    try:
-        logger.debug(
-            f"Uploading file to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
-        )
-        await obstore.put_async(store, credentials.key, file.value)
-        logger.info(
-            f"Successfully uploaded file to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}"
-        )
-        return credentials.store
-    except Exception as e:
-        raise UploadError(
-            f"Error while uploading to s3://{credentials.bucket}/{credentials.key} on {endpoint_url}"
-        ) from e
-
-
-async def aupload_bigfile(
-    file: FileLike | ImageFileLike,
-    credentials: "BigFileUploadGrant",
-    datalayer: "DataLayer",
-) -> str:
-    """Upload a big file to the DataLayer asynchronously via obstore."""
-    from mikro.io.obstore import create_s3_store
-
-    endpoint_url = await datalayer.get_endpoint_url()
-    store = create_s3_store(endpoint_url, credentials, proxy=datalayer.proxy)
-
-    try:
-        logger.debug(
-            f"Uploading file to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
-        )
-        await obstore.put_async(store, credentials.key, file.value)
-        logger.info(
-            f"Successfully uploaded file to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}"
-        )
-        return credentials.store
-    except Exception as e:
-        raise UploadError(
-            f"Error while uploading to s3://{credentials.bucket}/{credentials.key} on {endpoint_url}"
-        ) from e
-
-
-async def aupload_xarray(
-    array: ArrayLike,
-    credentials: "ZarrUploadGrant",
-    datalayer: "DataLayer",
-) -> str:
-    """Upload an xarray to the DataLayer asynchronously via obstore."""
-    return await astore_xarray_input(array, credentials, await datalayer.get_endpoint_url(), proxy=datalayer.proxy)
-
-
-async def aupload_parquet(
-    parquet: ParquetLike,
-    credentials: "ParquetUploadGrant",
-    datalayer: "DataLayer",
-    executor: ThreadPoolExecutor,
-) -> str:
-    """Upload a parquet table to the DataLayer asynchronously via a thread executor."""
-    co_future = executor.submit(
-        _store_parquet_input, parquet, credentials, await datalayer.get_endpoint_url(), proxy=datalayer.proxy
-    )
-    return await asyncio.wrap_future(co_future)
-
-
-# ========================================================================
-# Sync upload functions (obstore)
-# ========================================================================
-
-
-def _store_xarray_via_obstore(
-    xarray: ArrayLike,
-    credentials: "ZarrUploadGrant",
-    endpoint_url: str,
-    proxy: str | None = None,
-) -> str:
-    """Stores an xarray in the DataLayer synchronously via obstore/zarr."""
-    from mikro.io.obstore import create_zarr_store_path, write_dataarray_to_zarr
-
-    store_path = create_zarr_store_path(endpoint_url, credentials, proxy=proxy)
-
-    try:
-        logger.debug(
-            f"Uploading zarr (sync/obstore) to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
-        )
-        write_dataarray_to_zarr(store_path, xarray.value)
-        logger.info(
-            f"Successfully uploaded zarr (sync/obstore) to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}"
-        )
-        return credentials.store
-    except Exception as e:
-        raise UploadError(
-            f"Error while uploading to s3://{credentials.bucket}/{credentials.key} on {endpoint_url}"
-        ) from e
-
-
-def _store_bigfile_via_obstore(
-    file: FileLike | ImageFileLike,
-    credentials: "BigFileUploadGrant",
-    endpoint_url: str,
-    proxy: str | None = None,
-) -> str:
-    """Store a big file in the DataLayer synchronously via obstore."""
-    from mikro.io.obstore import create_s3_store
-
-    store = create_s3_store(endpoint_url, credentials, proxy=proxy)
-
-    try:
-        logger.debug(
-            f"Uploading file (sync/obstore) to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
-        )
-        obstore.put(store, credentials.key, file.value)
-        logger.info(
-            f"Successfully uploaded file (sync/obstore) to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}"
-        )
-        return credentials.store
-    except Exception as e:
-        raise UploadError(
-            f"Error while uploading to s3://{credentials.bucket}/{credentials.key} on {endpoint_url}"
-        ) from e
-
-
-def _store_media_file_via_obstore(
-    file: ImageFileLike,
-    credentials: "MediaUploadGrant",
-    endpoint_url: str,
-    proxy: str | None = None,
-) -> str:
-    """Store a media file in the DataLayer synchronously via obstore."""
-    from mikro.io.obstore import create_s3_store
-
-    store = create_s3_store(endpoint_url, credentials, proxy=proxy)
-
-    try:
-        logger.debug(
-            f"Uploading media file (sync/obstore) to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
-        )
-        obstore.put(store, credentials.key, file.value)
-        logger.info(
-            f"Successfully uploaded media file (sync/obstore) to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}"
         )
         return credentials.store
     except Exception as e:

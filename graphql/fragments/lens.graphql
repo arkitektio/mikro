@@ -5,9 +5,26 @@ fragment Slice on Slice {
   step
 }
 
+fragment Window on Window {
+  axis
+  min
+  max
+}
 
-fragment Lens on Lens {
+# A lens is a selection over a container, and `Lens` is the interface over the six kinds.
+# The fragments here are on the concrete kinds, never on the interface: a fragment on an
+# interface that spreads named fragments breaks the generated module's import (see the
+# scene's `Layer` fragment), and a lens' useful fields all belong to its kind anyway.
+#
+# An array lens selects by index slices, and is what an action that works on pixels is
+# handed. `slices` comes back in the server's one normalized spelling -- dataset axis order,
+# explicit ints, a full axis dropped -- so it is not what was sent, and it is empty for the
+# dataset's whole lens. Which axis faces the screen is no longer here: `renderAxes` is a
+# field of the layer that draws the lens.
+fragment ArrayLens on ArrayLens {
   id
+  name
+  kind
   dataset {
     id
     axisNames
@@ -24,14 +41,76 @@ fragment Lens on Lens {
   coordinateSystem {
     ...CoordinateSystem
   }
-  renderAxes {
-    x
-    y
-    z
-    t
-    intensity
-  }
   slices {
     ...Slice
+  }
+}
+
+# The five kinds that select by value windows, in their container's own space. `windows`
+# is empty for the whole lens, which every container has.
+fragment TableLens on TableLens {
+  id
+  name
+  kind
+  tableDataset {
+    id
+    name
+  }
+  windows {
+    ...Window
+  }
+}
+
+fragment SparseLens on SparseLens {
+  id
+  name
+  kind
+  sparseDataset {
+    id
+    name
+  }
+  windows {
+    ...Window
+  }
+  # What the selection structurally is. SLICE is the member a SPARSE picker entry asks
+  # for -- one position on every axis the matrix identifies itself by, read from a
+  # layout that makes it one contiguous range -- so `sparse_color_by` reads it here.
+  spec
+}
+
+fragment MeshLens on MeshLens {
+  id
+  name
+  kind
+  meshCollection {
+    id
+  }
+  windows {
+    ...Window
+  }
+}
+
+fragment NetworkLens on NetworkLens {
+  id
+  name
+  kind
+  networkCollection {
+    id
+  }
+  windows {
+    ...Window
+  }
+}
+
+fragment AnnotationLens on AnnotationLens {
+  id
+  name
+  kind
+  annotationCollection {
+    id
+    name
+  }
+  windows {
+    ...Window
   }
 }

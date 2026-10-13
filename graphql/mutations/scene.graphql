@@ -27,3 +27,24 @@ mutation ClearScene($input: ClearSceneInput!) {
 mutation DeleteScene($input: DeleteSceneInput!) {
   deleteScene(input: $input)
 }
+
+# Stages one array lens -- a crop, a sub-volume or the whole array -- one layer per
+# channel. Staging a sliced lens' *space* instead would draw its whole dataset.
+mutation CreateSceneFromLens($input: CreateSceneFromLensInput!) {
+  createSceneFromLens(input: $input) {
+    ...Scene
+  }
+}
+
+# Shows a space as whichever composition fits it: a chart over exactly one metric,
+# unit-carrying axis, a scene otherwise.
+mutation AutoVisualize($input: AutoVisualizeInput!) {
+  autoVisualize(input: $input) {
+    ... on Scene {
+      ...Scene
+    }
+    ... on Chart {
+      ...Chart
+    }
+  }
+}

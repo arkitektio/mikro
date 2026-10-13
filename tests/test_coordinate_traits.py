@@ -14,6 +14,7 @@ from mikro.api.schema import (
     Axis,
     CoordinateSystem,
     TransformationAffineTransformation,
+    TransformationByDimensionTransformation,
     TransformationIdentityTransformation,
     TransformationMapAxisTransformation,
     TransformationRotationTransformation,
@@ -25,7 +26,7 @@ from mikro.api.schema import (
 from mikro.traits import (
     PathStep,
     _bfs_path,
-    _compose_steps,
+    _compose_axis_maps,
     _infer_transform_kind,
 )
 from mikro.vocabulary import Calibration
@@ -61,6 +62,34 @@ def translation_t(id="t-trans", input=UM, output=STAGE, translation=(10.0, -5.0)
         input=input,
         output=output,
         translation=translation,
+    )
+
+
+def by_dimension_t(input, output, axes, *, to=None, id="t-dim", scale=(), translation=(), affine=()):
+    """A registration: the named `axes` of `input` onto `to` (the same names by default) of `output`."""
+    return TransformationByDimensionTransformation(
+        id=id,
+        kind="BY_DIMENSION",
+        version=0,
+        input=input,
+        output=output,
+        inputAxes=tuple(axes),
+        outputAxes=tuple(to or axes),
+        scale=scale,
+        translation=translation,
+        affine=affine,
+    )
+
+
+def step(kind, scale=(), translation=(), affine=()):
+    """One step of a SEQUENCE as the wire spells it: every parameter present, the ones
+    its kind does not read empty."""
+    return {"kind": kind, "scale": scale, "translation": translation, "affine": affine}
+
+
+def sequence_t(*steps, id="t-seq", input=PIX, output=UM):
+    return TransformationSequenceTransformation(
+        id=id, kind="SEQUENCE", version=0, input=input, output=output, steps=steps
     )
 
 
@@ -108,11 +137,13 @@ class TestTransformationMatrix:
 
     def test_identity_needs_a_system(self):
         t = TransformationIdentityTransformation(
-            id="t-id", kind="IDENTITY", version=0, input=None, output=PIX
+            id="t-id", kind="IDENTITY", version=0, input=PIX, output=PIX
         )
         assert np.allclose(t.as_matrix(), np.eye(3))
-        bare = TransformationIdentityTransformation(
-            id="t-id2", kind="IDENTITY", version=0, input=None, output=None
+        # Every edge joins two systems on the wire, so an edge without them is one a
+        # narrower selection read: constructed, not parsed.
+        bare = TransformationIdentityTransformation.model_construct(
+            id="t-id2", kind="IDENTITY", version=0
         )
         with pytest.raises(ValueError, match="dimensionality"):
             bare.as_matrix()
@@ -149,29 +180,37 @@ class TestTransformationMatrix:
         assert np.allclose(t.apply([1.0, 2.0]), [2.0, 1.0])
 
     def test_map_axis_needs_systems(self):
-        t = TransformationMapAxisTransformation(
+        t = TransformationMapAxisTransformation.model_construct(
             id="t-map2",
             kind="MAP_AXIS",
             version=0,
-            input=None,
-            output=None,
-            inputAxes=("y", "x"),
-            outputAxes=("y", "x"),
+            input_axes=("y", "x"),
+            output_axes=("y", "x"),
         )
         with pytest.raises(ValueError, match="coordinate systems"):
             t.as_matrix()
 
-    def test_sequence_and_unmappable_have_no_matrix(self):
-        seq = TransformationSequenceTransformation(
-            id="t-seq",
-            kind="SEQUENCE",
-            version=0,
-            input=PIX,
-            output=UM,
-            sequenceChildren=(),
+    def test_a_sequence_composes_its_steps_first_to_last(self):
+        """A pyramid level: a scale, then the half-voxel translation. Order matters --
+        composed the other way round the offset would be scaled too."""
+        seq = sequence_t(step("SCALE", scale=(2.0, 2.0)), step("TRANSLATION", translation=(0.5, 0.5)))
+        assert np.allclose(seq.apply([1.0, 3.0]), [2.5, 6.5])
+        assert np.allclose(seq.apply_inverse([2.5, 6.5]), [1.0, 3.0])
+
+    def test_a_sequence_step_may_be_an_affine_or_an_identity(self):
+        seq = sequence_t(
+            step("IDENTITY"),
+            step("AFFINE", affine=((2.0, 0.0, 1.0), (0.0, 3.0, -1.0))),
         )
-        with pytest.raises(NotImplementedError, match="resolve_matrix"):
-            seq.as_matrix()
+        assert np.allclose(seq.apply([1.0, 1.0]), [3.0, 2.0])
+
+    def test_a_sequence_without_steps_or_through_a_field_has_no_matrix(self):
+        with pytest.raises(ValueError, match="no steps"):
+            sequence_t().as_matrix()
+        with pytest.raises(NotImplementedError, match="FIELD"):
+            sequence_t(step("SCALE", scale=(2.0, 2.0)), step("FIELD")).as_matrix()
+
+    def test_unmappable_has_no_matrix(self):
         unmappable = TransformationUnmappableTransformation(
             id="t-un", kind="UNMAPPABLE", version=0, input=PIX, output=UM
         )
@@ -261,7 +300,7 @@ class TestPathComposition:
             ("t-scale", False),
             ("t-trans", True),
         ]
-        matrix = _compose_steps(steps)
+        matrix = _compose_axis_maps(steps, PIX.axis_names).matrix
         expected = np.linalg.inv(edges[1].as_matrix()) @ edges[0].as_matrix()
         assert np.allclose(matrix, expected)
 
@@ -289,26 +328,119 @@ class TestPathComposition:
         with pytest.raises(ValueError, match="No composable transformation path"):
             _bfs_path([unmappable], "1", "9")
 
-    def test_sequence_only_walkable_with_allow_fetch(self):
-        seq = TransformationSequenceTransformation(
-            id="t-seq",
-            kind="SEQUENCE",
-            version=0,
-            input=PIX,
-            output=UM,
-            sequenceChildren=(),
-        )
+    def test_a_sequence_is_walkable_when_every_step_has_a_matrix(self):
+        seq = sequence_t(step("SCALE", scale=(2.0, 2.0)), step("TRANSLATION", translation=(0.5, 0.5)))
+        (only,) = _bfs_path([seq], "1", "2")
+        assert only.transformation is seq
+        graph = SimpleNamespace(transformations=[seq])
+        assert np.allclose(PIX.transform_points_to(UM, [1.0, 3.0], graph=graph), [2.5, 6.5])
+
+    def test_a_sequence_through_a_field_is_not_walkable(self):
+        seq = sequence_t(step("SCALE", scale=(2.0, 2.0)), step("FIELD"))
         with pytest.raises(ValueError, match="No composable"):
             _bfs_path([seq], "1", "2")
-        steps = _bfs_path([seq], "1", "2", allow_fetch=True)
-        assert len(steps) == 1
 
     def test_dimension_mismatch_names_the_edge(self):
         zyx = make_system("8", "zyx", ["z", "y", "x"])
         bad = scale_t(id="t-bad", input=UM, output=zyx, scale=(1.0, 1.0, 1.0))
         steps = [PathStep(scale_t(), False), PathStep(bad, False)]
         with pytest.raises(ValueError, match="t-bad"):
-            _compose_steps(steps)
+            _compose_axis_maps(steps, PIX.axis_names)
+
+
+# A shape drawn on a scene: the drawing space copies the world's space axes and
+# is registered into it by name, the image reaches the same world by its
+# calibration, and the lens is a crop of the image.
+DRAWING = make_system("20", "drawing", ["z", "y", "x"])
+WORLD = make_system("21", "world (micrometers)", ["c", "z", "y", "x"])
+GRID = make_system("22", "pixels", ["c", "z", "y", "x"])
+CROP = make_system("23", "crop", ["c", "z", "y", "x"])
+
+
+def scene_graph():
+    return SimpleNamespace(
+        transformations=[
+            by_dimension_t(DRAWING, WORLD, ["z", "y", "x"], id="t-drawn"),
+            scale_t(id="t-cal", input=GRID, output=WORLD, scale=(1.0, 2.0, 0.5, 0.5)),
+            translation_t(id="t-crop", input=CROP, output=GRID, translation=(0.0, 3.0, 10.0, 20.0)),
+        ]
+    )
+
+
+class TestByDimensionComposition:
+    def test_a_by_dimension_edge_is_walkable_both_ways(self):
+        edge = by_dimension_t(DRAWING, WORLD, ["z", "y", "x"])
+        assert [(s.transformation.id, s.inverted) for s in _bfs_path([edge], "20", "21")] == [("t-dim", False)]
+        assert [(s.transformation.id, s.inverted) for s in _bfs_path([edge], "21", "20")] == [("t-dim", True)]
+
+    def test_a_shape_drawn_in_a_scene_lands_on_the_voxels_of_a_crop(self):
+        # (z, y, x) = (10, 8, 12) um -> voxel (5, 16, 24) -> (2, 6, 4) of the crop.
+        points = [[10.0, 8.0, 12.0], [8.0, 5.0, 10.0]]
+        on_crop = DRAWING.transform_points_to(CROP, points, axes=("z", "y", "x"), graph=scene_graph())
+        assert np.allclose(on_crop, [[2.0, 6.0, 4.0], [1.0, 0.0, 0.0]])
+        # ... and in whatever order they are asked for.
+        assert np.allclose(DRAWING.transform_points_to(CROP, points[0], axes=("x", "z"), graph=scene_graph()), [4.0, 2.0])
+
+    def test_the_map_states_only_the_axes_the_path_states(self):
+        mapped = DRAWING.axis_map_to(CROP, graph=scene_graph())
+        assert mapped.input_axes == ("z", "y", "x")
+        assert mapped.output_axes == ("z", "y", "x")
+        with pytest.raises(ValueError, match="nothing about \\['c'\\]"):
+            mapped.apply([1.0, 2.0, 3.0], output_axes=("c", "z"))
+
+    def test_an_unstated_axis_has_no_matrix(self):
+        with pytest.raises(ValueError, match="'c'"):
+            DRAWING.matrix_to(CROP, graph=scene_graph())
+        with pytest.raises(ValueError, match="'c'"):
+            DRAWING.transform_points_to(CROP, [1.0, 2.0, 3.0], graph=scene_graph())
+
+    def test_walked_the_other_way_the_channel_is_simply_not_read(self):
+        # Crop voxels -> drawing space: every drawing axis is stated, c is let go.
+        back = CROP.axis_map_to(DRAWING, graph=scene_graph())
+        assert back.output_axes == ("z", "y", "x")
+        assert np.allclose(back.apply([0.0, 2.0, 6.0, 4.0]), [10.0, 8.0, 12.0])
+        assert np.allclose(back.apply([2.0, 6.0, 4.0], input_axes=("z", "y", "x")), [10.0, 8.0, 12.0])
+        assert np.allclose(CROP.matrix_to(DRAWING, graph=scene_graph()) @ [7.0, 2.0, 6.0, 4.0, 1.0], [10.0, 8.0, 12.0, 1.0])
+
+    def test_points_that_lack_an_axis_the_answer_reads_are_refused(self):
+        back = CROP.axis_map_to(DRAWING, graph=scene_graph())
+        with pytest.raises(ValueError, match="depend on 'z'"):
+            back.apply([6.0, 4.0], input_axes=("y", "x"))
+        assert np.allclose(back.apply([6.0, 4.0], input_axes=("y", "x"), output_axes=("y", "x")), [8.0, 12.0])
+
+    def test_scale_and_translation_apply_to_the_named_axes_in_that_order(self):
+        yx = make_system("30", "plane", ["y", "x"])
+        edge = by_dimension_t(yx, WORLD, ["y", "x"], scale=(2.0, 4.0), translation=(1.0, -1.0))
+        graph = SimpleNamespace(transformations=[edge])
+        assert np.allclose(yx.transform_points_to(WORLD, [3.0, 5.0], axes=("y", "x"), graph=graph), [7.0, 19.0])
+        back = WORLD.axis_map_to(yx, graph=graph)
+        assert np.allclose(back.apply([7.0, 19.0], input_axes=("y", "x")), [3.0, 5.0])
+
+    def test_an_affine_is_written_over_the_named_axes_and_may_rename_them(self):
+        uv = make_system("31", "sheared", ["u", "v"])
+        edge = by_dimension_t(uv, WORLD, ["u", "v"], to=["x", "y"], affine=((1.0, 1.0, 2.0), (0.0, 2.0, 0.0)))
+        graph = SimpleNamespace(transformations=[edge])
+        # x = u + v + 2, y = 2v
+        assert np.allclose(uv.transform_points_to(WORLD, [3.0, 4.0], axes=("y", "x"), graph=graph), [8.0, 9.0])
+        back = WORLD.axis_map_to(uv, graph=graph)
+        assert np.allclose(back.apply([8.0, 9.0], input_axes=("y", "x")), [3.0, 4.0])
+
+    def test_an_axis_passed_through_is_converted_between_its_two_units(self):
+        def with_units(id, unit):
+            return CoordinateSystem(
+                id=id,
+                name=id,
+                axes=(
+                    Axis(id=f"{id}-z", order=0, name="z", type="SPACE", unit=unit),
+                    Axis(id=f"{id}-x", order=1, name="x", type="SPACE", unit=unit),
+                ),
+            )
+
+        nm, um = with_units("40", "nanometer"), with_units("41", "micrometer")
+        graph = SimpleNamespace(transformations=[by_dimension_t(nm, um, ["x"])])
+        # x is named, so its numbers are the edge's own; z passes through and is converted.
+        assert np.allclose(nm.transform_points_to(um, [500.0, 7.0], graph=graph), [0.5, 7.0])
+        assert np.allclose(um.transform_points_to(nm, [0.5, 7.0], graph=graph), [500.0, 7.0])
 
 
 def make_dataset(axis_names):

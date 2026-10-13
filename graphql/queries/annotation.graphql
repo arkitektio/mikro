@@ -39,3 +39,21 @@ query SearchAnnotationCollections(
     label: name
   }
 }
+
+# What a port's picker asks. `$requires` is the port's own constraints, handed on
+# unchanged by the frontend, so a port typed on paths is offered the paths.
+query SearchAnnotations(
+  $search: String
+  $values: [ID!]
+  $requires: [DescriptorConstraintInput!]
+  $limit: Int
+  $offset: Int = 0
+) {
+  options: annotations(
+    filters: { search: $search, ids: $values, requires: $requires }
+    pagination: { limit: $limit, offset: $offset }
+  ) {
+    value: id
+    label: name
+  }
+}

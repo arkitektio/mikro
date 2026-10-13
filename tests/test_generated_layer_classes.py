@@ -35,8 +35,7 @@ def test_a_mesh_layer_with_a_collection_and_pickers_parses() -> None:
         "kind": "COLUMN",
         "table": "1",
         "column": "area",
-        "dataset": None,
-        "at": [],
+        "lens": None,
         "joinPath": [],
         "colormap": None,
         "min": None,
@@ -44,10 +43,10 @@ def test_a_mesh_layer_with_a_collection_and_pickers_parses() -> None:
         "label": None,
     }
     collection = schema.LayerCollection.model_validate(
-        {"__typename": "MeshCollection", "id": "7", "version": "3"}
+        {"__typename": "MeshCollection", "id": "7", "name": None, "label": "meshes/7"}
     )
     color_by_field = schema.LayerMeshLayer.model_fields["color_bys"].annotation.__args__[0]
     color_by = color_by_field.model_validate(fields)
 
-    assert collection.version == "3"
+    assert (collection.name, collection.label) == (None, "meshes/7")
     assert color_by.typename == "MeshColorBy"

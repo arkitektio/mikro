@@ -269,7 +269,7 @@ if __name__ == "__main__":
         # The plate heat-map: one dot per well over its field, coloured by count.
         point_layer = mikro.create_point_layer(
             scene=scene,
-            table_dataset=table,
+            lens=table.lens().id,
             point_size=30.0,  # stage micrometers
             colormap=ColorMap.VIRIDIS,
             opacity=0.9,

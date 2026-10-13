@@ -375,10 +375,8 @@ if __name__ == "__main__":
         clim = float(np.percentile(estimated, 99.5))
         for index, (name, _peak, _sigma, colormap) in enumerate(FLUOROPHORES):
             mikro.create_intensity_layer(
-                lens=unmixed_ds.lens(),
+                lens=unmixed_ds.lens(c=index),
                 scene=scene,
-                intensity_axis="c",
-                intensity_index=index,
                 colormap=colormap,
                 clim_min=0.0,
                 clim_max=clim,

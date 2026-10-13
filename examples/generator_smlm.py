@@ -349,14 +349,13 @@ if __name__ == "__main__":
         scene = mikro.create_scene(name="SMLM · synthetic", coordinate_system=world.id)
 
         # Bottom: the raw movie. The time slider walks t; MIP is what a projection
-        # over the *scrubbed* axis would look like elsewhere — here intensity_axis
-        # stays null because a TIME axis is not a CHANNEL axis.
+        # over the *scrubbed* axis would look like elsewhere — here the node names no
+        # lens of its own, because the movie has no CHANNEL axis to pin.
         mikro.create_layer(
             scene=scene,
             lens=mikro.create_lens(raw_ds, slices=[]),
             render_graph=channel_graph(
                 colormap=ColorMap.GREY,
-                intensity_axis=None,
                 mode=ProjectionMode.MIP,
                 clim_min=float(BACKGROUND),
                 clim_max=float(np.percentile(movie.values, 99.9)),
@@ -376,7 +375,7 @@ if __name__ == "__main__":
 
         point_layer = mikro.create_point_layer(
             scene=scene,
-            table_dataset=table,
+            lens=table.lens().id,
             point_size=0.05,  # scene units = µm; 50 nm dots
             colormap=ColorMap.VIRIDIS,
             opacity=0.8,

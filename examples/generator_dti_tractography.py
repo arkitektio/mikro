@@ -423,7 +423,7 @@ if __name__ == "__main__":
 
         track_layer = mikro.create_track_layer(
             scene=scene,
-            table_dataset=table,
+            lens=table.lens().id,
             color_by_column="fa",
             colormap=ColorMap.INFERNO,
             line_width=0.4,  # millimeters
@@ -438,7 +438,7 @@ if __name__ == "__main__":
         print("Uploading glass brain…")
         built = build_collection({1: mesh}, levels=LEVELS)
         collection = mikro.create_mesh_collection(
-            version=f"v20260901-dti-glass-brain-seed{SEED}",
+            name=f"v20260901-dti-glass-brain-seed{SEED}",
             store=built,
             axes=[AxisInput(name=d, type=AxisType.SPACE) for d in ("x", "y", "z")],
             derived_from=[
@@ -452,7 +452,7 @@ if __name__ == "__main__":
         )
         mesh_layer = mikro.create_mesh_layer(
             scene=scene.id,
-            mesh_collection=collection.id,
+            lens=collection.lens().id,
             material_color=[205, 215, 255, 255],
             wireframe=False,
             opacity=0.18,

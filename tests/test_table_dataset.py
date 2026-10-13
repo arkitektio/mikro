@@ -411,6 +411,35 @@ def test_create_a_measurement_table(deployed_app: DeployedMikro) -> None:
 
 
 @pytest.mark.integration
+def test_a_point_layer_draws_a_table_through_a_lens(deployed_app: DeployedMikro) -> None:
+    """A table lens keeps the rows inside its windows, and a layer names it or its table."""
+    from mikro import space_3d
+    from mikro.api.schema import LensKind, WindowInput
+
+    mikro = deployed_app.mikro
+    table = mikro.create_table_dataset(
+        name="localizations_windowed", data=_localizations(), columns=_localization_columns()
+    )
+    axis = next(column.name for column in _localization_columns() if column.axis_type is not None)
+
+    window = mikro.create_table_lens(table_dataset=table.id, windows=[WindowInput(axis=axis, min=0.0, max=10.0)])
+    assert window.kind == LensKind.TABLE
+    assert [(w.axis, w.min, w.max) for w in window.windows] == [(axis, 0.0, 10.0)]
+    again = mikro.create_table_lens(table_dataset=table.id, windows=[WindowInput(axis=axis, min=0, max=10)])
+    assert again.id == window.id, "The same windows are the same lens"
+
+    scene = mikro.create_scene(name="windowed points", coordinate_system=table.coordinate_system.id)
+    windowed = mikro.create_point_layer(scene=scene.id, lens=window.id)
+    whole = mikro.create_point_layer(scene=scene.id, lens=table.lens().id)
+
+    assert str(windowed.table_lens.id) == str(window.id)
+    assert str(windowed.table_dataset.id) == str(table.id), "The table is the lens' container"
+    assert [(w.axis, w.max) for w in windowed.table_lens.windows] == [(axis, 10.0)]
+    assert not whole.table_lens.windows, "A layer named by its table draws through the whole lens"
+    assert whole.table_lens.id != window.id
+
+
+@pytest.mark.integration
 def test_a_measurement_table_reads_back_out_of_its_store(
     deployed_app: DeployedMikro,
 ) -> None:

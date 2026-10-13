@@ -116,7 +116,7 @@ def test_the_input_type_coerces_a_collection_on_the_way_in(
     a long way from the cause.
     """
     parsed = CreateMeshCollectionInput(
-        version="v1",
+        name="v1",
         store=collection,
         axes=[AxisInput(name=name, type=AxisType.SPACE) for name in ("x", "y", "z")],
     )

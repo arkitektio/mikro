@@ -79,8 +79,8 @@ if __name__ == "__main__":
 ```
 
 Datasets, tables, meshes, annotations, lenses, coordinate systems, scenes, folders and files travel
-between actions by id (`@mikro/arraydataset`, `@mikro/lens`, `@mikro/scene`, ...), so an action can
-take them and return them directly.
+between actions by id (`@mikro/arraydataset`, `@mikro/arraylens` for an array lens, `@mikro/tablelens`,
+`@mikro/scene`, ...), so an action can take them and return them directly.
 
 ### From a script
 
@@ -178,9 +178,38 @@ An action that returns the image returns a lens, not the dataset: `return datase
 data = dataset.data               # level 0, a lazy dask-backed xarray.DataArray
 coarse = dataset.level_data(2)    # a coarser pyramid level
 levels = dataset.multi_scale_data()
-window = dataset.lens(z=(0, 5))   # a Lens: an immutable selection over the dataset
+window = dataset.lens(z=(0, 5))   # an ArrayLens: an immutable selection over the dataset
 window.data
+whole = dataset.lens()            # the dataset's whole lens: read, never made
 ```
+
+A lens is one row per container and selection, so the same selection asked for twice is the same
+lens, and its `slices` read back the way the server normalized them. `Lens` itself is the interface
+over six kinds. An `ArrayLens` selects pixels by index slices; tables, sparse datasets, meshes,
+networks and annotation collections are selected by value windows instead
+(`table.lens(t=(0, 10))`, `expression.lens(gene=4711)`, `collection.lens()` for the whole of one), and
+a layer names a lens and nothing narrower: `mikro.create_point_layer(scene=scene.id, lens=table.lens().id)`.
+That holds for a channel too. An intensity, label or phasor layer draws a lens pinning one channel
+(`dataset.lens(c=0)`), an RGB layer names three of them, and a SPARSE colouring names the sparse lens
+that is its slice. Which axis of a lens faces the screen is the layer's to say: `layer.render_axes`.
+
+### A chart: data along one axis
+
+A scene is a place; a chart is one metric axis with values read off it. It adopts a space with
+exactly one unit-carrying axis, and a layer is drawn where the edge into that space lays it:
+
+```python
+from mikro.api.schema import AxisType, PhysicalAxisInput
+
+chart = mikro.create_chart(name="ΔF/F", axis=PhysicalAxisInput(name="t", type=AxisType.TIME, unit=Unit("second")))
+chart.world.register(traces, scale={"t": 0.05})        # a (cell, t) array, 50 ms per sample
+
+layer = mikro.create_trace_chart_layer(chart=chart.id, lens=traces.lens().id)
+layer.along_axis, layer.series_axis                    # ("t", "cell"): one line per cell
+```
+
+`create_series_chart_layer` draws a table's value column, `create_annotation_chart_layer` makes a
+surface to draw marks on, and `space.chart()` bootstraps a chart from what is already registered.
 
 [`examples/`](examples/README.md) holds ten self-contained scripts. Each one simulates an imaging
 modality (SMLM, calcium imaging, high-content screening, CLEM, MRI, tractography, ...) and composes

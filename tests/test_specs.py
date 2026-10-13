@@ -121,7 +121,7 @@ class TestSpecs:
         """An argument keeps the Requires and a return the Provides, so a spec that
         stated a constraint on one side only would mean something else there."""
         names = [name for name in specs.__all__ if name[0].isupper() and not name.isupper()]
-        assert len(names) == 19
+        assert len(names) == 20
         for name in names:
             spec = getattr(specs, name)
             asked = [(m.key, m.operator, m.value) for m in requires(spec)]

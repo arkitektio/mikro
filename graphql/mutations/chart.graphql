@@ -1,0 +1,58 @@
+# A chart adopts a world with exactly one metric, unit-carrying axis -- an existing
+# `coordinateSystem`, or one made from a single `axis` -- and is then filled with layers,
+# one mutation per kind, or all at once with `createChartFromCoordinateSystem`. None of
+# them writes an edge: the data must already be registered into the chart's world.
+mutation CreateChart($input: CreateChartInput!) {
+  createChart(input: $input) {
+    ...Chart
+  }
+}
+
+mutation CreateChartFromCoordinateSystem(
+  $input: CreateChartFromCoordinateSystemInput!
+) {
+  createChartFromCoordinateSystem(input: $input) {
+    ...Chart
+  }
+}
+
+mutation UpdateChart($input: UpdateChartInput!) {
+  updateChart(input: $input) {
+    ...Chart
+  }
+}
+
+mutation DeleteChart($input: DeleteChartInput!) {
+  deleteChart(input: $input)
+}
+
+mutation CreateTraceChartLayer($input: CreateTraceChartLayerInput!) {
+  createTraceChartLayer(input: $input) {
+    ...ChartLayer
+  }
+}
+
+mutation CreateSeriesChartLayer($input: CreateSeriesChartLayerInput!) {
+  createSeriesChartLayer(input: $input) {
+    ...ChartLayer
+  }
+}
+
+# With no `annotationCollection` this makes the drawing surface: a collection whose space
+# is the chart's axis plus a VALUE axis. Marks then go in with `createAnnotation`.
+mutation CreateAnnotationChartLayer($input: CreateAnnotationChartLayerInput!) {
+  createAnnotationChartLayer(input: $input) {
+    ...ChartLayer
+  }
+}
+
+# View state only: a layer's kind and its source are fixed at creation.
+mutation UpdateChartLayer($input: UpdateChartLayerInput!) {
+  updateChartLayer(input: $input) {
+    ...ChartLayer
+  }
+}
+
+mutation DeleteChartLayer($input: DeleteChartLayerInput!) {
+  deleteChartLayer(input: $input)
+}

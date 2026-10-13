@@ -343,7 +343,6 @@ if __name__ == "__main__":
             lens=mikro.create_lens(raw_ds, slices=[]),
             render_graph=channel_graph(
                 colormap=ColorMap.GREY,
-                intensity_axis=None,
                 mode=ProjectionMode.MIP,
                 clim_min=float(BACKGROUND),
                 clim_max=float(np.percentile(movie.values, 99.9)),
@@ -353,7 +352,7 @@ if __name__ == "__main__":
 
         track_layer = mikro.create_track_layer(
             scene=scene,
-            table_dataset=table,
+            lens=table.lens().id,
             color_by_column="speed",
             colormap=ColorMap.VIRIDIS,
             line_width=0.05,  # scene units = µm

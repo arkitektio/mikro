@@ -8,7 +8,7 @@ different set of dimensions than level 0. The server refuses the same, after the
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
 
@@ -48,3 +48,39 @@ def check_dims_match_axes(data: Any, axes: Iterable[Any], scales: Iterable[Any] 
                 f"Scale level {getattr(scale, 'level', '?')} array dimensions {scale_dims} "
                 f"do not match the data array dimensions {array_dims}."
             )
+
+
+def check_layouts_agree(levels: Sequence[Any], axis_types: Mapping[str, str]) -> None:  # noqa: ANN401
+    """Refuse layouts the reader would address wrongly on some level of the pyramid.
+
+    The reader pins a time or index axis to one chunk coordinate, computes it from level 0's
+    chunk extent, and uses it on every level. A level chunked differently along such an axis
+    is asked for chunks it does not have, which read back as fill.
+
+    Args:
+        levels: The arrays of one dataset, level 0 first; ``.value`` and ``.layout`` are read.
+        axis_types: Axis type name by dimension name.
+
+    Raises:
+        ArrayDeclarationError: If a layout does not have its array's rank, or a pinned axis is
+            chunked differently on two levels.
+    """
+    from mikro.io.chunking import AxisRole, roles_for
+
+    pinned: dict[str, int] = {}
+    for index, level in enumerate(levels):
+        dims = [str(dim) for dim in level.value.dims]
+        chunks = level.layout.chunks
+        if len(chunks) != len(dims):
+            raise ArrayDeclarationError(
+                f"Level {index}: layout chunks {chunks} do not have the array's dimensions {dims}."
+            )
+        for dim, role, extent in zip(dims, roles_for(dims, axis_types), chunks):
+            if role is not AxisRole.COLLAPSED:
+                continue
+            if pinned.setdefault(dim, extent) != extent:
+                raise ArrayDeclarationError(
+                    f"Level {index} chunks axis {dim!r} by {extent}, level 0 by {pinned[dim]}. "
+                    "A time or index axis must be chunked the same on every level: the viewer "
+                    "addresses all of them by level 0's chunk extent."
+                )

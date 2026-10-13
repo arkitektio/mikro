@@ -25,7 +25,7 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from mikro import dataset_arrays
+from mikro import ChunkLayout, dataset_arrays
 from mikro.api.schema import (
     AxisInput,
     AxisType,
@@ -36,6 +36,8 @@ from mikro.api.schema import (
     ScaleMethod,
     SourceFileInput,
 )
+
+from mikro.scalars import ArrayLike
 
 from .conftest import DeployedMikro
 
@@ -119,6 +121,46 @@ def test_create_array_dataset_with_pyramid(deployed_app: DeployedMikro) -> None:
     # A pyramid halves the spatial axes only -- a position halfway between two
     # channels is not a thing -- so every level keeps both channels.
     assert all(arr.shape[0] == 2 for arr in dataset.data_arrays)
+    # The layout the declaration chose is the one the server read back off each store: one
+    # channel per chunk and no chunk larger than a plane brick, on every level.
+    assert all(arr.chunk_shape[0] == 1 for arr in dataset.data_arrays)
+    assert all(max(arr.chunk_shape) <= 256 for arr in dataset.data_arrays)
+
+
+@pytest.mark.integration
+def test_the_declared_layout_is_the_one_that_lands(deployed_app: DeployedMikro) -> None:
+    """The layout chosen at declaration reaches the store, level by level.
+
+    The coarse level is the witness: on its own it is a shallow stack and would be cut into
+    single planes, but it belongs to a volume, so it keeps a volume brick. Only a layout that
+    travelled from the declaration through the upload can make it 32 deep.
+    """
+    base = xr.DataArray(np.zeros((2, 64, 128, 128), dtype="uint16"), dims=["c", "z", "y", "x"])
+    coarse = xr.DataArray(np.zeros((2, 32, 64, 64), dtype="uint16"), dims=["c", "z", "y", "x"])
+
+    dataset = deployed_app.mikro.create_array_dataset(
+        data=base,
+        scales=[ScaleInput(level=1, array=coarse, scale_method=ScaleMethod.AREA)],
+        name="array_dataset_declared_layout",
+        axes=_axes(),
+    )
+
+    chunks = {arr.level: tuple(arr.chunk_shape) for arr in dataset.data_arrays}
+    assert chunks == {0: (1, 64, 64, 64), 1: (1, 32, 64, 64)}
+
+
+@pytest.mark.integration
+def test_a_caller_layout_is_the_one_that_lands(deployed_app: DeployedMikro) -> None:
+    """An explicit ``ChunkLayout`` overrides the declaration all the way to the store."""
+    data = ArrayLike(
+        _make_volume(), layout=ChunkLayout(chunks=(1, 2, 32, 32), shards=(2, 4, 64, 64))
+    )
+
+    dataset = deployed_app.mikro.create_array_dataset(
+        data=data, scales=[], name="array_dataset_caller_layout", axes=_axes()
+    )
+
+    assert tuple(dataset.data_arrays[0].chunk_shape) == (1, 2, 32, 32)
 
 
 @pytest.mark.integration
