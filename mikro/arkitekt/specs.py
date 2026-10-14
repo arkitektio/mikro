@@ -65,7 +65,9 @@ N_CHANNELS = "@mikro/n_channels"
 N_TIMEPOINTS = "@mikro/n_timepoints"
 """Its total extent along its TIME axes."""
 VALUE_KIND = "@mikro/value_kind"
-"""What its values mean. Provenance: stated by whoever made the data, never computed."""
+"""What its values mean. Provenance: the server reads it off the data's derivation, never off its axes."""
+DTYPE = "@mikro/dtype"
+"""The element type of its values, as numpy spells it (uint8, uint16, float32, ...): its level-0 zarr store's."""
 ANNOTATION_KIND = "@mikro/annotation_kind"
 """The shape one annotation is drawn as, as the names of ``AnnotationKind``."""
 
@@ -73,9 +75,11 @@ ANNOTATION_KIND = "@mikro/annotation_kind"
 def lens_descriptors(lens: AxisSource) -> dict[str, Any]:
     """The descriptors of a lens (or an array dataset), computed from its axes.
 
-    One count per axis type, zero included, and the total extent along the
-    channel and the time axes. ``VALUE_KIND`` is not in it: nothing about the
-    axes tells a label mask from an image, so a constraint on it is the
+    One count per axis type, zero included, the total extent along the
+    channel and the time axes, and -- when it was fetched with its arrays, as
+    the ``ArrayLens`` fragment fetches it -- the element type of its level-0
+    store, as the server states it. ``VALUE_KIND`` is not in it: nothing about
+    the axes tells a label mask from an image, so a constraint on it is the
     producer's word and is not tested.
 
     Args:
@@ -86,7 +90,9 @@ def lens_descriptors(lens: AxisSource) -> dict[str, Any]:
     """
     table = axis_table(lens)
     counts = Counter(axis_type for _, axis_type, _ in table)
+    dtype = _level_zero_dtype(lens)
     return {
+        **({DTYPE: dtype} if dtype is not None else {}),
         N_SPACE_AXES: counts["SPACE"],
         N_TIME_AXES: counts["TIME"],
         N_CHANNEL_AXES: counts["CHANNEL"],
@@ -95,6 +101,16 @@ def lens_descriptors(lens: AxisSource) -> dict[str, Any]:
         N_CHANNELS: sum(extent for _, axis_type, extent in table if axis_type == "CHANNEL"),
         N_TIMEPOINTS: sum(extent for _, axis_type, extent in table if axis_type == "TIME"),
     }
+
+
+def _level_zero_dtype(lens: AxisSource) -> str | None:
+    """The dtype of a lens' (or a dataset's) level-0 store, ``""`` when it has none; None when its arrays were not fetched."""
+    dataset = getattr(lens, "dataset", None) or lens
+    arrays = getattr(dataset, "data_arrays", None)
+    if not arrays:
+        return None
+    store = min(arrays, key=lambda array: array.level).store
+    return (getattr(store, "dtype", None) if store is not None else None) or ""
 
 
 def annotation_descriptors(annotation: Any) -> dict[str, Any]:  # noqa: ANN401 - the generated Annotation

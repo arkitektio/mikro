@@ -27,6 +27,7 @@ from arkitekt_spec.declare.descriptors import unfulfilled
 
 from mikro.arkitekt import specs
 from mikro.arkitekt.specs import (
+    DTYPE,
     VALUE_KIND,
     Image,
     LabelMask,
@@ -127,3 +128,26 @@ class TestSpecs:
             asked = [(m.key, m.operator, m.value) for m in requires(spec)]
             made = [(m.key, m.operator, m.value) for m in provides(spec)]
             assert asked and asked == made, name
+
+
+class TestDtype:
+    """The element type is the level-0 store's, as the server stores it -- and absent when the arrays were not fetched."""
+
+    def _with_arrays(self, *stores):
+        lens = candidate(["y", "x"], (64, 64))
+        arrays = [SimpleNamespace(level=level, store=store) for level, store in enumerate(stores)]
+        lens.dataset = SimpleNamespace(data_arrays=arrays)
+        return lens
+
+    def test_the_level_zero_store_says_it(self) -> None:
+        lens = self._with_arrays(SimpleNamespace(dtype="uint16"), SimpleNamespace(dtype="float32"))
+        assert lens_descriptors(lens)[DTYPE] == "uint16"
+
+    def test_a_store_without_one_states_it_empty(self) -> None:
+        assert lens_descriptors(self._with_arrays(None))[DTYPE] == ""
+
+    def test_without_its_arrays_the_key_is_left_out_and_so_untested(self) -> None:
+        assert DTYPE not in lens_descriptors(VOLUME)
+        integers = [RequiresInput(key=DTYPE, operator="IN", value=["uint8", "uint16"])]
+        assert unfulfilled(integers, lens_descriptors(VOLUME)) == unfulfilled(integers, lens_descriptors(self._with_arrays(SimpleNamespace(dtype="uint16")))) == ()
+        assert unfulfilled(integers, lens_descriptors(self._with_arrays(SimpleNamespace(dtype="float32"))))
