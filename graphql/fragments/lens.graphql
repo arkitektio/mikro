@@ -24,6 +24,8 @@ fragment Window on Window {
 fragment ArrayLens on ArrayLens {
   id
   name
+  # What to call the lens, never empty: its name, else its dataset's and what it selects.
+  label
   kind
   dataset {
     id

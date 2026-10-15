@@ -89,7 +89,7 @@ registry = AppRegistry()
     turms=_package_path("api", "project.json"),
     # The server this release of the client is written against: what a hub made for
     # an app's tests runs. Moves with the server's major, not with this package's.
-    image="jhnnsrs/mikro:7",
+    image="jhnnsrs/mikro:8",
 )
 def mikro(
     mikro: Annotated[

@@ -35,6 +35,8 @@ def test_a_lens_search_offers_what_the_port_requires(mikro: Mikro) -> None:
     image = mikro.create_array_dataset(data=xr.DataArray(np.zeros((16, 16), dtype="uint8"), dims=["y", "x"]), scales=[], name=f"{PREFIX}_image", axes=["y", "x"])
     whole, plane, channel = volume.lens(), volume.lens(z=1), volume.lens(c=0)
     flat = image.lens()
+    # A lens nobody named is still called something: its dataset, and what it cuts out of it.
+    assert whole.label == f"{PREFIX}_volume" and plane.label.startswith(f"{PREFIX}_volume ·")
 
     def offered(spec: object) -> set[str]:
         return {option.value for option in mikro.search_array_lenses(search=PREFIX, requires=_requires(spec))}
