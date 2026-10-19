@@ -2,12 +2,12 @@ import builtins
 from datetime import datetime
 from enum import Enum
 from kanne.scalars import Frequency, GenericQuantity, Length, Power, Temperature, Unit
-from mikro.scalars import ArrayCoercible, ArrayLike, AxisName, ByteCount, ByteCountCoercible, FabriksCoercible, FabriksLike, FileLike, ImageFileCoercible, ImageFileLike, KonnektionCoercible, KonnektionLike, ParquetCoercible, ParquetLike, SporadikCoercible, SporadikLike, ThreeDVector
-from mikro.traits import AxisInputTrait, ChartTrait, CoordinateAnchorInputTrait, CoordinateSystemTrait, CreateADatasetTrait, CreateSparseDatasetTrait, CreateTableDatasetTrait, DataArrayTrait, DatasetTrait, FileTrait, GraphColorByInputTrait, HasDownloadAccessor, HasParquestStoreTrait, HasParquetStoreAccesor, HasPresignedDownloadAccessor, HasZarrStoreAccessor, Lensable, MeshCollectionTrait, MikroFetchable, NetworkCollectionTrait, RGBAColorInputTrait, SceneTrait, SparseAxisInputTrait, SparseColorByInputTrait, SparseDatasetTrait, TableDatasetLensTrait, TransformationTrait, ValueHistogramInputTrait
+from mikro.scalars import ArrayCoercible, ArrayLike, AxisName, ByteCount, ByteCountCoercible, FabriksCoercible, FabriksLike, FileLike, ImageFileCoercible, ImageFileLike, KonnektionCoercible, KonnektionLike, MetricTargetCoercible, ParquetCoercible, ParquetLike, SporadikCoercible, SporadikLike, ThreeDVector
+from mikro.traits import AxisInputTrait, ChartTrait, CoordinateAnchorInputTrait, CoordinateSystemTrait, CreateADatasetTrait, CreateSparseDatasetTrait, CreateTableDatasetTrait, DataArrayTrait, DatasetTrait, FileTrait, GraphColorByInputTrait, HasDownloadAccessor, HasParquestStoreTrait, HasParquetStoreAccesor, HasPresignedDownloadAccessor, HasZarrStoreAccessor, Lensable, MeshCollectionTrait, MetricTargetInputTrait, MikroFetchable, NetworkCollectionTrait, RGBAColorInputTrait, SceneTrait, SparseAxisInputTrait, SparseColorByInputTrait, SparseDatasetTrait, TableDatasetLensTrait, TransformationTrait, ValueHistogramInputTrait
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 from rath.scalars import ID, IDCoercible
 from rath.task import TaskLike
-from typing import Annotated, Any, AsyncIterator, Iterable, Iterator, Literal
+from typing import Annotated, Any, AsyncIterator, ClassVar, Iterable, Iterator, Literal
 
 class GraphQLDefault:
     """Records a GraphQL field schema default value. The client omits the field so the server applies its own default; this preserves the value for introspection."""
@@ -1361,6 +1361,7 @@ class AnnotationCollectionFilter(BaseModel):
     or_: 'AnnotationCollectionFilter | None' = Field(validation_alias=AliasChoices('or_', 'OR'), serialization_alias='OR', default=None)
     not_: 'AnnotationCollectionFilter | None' = Field(validation_alias=AliasChoices('not_', 'NOT'), serialization_alias='NOT', default=None)
     distinct: bool | None = Field(validation_alias=AliasChoices('distinct', 'DISTINCT'), serialization_alias='DISTINCT', default=None)
+    requires: tuple['DescriptorConstraintInput', ...] | None = Field(default=None, description='Filter to the objects satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored on every row. A key the structure does not declare is refused rather than ignored')
     folder: ID | None = Field(default=None, description='Filter by the folder this annotation collection is filed in')
     folders: tuple[ID, ...] | None = Field(default=None, description='Filter by a list of folder IDs')
     scene: ID | None = Field(default=None, description='Filter by the scene this collection was minted for as its default drawing surface')
@@ -1380,7 +1381,7 @@ class AnnotationFilter(BaseModel):
     or_: 'AnnotationFilter | None' = Field(validation_alias=AliasChoices('or_', 'OR'), serialization_alias='OR', default=None)
     not_: 'AnnotationFilter | None' = Field(validation_alias=AliasChoices('not_', 'NOT'), serialization_alias='NOT', default=None)
     distinct: bool | None = Field(validation_alias=AliasChoices('distinct', 'DISTINCT'), serialization_alias='DISTINCT', default=None)
-    requires: tuple['DescriptorConstraintInput', ...] | None = Field(default=None, description="Filter to the annotations satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL: `@mikro/annotation_kind` is the kind (named as the descriptor names it, e.g. PATH) and the axis counts are those of the collection's drawing space. A key annotations do not declare is refused rather than ignored")
+    requires: tuple['DescriptorConstraintInput', ...] | None = Field(default=None, description="Filter to the annotations satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored on every annotation: `@mikro/annotation_kind` is the kind (named as the descriptor names it, e.g. PATH) and the axis counts are those of the collection's drawing space. A key annotations do not declare is refused rather than ignored")
     collection: ID | None = Field(default=None, description='Filter by the collection this annotation belongs to')
     coordinate_system: ID | None = Field(validation_alias=AliasChoices('coordinate_system', 'coordinateSystem'), serialization_alias='coordinateSystem', default=None, description="Filter by the coordinate system this annotation is drawn in (its collection's own)")
     dataset: ID | None = Field(default=None, description="Filter by the dataset the annotations are drawn over, following the collection's derivation edge")
@@ -1421,7 +1422,7 @@ class ArrayDatasetFilter(BaseModel):
     or_: 'ArrayDatasetFilter | None' = Field(validation_alias=AliasChoices('or_', 'OR'), serialization_alias='OR', default=None)
     not_: 'ArrayDatasetFilter | None' = Field(validation_alias=AliasChoices('not_', 'NOT'), serialization_alias='NOT', default=None)
     distinct: bool | None = Field(validation_alias=AliasChoices('distinct', 'DISTINCT'), serialization_alias='DISTINCT', default=None)
-    requires: tuple['DescriptorConstraintInput', ...] | None = Field(default=None, description="Filter to the datasets satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored at creation, and `@mikro/value_kind` from the dataset's primary derivation. A key datasets do not declare is refused rather than ignored")
+    requires: tuple['DescriptorConstraintInput', ...] | None = Field(default=None, description='Filter to the datasets satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored on every dataset (`@mikro/value_kind` restored whenever a derivation edge leaving it is drawn). A key datasets do not declare is refused rather than ignored')
     folder: ID | None = Field(default=None, description='Filter by the folder this dataset is filed in')
     folders: tuple[ID, ...] | None = Field(default=None, description='Filter by a list of folder IDs')
     spec: tuple[ArrayDatasetSpec, ...] | None = Field(default=None, description='Filter to datasets satisfying every one of these specs, e.g. [VOLUME, TIMESERIES] for 3D timelapses. Materialized at creation from the axes of the intrinsic coordinate system and the level-0 shape; an axis counts only when it has more than one position, so a stack of one plane is an IMAGE and a single frame is not a TIMESERIES (use `hasAxisTypes` to ask whether an axis is declared at all). A dataset carries one spatial spec (by how many such SPACE axes it has) plus a modifier per non-spatial axis type it has more than one position along (TIMESERIES, MULTICHANNEL, SPECTRAL, FLIM, DISPLACEMENT_FIELD, COORDINATE_FIELD, INDEXED), and TRACE when it is a curve along one measured axis -- `[TRACE]` finds what a chart can draw whole. Two spatial specs together match nothing')
@@ -1499,6 +1500,7 @@ class ChartFilter(BaseModel):
     distinct: bool | None = Field(validation_alias=AliasChoices('distinct', 'DISTINCT'), serialization_alias='DISTINCT', default=None)
     search: str | None = Field(default=None, description='Search by name (case-insensitive substring)')
     coordinate_system: ID | None = Field(validation_alias=AliasChoices('coordinate_system', 'coordinateSystem'), serialization_alias='coordinateSystem', default=None, description='Filter to the charts laid out over this coordinate system')
+    requires: tuple['DescriptorConstraintInput', ...] | None = Field(default=None, description='Filter to the objects satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored on every row. A key the structure does not declare is refused rather than ignored')
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class ChartLayerFilter(BaseModel):
@@ -1582,6 +1584,7 @@ class CoordinateSystemFilter(BaseModel):
     or_: 'CoordinateSystemFilter | None' = Field(validation_alias=AliasChoices('or_', 'OR'), serialization_alias='OR', default=None)
     not_: 'CoordinateSystemFilter | None' = Field(validation_alias=AliasChoices('not_', 'NOT'), serialization_alias='NOT', default=None)
     distinct: bool | None = Field(validation_alias=AliasChoices('distinct', 'DISTINCT'), serialization_alias='DISTINCT', default=None)
+    requires: tuple['DescriptorConstraintInput', ...] | None = Field(default=None, description='Filter to the objects satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored on every row. A key the structure does not declare is refused rather than ignored')
     uninhabited: bool | None = Field(default=None, description='Filter to the spaces nothing lives in: pure reference frames, the worlds and atlases sources are registered into. False finds the spaces some data actually occupies')
     dataset: ID | None = Field(default=None, description="Filter to the spaces this dataset's data lives in: its own grid, and the grids of its pyramid levels and lenses")
     scene: ID | None = Field(default=None, description='Filter by a scene composing over this system as its world')
@@ -1767,6 +1770,11 @@ class CreateMeshLensInput(BaseModel):
     mesh_collection: ID | None = Field(validation_alias=AliasChoices('mesh_collection', 'meshCollection'), serialization_alias='meshCollection', default=None, description='The mesh collection to select over. Exactly one of this and `lens`')
     lens: ID | None = Field(default=None, description="A lens over the mesh collection to select within, in place of the container: the windows then intersect with its own, and the result is the mesh collection's lens for what that keeps")
     windows: tuple['WindowInput', ...] | None = Field(default=None, description="Windows, one per axis to restrict, each keeping the positions whose value lies between its min and its max (an omitted side is open). Omit for everything: the mesh collection's whole lens, or the lens cut from")
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class CreateMetricsInput(BaseModel):
+    """Many metrics in one transaction, at most 5000"""
+    metrics: tuple['MetricInput', ...]
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreateNetworkCollectionInput(BaseModel):
@@ -2061,6 +2069,11 @@ class DeleteMeshCollectionInput(BaseModel):
     id: ID = Field(description='The ID of the mesh collection to delete')
     model_config = ConfigDict(frozen=True, extra='forbid')
 
+class DeleteMetricInput(BaseModel):
+    """The metric to delete"""
+    id: ID
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
 class DeleteNetworkCollectionInput(BaseModel):
     """Input for deleting a network collection by ID"""
     id: ID = Field(description='The ID of the network collection to delete')
@@ -2283,7 +2296,7 @@ class LensFilter(BaseModel):
     or_: 'LensFilter | None' = Field(validation_alias=AliasChoices('or_', 'OR'), serialization_alias='OR', default=None)
     not_: 'LensFilter | None' = Field(validation_alias=AliasChoices('not_', 'NOT'), serialization_alias='NOT', default=None)
     distinct: bool | None = Field(validation_alias=AliasChoices('distinct', 'DISTINCT'), serialization_alias='DISTINCT', default=None)
-    requires: tuple[DescriptorConstraintInput, ...] | None = Field(default=None, description='Filter to the lenses satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored when the lens was made. `@mikro/value_kind` is asked of array lenses only and `@mikro/n_annotations` of whole annotation lenses only (a windowed one counts by geometry and is left out). A key lenses do not declare is refused rather than ignored')
+    requires: tuple[DescriptorConstraintInput, ...] | None = Field(default=None, description='Filter to the lenses satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored on every lens, restored when what they count changes (a derivation edge, a shape drawn). A key only some kinds declare holds of no lens of another kind. A key no lens declares is refused rather than ignored')
     kind: LensKind | None = Field(default=None, description='Filter by the kind of container the lens selects over')
     array_spec: tuple[ArrayDatasetSpec, ...] | None = Field(validation_alias=AliasChoices('array_spec', 'arraySpec'), serialization_alias='arraySpec', default=None, description="Filter to the array lenses whose selection satisfies every one of these specs, e.g. [IMAGE] for every plane, single-channel or not, or [PROFILE, TRACE] for what a chart draws as a trace. The spec is the selection's, not the dataset's: an axis counts only when the lens keeps more than one position along it, so one plane of a stack matches [IMAGE] and its dataset [VOLUME]")
     table_spec: tuple[TableDatasetSpec, ...] | None = Field(validation_alias=AliasChoices('table_spec', 'tableSpec'), serialization_alias='tableSpec', default=None, description="Filter to the table lenses whose selection satisfies every one of these specs, e.g. [POINTS_2D, TRACKED]. The spec is the selection's: a coordinate column a window pins to one value (min == max) does not count, so one frame of a tracking table does not match [TIMED]")
@@ -2295,6 +2308,7 @@ class LensFilter(BaseModel):
     network_collection: ID | None = Field(validation_alias=AliasChoices('network_collection', 'networkCollection'), serialization_alias='networkCollection', default=None, description='Filter to the lenses over this network collection')
     annotation_collection: ID | None = Field(validation_alias=AliasChoices('annotation_collection', 'annotationCollection'), serialization_alias='annotationCollection', default=None, description='Filter to the lenses over this annotation collection')
     sliced: bool | None = Field(default=None, description='Filter by whether the lens cuts anything out of its container. True keeps the crops, sub-volumes and windows; false the whole lenses, one per container -- a list meant for people usually wants true')
+    not_derived: bool | None = Field(validation_alias=AliasChoices('not_derived', 'notDerived'), serialization_alias='notDerived', default=None, description='Filter array lenses by whether their dataset was acquired rather than computed: true keeps the lenses over the roots, false those over a derived dataset -- the same line `ArrayDatasetFilter.notDerived` draws. Only array lenses are judged: a lens over a table, sparse dataset, mesh, network or annotation collection passes true and fails false')
     search: str | None = Field(default=None, description="Search by the lens' own name or, since most lenses have none and are known by their container's, by its container's label: the name of a dataset, table, sparse dataset or annotation collection, the name or store key of a mesh or network collection (case-insensitive substring)")
     placeable_in: 'LensPlaceableFilter | None' = Field(validation_alias=AliasChoices('placeable_in', 'placeableIn'), serialization_alias='placeableIn', default=None, description='Filter to lenses placeable into a coordinate system: those whose space reaches it across steps that compose into one affine map, walking the transformation edges. Takes a *space*, not a scene -- pass `scene.worldCoordinateSystem.id` to ask it of a scene. `derivedOnly` and `asLayer` narrow the answer for a particular picker; with neither, this is the whole set layer creation would accept')
     overlaps_annotation: ID | None = Field(validation_alias=AliasChoices('overlaps_annotation', 'overlapsAnnotation'), serialization_alias='overlapsAnnotation', default=None, description='Filter to lenses whose extent overlaps this annotation, wherever the two are co-registered: lenses over the dataset it was drawn on, and lenses over any other dataset registered into a space its collection reaches. Both extents are composed per request from the shapes and the edges and compared in the nearest space they share, so this costs one coordinate-graph walk per such space rather than an index lookup. A lens the server cannot bound there -- placed only per index, or across a warp -- is not returned')
@@ -2357,6 +2371,7 @@ class MeshCollectionFilter(BaseModel):
     or_: 'MeshCollectionFilter | None' = Field(validation_alias=AliasChoices('or_', 'OR'), serialization_alias='OR', default=None)
     not_: 'MeshCollectionFilter | None' = Field(validation_alias=AliasChoices('not_', 'NOT'), serialization_alias='NOT', default=None)
     distinct: bool | None = Field(validation_alias=AliasChoices('distinct', 'DISTINCT'), serialization_alias='DISTINCT', default=None)
+    requires: tuple[DescriptorConstraintInput, ...] | None = Field(default=None, description='Filter to the objects satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored on every row. A key the structure does not declare is refused rather than ignored')
     search: str | None = Field(default=None, description="Search by the collection's label: its name, or its store's key (case-insensitive substring)")
     folder: ID | None = Field(default=None, description='Filter by the folder this mesh collection is filed in')
     folders: tuple[ID, ...] | None = Field(default=None, description='Filter by a list of folder IDs')
@@ -2382,6 +2397,43 @@ class MeshFilterByInput(BaseModel):
     label: str | None = None
     model_config = ConfigDict(frozen=True, extra='forbid')
 
+class MetricFilter(BaseModel):
+    """No documentation"""
+    ids: tuple[ID, ...] | None = Field(default=None, description='Filter by list of IDs')
+    id: ID | None = None
+    key: 'StrFilterLookup | None' = None
+    and_: 'MetricFilter | None' = Field(validation_alias=AliasChoices('and_', 'AND'), serialization_alias='AND', default=None)
+    or_: 'MetricFilter | None' = Field(validation_alias=AliasChoices('or_', 'OR'), serialization_alias='OR', default=None)
+    not_: 'MetricFilter | None' = Field(validation_alias=AliasChoices('not_', 'NOT'), serialization_alias='NOT', default=None)
+    distinct: bool | None = Field(validation_alias=AliasChoices('distinct', 'DISTINCT'), serialization_alias='DISTINCT', default=None)
+    target_identifier: str | None = Field(validation_alias=AliasChoices('target_identifier', 'targetIdentifier'), serialization_alias='targetIdentifier', default=None, description='Filter to the metrics about objects of this structure: @mikro/annotation, @mikro/arraydataset, @mikro/tabledataset or @mikro/sparsedataset')
+    target: 'MetricTargetFilter | None' = Field(default=None, description='Filter to the metrics about one object')
+    is_correction: bool | None = Field(validation_alias=AliasChoices('is_correction', 'isCorrection'), serialization_alias='isCorrection', default=None, description='Filter to the metrics correcting nothing, or only to corrections')
+    requires: tuple[DescriptorConstraintInput, ...] | None = Field(default=None, description='Filter to the objects satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored on every row. A key the structure does not declare is refused rather than ignored')
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class MetricInput(BaseModel):
+    """One value about one object: a quantity (magnitude and unit) or a code, exactly one"""
+    target: 'MetricTargetInput'
+    key: str
+    magnitude: float | None = None
+    unit: str | None = None
+    code: str | None = None
+    supersedes: ID | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class MetricTargetFilter(BaseModel):
+    """An object metrics are about: its structure and id, as a signal spells them"""
+    identifier: str = Field(description='@mikro/annotation, @mikro/arraydataset, @mikro/tabledataset or @mikro/sparsedataset')
+    object: ID = Field(description='The id of the object within its structure')
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class MetricTargetInput(MetricTargetInputTrait, BaseModel):
+    """The object a metric is about: its structure and id, as rekuest's signals and STRUCTURE ports spell them"""
+    identifier: str
+    object: ID
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
 class NetworkCollectionFilter(BaseModel):
     """No documentation"""
     ids: tuple[ID, ...] | None = Field(default=None, description='Filter by list of IDs')
@@ -2394,6 +2446,7 @@ class NetworkCollectionFilter(BaseModel):
     or_: 'NetworkCollectionFilter | None' = Field(validation_alias=AliasChoices('or_', 'OR'), serialization_alias='OR', default=None)
     not_: 'NetworkCollectionFilter | None' = Field(validation_alias=AliasChoices('not_', 'NOT'), serialization_alias='NOT', default=None)
     distinct: bool | None = Field(validation_alias=AliasChoices('distinct', 'DISTINCT'), serialization_alias='DISTINCT', default=None)
+    requires: tuple[DescriptorConstraintInput, ...] | None = Field(default=None, description='Filter to the objects satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored on every row. A key the structure does not declare is refused rather than ignored')
     search: str | None = Field(default=None, description="Search by the collection's label: its name, or its store's key (case-insensitive substring)")
     folder: ID | None = Field(default=None, description='Filter by the folder this network collection is filed in')
     folders: tuple[ID, ...] | None = Field(default=None, description='Filter by a list of folder IDs')
@@ -2755,6 +2808,7 @@ class TableDatasetFilter(BaseModel):
     or_: 'TableDatasetFilter | None' = Field(validation_alias=AliasChoices('or_', 'OR'), serialization_alias='OR', default=None)
     not_: 'TableDatasetFilter | None' = Field(validation_alias=AliasChoices('not_', 'NOT'), serialization_alias='NOT', default=None)
     distinct: bool | None = Field(validation_alias=AliasChoices('distinct', 'DISTINCT'), serialization_alias='DISTINCT', default=None)
+    requires: tuple[DescriptorConstraintInput, ...] | None = Field(default=None, description='Filter to the objects satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored on every row. A key the structure does not declare is refused rather than ignored')
     folder: ID | None = Field(default=None, description='Filter by the folder this table dataset is filed in')
     folders: tuple[ID, ...] | None = Field(default=None, description='Filter by a list of folder IDs')
     dataset: ID | None = Field(default=None, description='Filter by the dataset the table was computed from, following its derivation edge')
@@ -2788,6 +2842,7 @@ class TransformationFilter(BaseModel):
     or_: 'TransformationFilter | None' = Field(validation_alias=AliasChoices('or_', 'OR'), serialization_alias='OR', default=None)
     not_: 'TransformationFilter | None' = Field(validation_alias=AliasChoices('not_', 'NOT'), serialization_alias='NOT', default=None)
     distinct: bool | None = Field(validation_alias=AliasChoices('distinct', 'DISTINCT'), serialization_alias='DISTINCT', default=None)
+    requires: tuple[DescriptorConstraintInput, ...] | None = Field(default=None, description='Filter to the objects satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored on every row. A key the structure does not declare is refused rather than ignored')
     validity: PlacementValidity | None = Field(default=None, description="Filter by how much the edge's map is actually known, e.g. UNKNOWN to list every placement that is still an assumption")
     input: ID | None = Field(default=None, description='Filter by the coordinate system this transformation maps from')
     output: ID | None = Field(default=None, description='Filter by the coordinate system this transformation maps to')
@@ -2999,6 +3054,7 @@ class CameraState(MikroFetchable, BaseModel):
 
 class ChartLayerChart(ChartTrait, BaseModel):
     """A composition of data laid out along one metric axis, with values read off it. The second kind of composition beside a scene: a scene is a place, a chart is an axis. It names data by id and owns none of it, and it carries no unit of its own -- the unit is its world axis's"""
+    __identifier__: ClassVar[Literal['@mikro/chart']] = '@mikro/chart'
     typename: Literal['Chart'] = Field(alias='__typename', default='Chart', exclude=True)
     id: ID
     name: str
@@ -3019,6 +3075,7 @@ class ChartLayerAsAffine(BaseModel):
 
 class ChartLayerLensDataset(DatasetTrait, BaseModel):
     """A multi-dimensional array dataset. Its dimensions and their types live on the axes of its INTRINSIC (pixel grid) coordinate system; physical units live on the physical spaces it has edges into; its pyramid levels are DataArrays, each mapping into its grid"""
+    __identifier__: ClassVar[Literal['@mikro/arraydataset']] = '@mikro/arraydataset'
     typename: Literal['ArrayDataset'] = Field(alias='__typename', default='ArrayDataset', exclude=True)
     id: ID
     name: str
@@ -3026,6 +3083,7 @@ class ChartLayerLensDataset(DatasetTrait, BaseModel):
 
 class ChartLayerLens(Lensable, BaseModel):
     """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    __identifier__: ClassVar[Literal['@mikro/arraylens']] = '@mikro/arraylens'
     typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
     id: ID
     dataset: ChartLayerLensDataset
@@ -3044,6 +3102,7 @@ class ChartLayerTableLensWindows(BaseModel):
 
 class ChartLayerTableLens(BaseModel):
     """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    __identifier__: ClassVar[Literal['@mikro/tablelens']] = '@mikro/tablelens'
     typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
     id: ID
     name: str | None = Field(default=None)
@@ -3054,6 +3113,7 @@ class ChartLayerTableLens(BaseModel):
 
 class ChartLayerTableDataset(HasParquestStoreTrait, TableDatasetLensTrait, BaseModel):
     """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
+    __identifier__: ClassVar[Literal['@mikro/tabledataset']] = '@mikro/tabledataset'
     typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
     id: ID
     name: str
@@ -3072,6 +3132,7 @@ class ChartLayerAnnotationLensWindows(BaseModel):
 
 class ChartLayerAnnotationLens(BaseModel):
     """A selection over an annotation collection by windows in its drawing space"""
+    __identifier__: ClassVar[Literal['@mikro/annotationlens']] = '@mikro/annotationlens'
     typename: Literal['AnnotationLens'] = Field(alias='__typename', default='AnnotationLens', exclude=True)
     id: ID
     name: str | None = Field(default=None)
@@ -3082,6 +3143,7 @@ class ChartLayerAnnotationLens(BaseModel):
 
 class ChartLayerAnnotationCollection(BaseModel):
     """A named set of human-drawn annotations, owning the coordinate system they are drawn in. The CRUD counterpart of a table dataset's machine-produced rows: shapes a person draws and edits, sharing one drawing space and one registration story"""
+    __identifier__: ClassVar[Literal['@mikro/annotationcollection']] = '@mikro/annotationcollection'
     typename: Literal['AnnotationCollection'] = Field(alias='__typename', default='AnnotationCollection', exclude=True)
     id: ID
     name: str
@@ -3437,6 +3499,7 @@ class SparseUploadGrant(MikroFetchable, BaseModel):
 
 class FolderParent(BaseModel):
     """A folder is a collection of the things mikro stores. It mimics a folder in a file system and is the top-level container for organising data."""
+    __identifier__: ClassVar[Literal['@mikro/folder']] = '@mikro/folder'
     typename: Literal['Folder'] = Field(alias='__typename', default='Folder', exclude=True)
     id: ID
     name: str
@@ -3444,6 +3507,7 @@ class FolderParent(BaseModel):
 
 class Folder(MikroFetchable, BaseModel):
     """A folder is a collection of the things mikro stores. It mimics a folder in a file system and is the top-level container for organising data."""
+    __identifier__: ClassVar[Literal['@mikro/folder']] = '@mikro/folder'
     typename: Literal['Folder'] = Field(alias='__typename', default='Folder', exclude=True)
     id: ID
     name: str
@@ -3459,6 +3523,7 @@ class Folder(MikroFetchable, BaseModel):
 
 class LayerScene(SceneTrait, BaseModel):
     """A composition of layers over a shared world coordinate system. The scene carries no units of its own -- they are per-axis, on the axes of its world system"""
+    __identifier__: ClassVar[Literal['@mikro/scene']] = '@mikro/scene'
     typename: Literal['Scene'] = Field(alias='__typename', default='Scene', exclude=True)
     id: ID
     name: str
@@ -3466,6 +3531,7 @@ class LayerScene(SceneTrait, BaseModel):
 
 class LayerLens(Lensable, BaseModel):
     """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    __identifier__: ClassVar[Literal['@mikro/arraylens']] = '@mikro/arraylens'
     typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
     id: ID
     model_config = ConfigDict(frozen=True)
@@ -3491,6 +3557,7 @@ class LayerRenderAxes(BaseModel):
 
 class LayerLens(Lensable, BaseModel):
     """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    __identifier__: ClassVar[Literal['@mikro/arraylens']] = '@mikro/arraylens'
     typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
     id: ID
     model_config = ConfigDict(frozen=True)
@@ -3516,6 +3583,7 @@ class LayerRenderAxes(BaseModel):
 
 class LayerLens(Lensable, BaseModel):
     """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    __identifier__: ClassVar[Literal['@mikro/arraylens']] = '@mikro/arraylens'
     typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
     id: ID
     model_config = ConfigDict(frozen=True)
@@ -3554,6 +3622,7 @@ class LayerRedLensSlices(BaseModel):
 
 class LayerRedLens(Lensable, BaseModel):
     """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    __identifier__: ClassVar[Literal['@mikro/arraylens']] = '@mikro/arraylens'
     typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
     id: ID
     slices: tuple[LayerRedLensSlices, ...]
@@ -3575,6 +3644,7 @@ class LayerGreenLensSlices(BaseModel):
 
 class LayerGreenLens(Lensable, BaseModel):
     """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    __identifier__: ClassVar[Literal['@mikro/arraylens']] = '@mikro/arraylens'
     typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
     id: ID
     slices: tuple[LayerGreenLensSlices, ...]
@@ -3596,6 +3666,7 @@ class LayerBlueLensSlices(BaseModel):
 
 class LayerBlueLens(Lensable, BaseModel):
     """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    __identifier__: ClassVar[Literal['@mikro/arraylens']] = '@mikro/arraylens'
     typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
     id: ID
     slices: tuple[LayerBlueLensSlices, ...]
@@ -3604,6 +3675,7 @@ class LayerBlueLens(Lensable, BaseModel):
 
 class LayerLens(Lensable, BaseModel):
     """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    __identifier__: ClassVar[Literal['@mikro/arraylens']] = '@mikro/arraylens'
     typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
     id: ID
     model_config = ConfigDict(frozen=True)
@@ -3674,6 +3746,7 @@ class LayerPhasorRender(BaseModel):
 
 class LayerLens(Lensable, BaseModel):
     """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    __identifier__: ClassVar[Literal['@mikro/arraylens']] = '@mikro/arraylens'
     typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
     id: ID
     model_config = ConfigDict(frozen=True)
@@ -3768,6 +3841,7 @@ class LayerMeshLensWindows(BaseModel):
 
 class LayerMeshLens(BaseModel):
     """A selection over a mesh collection by windows in its own space"""
+    __identifier__: ClassVar[Literal['@mikro/meshlens']] = '@mikro/meshlens'
     typename: Literal['MeshLens'] = Field(alias='__typename', default='MeshLens', exclude=True)
     id: ID
     name: str | None = Field(default=None)
@@ -3778,6 +3852,7 @@ class LayerMeshLens(BaseModel):
 
 class LayerCollection(MeshCollectionTrait, BaseModel):
     """An immutable collection of meshes, stored as one fabriks prefix. Ask its `store` for an access grant and query the Parquet directly (e.g. with DuckDB) rather than paginating meshes through GraphQL"""
+    __identifier__: ClassVar[Literal['@mikro/meshcollection']] = '@mikro/meshcollection'
     typename: Literal['MeshCollection'] = Field(alias='__typename', default='MeshCollection', exclude=True)
     id: ID
     name: str | None = Field(default=None)
@@ -3839,6 +3914,7 @@ class LayerTableLensWindows(BaseModel):
 
 class LayerTableLens(BaseModel):
     """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    __identifier__: ClassVar[Literal['@mikro/tablelens']] = '@mikro/tablelens'
     typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
     id: ID
     name: str | None = Field(default=None)
@@ -3849,6 +3925,7 @@ class LayerTableLens(BaseModel):
 
 class LayerTableDataset(HasParquestStoreTrait, TableDatasetLensTrait, BaseModel):
     """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
+    __identifier__: ClassVar[Literal['@mikro/tabledataset']] = '@mikro/tabledataset'
     typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
     id: ID
     name: str
@@ -3867,6 +3944,7 @@ class LayerNetworkLensWindows(BaseModel):
 
 class LayerNetworkLens(BaseModel):
     """A selection over a network collection by windows in its own space"""
+    __identifier__: ClassVar[Literal['@mikro/networklens']] = '@mikro/networklens'
     typename: Literal['NetworkLens'] = Field(alias='__typename', default='NetworkLens', exclude=True)
     id: ID
     name: str | None = Field(default=None)
@@ -3877,6 +3955,7 @@ class LayerNetworkLens(BaseModel):
 
 class LayerNetworkCollection(NetworkCollectionTrait, BaseModel):
     """An immutable collection of networks, stored as one konnektion prefix. Ask its `store` for an access grant and query the Parquet directly (e.g. with DuckDB) rather than paginating nodes through GraphQL"""
+    __identifier__: ClassVar[Literal['@mikro/networkcollection']] = '@mikro/networkcollection'
     typename: Literal['NetworkCollection'] = Field(alias='__typename', default='NetworkCollection', exclude=True)
     id: ID
     model_config = ConfigDict(frozen=True)
@@ -3941,6 +4020,7 @@ class LayerTableLensWindows(BaseModel):
 
 class LayerTableLens(BaseModel):
     """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    __identifier__: ClassVar[Literal['@mikro/tablelens']] = '@mikro/tablelens'
     typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
     id: ID
     name: str | None = Field(default=None)
@@ -3951,6 +4031,7 @@ class LayerTableLens(BaseModel):
 
 class LayerTableDataset(HasParquestStoreTrait, TableDatasetLensTrait, BaseModel):
     """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
+    __identifier__: ClassVar[Literal['@mikro/tabledataset']] = '@mikro/tabledataset'
     typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
     id: ID
     name: str
@@ -3999,6 +4080,7 @@ class LayerPointFilterBys(BaseModel):
 
 class LayerLens(Lensable, BaseModel):
     """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    __identifier__: ClassVar[Literal['@mikro/arraylens']] = '@mikro/arraylens'
     typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
     id: ID
     model_config = ConfigDict(frozen=True)
@@ -4251,6 +4333,57 @@ class Window(MikroFetchable, BaseModel):
         name = 'Window'
         type = 'Window'
 
+class MetricTarget(BaseModel):
+    """An object metrics are recorded about: its structure and id, as rekuest's signals and STRUCTURE ports spell them, and a uuid of its own"""
+    typename: Literal['MetricTarget'] = Field(alias='__typename', default='MetricTarget', exclude=True)
+    id: ID
+    identifier: str
+    'The structure of the object: @mikro/annotation, @mikro/arraydataset, @mikro/tabledataset or @mikro/sparsedataset'
+    object: ID
+    'The id of the object within its structure'
+    uuid: str
+    "The object's uuid as a metric target: what a reader of the change feed keys it on"
+    model_config = ConfigDict(frozen=True)
+
+class MetricSupersedes(BaseModel):
+    """One value recorded about an annotation or a dataset, by an app or a person: a quantity (`magnitude` in `unit`) or a `code` a process emitted. Immutable: a correction is a new metric that `supersedes` it. What a metric means is not said here: kraph, reading every metric from mikro's change feed, says it"""
+    __identifier__: ClassVar[Literal['@mikro/metric']] = '@mikro/metric'
+    typename: Literal['Metric'] = Field(alias='__typename', default='Metric', exclude=True)
+    id: ID
+    model_config = ConfigDict(frozen=True)
+
+class Metric(MikroFetchable, BaseModel):
+    """One value recorded about an annotation or a dataset, by an app or a person: a quantity (`magnitude` in `unit`) or a `code` a process emitted. Immutable: a correction is a new metric that `supersedes` it. What a metric means is not said here: kraph, reading every metric from mikro's change feed, says it"""
+    __identifier__: ClassVar[Literal['@mikro/metric']] = '@mikro/metric'
+    typename: Literal['Metric'] = Field(alias='__typename', default='Metric', exclude=True)
+    id: ID
+    uuid: str
+    'What a reader of the change feed keys this metric on'
+    key: str
+    'What was measured, namespaced by who measured it: `ais_suite.measure_profile/threshold_distance`, `user:<sub>/spine_count`'
+    magnitude: float | None = Field(default=None)
+    '(quantity) The number, in `unit`'
+    unit: str | None = Field(default=None)
+    '(quantity) The unit of `magnitude`'
+    code: str | None = Field(default=None)
+    '(code) The category a process emitted'
+    target: MetricTarget
+    'The object this value is about'
+    supersedes: MetricSupersedes | None = Field(default=None)
+    'The metric this one corrects, if any'
+    producer_app: str | None = Field(default=None, alias='producerApp')
+    'The identifier of the app that recorded it; null when recorded by hand'
+    producer_version: str | None = Field(default=None, alias='producerVersion')
+    'The release of that app'
+    created_at: datetime = Field(alias='createdAt')
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for Metric"""
+        document = 'fragment Metric on Metric {\n  id\n  uuid\n  key\n  magnitude\n  unit\n  code\n  target {\n    id\n    identifier\n    object\n    uuid\n    __typename\n  }\n  supersedes {\n    id\n    __typename\n  }\n  producerApp\n  producerVersion\n  createdAt\n  __typename\n}'
+        name = 'Metric'
+        type = 'Metric'
+
 class PhasorCalibration(MikroFetchable, BaseModel):
     """The instrument-response correction taking a raw phasor to a calibrated one, pinned to a coordinate anchor. An acquisition fact, not a display choice: two layers over one dataset cannot coherently disagree about it. Its absence means the phasor is uncalibrated, which still renders"""
     typename: Literal['PhasorCalibration'] = Field(alias='__typename', default='PhasorCalibration', exclude=True)
@@ -4295,6 +4428,7 @@ class PhasorHistogram(MikroFetchable, BaseModel):
 
 class SparseAxisReferenceReferences(HasParquestStoreTrait, TableDatasetLensTrait, BaseModel):
     """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
+    __identifier__: ClassVar[Literal['@mikro/tabledataset']] = '@mikro/tabledataset'
     typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
     id: ID
     name: str
@@ -4318,6 +4452,7 @@ class SparseAxisReference(MikroFetchable, BaseModel):
 
 class ZarrStore(HasZarrStoreAccessor, MikroFetchable, BaseModel):
     """No documentation"""
+    __identifier__: ClassVar[Literal['@mikro/zarrstore']] = '@mikro/zarrstore'
     typename: Literal['ZarrStore'] = Field(alias='__typename', default='ZarrStore', exclude=True)
     id: ID
     key: str
@@ -4333,6 +4468,7 @@ class ZarrStore(HasZarrStoreAccessor, MikroFetchable, BaseModel):
 
 class ParquetStore(HasParquetStoreAccesor, MikroFetchable, BaseModel):
     """No documentation"""
+    __identifier__: ClassVar[Literal['@mikro/parquetstore']] = '@mikro/parquetstore'
     typename: Literal['ParquetStore'] = Field(alias='__typename', default='ParquetStore', exclude=True)
     id: ID
     key: str
@@ -4348,6 +4484,7 @@ class ParquetStore(HasParquetStoreAccesor, MikroFetchable, BaseModel):
 
 class BigFileStore(HasDownloadAccessor, MikroFetchable, BaseModel):
     """A BigFileStore represents a large object stored behind the S3 datalayer."""
+    __identifier__: ClassVar[Literal['@mikro/bigfilestore']] = '@mikro/bigfilestore'
     typename: Literal['BigFileStore'] = Field(alias='__typename', default='BigFileStore', exclude=True)
     id: ID
     key: str
@@ -4364,6 +4501,7 @@ class BigFileStore(HasDownloadAccessor, MikroFetchable, BaseModel):
 
 class MediaStore(HasPresignedDownloadAccessor, MikroFetchable, BaseModel):
     """No documentation"""
+    __identifier__: ClassVar[Literal['@mikro/mediastore']] = '@mikro/mediastore'
     typename: Literal['MediaStore'] = Field(alias='__typename', default='MediaStore', exclude=True)
     id: ID
     key: str
@@ -4379,6 +4517,7 @@ class MediaStore(HasPresignedDownloadAccessor, MikroFetchable, BaseModel):
 
 class FabriksStore(MikroFetchable, BaseModel):
     """A fabriks collection stored as a prefix of Parquet files behind the S3 datalayer. Its grid and encoding are read from its own manifest, never declared by a caller."""
+    __identifier__: ClassVar[Literal['@mikro/fabriksstore']] = '@mikro/fabriksstore'
     typename: Literal['FabriksStore'] = Field(alias='__typename', default='FabriksStore', exclude=True)
     id: ID
     key: str
@@ -4400,6 +4539,7 @@ class FabriksStore(MikroFetchable, BaseModel):
 
 class KonnektionStore(MikroFetchable, BaseModel):
     """A konnektion collection stored as a prefix of Parquet files behind the S3 datalayer. Its grid and encoding are read from its own manifest, never declared by a caller."""
+    __identifier__: ClassVar[Literal['@mikro/konnektionstore']] = '@mikro/konnektionstore'
     typename: Literal['KonnektionStore'] = Field(alias='__typename', default='KonnektionStore', exclude=True)
     id: ID
     key: str
@@ -4446,6 +4586,7 @@ class SparseStoreLayouts(BaseModel):
 
 class SparseStore(MikroFetchable, BaseModel):
     """A sparse matrix stored as an anndata-spelled zarr group behind the S3 datalayer: `data`, `indices` and `indptr`, with the encoding, shape and chunking read from the group itself rather than declared. Its `encoding` says which axis `indptr` indexes, and so which question it answers in one contiguous read -- ask the other and there is no range to read at all."""
+    __identifier__: ClassVar[Literal['@mikro/sparsestore']] = '@mikro/sparsestore'
     typename: Literal['SparseStore'] = Field(alias='__typename', default='SparseStore', exclude=True)
     id: ID
     key: str
@@ -4467,6 +4608,7 @@ class SparseStore(MikroFetchable, BaseModel):
 
 class ColumnOptionJoinStepTable(HasParquestStoreTrait, TableDatasetLensTrait, BaseModel):
     """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
+    __identifier__: ClassVar[Literal['@mikro/tabledataset']] = '@mikro/tabledataset'
     typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
     id: ID
     name: str
@@ -4517,6 +4659,7 @@ class AnimationWaypoint(MikroFetchable, BaseModel):
 
 class CoordinateSystem(CoordinateSystemTrait, MikroFetchable, BaseModel):
     """A named coordinate space: a node in the transformation graph. Its axes are ordered, and that order is the order of the array's dimensions"""
+    __identifier__: ClassVar[Literal['@mikro/coordinatesystem']] = '@mikro/coordinatesystem'
     typename: Literal['CoordinateSystem'] = Field(alias='__typename', default='CoordinateSystem', exclude=True)
     id: ID
     name: str
@@ -4534,6 +4677,7 @@ class CoordinateSystem(CoordinateSystemTrait, MikroFetchable, BaseModel):
 
 class TableLensTableDataset(HasParquestStoreTrait, TableDatasetLensTrait, BaseModel):
     """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
+    __identifier__: ClassVar[Literal['@mikro/tabledataset']] = '@mikro/tabledataset'
     typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
     id: ID
     name: str
@@ -4541,6 +4685,7 @@ class TableLensTableDataset(HasParquestStoreTrait, TableDatasetLensTrait, BaseMo
 
 class TableLens(MikroFetchable, BaseModel):
     """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    __identifier__: ClassVar[Literal['@mikro/tablelens']] = '@mikro/tablelens'
     typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
     id: ID
     name: str | None = Field(default=None)
@@ -4560,6 +4705,7 @@ class TableLens(MikroFetchable, BaseModel):
 
 class SparseLensSparseDataset(SparseDatasetTrait, BaseModel):
     """A sparse matrix over two enumerated axes -- objects on one, features on the other -- stored as anndata-spelled zarr groups. It exists because a colouring names one *column*, so a colourable measurement is a column of a table: right for a few hundred features and impossible for a transcriptome, where a feature stops being a schema fact and becomes a data one. **Each axis is identified exactly once**, by its own `identifiedBy` -- a source whose contents are the ids, or the table whose rows the positions are. Its stores, axes and coordinate system are fixed at creation; a recomputation is a new dataset"""
+    __identifier__: ClassVar[Literal['@mikro/sparsedataset']] = '@mikro/sparsedataset'
     typename: Literal['SparseDataset'] = Field(alias='__typename', default='SparseDataset', exclude=True)
     id: ID
     name: str
@@ -4567,6 +4713,7 @@ class SparseLensSparseDataset(SparseDatasetTrait, BaseModel):
 
 class SparseLens(MikroFetchable, BaseModel):
     """A selection over a sparse dataset by windows on its axes: the positions kept, never re-indexed. Lives in the dataset's own space"""
+    __identifier__: ClassVar[Literal['@mikro/sparselens']] = '@mikro/sparselens'
     typename: Literal['SparseLens'] = Field(alias='__typename', default='SparseLens', exclude=True)
     id: ID
     name: str | None = Field(default=None)
@@ -4588,12 +4735,14 @@ class SparseLens(MikroFetchable, BaseModel):
 
 class MeshLensMeshCollection(MeshCollectionTrait, BaseModel):
     """An immutable collection of meshes, stored as one fabriks prefix. Ask its `store` for an access grant and query the Parquet directly (e.g. with DuckDB) rather than paginating meshes through GraphQL"""
+    __identifier__: ClassVar[Literal['@mikro/meshcollection']] = '@mikro/meshcollection'
     typename: Literal['MeshCollection'] = Field(alias='__typename', default='MeshCollection', exclude=True)
     id: ID
     model_config = ConfigDict(frozen=True)
 
 class MeshLens(MikroFetchable, BaseModel):
     """A selection over a mesh collection by windows in its own space"""
+    __identifier__: ClassVar[Literal['@mikro/meshlens']] = '@mikro/meshlens'
     typename: Literal['MeshLens'] = Field(alias='__typename', default='MeshLens', exclude=True)
     id: ID
     name: str | None = Field(default=None)
@@ -4613,12 +4762,14 @@ class MeshLens(MikroFetchable, BaseModel):
 
 class NetworkLensNetworkCollection(NetworkCollectionTrait, BaseModel):
     """An immutable collection of networks, stored as one konnektion prefix. Ask its `store` for an access grant and query the Parquet directly (e.g. with DuckDB) rather than paginating nodes through GraphQL"""
+    __identifier__: ClassVar[Literal['@mikro/networkcollection']] = '@mikro/networkcollection'
     typename: Literal['NetworkCollection'] = Field(alias='__typename', default='NetworkCollection', exclude=True)
     id: ID
     model_config = ConfigDict(frozen=True)
 
 class NetworkLens(MikroFetchable, BaseModel):
     """A selection over a network collection by windows in its own space"""
+    __identifier__: ClassVar[Literal['@mikro/networklens']] = '@mikro/networklens'
     typename: Literal['NetworkLens'] = Field(alias='__typename', default='NetworkLens', exclude=True)
     id: ID
     name: str | None = Field(default=None)
@@ -4638,6 +4789,7 @@ class NetworkLens(MikroFetchable, BaseModel):
 
 class AnnotationLensAnnotationCollection(BaseModel):
     """A named set of human-drawn annotations, owning the coordinate system they are drawn in. The CRUD counterpart of a table dataset's machine-produced rows: shapes a person draws and edits, sharing one drawing space and one registration story"""
+    __identifier__: ClassVar[Literal['@mikro/annotationcollection']] = '@mikro/annotationcollection'
     typename: Literal['AnnotationCollection'] = Field(alias='__typename', default='AnnotationCollection', exclude=True)
     id: ID
     name: str
@@ -4645,6 +4797,7 @@ class AnnotationLensAnnotationCollection(BaseModel):
 
 class AnnotationLens(MikroFetchable, BaseModel):
     """A selection over an annotation collection by windows in its drawing space"""
+    __identifier__: ClassVar[Literal['@mikro/annotationlens']] = '@mikro/annotationlens'
     typename: Literal['AnnotationLens'] = Field(alias='__typename', default='AnnotationLens', exclude=True)
     id: ID
     name: str | None = Field(default=None)
@@ -4664,6 +4817,7 @@ class AnnotationLens(MikroFetchable, BaseModel):
 
 class File(FileTrait, MikroFetchable, BaseModel):
     """A file in its original format (e.g. a microscopy vendor file), stored in a BigFileStore. Files are the raw bytes that array datasets, table datasets and mesh collections are converted from."""
+    __identifier__: ClassVar[Literal['@mikro/file']] = '@mikro/file'
     typename: Literal['File'] = Field(alias='__typename', default='File', exclude=True)
     id: ID
     name: str
@@ -4698,6 +4852,7 @@ class SparseArray(MikroFetchable, BaseModel):
 
 class ColorByOptionTable(HasParquestStoreTrait, TableDatasetLensTrait, BaseModel):
     """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
+    __identifier__: ClassVar[Literal['@mikro/tabledataset']] = '@mikro/tabledataset'
     typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
     id: ID
     name: str
@@ -4705,6 +4860,7 @@ class ColorByOptionTable(HasParquestStoreTrait, TableDatasetLensTrait, BaseModel
 
 class ColorByOptionSparseDataset(SparseDatasetTrait, BaseModel):
     """A sparse matrix over two enumerated axes -- objects on one, features on the other -- stored as anndata-spelled zarr groups. It exists because a colouring names one *column*, so a colourable measurement is a column of a table: right for a few hundred features and impossible for a transcriptome, where a feature stops being a schema fact and becomes a data one. **Each axis is identified exactly once**, by its own `identifiedBy` -- a source whose contents are the ids, or the table whose rows the positions are. Its stores, axes and coordinate system are fixed at creation; a recomputation is a new dataset"""
+    __identifier__: ClassVar[Literal['@mikro/sparsedataset']] = '@mikro/sparsedataset'
     typename: Literal['SparseDataset'] = Field(alias='__typename', default='SparseDataset', exclude=True)
     id: ID
     name: str
@@ -4751,6 +4907,7 @@ class ColorByOption(MikroFetchable, BaseModel):
 
 class FilterByOptionTable(HasParquestStoreTrait, TableDatasetLensTrait, BaseModel):
     """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
+    __identifier__: ClassVar[Literal['@mikro/tabledataset']] = '@mikro/tabledataset'
     typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
     id: ID
     name: str
@@ -4758,6 +4915,7 @@ class FilterByOptionTable(HasParquestStoreTrait, TableDatasetLensTrait, BaseMode
 
 class FilterByOptionSparseDataset(SparseDatasetTrait, BaseModel):
     """A sparse matrix over two enumerated axes -- objects on one, features on the other -- stored as anndata-spelled zarr groups. It exists because a colouring names one *column*, so a colourable measurement is a column of a table: right for a few hundred features and impossible for a transcriptome, where a feature stops being a schema fact and becomes a data one. **Each axis is identified exactly once**, by its own `identifiedBy` -- a source whose contents are the ids, or the table whose rows the positions are. Its stores, axes and coordinate system are fixed at creation; a recomputation is a new dataset"""
+    __identifier__: ClassVar[Literal['@mikro/sparsedataset']] = '@mikro/sparsedataset'
     typename: Literal['SparseDataset'] = Field(alias='__typename', default='SparseDataset', exclude=True)
     id: ID
     name: str
@@ -4820,6 +4978,7 @@ class AnnotationIntrinsicBbox(BaseModel):
 
 class Annotation(MikroFetchable, BaseModel):
     """A human-drawn shape in an annotation collection's coordinate system. It belongs to the collection, not to a scene: delete the scene and the annotation survives"""
+    __identifier__: ClassVar[Literal['@mikro/annotation']] = '@mikro/annotation'
     typename: Literal['Annotation'] = Field(alias='__typename', default='Annotation', exclude=True)
     id: str
     name: str
@@ -4859,6 +5018,7 @@ class ArrayDatasetDataArrays(DataArrayTrait, BaseModel):
 
 class ArrayDataset(DatasetTrait, MikroFetchable, BaseModel):
     """A multi-dimensional array dataset. Its dimensions and their types live on the axes of its INTRINSIC (pixel grid) coordinate system; physical units live on the physical spaces it has edges into; its pyramid levels are DataArrays, each mapping into its grid"""
+    __identifier__: ClassVar[Literal['@mikro/arraydataset']] = '@mikro/arraydataset'
     typename: Literal['ArrayDataset'] = Field(alias='__typename', default='ArrayDataset', exclude=True)
     id: ID
     name: str
@@ -4902,6 +5062,7 @@ class ChartLayersBaseCatchAll(ChartLayersBase, BaseModel):
 
 class Chart(ChartTrait, MikroFetchable, BaseModel):
     """A composition of data laid out along one metric axis, with values read off it. The second kind of composition beside a scene: a scene is a place, a chart is an axis. It names data by id and owns none of it, and it carries no unit of its own -- the unit is its world axis's"""
+    __identifier__: ClassVar[Literal['@mikro/chart']] = '@mikro/chart'
     typename: Literal['Chart'] = Field(alias='__typename', default='Chart', exclude=True)
     id: ID
     name: str
@@ -4930,6 +5091,7 @@ class ArrayLensDatasetDataArrays(DataArrayTrait, BaseModel):
 
 class ArrayLensDataset(DatasetTrait, BaseModel):
     """A multi-dimensional array dataset. Its dimensions and their types live on the axes of its INTRINSIC (pixel grid) coordinate system; physical units live on the physical spaces it has edges into; its pyramid levels are DataArrays, each mapping into its grid"""
+    __identifier__: ClassVar[Literal['@mikro/arraydataset']] = '@mikro/arraydataset'
     typename: Literal['ArrayDataset'] = Field(alias='__typename', default='ArrayDataset', exclude=True)
     id: ID
     axis_names: tuple[str, ...] = Field(alias='axisNames')
@@ -4940,6 +5102,7 @@ class ArrayLensDataset(DatasetTrait, BaseModel):
 
 class ArrayLens(Lensable, MikroFetchable, BaseModel):
     """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    __identifier__: ClassVar[Literal['@mikro/arraylens']] = '@mikro/arraylens'
     typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
     id: ID
     name: str | None = Field(default=None)
@@ -4967,6 +5130,7 @@ class ArrayLens(Lensable, MikroFetchable, BaseModel):
 
 class Scene(SceneTrait, MikroFetchable, BaseModel):
     """A composition of layers over a shared world coordinate system. The scene carries no units of its own -- they are per-axis, on the axes of its world system"""
+    __identifier__: ClassVar[Literal['@mikro/scene']] = '@mikro/scene'
     typename: Literal['Scene'] = Field(alias='__typename', default='Scene', exclude=True)
     name: str
     id: ID
@@ -4986,6 +5150,7 @@ class Scene(SceneTrait, MikroFetchable, BaseModel):
 
 class TransformationStepsField(CoordinateSystemTrait, BaseModel):
     """A named coordinate space: a node in the transformation graph. Its axes are ordered, and that order is the order of the array's dimensions"""
+    __identifier__: ClassVar[Literal['@mikro/coordinatesystem']] = '@mikro/coordinatesystem'
     typename: Literal['CoordinateSystem'] = Field(alias='__typename', default='CoordinateSystem', exclude=True)
     id: ID
     model_config = ConfigDict(frozen=True)
@@ -5035,12 +5200,14 @@ class TransformationCatch(TransformationBase):
 
 class TransformationAffineTransformation(TransformationBase, TransformationTrait, BaseModel):
     """A general affine map, given as an M x (N+1) matrix with rows outermost"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
     affine: tuple[tuple[float, ...], ...]
     'The affine matrix, M x (N+1), rows outermost. The last column is the translation'
 
 class TransformationByDimensionTransformation(TransformationBase, TransformationTrait, BaseModel):
     """A map over a named subset of the axes: `inputAxes` onto `outputAxes`, one for one, by a `scale` and/or a `translation`, or by an `affine` -- or by none of them, which is the identity on the named axes. The axes it does not name pass through untouched, which is how a registration crosses a rank boundary: a (c,y,x) dataset placed into a (t,z,y,x) world names y and x and says nothing about t and z"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
     input_axes: tuple[str, ...] = Field(alias='inputAxes')
     "The names of the input axes this edge's parameters are ordered by. `scale`, `translation` and the columns of `affine` follow this order -- which is the input system's axis order, NOT the reading layer's axis names, and the two differ often enough that indexing the arrays against them silently misplaces them. A BY_DIMENSION edge names only the subset of axes it acts on; the axes it does not name are the ones it leaves untouched"
@@ -5055,16 +5222,19 @@ class TransformationByDimensionTransformation(TransformationBase, Transformation
 
 class TransformationFieldTransformation(TransformationBase, TransformationTrait, BaseModel):
     """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
     field: CoordinateSystem | None = Field(default=None)
     "The coordinate system of the array whose values are this map. Its value axis says what they mean: COORDINATE for absolute positions, DISPLACEMENT for offsets, none at all for a scalar array whose single value is a position. Equal to `input` when the array's own pixels are the map, as for a label mask keying a table of objects"
 
 class TransformationIdentityTransformation(TransformationBase, TransformationTrait, BaseModel):
     """The identity map: input and output coordinates are the same"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['IdentityTransformation'] = Field(alias='__typename', default='IdentityTransformation', exclude=True)
 
 class TransformationMapAxisTransformation(TransformationBase, TransformationTrait, BaseModel):
     """A permutation of axes, mapping each input axis to an output axis by name"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['MapAxisTransformation'] = Field(alias='__typename', default='MapAxisTransformation', exclude=True)
     input_axes: tuple[str, ...] = Field(alias='inputAxes')
     'The names of the input axes, positionally matched to `outputAxes`'
@@ -5073,34 +5243,40 @@ class TransformationMapAxisTransformation(TransformationBase, TransformationTrai
 
 class TransformationRotationTransformation(TransformationBase, TransformationTrait, BaseModel):
     """A rotation, given as an orthonormal matrix"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['RotationTransformation'] = Field(alias='__typename', default='RotationTransformation', exclude=True)
     affine: tuple[tuple[float, ...], ...]
     'The rotation matrix'
 
 class TransformationScaleTransformation(TransformationBase, TransformationTrait, BaseModel):
     """A per-axis multiplication, with one entry per input axis"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
     scale: tuple[float, ...]
     "The per-axis scale factors, in the axis order of the input system, expressed in the units of the output system's axes (dimensionless between pixel systems, e.g. within a pyramid). Absolute, not relative to another level"
 
 class TransformationSequenceTransformation(TransformationBase, TransformationTrait, BaseModel):
     """An ordered composition of steps, applied first to last: one edge, carrying its map as `steps`. The ingest writes one for a stepped lens and for a downsampled pyramid level (a scale, then the half-voxel translation)"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
     steps: tuple[TransformationSteps, ...]
     "The steps, applied first to last, each in the axis order of this edge's input. Composing them is composing the edge"
 
 class TransformationTranslationTransformation(TransformationBase, TransformationTrait, BaseModel):
     """A per-axis offset, with one entry per input axis"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['TranslationTransformation'] = Field(alias='__typename', default='TranslationTransformation', exclude=True)
     translation: tuple[float, ...]
     'The per-axis offsets, in the axis order of the input system'
 
 class TransformationUnmappableTransformation(TransformationBase, TransformationTrait, BaseModel):
     """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
 
 class SparseDataset(SparseDatasetTrait, MikroFetchable, BaseModel):
     """A sparse matrix over two enumerated axes -- objects on one, features on the other -- stored as anndata-spelled zarr groups. It exists because a colouring names one *column*, so a colourable measurement is a column of a table: right for a few hundred features and impossible for a transcriptome, where a feature stops being a schema fact and becomes a data one. **Each axis is identified exactly once**, by its own `identifiedBy` -- a source whose contents are the ids, or the table whose rows the positions are. Its stores, axes and coordinate system are fixed at creation; a recomputation is a new dataset"""
+    __identifier__: ClassVar[Literal['@mikro/sparsedataset']] = '@mikro/sparsedataset'
     typename: Literal['SparseDataset'] = Field(alias='__typename', default='SparseDataset', exclude=True)
     id: ID
     name: str
@@ -5127,6 +5303,7 @@ class SparseDataset(SparseDatasetTrait, MikroFetchable, BaseModel):
 
 class AnnotationCollection(MikroFetchable, BaseModel):
     """A named set of human-drawn annotations, owning the coordinate system they are drawn in. The CRUD counterpart of a table dataset's machine-produced rows: shapes a person draws and edits, sharing one drawing space and one registration story"""
+    __identifier__: ClassVar[Literal['@mikro/annotationcollection']] = '@mikro/annotationcollection'
     typename: Literal['AnnotationCollection'] = Field(alias='__typename', default='AnnotationCollection', exclude=True)
     id: ID
     name: str
@@ -5145,6 +5322,7 @@ class AnnotationCollection(MikroFetchable, BaseModel):
 
 class Animation(MikroFetchable, BaseModel):
     """A named camera tour of a scene: the poses a viewer pans through, in order. A view artifact -- it cascades with the scene, no placement walk crosses it, and refining a registration moves the data but never the camera"""
+    __identifier__: ClassVar[Literal['@mikro/animation']] = '@mikro/animation'
     typename: Literal['Animation'] = Field(alias='__typename', default='Animation', exclude=True)
     id: ID
     name: str
@@ -5163,6 +5341,7 @@ class Animation(MikroFetchable, BaseModel):
 
 class SceneSnapshot(MikroFetchable, BaseModel):
     """A pre-rendered picture of a composition: every layer of the scene, blended. Clients use snapshots to preview without compositing the layers themselves. A picture of the scene, not of any one lens in it -- `Lens.latestSnapshot` and `ArrayDataset.latestSnapshot` offer the newest picture of the scene the lens nominates, which may stage other data too"""
+    __identifier__: ClassVar[Literal['@mikro/scenesnapshot']] = '@mikro/scenesnapshot'
     typename: Literal['SceneSnapshot'] = Field(alias='__typename', default='SceneSnapshot', exclude=True)
     id: ID
     name: str
@@ -5184,42 +5363,52 @@ class MeshCollectionDerivedFromBase(BaseModel):
 
 class MeshCollectionDerivedFromBaseAffineTransformation(TransformationAffineTransformation, MeshCollectionDerivedFromBase, TransformationTrait, BaseModel):
     """A general affine map, given as an M x (N+1) matrix with rows outermost"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
 
 class MeshCollectionDerivedFromBaseByDimensionTransformation(TransformationByDimensionTransformation, MeshCollectionDerivedFromBase, TransformationTrait, BaseModel):
     """A map over a named subset of the axes: `inputAxes` onto `outputAxes`, one for one, by a `scale` and/or a `translation`, or by an `affine` -- or by none of them, which is the identity on the named axes. The axes it does not name pass through untouched, which is how a registration crosses a rank boundary: a (c,y,x) dataset placed into a (t,z,y,x) world names y and x and says nothing about t and z"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
 
 class MeshCollectionDerivedFromBaseFieldTransformation(TransformationFieldTransformation, MeshCollectionDerivedFromBase, TransformationTrait, BaseModel):
     """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
 
 class MeshCollectionDerivedFromBaseIdentityTransformation(TransformationIdentityTransformation, MeshCollectionDerivedFromBase, TransformationTrait, BaseModel):
     """The identity map: input and output coordinates are the same"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['IdentityTransformation'] = Field(alias='__typename', default='IdentityTransformation', exclude=True)
 
 class MeshCollectionDerivedFromBaseMapAxisTransformation(TransformationMapAxisTransformation, MeshCollectionDerivedFromBase, TransformationTrait, BaseModel):
     """A permutation of axes, mapping each input axis to an output axis by name"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['MapAxisTransformation'] = Field(alias='__typename', default='MapAxisTransformation', exclude=True)
 
 class MeshCollectionDerivedFromBaseRotationTransformation(TransformationRotationTransformation, MeshCollectionDerivedFromBase, TransformationTrait, BaseModel):
     """A rotation, given as an orthonormal matrix"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['RotationTransformation'] = Field(alias='__typename', default='RotationTransformation', exclude=True)
 
 class MeshCollectionDerivedFromBaseScaleTransformation(TransformationScaleTransformation, MeshCollectionDerivedFromBase, TransformationTrait, BaseModel):
     """A per-axis multiplication, with one entry per input axis"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
 
 class MeshCollectionDerivedFromBaseSequenceTransformation(TransformationSequenceTransformation, MeshCollectionDerivedFromBase, TransformationTrait, BaseModel):
     """An ordered composition of steps, applied first to last: one edge, carrying its map as `steps`. The ingest writes one for a stepped lens and for a downsampled pyramid level (a scale, then the half-voxel translation)"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
 
 class MeshCollectionDerivedFromBaseTranslationTransformation(TransformationTranslationTransformation, MeshCollectionDerivedFromBase, TransformationTrait, BaseModel):
     """A per-axis offset, with one entry per input axis"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['TranslationTransformation'] = Field(alias='__typename', default='TranslationTransformation', exclude=True)
 
 class MeshCollectionDerivedFromBaseUnmappableTransformation(TransformationUnmappableTransformation, MeshCollectionDerivedFromBase, TransformationTrait, BaseModel):
     """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
 
 class MeshCollectionDerivedFromBaseCatchAll(MeshCollectionDerivedFromBase, BaseModel):
@@ -5228,6 +5417,7 @@ class MeshCollectionDerivedFromBaseCatchAll(MeshCollectionDerivedFromBase, BaseM
 
 class MeshCollection(MeshCollectionTrait, MikroFetchable, BaseModel):
     """An immutable collection of meshes, stored as one fabriks prefix. Ask its `store` for an access grant and query the Parquet directly (e.g. with DuckDB) rather than paginating meshes through GraphQL"""
+    __identifier__: ClassVar[Literal['@mikro/meshcollection']] = '@mikro/meshcollection'
     typename: Literal['MeshCollection'] = Field(alias='__typename', default='MeshCollection', exclude=True)
     id: ID
     name: str | None = Field(default=None)
@@ -5259,42 +5449,52 @@ class NetworkCollectionDerivedFromBase(BaseModel):
 
 class NetworkCollectionDerivedFromBaseAffineTransformation(TransformationAffineTransformation, NetworkCollectionDerivedFromBase, TransformationTrait, BaseModel):
     """A general affine map, given as an M x (N+1) matrix with rows outermost"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
 
 class NetworkCollectionDerivedFromBaseByDimensionTransformation(TransformationByDimensionTransformation, NetworkCollectionDerivedFromBase, TransformationTrait, BaseModel):
     """A map over a named subset of the axes: `inputAxes` onto `outputAxes`, one for one, by a `scale` and/or a `translation`, or by an `affine` -- or by none of them, which is the identity on the named axes. The axes it does not name pass through untouched, which is how a registration crosses a rank boundary: a (c,y,x) dataset placed into a (t,z,y,x) world names y and x and says nothing about t and z"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
 
 class NetworkCollectionDerivedFromBaseFieldTransformation(TransformationFieldTransformation, NetworkCollectionDerivedFromBase, TransformationTrait, BaseModel):
     """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
 
 class NetworkCollectionDerivedFromBaseIdentityTransformation(TransformationIdentityTransformation, NetworkCollectionDerivedFromBase, TransformationTrait, BaseModel):
     """The identity map: input and output coordinates are the same"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['IdentityTransformation'] = Field(alias='__typename', default='IdentityTransformation', exclude=True)
 
 class NetworkCollectionDerivedFromBaseMapAxisTransformation(TransformationMapAxisTransformation, NetworkCollectionDerivedFromBase, TransformationTrait, BaseModel):
     """A permutation of axes, mapping each input axis to an output axis by name"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['MapAxisTransformation'] = Field(alias='__typename', default='MapAxisTransformation', exclude=True)
 
 class NetworkCollectionDerivedFromBaseRotationTransformation(TransformationRotationTransformation, NetworkCollectionDerivedFromBase, TransformationTrait, BaseModel):
     """A rotation, given as an orthonormal matrix"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['RotationTransformation'] = Field(alias='__typename', default='RotationTransformation', exclude=True)
 
 class NetworkCollectionDerivedFromBaseScaleTransformation(TransformationScaleTransformation, NetworkCollectionDerivedFromBase, TransformationTrait, BaseModel):
     """A per-axis multiplication, with one entry per input axis"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
 
 class NetworkCollectionDerivedFromBaseSequenceTransformation(TransformationSequenceTransformation, NetworkCollectionDerivedFromBase, TransformationTrait, BaseModel):
     """An ordered composition of steps, applied first to last: one edge, carrying its map as `steps`. The ingest writes one for a stepped lens and for a downsampled pyramid level (a scale, then the half-voxel translation)"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
 
 class NetworkCollectionDerivedFromBaseTranslationTransformation(TransformationTranslationTransformation, NetworkCollectionDerivedFromBase, TransformationTrait, BaseModel):
     """A per-axis offset, with one entry per input axis"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['TranslationTransformation'] = Field(alias='__typename', default='TranslationTransformation', exclude=True)
 
 class NetworkCollectionDerivedFromBaseUnmappableTransformation(TransformationUnmappableTransformation, NetworkCollectionDerivedFromBase, TransformationTrait, BaseModel):
     """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
 
 class NetworkCollectionDerivedFromBaseCatchAll(NetworkCollectionDerivedFromBase, BaseModel):
@@ -5303,6 +5503,7 @@ class NetworkCollectionDerivedFromBaseCatchAll(NetworkCollectionDerivedFromBase,
 
 class NetworkCollection(NetworkCollectionTrait, MikroFetchable, BaseModel):
     """An immutable collection of networks, stored as one konnektion prefix. Ask its `store` for an access grant and query the Parquet directly (e.g. with DuckDB) rather than paginating nodes through GraphQL"""
+    __identifier__: ClassVar[Literal['@mikro/networkcollection']] = '@mikro/networkcollection'
     typename: Literal['NetworkCollection'] = Field(alias='__typename', default='NetworkCollection', exclude=True)
     id: ID
     name: str | None = Field(default=None)
@@ -5330,12 +5531,14 @@ class NetworkCollection(NetworkCollectionTrait, MikroFetchable, BaseModel):
 
 class TableDatasetColumnsReferences(HasParquestStoreTrait, TableDatasetLensTrait, BaseModel):
     """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
+    __identifier__: ClassVar[Literal['@mikro/tabledataset']] = '@mikro/tabledataset'
     typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
     id: ID
     model_config = ConfigDict(frozen=True)
 
 class TableDatasetColumnsNodeReferences(NetworkCollectionTrait, BaseModel):
     """An immutable collection of networks, stored as one konnektion prefix. Ask its `store` for an access grant and query the Parquet directly (e.g. with DuckDB) rather than paginating nodes through GraphQL"""
+    __identifier__: ClassVar[Literal['@mikro/networkcollection']] = '@mikro/networkcollection'
     typename: Literal['NetworkCollection'] = Field(alias='__typename', default='NetworkCollection', exclude=True)
     id: ID
     model_config = ConfigDict(frozen=True)
@@ -5363,42 +5566,52 @@ class TableDatasetDerivedFromBase(BaseModel):
 
 class TableDatasetDerivedFromBaseAffineTransformation(TransformationAffineTransformation, TableDatasetDerivedFromBase, TransformationTrait, BaseModel):
     """A general affine map, given as an M x (N+1) matrix with rows outermost"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
 
 class TableDatasetDerivedFromBaseByDimensionTransformation(TransformationByDimensionTransformation, TableDatasetDerivedFromBase, TransformationTrait, BaseModel):
     """A map over a named subset of the axes: `inputAxes` onto `outputAxes`, one for one, by a `scale` and/or a `translation`, or by an `affine` -- or by none of them, which is the identity on the named axes. The axes it does not name pass through untouched, which is how a registration crosses a rank boundary: a (c,y,x) dataset placed into a (t,z,y,x) world names y and x and says nothing about t and z"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
 
 class TableDatasetDerivedFromBaseFieldTransformation(TransformationFieldTransformation, TableDatasetDerivedFromBase, TransformationTrait, BaseModel):
     """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
 
 class TableDatasetDerivedFromBaseIdentityTransformation(TransformationIdentityTransformation, TableDatasetDerivedFromBase, TransformationTrait, BaseModel):
     """The identity map: input and output coordinates are the same"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['IdentityTransformation'] = Field(alias='__typename', default='IdentityTransformation', exclude=True)
 
 class TableDatasetDerivedFromBaseMapAxisTransformation(TransformationMapAxisTransformation, TableDatasetDerivedFromBase, TransformationTrait, BaseModel):
     """A permutation of axes, mapping each input axis to an output axis by name"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['MapAxisTransformation'] = Field(alias='__typename', default='MapAxisTransformation', exclude=True)
 
 class TableDatasetDerivedFromBaseRotationTransformation(TransformationRotationTransformation, TableDatasetDerivedFromBase, TransformationTrait, BaseModel):
     """A rotation, given as an orthonormal matrix"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['RotationTransformation'] = Field(alias='__typename', default='RotationTransformation', exclude=True)
 
 class TableDatasetDerivedFromBaseScaleTransformation(TransformationScaleTransformation, TableDatasetDerivedFromBase, TransformationTrait, BaseModel):
     """A per-axis multiplication, with one entry per input axis"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
 
 class TableDatasetDerivedFromBaseSequenceTransformation(TransformationSequenceTransformation, TableDatasetDerivedFromBase, TransformationTrait, BaseModel):
     """An ordered composition of steps, applied first to last: one edge, carrying its map as `steps`. The ingest writes one for a stepped lens and for a downsampled pyramid level (a scale, then the half-voxel translation)"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
 
 class TableDatasetDerivedFromBaseTranslationTransformation(TransformationTranslationTransformation, TableDatasetDerivedFromBase, TransformationTrait, BaseModel):
     """A per-axis offset, with one entry per input axis"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['TranslationTransformation'] = Field(alias='__typename', default='TranslationTransformation', exclude=True)
 
 class TableDatasetDerivedFromBaseUnmappableTransformation(TransformationUnmappableTransformation, TableDatasetDerivedFromBase, TransformationTrait, BaseModel):
     """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
 
 class TableDatasetDerivedFromBaseCatchAll(TableDatasetDerivedFromBase, BaseModel):
@@ -5407,6 +5620,7 @@ class TableDatasetDerivedFromBaseCatchAll(TableDatasetDerivedFromBase, BaseModel
 
 class TableDataset(HasParquestStoreTrait, TableDatasetLensTrait, MikroFetchable, BaseModel):
     """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
+    __identifier__: ClassVar[Literal['@mikro/tabledataset']] = '@mikro/tabledataset'
     typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
     id: ID
     name: str
@@ -6386,26 +6600,32 @@ class UpdateLensMutationUpdateLensBase(BaseModel):
 
 class UpdateLensMutationUpdateLensBaseAnnotationLens(UpdateLensMutationUpdateLensBase, BaseModel):
     """A selection over an annotation collection by windows in its drawing space"""
+    __identifier__: ClassVar[Literal['@mikro/annotationlens']] = '@mikro/annotationlens'
     typename: Literal['AnnotationLens'] = Field(alias='__typename', default='AnnotationLens', exclude=True)
 
 class UpdateLensMutationUpdateLensBaseArrayLens(UpdateLensMutationUpdateLensBase, Lensable, BaseModel):
     """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    __identifier__: ClassVar[Literal['@mikro/arraylens']] = '@mikro/arraylens'
     typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
 
 class UpdateLensMutationUpdateLensBaseMeshLens(UpdateLensMutationUpdateLensBase, BaseModel):
     """A selection over a mesh collection by windows in its own space"""
+    __identifier__: ClassVar[Literal['@mikro/meshlens']] = '@mikro/meshlens'
     typename: Literal['MeshLens'] = Field(alias='__typename', default='MeshLens', exclude=True)
 
 class UpdateLensMutationUpdateLensBaseNetworkLens(UpdateLensMutationUpdateLensBase, BaseModel):
     """A selection over a network collection by windows in its own space"""
+    __identifier__: ClassVar[Literal['@mikro/networklens']] = '@mikro/networklens'
     typename: Literal['NetworkLens'] = Field(alias='__typename', default='NetworkLens', exclude=True)
 
 class UpdateLensMutationUpdateLensBaseSparseLens(UpdateLensMutationUpdateLensBase, BaseModel):
     """A selection over a sparse dataset by windows on its axes: the positions kept, never re-indexed. Lives in the dataset's own space"""
+    __identifier__: ClassVar[Literal['@mikro/sparselens']] = '@mikro/sparselens'
     typename: Literal['SparseLens'] = Field(alias='__typename', default='SparseLens', exclude=True)
 
 class UpdateLensMutationUpdateLensBaseTableLens(UpdateLensMutationUpdateLensBase, BaseModel):
     """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    __identifier__: ClassVar[Literal['@mikro/tablelens']] = '@mikro/tablelens'
     typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
 
 class UpdateLensMutationUpdateLensBaseCatchAll(UpdateLensMutationUpdateLensBase, BaseModel):
@@ -6427,6 +6647,7 @@ class UpdateLensMutation(BaseModel):
 
 class SetLensDefaultSceneMutationSetLensDefaultSceneDefaultScene(SceneTrait, BaseModel):
     """A composition of layers over a shared world coordinate system. The scene carries no units of its own -- they are per-axis, on the axes of its world system"""
+    __identifier__: ClassVar[Literal['@mikro/scene']] = '@mikro/scene'
     typename: Literal['Scene'] = Field(alias='__typename', default='Scene', exclude=True)
     id: ID
     name: str
@@ -6443,26 +6664,32 @@ class SetLensDefaultSceneMutationSetLensDefaultSceneBase(BaseModel):
 
 class SetLensDefaultSceneMutationSetLensDefaultSceneBaseAnnotationLens(SetLensDefaultSceneMutationSetLensDefaultSceneBase, BaseModel):
     """A selection over an annotation collection by windows in its drawing space"""
+    __identifier__: ClassVar[Literal['@mikro/annotationlens']] = '@mikro/annotationlens'
     typename: Literal['AnnotationLens'] = Field(alias='__typename', default='AnnotationLens', exclude=True)
 
 class SetLensDefaultSceneMutationSetLensDefaultSceneBaseArrayLens(SetLensDefaultSceneMutationSetLensDefaultSceneBase, Lensable, BaseModel):
     """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    __identifier__: ClassVar[Literal['@mikro/arraylens']] = '@mikro/arraylens'
     typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
 
 class SetLensDefaultSceneMutationSetLensDefaultSceneBaseMeshLens(SetLensDefaultSceneMutationSetLensDefaultSceneBase, BaseModel):
     """A selection over a mesh collection by windows in its own space"""
+    __identifier__: ClassVar[Literal['@mikro/meshlens']] = '@mikro/meshlens'
     typename: Literal['MeshLens'] = Field(alias='__typename', default='MeshLens', exclude=True)
 
 class SetLensDefaultSceneMutationSetLensDefaultSceneBaseNetworkLens(SetLensDefaultSceneMutationSetLensDefaultSceneBase, BaseModel):
     """A selection over a network collection by windows in its own space"""
+    __identifier__: ClassVar[Literal['@mikro/networklens']] = '@mikro/networklens'
     typename: Literal['NetworkLens'] = Field(alias='__typename', default='NetworkLens', exclude=True)
 
 class SetLensDefaultSceneMutationSetLensDefaultSceneBaseSparseLens(SetLensDefaultSceneMutationSetLensDefaultSceneBase, BaseModel):
     """A selection over a sparse dataset by windows on its axes: the positions kept, never re-indexed. Lives in the dataset's own space"""
+    __identifier__: ClassVar[Literal['@mikro/sparselens']] = '@mikro/sparselens'
     typename: Literal['SparseLens'] = Field(alias='__typename', default='SparseLens', exclude=True)
 
 class SetLensDefaultSceneMutationSetLensDefaultSceneBaseTableLens(SetLensDefaultSceneMutationSetLensDefaultSceneBase, BaseModel):
     """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    __identifier__: ClassVar[Literal['@mikro/tablelens']] = '@mikro/tablelens'
     typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
 
 class SetLensDefaultSceneMutationSetLensDefaultSceneBaseCatchAll(SetLensDefaultSceneMutationSetLensDefaultSceneBase, BaseModel):
@@ -6520,6 +6747,49 @@ class DeleteMeshCollectionMutation(BaseModel):
     class Meta:
         """Meta class for DeleteMeshCollection """
         document = 'mutation DeleteMeshCollection($input: DeleteMeshCollectionInput!) {\n  deleteMeshCollection(input: $input)\n}'
+
+class CreateMetricMutation(BaseModel):
+    """ A metric is immutable: a correction is a new metric that `supersedes` the old one,
+ and there is no update. `createMetric` announces itself (a CREATED @mikro/metric
+ signal); `createMetrics` records at most 5000 in one transaction and announces none,
+ a reader finds them in mikro's change feed. Who recorded it (app, release, client,
+ task) is read off the request, never sent."""
+    create_metric: Metric = Field(alias='createMetric')
+    "Record one value about an annotation or a dataset: a quantity or a code. Announced to the hub's rekuest (a CREATED @mikro/metric signal) once committed"
+
+    class Arguments(BaseModel):
+        """Arguments for CreateMetric """
+        input: MetricInput
+
+    class Meta:
+        """Meta class for CreateMetric """
+        document = 'fragment Metric on Metric {\n  id\n  uuid\n  key\n  magnitude\n  unit\n  code\n  target {\n    id\n    identifier\n    object\n    uuid\n    __typename\n  }\n  supersedes {\n    id\n    __typename\n  }\n  producerApp\n  producerVersion\n  createdAt\n  __typename\n}\n\nmutation CreateMetric($input: MetricInput!) {\n  createMetric(input: $input) {\n    ...Metric\n    __typename\n  }\n}'
+
+class CreateMetricsMutation(BaseModel):
+    """No documentation found for this operation."""
+    create_metrics: tuple[Metric, ...] = Field(alias='createMetrics')
+    "Record many values in one transaction. No signal is sent for each: a reader finds them in mikro's change feed"
+
+    class Arguments(BaseModel):
+        """Arguments for CreateMetrics """
+        input: CreateMetricsInput
+
+    class Meta:
+        """Meta class for CreateMetrics """
+        document = 'fragment Metric on Metric {\n  id\n  uuid\n  key\n  magnitude\n  unit\n  code\n  target {\n    id\n    identifier\n    object\n    uuid\n    __typename\n  }\n  supersedes {\n    id\n    __typename\n  }\n  producerApp\n  producerVersion\n  createdAt\n  __typename\n}\n\nmutation CreateMetrics($input: CreateMetricsInput!) {\n  createMetrics(input: $input) {\n    ...Metric\n    __typename\n  }\n}'
+
+class DeleteMetricMutation(BaseModel):
+    """ A metric a correction supersedes is kept while the correction stands."""
+    delete_metric: ID = Field(alias='deleteMetric')
+    'Delete a metric. One a correction supersedes is kept while the correction stands'
+
+    class Arguments(BaseModel):
+        """Arguments for DeleteMetric """
+        input: DeleteMetricInput
+
+    class Meta:
+        """Meta class for DeleteMetric """
+        document = 'mutation DeleteMetric($input: DeleteMetricInput!) {\n  deleteMetric(input: $input)\n}'
 
 class CreateNetworkCollectionMutation(BaseModel):
     """No documentation found for this operation."""
@@ -6671,10 +6941,12 @@ class AutoVisualizeMutationAutoVisualizeBase(BaseModel):
 
 class AutoVisualizeMutationAutoVisualizeBaseChart(Chart, AutoVisualizeMutationAutoVisualizeBase, ChartTrait, BaseModel):
     """A composition of data laid out along one metric axis, with values read off it. The second kind of composition beside a scene: a scene is a place, a chart is an axis. It names data by id and owns none of it, and it carries no unit of its own -- the unit is its world axis's"""
+    __identifier__: ClassVar[Literal['@mikro/chart']] = '@mikro/chart'
     typename: Literal['Chart'] = Field(alias='__typename', default='Chart', exclude=True)
 
 class AutoVisualizeMutationAutoVisualizeBaseScene(Scene, AutoVisualizeMutationAutoVisualizeBase, SceneTrait, BaseModel):
     """A composition of layers over a shared world coordinate system. The scene carries no units of its own -- they are per-axis, on the axes of its world system"""
+    __identifier__: ClassVar[Literal['@mikro/scene']] = '@mikro/scene'
     typename: Literal['Scene'] = Field(alias='__typename', default='Scene', exclude=True)
 
 class AutoVisualizeMutationAutoVisualizeBaseCatchAll(AutoVisualizeMutationAutoVisualizeBase, BaseModel):
@@ -6818,42 +7090,52 @@ class CreateTransformationMutationCreateTransformationBase(BaseModel):
 
 class CreateTransformationMutationCreateTransformationBaseAffineTransformation(TransformationAffineTransformation, CreateTransformationMutationCreateTransformationBase, TransformationTrait, BaseModel):
     """A general affine map, given as an M x (N+1) matrix with rows outermost"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
 
 class CreateTransformationMutationCreateTransformationBaseByDimensionTransformation(TransformationByDimensionTransformation, CreateTransformationMutationCreateTransformationBase, TransformationTrait, BaseModel):
     """A map over a named subset of the axes: `inputAxes` onto `outputAxes`, one for one, by a `scale` and/or a `translation`, or by an `affine` -- or by none of them, which is the identity on the named axes. The axes it does not name pass through untouched, which is how a registration crosses a rank boundary: a (c,y,x) dataset placed into a (t,z,y,x) world names y and x and says nothing about t and z"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
 
 class CreateTransformationMutationCreateTransformationBaseFieldTransformation(TransformationFieldTransformation, CreateTransformationMutationCreateTransformationBase, TransformationTrait, BaseModel):
     """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
 
 class CreateTransformationMutationCreateTransformationBaseIdentityTransformation(TransformationIdentityTransformation, CreateTransformationMutationCreateTransformationBase, TransformationTrait, BaseModel):
     """The identity map: input and output coordinates are the same"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['IdentityTransformation'] = Field(alias='__typename', default='IdentityTransformation', exclude=True)
 
 class CreateTransformationMutationCreateTransformationBaseMapAxisTransformation(TransformationMapAxisTransformation, CreateTransformationMutationCreateTransformationBase, TransformationTrait, BaseModel):
     """A permutation of axes, mapping each input axis to an output axis by name"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['MapAxisTransformation'] = Field(alias='__typename', default='MapAxisTransformation', exclude=True)
 
 class CreateTransformationMutationCreateTransformationBaseRotationTransformation(TransformationRotationTransformation, CreateTransformationMutationCreateTransformationBase, TransformationTrait, BaseModel):
     """A rotation, given as an orthonormal matrix"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['RotationTransformation'] = Field(alias='__typename', default='RotationTransformation', exclude=True)
 
 class CreateTransformationMutationCreateTransformationBaseScaleTransformation(TransformationScaleTransformation, CreateTransformationMutationCreateTransformationBase, TransformationTrait, BaseModel):
     """A per-axis multiplication, with one entry per input axis"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
 
 class CreateTransformationMutationCreateTransformationBaseSequenceTransformation(TransformationSequenceTransformation, CreateTransformationMutationCreateTransformationBase, TransformationTrait, BaseModel):
     """An ordered composition of steps, applied first to last: one edge, carrying its map as `steps`. The ingest writes one for a stepped lens and for a downsampled pyramid level (a scale, then the half-voxel translation)"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
 
 class CreateTransformationMutationCreateTransformationBaseTranslationTransformation(TransformationTranslationTransformation, CreateTransformationMutationCreateTransformationBase, TransformationTrait, BaseModel):
     """A per-axis offset, with one entry per input axis"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['TranslationTransformation'] = Field(alias='__typename', default='TranslationTransformation', exclude=True)
 
 class CreateTransformationMutationCreateTransformationBaseUnmappableTransformation(TransformationUnmappableTransformation, CreateTransformationMutationCreateTransformationBase, TransformationTrait, BaseModel):
     """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
 
 class CreateTransformationMutationCreateTransformationBaseCatchAll(CreateTransformationMutationCreateTransformationBase, BaseModel):
@@ -6879,42 +7161,52 @@ class UpdateTransformationMutationUpdateTransformationBase(BaseModel):
 
 class UpdateTransformationMutationUpdateTransformationBaseAffineTransformation(TransformationAffineTransformation, UpdateTransformationMutationUpdateTransformationBase, TransformationTrait, BaseModel):
     """A general affine map, given as an M x (N+1) matrix with rows outermost"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
 
 class UpdateTransformationMutationUpdateTransformationBaseByDimensionTransformation(TransformationByDimensionTransformation, UpdateTransformationMutationUpdateTransformationBase, TransformationTrait, BaseModel):
     """A map over a named subset of the axes: `inputAxes` onto `outputAxes`, one for one, by a `scale` and/or a `translation`, or by an `affine` -- or by none of them, which is the identity on the named axes. The axes it does not name pass through untouched, which is how a registration crosses a rank boundary: a (c,y,x) dataset placed into a (t,z,y,x) world names y and x and says nothing about t and z"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
 
 class UpdateTransformationMutationUpdateTransformationBaseFieldTransformation(TransformationFieldTransformation, UpdateTransformationMutationUpdateTransformationBase, TransformationTrait, BaseModel):
     """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
 
 class UpdateTransformationMutationUpdateTransformationBaseIdentityTransformation(TransformationIdentityTransformation, UpdateTransformationMutationUpdateTransformationBase, TransformationTrait, BaseModel):
     """The identity map: input and output coordinates are the same"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['IdentityTransformation'] = Field(alias='__typename', default='IdentityTransformation', exclude=True)
 
 class UpdateTransformationMutationUpdateTransformationBaseMapAxisTransformation(TransformationMapAxisTransformation, UpdateTransformationMutationUpdateTransformationBase, TransformationTrait, BaseModel):
     """A permutation of axes, mapping each input axis to an output axis by name"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['MapAxisTransformation'] = Field(alias='__typename', default='MapAxisTransformation', exclude=True)
 
 class UpdateTransformationMutationUpdateTransformationBaseRotationTransformation(TransformationRotationTransformation, UpdateTransformationMutationUpdateTransformationBase, TransformationTrait, BaseModel):
     """A rotation, given as an orthonormal matrix"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['RotationTransformation'] = Field(alias='__typename', default='RotationTransformation', exclude=True)
 
 class UpdateTransformationMutationUpdateTransformationBaseScaleTransformation(TransformationScaleTransformation, UpdateTransformationMutationUpdateTransformationBase, TransformationTrait, BaseModel):
     """A per-axis multiplication, with one entry per input axis"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
 
 class UpdateTransformationMutationUpdateTransformationBaseSequenceTransformation(TransformationSequenceTransformation, UpdateTransformationMutationUpdateTransformationBase, TransformationTrait, BaseModel):
     """An ordered composition of steps, applied first to last: one edge, carrying its map as `steps`. The ingest writes one for a stepped lens and for a downsampled pyramid level (a scale, then the half-voxel translation)"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
 
 class UpdateTransformationMutationUpdateTransformationBaseTranslationTransformation(TransformationTranslationTransformation, UpdateTransformationMutationUpdateTransformationBase, TransformationTrait, BaseModel):
     """A per-axis offset, with one entry per input axis"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['TranslationTransformation'] = Field(alias='__typename', default='TranslationTransformation', exclude=True)
 
 class UpdateTransformationMutationUpdateTransformationBaseUnmappableTransformation(TransformationUnmappableTransformation, UpdateTransformationMutationUpdateTransformationBase, TransformationTrait, BaseModel):
     """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
 
 class UpdateTransformationMutationUpdateTransformationBaseCatchAll(UpdateTransformationMutationUpdateTransformationBase, BaseModel):
@@ -6976,6 +7268,7 @@ class GetAnimationsQuery(BaseModel):
 
 class SearchAnimationsQueryOptions(BaseModel):
     """A named camera tour of a scene: the poses a viewer pans through, in order. A view artifact -- it cascades with the scene, no placement walk crosses it, and refining a registration moves the data but never the camera"""
+    __identifier__: ClassVar[Literal['@mikro/animation']] = '@mikro/animation'
     typename: Literal['Animation'] = Field(alias='__typename', default='Animation', exclude=True)
     value: ID
     label: str
@@ -6995,7 +7288,7 @@ class SearchAnimationsQuery(BaseModel):
 
     class Meta:
         """Meta class for SearchAnimations """
-        document = 'query SearchAnimations($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: animations(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
+        document = 'query SearchAnimations($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: animations(\n    filters: { search: $search, ids: $values }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
 
 class GetAnnotationQuery(BaseModel):
     """No documentation found for this operation."""
@@ -7053,6 +7346,7 @@ class GetAnnotationCollectionsQuery(BaseModel):
 
 class SearchAnnotationCollectionsQueryOptions(BaseModel):
     """A named set of human-drawn annotations, owning the coordinate system they are drawn in. The CRUD counterpart of a table dataset's machine-produced rows: shapes a person draws and edits, sharing one drawing space and one registration story"""
+    __identifier__: ClassVar[Literal['@mikro/annotationcollection']] = '@mikro/annotationcollection'
     typename: Literal['AnnotationCollection'] = Field(alias='__typename', default='AnnotationCollection', exclude=True)
     value: ID
     label: str
@@ -7072,10 +7366,11 @@ class SearchAnnotationCollectionsQuery(BaseModel):
 
     class Meta:
         """Meta class for SearchAnnotationCollections """
-        document = 'query SearchAnnotationCollections($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: annotationCollections(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
+        document = 'query SearchAnnotationCollections($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: annotationCollections(\n    filters: { search: $search, ids: $values }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
 
 class SearchAnnotationsQueryOptions(BaseModel):
     """A human-drawn shape in an annotation collection's coordinate system. It belongs to the collection, not to a scene: delete the scene and the annotation survives"""
+    __identifier__: ClassVar[Literal['@mikro/annotation']] = '@mikro/annotation'
     typename: Literal['Annotation'] = Field(alias='__typename', default='Annotation', exclude=True)
     value: str
     label: str
@@ -7097,7 +7392,7 @@ class SearchAnnotationsQuery(BaseModel):
 
     class Meta:
         """Meta class for SearchAnnotations """
-        document = 'query SearchAnnotations($search: String, $values: [ID!], $requires: [DescriptorConstraintInput!], $limit: Int, $offset: Int = 0) {\n  options: annotations(\n    filters: {search: $search, ids: $values, requires: $requires}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
+        document = 'query SearchAnnotations($search: String, $values: [ID!], $requires: [DescriptorConstraintInput!], $limit: Int, $offset: Int = 0) {\n  options: annotations(\n    filters: { search: $search, ids: $values, requires: $requires }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
 
 class GetArrayDatasetQuery(BaseModel):
     """No documentation found for this operation."""
@@ -7128,6 +7423,7 @@ class GetArrayDatasetsQuery(BaseModel):
 
 class SearchArrayDatasetsQueryOptions(DatasetTrait, BaseModel):
     """A multi-dimensional array dataset. Its dimensions and their types live on the axes of its INTRINSIC (pixel grid) coordinate system; physical units live on the physical spaces it has edges into; its pyramid levels are DataArrays, each mapping into its grid"""
+    __identifier__: ClassVar[Literal['@mikro/arraydataset']] = '@mikro/arraydataset'
     typename: Literal['ArrayDataset'] = Field(alias='__typename', default='ArrayDataset', exclude=True)
     value: ID
     label: str
@@ -7147,10 +7443,11 @@ class SearchArrayDatasetsQuery(BaseModel):
 
     class Meta:
         """Meta class for SearchArrayDatasets """
-        document = 'query SearchArrayDatasets($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: arrayDatasets(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
+        document = 'query SearchArrayDatasets($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: arrayDatasets(\n    filters: { search: $search, ids: $values }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
 
 class AttributePlansQueryAttributePlansEdgeInput(CoordinateSystemTrait, BaseModel):
     """A named coordinate space: a node in the transformation graph. Its axes are ordered, and that order is the order of the array's dimensions"""
+    __identifier__: ClassVar[Literal['@mikro/coordinatesystem']] = '@mikro/coordinatesystem'
     typename: Literal['CoordinateSystem'] = Field(alias='__typename', default='CoordinateSystem', exclude=True)
     id: ID
     name: str
@@ -7158,6 +7455,7 @@ class AttributePlansQueryAttributePlansEdgeInput(CoordinateSystemTrait, BaseMode
 
 class AttributePlansQueryAttributePlansEdgeOutput(CoordinateSystemTrait, BaseModel):
     """A named coordinate space: a node in the transformation graph. Its axes are ordered, and that order is the order of the array's dimensions"""
+    __identifier__: ClassVar[Literal['@mikro/coordinatesystem']] = '@mikro/coordinatesystem'
     typename: Literal['CoordinateSystem'] = Field(alias='__typename', default='CoordinateSystem', exclude=True)
     id: ID
     name: str
@@ -7165,6 +7463,7 @@ class AttributePlansQueryAttributePlansEdgeOutput(CoordinateSystemTrait, BaseMod
 
 class AttributePlansQueryAttributePlansEdge(TransformationTrait, BaseModel):
     """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
     id: ID
     kind: TransformKind
@@ -7193,42 +7492,52 @@ class AttributePlansQueryAttributePlansPathTransformationBase(BaseModel):
 
 class AttributePlansQueryAttributePlansPathTransformationBaseAffineTransformation(AttributePlansQueryAttributePlansPathTransformationBase, TransformationTrait, BaseModel):
     """A general affine map, given as an M x (N+1) matrix with rows outermost"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
 
 class AttributePlansQueryAttributePlansPathTransformationBaseByDimensionTransformation(AttributePlansQueryAttributePlansPathTransformationBase, TransformationTrait, BaseModel):
     """A map over a named subset of the axes: `inputAxes` onto `outputAxes`, one for one, by a `scale` and/or a `translation`, or by an `affine` -- or by none of them, which is the identity on the named axes. The axes it does not name pass through untouched, which is how a registration crosses a rank boundary: a (c,y,x) dataset placed into a (t,z,y,x) world names y and x and says nothing about t and z"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
 
 class AttributePlansQueryAttributePlansPathTransformationBaseFieldTransformation(AttributePlansQueryAttributePlansPathTransformationBase, TransformationTrait, BaseModel):
     """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
 
 class AttributePlansQueryAttributePlansPathTransformationBaseIdentityTransformation(AttributePlansQueryAttributePlansPathTransformationBase, TransformationTrait, BaseModel):
     """The identity map: input and output coordinates are the same"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['IdentityTransformation'] = Field(alias='__typename', default='IdentityTransformation', exclude=True)
 
 class AttributePlansQueryAttributePlansPathTransformationBaseMapAxisTransformation(AttributePlansQueryAttributePlansPathTransformationBase, TransformationTrait, BaseModel):
     """A permutation of axes, mapping each input axis to an output axis by name"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['MapAxisTransformation'] = Field(alias='__typename', default='MapAxisTransformation', exclude=True)
 
 class AttributePlansQueryAttributePlansPathTransformationBaseRotationTransformation(AttributePlansQueryAttributePlansPathTransformationBase, TransformationTrait, BaseModel):
     """A rotation, given as an orthonormal matrix"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['RotationTransformation'] = Field(alias='__typename', default='RotationTransformation', exclude=True)
 
 class AttributePlansQueryAttributePlansPathTransformationBaseScaleTransformation(AttributePlansQueryAttributePlansPathTransformationBase, TransformationTrait, BaseModel):
     """A per-axis multiplication, with one entry per input axis"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
 
 class AttributePlansQueryAttributePlansPathTransformationBaseSequenceTransformation(AttributePlansQueryAttributePlansPathTransformationBase, TransformationTrait, BaseModel):
     """An ordered composition of steps, applied first to last: one edge, carrying its map as `steps`. The ingest writes one for a stepped lens and for a downsampled pyramid level (a scale, then the half-voxel translation)"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
 
 class AttributePlansQueryAttributePlansPathTransformationBaseTranslationTransformation(AttributePlansQueryAttributePlansPathTransformationBase, TransformationTrait, BaseModel):
     """A per-axis offset, with one entry per input axis"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['TranslationTransformation'] = Field(alias='__typename', default='TranslationTransformation', exclude=True)
 
 class AttributePlansQueryAttributePlansPathTransformationBaseUnmappableTransformation(AttributePlansQueryAttributePlansPathTransformationBase, TransformationTrait, BaseModel):
     """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
 
 class AttributePlansQueryAttributePlansPathTransformationBaseCatchAll(AttributePlansQueryAttributePlansPathTransformationBase, BaseModel):
@@ -7246,6 +7555,7 @@ class AttributePlansQueryAttributePlansPath(BaseModel):
 
 class AttributePlansQueryAttributePlansSampleSystem(CoordinateSystemTrait, BaseModel):
     """A named coordinate space: a node in the transformation graph. Its axes are ordered, and that order is the order of the array's dimensions"""
+    __identifier__: ClassVar[Literal['@mikro/coordinatesystem']] = '@mikro/coordinatesystem'
     typename: Literal['CoordinateSystem'] = Field(alias='__typename', default='CoordinateSystem', exclude=True)
     id: ID
     name: str
@@ -7303,6 +7613,7 @@ class AttributePlansQueryAttributePlansHopsVia(BaseModel):
 
 class AttributePlansQueryAttributePlansHopsTable(HasParquestStoreTrait, TableDatasetLensTrait, BaseModel):
     """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
+    __identifier__: ClassVar[Literal['@mikro/tabledataset']] = '@mikro/tabledataset'
     typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
     id: ID
     name: str
@@ -7310,6 +7621,7 @@ class AttributePlansQueryAttributePlansHopsTable(HasParquestStoreTrait, TableDat
 
 class AttributePlansQueryAttributePlansHopsSparseDataset(SparseDatasetTrait, BaseModel):
     """A sparse matrix over two enumerated axes -- objects on one, features on the other -- stored as anndata-spelled zarr groups. It exists because a colouring names one *column*, so a colourable measurement is a column of a table: right for a few hundred features and impossible for a transcriptome, where a feature stops being a schema fact and becomes a data one. **Each axis is identified exactly once**, by its own `identifiedBy` -- a source whose contents are the ids, or the table whose rows the positions are. Its stores, axes and coordinate system are fixed at creation; a recomputation is a new dataset"""
+    __identifier__: ClassVar[Literal['@mikro/sparsedataset']] = '@mikro/sparsedataset'
     typename: Literal['SparseDataset'] = Field(alias='__typename', default='SparseDataset', exclude=True)
     id: ID
     name: str
@@ -7317,6 +7629,7 @@ class AttributePlansQueryAttributePlansHopsSparseDataset(SparseDatasetTrait, Bas
 
 class AttributePlansQueryAttributePlansHopsArrayDatasetDataArraysStore(HasZarrStoreAccessor, BaseModel):
     """No documentation"""
+    __identifier__: ClassVar[Literal['@mikro/zarrstore']] = '@mikro/zarrstore'
     typename: Literal['ZarrStore'] = Field(alias='__typename', default='ZarrStore', exclude=True)
     id: ID
     key: str
@@ -7332,6 +7645,7 @@ class AttributePlansQueryAttributePlansHopsArrayDatasetDataArrays(DataArrayTrait
 
 class AttributePlansQueryAttributePlansHopsArrayDataset(DatasetTrait, BaseModel):
     """A multi-dimensional array dataset. Its dimensions and their types live on the axes of its INTRINSIC (pixel grid) coordinate system; physical units live on the physical spaces it has edges into; its pyramid levels are DataArrays, each mapping into its grid"""
+    __identifier__: ClassVar[Literal['@mikro/arraydataset']] = '@mikro/arraydataset'
     typename: Literal['ArrayDataset'] = Field(alias='__typename', default='ArrayDataset', exclude=True)
     id: ID
     name: str
@@ -7341,6 +7655,7 @@ class AttributePlansQueryAttributePlansHopsArrayDataset(DatasetTrait, BaseModel)
 
 class AttributePlansQueryAttributePlansHopsLookupStore(HasParquetStoreAccesor, BaseModel):
     """No documentation"""
+    __identifier__: ClassVar[Literal['@mikro/parquetstore']] = '@mikro/parquetstore'
     typename: Literal['ParquetStore'] = Field(alias='__typename', default='ParquetStore', exclude=True)
     id: ID
     key: str
@@ -7348,6 +7663,7 @@ class AttributePlansQueryAttributePlansHopsLookupStore(HasParquetStoreAccesor, B
 
 class AttributePlansQueryAttributePlansHopsLookupSparseArrayStore(BaseModel):
     """A sparse matrix stored as an anndata-spelled zarr group behind the S3 datalayer: `data`, `indices` and `indptr`, with the encoding, shape and chunking read from the group itself rather than declared. Its `encoding` says which axis `indptr` indexes, and so which question it answers in one contiguous read -- ask the other and there is no range to read at all."""
+    __identifier__: ClassVar[Literal['@mikro/sparsestore']] = '@mikro/sparsestore'
     typename: Literal['SparseStore'] = Field(alias='__typename', default='SparseStore', exclude=True)
     id: ID
     key: str
@@ -7424,6 +7740,7 @@ class AttributePlansQueryAttributePlansHopsLookup(BaseModel):
 
 class AttributePlansQueryAttributePlansHopsJoinPathTable(HasParquestStoreTrait, TableDatasetLensTrait, BaseModel):
     """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
+    __identifier__: ClassVar[Literal['@mikro/tabledataset']] = '@mikro/tabledataset'
     typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
     id: ID
     model_config = ConfigDict(frozen=True)
@@ -7519,6 +7836,7 @@ class GetChartQuery(BaseModel):
 
 class SearchChartsQueryOptions(ChartTrait, BaseModel):
     """A composition of data laid out along one metric axis, with values read off it. The second kind of composition beside a scene: a scene is a place, a chart is an axis. It names data by id and owns none of it, and it carries no unit of its own -- the unit is its world axis's"""
+    __identifier__: ClassVar[Literal['@mikro/chart']] = '@mikro/chart'
     typename: Literal['Chart'] = Field(alias='__typename', default='Chart', exclude=True)
     value: ID
     label: str
@@ -7538,7 +7856,7 @@ class SearchChartsQuery(BaseModel):
 
     class Meta:
         """Meta class for SearchCharts """
-        document = 'query SearchCharts($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: charts(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
+        document = 'query SearchCharts($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: charts(\n    filters: { search: $search, ids: $values }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
 
 class ListChartsQuery(BaseModel):
     """No documentation found for this operation."""
@@ -7728,42 +8046,52 @@ class GetCoordinateGraphQueryCoordinateGraphTransformationsBase(BaseModel):
 
 class GetCoordinateGraphQueryCoordinateGraphTransformationsBaseAffineTransformation(TransformationAffineTransformation, GetCoordinateGraphQueryCoordinateGraphTransformationsBase, TransformationTrait, BaseModel):
     """A general affine map, given as an M x (N+1) matrix with rows outermost"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
 
 class GetCoordinateGraphQueryCoordinateGraphTransformationsBaseByDimensionTransformation(TransformationByDimensionTransformation, GetCoordinateGraphQueryCoordinateGraphTransformationsBase, TransformationTrait, BaseModel):
     """A map over a named subset of the axes: `inputAxes` onto `outputAxes`, one for one, by a `scale` and/or a `translation`, or by an `affine` -- or by none of them, which is the identity on the named axes. The axes it does not name pass through untouched, which is how a registration crosses a rank boundary: a (c,y,x) dataset placed into a (t,z,y,x) world names y and x and says nothing about t and z"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
 
 class GetCoordinateGraphQueryCoordinateGraphTransformationsBaseFieldTransformation(TransformationFieldTransformation, GetCoordinateGraphQueryCoordinateGraphTransformationsBase, TransformationTrait, BaseModel):
     """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
 
 class GetCoordinateGraphQueryCoordinateGraphTransformationsBaseIdentityTransformation(TransformationIdentityTransformation, GetCoordinateGraphQueryCoordinateGraphTransformationsBase, TransformationTrait, BaseModel):
     """The identity map: input and output coordinates are the same"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['IdentityTransformation'] = Field(alias='__typename', default='IdentityTransformation', exclude=True)
 
 class GetCoordinateGraphQueryCoordinateGraphTransformationsBaseMapAxisTransformation(TransformationMapAxisTransformation, GetCoordinateGraphQueryCoordinateGraphTransformationsBase, TransformationTrait, BaseModel):
     """A permutation of axes, mapping each input axis to an output axis by name"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['MapAxisTransformation'] = Field(alias='__typename', default='MapAxisTransformation', exclude=True)
 
 class GetCoordinateGraphQueryCoordinateGraphTransformationsBaseRotationTransformation(TransformationRotationTransformation, GetCoordinateGraphQueryCoordinateGraphTransformationsBase, TransformationTrait, BaseModel):
     """A rotation, given as an orthonormal matrix"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['RotationTransformation'] = Field(alias='__typename', default='RotationTransformation', exclude=True)
 
 class GetCoordinateGraphQueryCoordinateGraphTransformationsBaseScaleTransformation(TransformationScaleTransformation, GetCoordinateGraphQueryCoordinateGraphTransformationsBase, TransformationTrait, BaseModel):
     """A per-axis multiplication, with one entry per input axis"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
 
 class GetCoordinateGraphQueryCoordinateGraphTransformationsBaseSequenceTransformation(TransformationSequenceTransformation, GetCoordinateGraphQueryCoordinateGraphTransformationsBase, TransformationTrait, BaseModel):
     """An ordered composition of steps, applied first to last: one edge, carrying its map as `steps`. The ingest writes one for a stepped lens and for a downsampled pyramid level (a scale, then the half-voxel translation)"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
 
 class GetCoordinateGraphQueryCoordinateGraphTransformationsBaseTranslationTransformation(TransformationTranslationTransformation, GetCoordinateGraphQueryCoordinateGraphTransformationsBase, TransformationTrait, BaseModel):
     """A per-axis offset, with one entry per input axis"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['TranslationTransformation'] = Field(alias='__typename', default='TranslationTransformation', exclude=True)
 
 class GetCoordinateGraphQueryCoordinateGraphTransformationsBaseUnmappableTransformation(TransformationUnmappableTransformation, GetCoordinateGraphQueryCoordinateGraphTransformationsBase, TransformationTrait, BaseModel):
     """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
 
 class GetCoordinateGraphQueryCoordinateGraphTransformationsBaseCatchAll(GetCoordinateGraphQueryCoordinateGraphTransformationsBase, BaseModel):
@@ -7824,6 +8152,7 @@ class GetCoordinateSystemsQuery(BaseModel):
 
 class SearchCoordinateSystemsQueryOptions(CoordinateSystemTrait, BaseModel):
     """A named coordinate space: a node in the transformation graph. Its axes are ordered, and that order is the order of the array's dimensions"""
+    __identifier__: ClassVar[Literal['@mikro/coordinatesystem']] = '@mikro/coordinatesystem'
     typename: Literal['CoordinateSystem'] = Field(alias='__typename', default='CoordinateSystem', exclude=True)
     value: ID
     label: str
@@ -7843,7 +8172,7 @@ class SearchCoordinateSystemsQuery(BaseModel):
 
     class Meta:
         """Meta class for SearchCoordinateSystems """
-        document = 'query SearchCoordinateSystems($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: coordinateSystems(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
+        document = 'query SearchCoordinateSystems($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: coordinateSystems(\n    filters: { search: $search, ids: $values }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
 
 class GetFileQuery(BaseModel):
     """No documentation found for this operation."""
@@ -7860,6 +8189,7 @@ class GetFileQuery(BaseModel):
 
 class SearchFilesQueryOptions(FileTrait, BaseModel):
     """A file in its original format (e.g. a microscopy vendor file), stored in a BigFileStore. Files are the raw bytes that array datasets, table datasets and mesh collections are converted from."""
+    __identifier__: ClassVar[Literal['@mikro/file']] = '@mikro/file'
     typename: Literal['File'] = Field(alias='__typename', default='File', exclude=True)
     value: ID
     label: str
@@ -7879,7 +8209,7 @@ class SearchFilesQuery(BaseModel):
 
     class Meta:
         """Meta class for SearchFiles """
-        document = 'query SearchFiles($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: files(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
+        document = 'query SearchFiles($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: files(\n    filters: { search: $search, ids: $values }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
 
 class GetFolderQuery(BaseModel):
     """No documentation found for this operation."""
@@ -7896,6 +8226,7 @@ class GetFolderQuery(BaseModel):
 
 class SearchFoldersQueryOptions(BaseModel):
     """A folder is a collection of the things mikro stores. It mimics a folder in a file system and is the top-level container for organising data."""
+    __identifier__: ClassVar[Literal['@mikro/folder']] = '@mikro/folder'
     typename: Literal['Folder'] = Field(alias='__typename', default='Folder', exclude=True)
     value: ID
     label: str
@@ -7915,7 +8246,7 @@ class SearchFoldersQuery(BaseModel):
 
     class Meta:
         """Meta class for SearchFolders """
-        document = 'query SearchFolders($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: folders(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
+        document = 'query SearchFolders($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: folders(\n    filters: { search: $search, ids: $values }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
 
 class GetLayerQueryLayerBase(BaseModel):
     """A layer placed in a scene and alpha-blended over the layers below it. It carries view state only: a spatial fact is a coordinate system or a transformation edge, never a field here, and every spatial question a layer answers -- `pathToWorld`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one edge updates every layer that looks through it. Which columns hold a point layer's coordinates is likewise the table dataset's declaration, not a per-layer copy. The concrete kind carries its own data source and render settings: IntensityLayer, RgbLayer, PhasorLayer and LabelLayer each state a recipe of fixed shape as fields, ImageLayer carries a composable render graph for the layers that genuinely composite, and AnnotationLayer, PointLayer, TrackLayer, MeshLayer and NetworkLayer draw through a lens over a collection or a table -- every layer, of every kind, draws through a lens of its source's kind."""
@@ -8058,26 +8389,32 @@ class GetLensQueryLensBase(BaseModel):
 
 class GetLensQueryLensBaseAnnotationLens(AnnotationLens, GetLensQueryLensBase, BaseModel):
     """A selection over an annotation collection by windows in its drawing space"""
+    __identifier__: ClassVar[Literal['@mikro/annotationlens']] = '@mikro/annotationlens'
     typename: Literal['AnnotationLens'] = Field(alias='__typename', default='AnnotationLens', exclude=True)
 
 class GetLensQueryLensBaseArrayLens(ArrayLens, GetLensQueryLensBase, Lensable, BaseModel):
     """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    __identifier__: ClassVar[Literal['@mikro/arraylens']] = '@mikro/arraylens'
     typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
 
 class GetLensQueryLensBaseMeshLens(MeshLens, GetLensQueryLensBase, BaseModel):
     """A selection over a mesh collection by windows in its own space"""
+    __identifier__: ClassVar[Literal['@mikro/meshlens']] = '@mikro/meshlens'
     typename: Literal['MeshLens'] = Field(alias='__typename', default='MeshLens', exclude=True)
 
 class GetLensQueryLensBaseNetworkLens(NetworkLens, GetLensQueryLensBase, BaseModel):
     """A selection over a network collection by windows in its own space"""
+    __identifier__: ClassVar[Literal['@mikro/networklens']] = '@mikro/networklens'
     typename: Literal['NetworkLens'] = Field(alias='__typename', default='NetworkLens', exclude=True)
 
 class GetLensQueryLensBaseSparseLens(SparseLens, GetLensQueryLensBase, BaseModel):
     """A selection over a sparse dataset by windows on its axes: the positions kept, never re-indexed. Lives in the dataset's own space"""
+    __identifier__: ClassVar[Literal['@mikro/sparselens']] = '@mikro/sparselens'
     typename: Literal['SparseLens'] = Field(alias='__typename', default='SparseLens', exclude=True)
 
 class GetLensQueryLensBaseTableLens(TableLens, GetLensQueryLensBase, BaseModel):
     """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    __identifier__: ClassVar[Literal['@mikro/tablelens']] = '@mikro/tablelens'
     typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
 
 class GetLensQueryLensBaseCatchAll(GetLensQueryLensBase, BaseModel):
@@ -8100,6 +8437,7 @@ class GetLensQuery(BaseModel):
 
 class GetFullLensQueryArrayDataset(DatasetTrait, BaseModel):
     """A multi-dimensional array dataset. Its dimensions and their types live on the axes of its INTRINSIC (pixel grid) coordinate system; physical units live on the physical spaces it has edges into; its pyramid levels are DataArrays, each mapping into its grid"""
+    __identifier__: ClassVar[Literal['@mikro/arraydataset']] = '@mikro/arraydataset'
     typename: Literal['ArrayDataset'] = Field(alias='__typename', default='ArrayDataset', exclude=True)
     id: ID
     full_lens: ArrayLens | None = Field(default=None, alias='fullLens')
@@ -8122,6 +8460,7 @@ class GetFullLensQuery(BaseModel):
 
 class GetDatasetLensesQueryArrayDataset(DatasetTrait, BaseModel):
     """A multi-dimensional array dataset. Its dimensions and their types live on the axes of its INTRINSIC (pixel grid) coordinate system; physical units live on the physical spaces it has edges into; its pyramid levels are DataArrays, each mapping into its grid"""
+    __identifier__: ClassVar[Literal['@mikro/arraydataset']] = '@mikro/arraydataset'
     typename: Literal['ArrayDataset'] = Field(alias='__typename', default='ArrayDataset', exclude=True)
     id: ID
     lenses: tuple[ArrayLens, ...]
@@ -8154,26 +8493,32 @@ class GetLensesQueryLensesBase(BaseModel):
 
 class GetLensesQueryLensesBaseAnnotationLens(GetLensesQueryLensesBase, BaseModel):
     """A selection over an annotation collection by windows in its drawing space"""
+    __identifier__: ClassVar[Literal['@mikro/annotationlens']] = '@mikro/annotationlens'
     typename: Literal['AnnotationLens'] = Field(alias='__typename', default='AnnotationLens', exclude=True)
 
 class GetLensesQueryLensesBaseArrayLens(GetLensesQueryLensesBase, Lensable, BaseModel):
     """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    __identifier__: ClassVar[Literal['@mikro/arraylens']] = '@mikro/arraylens'
     typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
 
 class GetLensesQueryLensesBaseMeshLens(GetLensesQueryLensesBase, BaseModel):
     """A selection over a mesh collection by windows in its own space"""
+    __identifier__: ClassVar[Literal['@mikro/meshlens']] = '@mikro/meshlens'
     typename: Literal['MeshLens'] = Field(alias='__typename', default='MeshLens', exclude=True)
 
 class GetLensesQueryLensesBaseNetworkLens(GetLensesQueryLensesBase, BaseModel):
     """A selection over a network collection by windows in its own space"""
+    __identifier__: ClassVar[Literal['@mikro/networklens']] = '@mikro/networklens'
     typename: Literal['NetworkLens'] = Field(alias='__typename', default='NetworkLens', exclude=True)
 
 class GetLensesQueryLensesBaseSparseLens(GetLensesQueryLensesBase, BaseModel):
     """A selection over a sparse dataset by windows on its axes: the positions kept, never re-indexed. Lives in the dataset's own space"""
+    __identifier__: ClassVar[Literal['@mikro/sparselens']] = '@mikro/sparselens'
     typename: Literal['SparseLens'] = Field(alias='__typename', default='SparseLens', exclude=True)
 
 class GetLensesQueryLensesBaseTableLens(GetLensesQueryLensesBase, BaseModel):
     """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    __identifier__: ClassVar[Literal['@mikro/tablelens']] = '@mikro/tablelens'
     typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
 
 class GetLensesQueryLensesBaseCatchAll(GetLensesQueryLensesBase, BaseModel):
@@ -8205,26 +8550,32 @@ class SearchArrayLensesQueryOptionsBase(BaseModel):
 
 class SearchArrayLensesQueryOptionsBaseAnnotationLens(SearchArrayLensesQueryOptionsBase, BaseModel):
     """A selection over an annotation collection by windows in its drawing space"""
+    __identifier__: ClassVar[Literal['@mikro/annotationlens']] = '@mikro/annotationlens'
     typename: Literal['AnnotationLens'] = Field(alias='__typename', default='AnnotationLens', exclude=True)
 
 class SearchArrayLensesQueryOptionsBaseArrayLens(SearchArrayLensesQueryOptionsBase, Lensable, BaseModel):
     """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    __identifier__: ClassVar[Literal['@mikro/arraylens']] = '@mikro/arraylens'
     typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
 
 class SearchArrayLensesQueryOptionsBaseMeshLens(SearchArrayLensesQueryOptionsBase, BaseModel):
     """A selection over a mesh collection by windows in its own space"""
+    __identifier__: ClassVar[Literal['@mikro/meshlens']] = '@mikro/meshlens'
     typename: Literal['MeshLens'] = Field(alias='__typename', default='MeshLens', exclude=True)
 
 class SearchArrayLensesQueryOptionsBaseNetworkLens(SearchArrayLensesQueryOptionsBase, BaseModel):
     """A selection over a network collection by windows in its own space"""
+    __identifier__: ClassVar[Literal['@mikro/networklens']] = '@mikro/networklens'
     typename: Literal['NetworkLens'] = Field(alias='__typename', default='NetworkLens', exclude=True)
 
 class SearchArrayLensesQueryOptionsBaseSparseLens(SearchArrayLensesQueryOptionsBase, BaseModel):
     """A selection over a sparse dataset by windows on its axes: the positions kept, never re-indexed. Lives in the dataset's own space"""
+    __identifier__: ClassVar[Literal['@mikro/sparselens']] = '@mikro/sparselens'
     typename: Literal['SparseLens'] = Field(alias='__typename', default='SparseLens', exclude=True)
 
 class SearchArrayLensesQueryOptionsBaseTableLens(SearchArrayLensesQueryOptionsBase, BaseModel):
     """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    __identifier__: ClassVar[Literal['@mikro/tablelens']] = '@mikro/tablelens'
     typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
 
 class SearchArrayLensesQueryOptionsBaseCatchAll(SearchArrayLensesQueryOptionsBase, BaseModel):
@@ -8249,7 +8600,7 @@ class SearchArrayLensesQuery(BaseModel):
 
     class Meta:
         """Meta class for SearchArrayLenses """
-        document = 'query SearchArrayLenses($search: String, $values: [ID!], $requires: [DescriptorConstraintInput!], $limit: Int, $offset: Int = 0) {\n  options: lenses(\n    filters: {kind: ARRAY, search: $search, ids: $values, requires: $requires}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label\n    __typename\n  }\n}'
+        document = 'query SearchArrayLenses($search: String, $values: [ID!], $requires: [DescriptorConstraintInput!], $limit: Int, $offset: Int = 0) {\n  options: lenses(\n    filters: { kind: ARRAY, search: $search, ids: $values, requires: $requires }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label\n    __typename\n  }\n}'
 
 class SearchTableLensesQueryOptionsBase(BaseModel):
     """A selection over a container that lives in a coordinate system: one row per (container, selection), so the same selection asked for twice is the same id. An ArrayLens selects over an array dataset by index slices and, when sliced, owns the crop's space and the edge back into the dataset's grid; every other kind selects over its container by value windows in the container's own axes and lives in the container's space. Every container has its whole lens from creation."""
@@ -8260,26 +8611,32 @@ class SearchTableLensesQueryOptionsBase(BaseModel):
 
 class SearchTableLensesQueryOptionsBaseAnnotationLens(SearchTableLensesQueryOptionsBase, BaseModel):
     """A selection over an annotation collection by windows in its drawing space"""
+    __identifier__: ClassVar[Literal['@mikro/annotationlens']] = '@mikro/annotationlens'
     typename: Literal['AnnotationLens'] = Field(alias='__typename', default='AnnotationLens', exclude=True)
 
 class SearchTableLensesQueryOptionsBaseArrayLens(SearchTableLensesQueryOptionsBase, Lensable, BaseModel):
     """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    __identifier__: ClassVar[Literal['@mikro/arraylens']] = '@mikro/arraylens'
     typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
 
 class SearchTableLensesQueryOptionsBaseMeshLens(SearchTableLensesQueryOptionsBase, BaseModel):
     """A selection over a mesh collection by windows in its own space"""
+    __identifier__: ClassVar[Literal['@mikro/meshlens']] = '@mikro/meshlens'
     typename: Literal['MeshLens'] = Field(alias='__typename', default='MeshLens', exclude=True)
 
 class SearchTableLensesQueryOptionsBaseNetworkLens(SearchTableLensesQueryOptionsBase, BaseModel):
     """A selection over a network collection by windows in its own space"""
+    __identifier__: ClassVar[Literal['@mikro/networklens']] = '@mikro/networklens'
     typename: Literal['NetworkLens'] = Field(alias='__typename', default='NetworkLens', exclude=True)
 
 class SearchTableLensesQueryOptionsBaseSparseLens(SearchTableLensesQueryOptionsBase, BaseModel):
     """A selection over a sparse dataset by windows on its axes: the positions kept, never re-indexed. Lives in the dataset's own space"""
+    __identifier__: ClassVar[Literal['@mikro/sparselens']] = '@mikro/sparselens'
     typename: Literal['SparseLens'] = Field(alias='__typename', default='SparseLens', exclude=True)
 
 class SearchTableLensesQueryOptionsBaseTableLens(SearchTableLensesQueryOptionsBase, BaseModel):
     """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    __identifier__: ClassVar[Literal['@mikro/tablelens']] = '@mikro/tablelens'
     typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
 
 class SearchTableLensesQueryOptionsBaseCatchAll(SearchTableLensesQueryOptionsBase, BaseModel):
@@ -8301,7 +8658,7 @@ class SearchTableLensesQuery(BaseModel):
 
     class Meta:
         """Meta class for SearchTableLenses """
-        document = 'query SearchTableLenses($search: String, $values: [ID!], $requires: [DescriptorConstraintInput!], $limit: Int, $offset: Int = 0) {\n  options: lenses(\n    filters: {kind: TABLE, search: $search, ids: $values, requires: $requires}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label\n    __typename\n  }\n}'
+        document = 'query SearchTableLenses($search: String, $values: [ID!], $requires: [DescriptorConstraintInput!], $limit: Int, $offset: Int = 0) {\n  options: lenses(\n    filters: { kind: TABLE, search: $search, ids: $values, requires: $requires }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label\n    __typename\n  }\n}'
 
 class SearchSparseLensesQueryOptionsBase(BaseModel):
     """A selection over a container that lives in a coordinate system: one row per (container, selection), so the same selection asked for twice is the same id. An ArrayLens selects over an array dataset by index slices and, when sliced, owns the crop's space and the edge back into the dataset's grid; every other kind selects over its container by value windows in the container's own axes and lives in the container's space. Every container has its whole lens from creation."""
@@ -8312,26 +8669,32 @@ class SearchSparseLensesQueryOptionsBase(BaseModel):
 
 class SearchSparseLensesQueryOptionsBaseAnnotationLens(SearchSparseLensesQueryOptionsBase, BaseModel):
     """A selection over an annotation collection by windows in its drawing space"""
+    __identifier__: ClassVar[Literal['@mikro/annotationlens']] = '@mikro/annotationlens'
     typename: Literal['AnnotationLens'] = Field(alias='__typename', default='AnnotationLens', exclude=True)
 
 class SearchSparseLensesQueryOptionsBaseArrayLens(SearchSparseLensesQueryOptionsBase, Lensable, BaseModel):
     """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    __identifier__: ClassVar[Literal['@mikro/arraylens']] = '@mikro/arraylens'
     typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
 
 class SearchSparseLensesQueryOptionsBaseMeshLens(SearchSparseLensesQueryOptionsBase, BaseModel):
     """A selection over a mesh collection by windows in its own space"""
+    __identifier__: ClassVar[Literal['@mikro/meshlens']] = '@mikro/meshlens'
     typename: Literal['MeshLens'] = Field(alias='__typename', default='MeshLens', exclude=True)
 
 class SearchSparseLensesQueryOptionsBaseNetworkLens(SearchSparseLensesQueryOptionsBase, BaseModel):
     """A selection over a network collection by windows in its own space"""
+    __identifier__: ClassVar[Literal['@mikro/networklens']] = '@mikro/networklens'
     typename: Literal['NetworkLens'] = Field(alias='__typename', default='NetworkLens', exclude=True)
 
 class SearchSparseLensesQueryOptionsBaseSparseLens(SearchSparseLensesQueryOptionsBase, BaseModel):
     """A selection over a sparse dataset by windows on its axes: the positions kept, never re-indexed. Lives in the dataset's own space"""
+    __identifier__: ClassVar[Literal['@mikro/sparselens']] = '@mikro/sparselens'
     typename: Literal['SparseLens'] = Field(alias='__typename', default='SparseLens', exclude=True)
 
 class SearchSparseLensesQueryOptionsBaseTableLens(SearchSparseLensesQueryOptionsBase, BaseModel):
     """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    __identifier__: ClassVar[Literal['@mikro/tablelens']] = '@mikro/tablelens'
     typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
 
 class SearchSparseLensesQueryOptionsBaseCatchAll(SearchSparseLensesQueryOptionsBase, BaseModel):
@@ -8353,7 +8716,7 @@ class SearchSparseLensesQuery(BaseModel):
 
     class Meta:
         """Meta class for SearchSparseLenses """
-        document = 'query SearchSparseLenses($search: String, $values: [ID!], $requires: [DescriptorConstraintInput!], $limit: Int, $offset: Int = 0) {\n  options: lenses(\n    filters: {kind: SPARSE, search: $search, ids: $values, requires: $requires}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label\n    __typename\n  }\n}'
+        document = 'query SearchSparseLenses($search: String, $values: [ID!], $requires: [DescriptorConstraintInput!], $limit: Int, $offset: Int = 0) {\n  options: lenses(\n    filters: { kind: SPARSE, search: $search, ids: $values, requires: $requires }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label\n    __typename\n  }\n}'
 
 class SearchMeshLensesQueryOptionsBase(BaseModel):
     """A selection over a container that lives in a coordinate system: one row per (container, selection), so the same selection asked for twice is the same id. An ArrayLens selects over an array dataset by index slices and, when sliced, owns the crop's space and the edge back into the dataset's grid; every other kind selects over its container by value windows in the container's own axes and lives in the container's space. Every container has its whole lens from creation."""
@@ -8364,26 +8727,32 @@ class SearchMeshLensesQueryOptionsBase(BaseModel):
 
 class SearchMeshLensesQueryOptionsBaseAnnotationLens(SearchMeshLensesQueryOptionsBase, BaseModel):
     """A selection over an annotation collection by windows in its drawing space"""
+    __identifier__: ClassVar[Literal['@mikro/annotationlens']] = '@mikro/annotationlens'
     typename: Literal['AnnotationLens'] = Field(alias='__typename', default='AnnotationLens', exclude=True)
 
 class SearchMeshLensesQueryOptionsBaseArrayLens(SearchMeshLensesQueryOptionsBase, Lensable, BaseModel):
     """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    __identifier__: ClassVar[Literal['@mikro/arraylens']] = '@mikro/arraylens'
     typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
 
 class SearchMeshLensesQueryOptionsBaseMeshLens(SearchMeshLensesQueryOptionsBase, BaseModel):
     """A selection over a mesh collection by windows in its own space"""
+    __identifier__: ClassVar[Literal['@mikro/meshlens']] = '@mikro/meshlens'
     typename: Literal['MeshLens'] = Field(alias='__typename', default='MeshLens', exclude=True)
 
 class SearchMeshLensesQueryOptionsBaseNetworkLens(SearchMeshLensesQueryOptionsBase, BaseModel):
     """A selection over a network collection by windows in its own space"""
+    __identifier__: ClassVar[Literal['@mikro/networklens']] = '@mikro/networklens'
     typename: Literal['NetworkLens'] = Field(alias='__typename', default='NetworkLens', exclude=True)
 
 class SearchMeshLensesQueryOptionsBaseSparseLens(SearchMeshLensesQueryOptionsBase, BaseModel):
     """A selection over a sparse dataset by windows on its axes: the positions kept, never re-indexed. Lives in the dataset's own space"""
+    __identifier__: ClassVar[Literal['@mikro/sparselens']] = '@mikro/sparselens'
     typename: Literal['SparseLens'] = Field(alias='__typename', default='SparseLens', exclude=True)
 
 class SearchMeshLensesQueryOptionsBaseTableLens(SearchMeshLensesQueryOptionsBase, BaseModel):
     """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    __identifier__: ClassVar[Literal['@mikro/tablelens']] = '@mikro/tablelens'
     typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
 
 class SearchMeshLensesQueryOptionsBaseCatchAll(SearchMeshLensesQueryOptionsBase, BaseModel):
@@ -8405,7 +8774,7 @@ class SearchMeshLensesQuery(BaseModel):
 
     class Meta:
         """Meta class for SearchMeshLenses """
-        document = 'query SearchMeshLenses($search: String, $values: [ID!], $requires: [DescriptorConstraintInput!], $limit: Int, $offset: Int = 0) {\n  options: lenses(\n    filters: {kind: MESH, search: $search, ids: $values, requires: $requires}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label\n    __typename\n  }\n}'
+        document = 'query SearchMeshLenses($search: String, $values: [ID!], $requires: [DescriptorConstraintInput!], $limit: Int, $offset: Int = 0) {\n  options: lenses(\n    filters: { kind: MESH, search: $search, ids: $values, requires: $requires }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label\n    __typename\n  }\n}'
 
 class SearchNetworkLensesQueryOptionsBase(BaseModel):
     """A selection over a container that lives in a coordinate system: one row per (container, selection), so the same selection asked for twice is the same id. An ArrayLens selects over an array dataset by index slices and, when sliced, owns the crop's space and the edge back into the dataset's grid; every other kind selects over its container by value windows in the container's own axes and lives in the container's space. Every container has its whole lens from creation."""
@@ -8416,26 +8785,32 @@ class SearchNetworkLensesQueryOptionsBase(BaseModel):
 
 class SearchNetworkLensesQueryOptionsBaseAnnotationLens(SearchNetworkLensesQueryOptionsBase, BaseModel):
     """A selection over an annotation collection by windows in its drawing space"""
+    __identifier__: ClassVar[Literal['@mikro/annotationlens']] = '@mikro/annotationlens'
     typename: Literal['AnnotationLens'] = Field(alias='__typename', default='AnnotationLens', exclude=True)
 
 class SearchNetworkLensesQueryOptionsBaseArrayLens(SearchNetworkLensesQueryOptionsBase, Lensable, BaseModel):
     """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    __identifier__: ClassVar[Literal['@mikro/arraylens']] = '@mikro/arraylens'
     typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
 
 class SearchNetworkLensesQueryOptionsBaseMeshLens(SearchNetworkLensesQueryOptionsBase, BaseModel):
     """A selection over a mesh collection by windows in its own space"""
+    __identifier__: ClassVar[Literal['@mikro/meshlens']] = '@mikro/meshlens'
     typename: Literal['MeshLens'] = Field(alias='__typename', default='MeshLens', exclude=True)
 
 class SearchNetworkLensesQueryOptionsBaseNetworkLens(SearchNetworkLensesQueryOptionsBase, BaseModel):
     """A selection over a network collection by windows in its own space"""
+    __identifier__: ClassVar[Literal['@mikro/networklens']] = '@mikro/networklens'
     typename: Literal['NetworkLens'] = Field(alias='__typename', default='NetworkLens', exclude=True)
 
 class SearchNetworkLensesQueryOptionsBaseSparseLens(SearchNetworkLensesQueryOptionsBase, BaseModel):
     """A selection over a sparse dataset by windows on its axes: the positions kept, never re-indexed. Lives in the dataset's own space"""
+    __identifier__: ClassVar[Literal['@mikro/sparselens']] = '@mikro/sparselens'
     typename: Literal['SparseLens'] = Field(alias='__typename', default='SparseLens', exclude=True)
 
 class SearchNetworkLensesQueryOptionsBaseTableLens(SearchNetworkLensesQueryOptionsBase, BaseModel):
     """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    __identifier__: ClassVar[Literal['@mikro/tablelens']] = '@mikro/tablelens'
     typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
 
 class SearchNetworkLensesQueryOptionsBaseCatchAll(SearchNetworkLensesQueryOptionsBase, BaseModel):
@@ -8457,7 +8832,7 @@ class SearchNetworkLensesQuery(BaseModel):
 
     class Meta:
         """Meta class for SearchNetworkLenses """
-        document = 'query SearchNetworkLenses($search: String, $values: [ID!], $requires: [DescriptorConstraintInput!], $limit: Int, $offset: Int = 0) {\n  options: lenses(\n    filters: {kind: NETWORK, search: $search, ids: $values, requires: $requires}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label\n    __typename\n  }\n}'
+        document = 'query SearchNetworkLenses($search: String, $values: [ID!], $requires: [DescriptorConstraintInput!], $limit: Int, $offset: Int = 0) {\n  options: lenses(\n    filters: { kind: NETWORK, search: $search, ids: $values, requires: $requires }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label\n    __typename\n  }\n}'
 
 class SearchAnnotationLensesQueryOptionsBase(BaseModel):
     """A selection over a container that lives in a coordinate system: one row per (container, selection), so the same selection asked for twice is the same id. An ArrayLens selects over an array dataset by index slices and, when sliced, owns the crop's space and the edge back into the dataset's grid; every other kind selects over its container by value windows in the container's own axes and lives in the container's space. Every container has its whole lens from creation."""
@@ -8468,26 +8843,32 @@ class SearchAnnotationLensesQueryOptionsBase(BaseModel):
 
 class SearchAnnotationLensesQueryOptionsBaseAnnotationLens(SearchAnnotationLensesQueryOptionsBase, BaseModel):
     """A selection over an annotation collection by windows in its drawing space"""
+    __identifier__: ClassVar[Literal['@mikro/annotationlens']] = '@mikro/annotationlens'
     typename: Literal['AnnotationLens'] = Field(alias='__typename', default='AnnotationLens', exclude=True)
 
 class SearchAnnotationLensesQueryOptionsBaseArrayLens(SearchAnnotationLensesQueryOptionsBase, Lensable, BaseModel):
     """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    __identifier__: ClassVar[Literal['@mikro/arraylens']] = '@mikro/arraylens'
     typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
 
 class SearchAnnotationLensesQueryOptionsBaseMeshLens(SearchAnnotationLensesQueryOptionsBase, BaseModel):
     """A selection over a mesh collection by windows in its own space"""
+    __identifier__: ClassVar[Literal['@mikro/meshlens']] = '@mikro/meshlens'
     typename: Literal['MeshLens'] = Field(alias='__typename', default='MeshLens', exclude=True)
 
 class SearchAnnotationLensesQueryOptionsBaseNetworkLens(SearchAnnotationLensesQueryOptionsBase, BaseModel):
     """A selection over a network collection by windows in its own space"""
+    __identifier__: ClassVar[Literal['@mikro/networklens']] = '@mikro/networklens'
     typename: Literal['NetworkLens'] = Field(alias='__typename', default='NetworkLens', exclude=True)
 
 class SearchAnnotationLensesQueryOptionsBaseSparseLens(SearchAnnotationLensesQueryOptionsBase, BaseModel):
     """A selection over a sparse dataset by windows on its axes: the positions kept, never re-indexed. Lives in the dataset's own space"""
+    __identifier__: ClassVar[Literal['@mikro/sparselens']] = '@mikro/sparselens'
     typename: Literal['SparseLens'] = Field(alias='__typename', default='SparseLens', exclude=True)
 
 class SearchAnnotationLensesQueryOptionsBaseTableLens(SearchAnnotationLensesQueryOptionsBase, BaseModel):
     """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    __identifier__: ClassVar[Literal['@mikro/tablelens']] = '@mikro/tablelens'
     typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
 
 class SearchAnnotationLensesQueryOptionsBaseCatchAll(SearchAnnotationLensesQueryOptionsBase, BaseModel):
@@ -8509,7 +8890,7 @@ class SearchAnnotationLensesQuery(BaseModel):
 
     class Meta:
         """Meta class for SearchAnnotationLenses """
-        document = 'query SearchAnnotationLenses($search: String, $values: [ID!], $requires: [DescriptorConstraintInput!], $limit: Int, $offset: Int = 0) {\n  options: lenses(\n    filters: {kind: ANNOTATION, search: $search, ids: $values, requires: $requires}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label\n    __typename\n  }\n}'
+        document = 'query SearchAnnotationLenses($search: String, $values: [ID!], $requires: [DescriptorConstraintInput!], $limit: Int, $offset: Int = 0) {\n  options: lenses(\n    filters: { kind: ANNOTATION, search: $search, ids: $values, requires: $requires }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label\n    __typename\n  }\n}'
 
 class GetMeshCollectionQuery(BaseModel):
     """No documentation found for this operation."""
@@ -8540,6 +8921,7 @@ class GetMeshCollectionsQuery(BaseModel):
 
 class SearchMeshCollectionsQueryOptions(MeshCollectionTrait, BaseModel):
     """An immutable collection of meshes, stored as one fabriks prefix. Ask its `store` for an access grant and query the Parquet directly (e.g. with DuckDB) rather than paginating meshes through GraphQL"""
+    __identifier__: ClassVar[Literal['@mikro/meshcollection']] = '@mikro/meshcollection'
     typename: Literal['MeshCollection'] = Field(alias='__typename', default='MeshCollection', exclude=True)
     value: ID
     label: str
@@ -8560,7 +8942,61 @@ class SearchMeshCollectionsQuery(BaseModel):
 
     class Meta:
         """Meta class for SearchMeshCollections """
-        document = 'query SearchMeshCollections($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: meshCollections(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label\n    __typename\n  }\n}'
+        document = 'query SearchMeshCollections($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: meshCollections(\n    filters: { search: $search, ids: $values }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label\n    __typename\n  }\n}'
+
+class GetMetricQuery(BaseModel):
+    """No documentation found for this operation."""
+    metric: Metric
+    'Get a single metric by ID'
+
+    class Arguments(BaseModel):
+        """Arguments for GetMetric """
+        id: ID
+
+    class Meta:
+        """Meta class for GetMetric """
+        document = 'fragment Metric on Metric {\n  id\n  uuid\n  key\n  magnitude\n  unit\n  code\n  target {\n    id\n    identifier\n    object\n    uuid\n    __typename\n  }\n  supersedes {\n    id\n    __typename\n  }\n  producerApp\n  producerVersion\n  createdAt\n  __typename\n}\n\nquery GetMetric($id: ID!) {\n  metric(id: $id) {\n    ...Metric\n    __typename\n  }\n}'
+
+class SearchMetricsQueryOptions(BaseModel):
+    """One value recorded about an annotation or a dataset, by an app or a person: a quantity (`magnitude` in `unit`) or a `code` a process emitted. Immutable: a correction is a new metric that `supersedes` it. What a metric means is not said here: kraph, reading every metric from mikro's change feed, says it"""
+    __identifier__: ClassVar[Literal['@mikro/metric']] = '@mikro/metric'
+    typename: Literal['Metric'] = Field(alias='__typename', default='Metric', exclude=True)
+    value: ID
+    label: str
+    'What was measured, namespaced by who measured it: `ais_suite.measure_profile/threshold_distance`, `user:<sub>/spine_count`'
+    model_config = ConfigDict(frozen=True)
+
+class SearchMetricsQuery(BaseModel):
+    """ What a port's picker asks: `$requires` is the port's own constraints, handed on
+ unchanged. A metric has no name, so it is searched and labelled by its key."""
+    options: tuple[SearchMetricsQueryOptions, ...]
+    'List metrics: values recorded about annotations and datasets, by apps and people'
+
+    class Arguments(BaseModel):
+        """Arguments for SearchMetrics """
+        search: str | None = Field(default=None)
+        values: list[ID] | None = Field(default=None)
+        requires: list[DescriptorConstraintInput] | None = Field(default=None)
+        limit: int | None = Field(default=None)
+        offset: Annotated[int | None, GraphQLDefault('0')] = Field(default=None)
+
+    class Meta:
+        """Meta class for SearchMetrics """
+        document = 'query SearchMetrics($search: String, $values: [ID!], $requires: [DescriptorConstraintInput!], $limit: Int, $offset: Int = 0) {\n  options: metrics(\n    filters: { key: { iContains: $search }, ids: $values, requires: $requires }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label: key\n    __typename\n  }\n}'
+
+class ListMetricsQuery(BaseModel):
+    """No documentation found for this operation."""
+    metrics: tuple[Metric, ...]
+    'List metrics: values recorded about annotations and datasets, by apps and people'
+
+    class Arguments(BaseModel):
+        """Arguments for ListMetrics """
+        filters: MetricFilter | None = Field(default=None)
+        pagination: OffsetPaginationInput | None = Field(default=None)
+
+    class Meta:
+        """Meta class for ListMetrics """
+        document = 'fragment Metric on Metric {\n  id\n  uuid\n  key\n  magnitude\n  unit\n  code\n  target {\n    id\n    identifier\n    object\n    uuid\n    __typename\n  }\n  supersedes {\n    id\n    __typename\n  }\n  producerApp\n  producerVersion\n  createdAt\n  __typename\n}\n\nquery ListMetrics($filters: MetricFilter, $pagination: OffsetPaginationInput) {\n  metrics(filters: $filters, pagination: $pagination) {\n    ...Metric\n    __typename\n  }\n}'
 
 class GetNetworkCollectionQuery(BaseModel):
     """No documentation found for this operation."""
@@ -8591,6 +9027,7 @@ class GetNetworkCollectionsQuery(BaseModel):
 
 class SearchNetworkCollectionsQueryOptions(NetworkCollectionTrait, BaseModel):
     """An immutable collection of networks, stored as one konnektion prefix. Ask its `store` for an access grant and query the Parquet directly (e.g. with DuckDB) rather than paginating nodes through GraphQL"""
+    __identifier__: ClassVar[Literal['@mikro/networkcollection']] = '@mikro/networkcollection'
     typename: Literal['NetworkCollection'] = Field(alias='__typename', default='NetworkCollection', exclude=True)
     value: ID
     label: str
@@ -8611,7 +9048,7 @@ class SearchNetworkCollectionsQuery(BaseModel):
 
     class Meta:
         """Meta class for SearchNetworkCollections """
-        document = 'query SearchNetworkCollections($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: networkCollections(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label\n    __typename\n  }\n}'
+        document = 'query SearchNetworkCollections($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: networkCollections(\n    filters: { search: $search, ids: $values }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label\n    __typename\n  }\n}'
 
 class GetSceneQuery(BaseModel):
     """No documentation found for this operation."""
@@ -8628,6 +9065,7 @@ class GetSceneQuery(BaseModel):
 
 class SearchScenesQueryOptions(SceneTrait, BaseModel):
     """A composition of layers over a shared world coordinate system. The scene carries no units of its own -- they are per-axis, on the axes of its world system"""
+    __identifier__: ClassVar[Literal['@mikro/scene']] = '@mikro/scene'
     typename: Literal['Scene'] = Field(alias='__typename', default='Scene', exclude=True)
     value: ID
     label: str
@@ -8647,7 +9085,7 @@ class SearchScenesQuery(BaseModel):
 
     class Meta:
         """Meta class for SearchScenes """
-        document = 'query SearchScenes($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: scenes(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
+        document = 'query SearchScenes($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: scenes(\n    filters: { search: $search, ids: $values }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
 
 class GetSceneSnapshotQuery(BaseModel):
     """No documentation found for this operation."""
@@ -8678,6 +9116,7 @@ class GetSceneSnapshotsQuery(BaseModel):
 
 class SearchSceneSnapshotsQueryOptions(BaseModel):
     """A pre-rendered picture of a composition: every layer of the scene, blended. Clients use snapshots to preview without compositing the layers themselves. A picture of the scene, not of any one lens in it -- `Lens.latestSnapshot` and `ArrayDataset.latestSnapshot` offer the newest picture of the scene the lens nominates, which may stage other data too"""
+    __identifier__: ClassVar[Literal['@mikro/scenesnapshot']] = '@mikro/scenesnapshot'
     typename: Literal['SceneSnapshot'] = Field(alias='__typename', default='SceneSnapshot', exclude=True)
     value: ID
     label: str
@@ -8697,7 +9136,7 @@ class SearchSceneSnapshotsQuery(BaseModel):
 
     class Meta:
         """Meta class for SearchSceneSnapshots """
-        document = 'query SearchSceneSnapshots($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: sceneSnapshots(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
+        document = 'query SearchSceneSnapshots($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: sceneSnapshots(\n    filters: { search: $search, ids: $values }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
 
 class GetSparseDatasetQuery(BaseModel):
     """No documentation found for this operation."""
@@ -8714,6 +9153,7 @@ class GetSparseDatasetQuery(BaseModel):
 
 class SearchSparseDatasetsQueryOptions(SparseDatasetTrait, BaseModel):
     """A sparse matrix over two enumerated axes -- objects on one, features on the other -- stored as anndata-spelled zarr groups. It exists because a colouring names one *column*, so a colourable measurement is a column of a table: right for a few hundred features and impossible for a transcriptome, where a feature stops being a schema fact and becomes a data one. **Each axis is identified exactly once**, by its own `identifiedBy` -- a source whose contents are the ids, or the table whose rows the positions are. Its stores, axes and coordinate system are fixed at creation; a recomputation is a new dataset"""
+    __identifier__: ClassVar[Literal['@mikro/sparsedataset']] = '@mikro/sparsedataset'
     typename: Literal['SparseDataset'] = Field(alias='__typename', default='SparseDataset', exclude=True)
     value: ID
     label: str
@@ -8731,7 +9171,7 @@ class SearchSparseDatasetsQuery(BaseModel):
 
     class Meta:
         """Meta class for SearchSparseDatasets """
-        document = 'query SearchSparseDatasets($search: String, $values: [ID!]) {\n  options: sparseDatasets(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
+        document = 'query SearchSparseDatasets($search: String, $values: [ID!]) {\n  options: sparseDatasets(\n    filters: { search: $search, ids: $values }\n    pagination: { limit: 10 }\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
 
 class GetTableDatasetQuery(BaseModel):
     """No documentation found for this operation."""
@@ -8766,42 +9206,52 @@ class GetTransformationQueryTransformationBase(BaseModel):
 
 class GetTransformationQueryTransformationBaseAffineTransformation(TransformationAffineTransformation, GetTransformationQueryTransformationBase, TransformationTrait, BaseModel):
     """A general affine map, given as an M x (N+1) matrix with rows outermost"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
 
 class GetTransformationQueryTransformationBaseByDimensionTransformation(TransformationByDimensionTransformation, GetTransformationQueryTransformationBase, TransformationTrait, BaseModel):
     """A map over a named subset of the axes: `inputAxes` onto `outputAxes`, one for one, by a `scale` and/or a `translation`, or by an `affine` -- or by none of them, which is the identity on the named axes. The axes it does not name pass through untouched, which is how a registration crosses a rank boundary: a (c,y,x) dataset placed into a (t,z,y,x) world names y and x and says nothing about t and z"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
 
 class GetTransformationQueryTransformationBaseFieldTransformation(TransformationFieldTransformation, GetTransformationQueryTransformationBase, TransformationTrait, BaseModel):
     """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
 
 class GetTransformationQueryTransformationBaseIdentityTransformation(TransformationIdentityTransformation, GetTransformationQueryTransformationBase, TransformationTrait, BaseModel):
     """The identity map: input and output coordinates are the same"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['IdentityTransformation'] = Field(alias='__typename', default='IdentityTransformation', exclude=True)
 
 class GetTransformationQueryTransformationBaseMapAxisTransformation(TransformationMapAxisTransformation, GetTransformationQueryTransformationBase, TransformationTrait, BaseModel):
     """A permutation of axes, mapping each input axis to an output axis by name"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['MapAxisTransformation'] = Field(alias='__typename', default='MapAxisTransformation', exclude=True)
 
 class GetTransformationQueryTransformationBaseRotationTransformation(TransformationRotationTransformation, GetTransformationQueryTransformationBase, TransformationTrait, BaseModel):
     """A rotation, given as an orthonormal matrix"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['RotationTransformation'] = Field(alias='__typename', default='RotationTransformation', exclude=True)
 
 class GetTransformationQueryTransformationBaseScaleTransformation(TransformationScaleTransformation, GetTransformationQueryTransformationBase, TransformationTrait, BaseModel):
     """A per-axis multiplication, with one entry per input axis"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
 
 class GetTransformationQueryTransformationBaseSequenceTransformation(TransformationSequenceTransformation, GetTransformationQueryTransformationBase, TransformationTrait, BaseModel):
     """An ordered composition of steps, applied first to last: one edge, carrying its map as `steps`. The ingest writes one for a stepped lens and for a downsampled pyramid level (a scale, then the half-voxel translation)"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
 
 class GetTransformationQueryTransformationBaseTranslationTransformation(TransformationTranslationTransformation, GetTransformationQueryTransformationBase, TransformationTrait, BaseModel):
     """A per-axis offset, with one entry per input axis"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['TranslationTransformation'] = Field(alias='__typename', default='TranslationTransformation', exclude=True)
 
 class GetTransformationQueryTransformationBaseUnmappableTransformation(TransformationUnmappableTransformation, GetTransformationQueryTransformationBase, TransformationTrait, BaseModel):
     """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
 
 class GetTransformationQueryTransformationBaseCatchAll(GetTransformationQueryTransformationBase, BaseModel):
@@ -8827,42 +9277,52 @@ class GetTransformationsQueryTransformationsBase(BaseModel):
 
 class GetTransformationsQueryTransformationsBaseAffineTransformation(TransformationAffineTransformation, GetTransformationsQueryTransformationsBase, TransformationTrait, BaseModel):
     """A general affine map, given as an M x (N+1) matrix with rows outermost"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
 
 class GetTransformationsQueryTransformationsBaseByDimensionTransformation(TransformationByDimensionTransformation, GetTransformationsQueryTransformationsBase, TransformationTrait, BaseModel):
     """A map over a named subset of the axes: `inputAxes` onto `outputAxes`, one for one, by a `scale` and/or a `translation`, or by an `affine` -- or by none of them, which is the identity on the named axes. The axes it does not name pass through untouched, which is how a registration crosses a rank boundary: a (c,y,x) dataset placed into a (t,z,y,x) world names y and x and says nothing about t and z"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
 
 class GetTransformationsQueryTransformationsBaseFieldTransformation(TransformationFieldTransformation, GetTransformationsQueryTransformationsBase, TransformationTrait, BaseModel):
     """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
 
 class GetTransformationsQueryTransformationsBaseIdentityTransformation(TransformationIdentityTransformation, GetTransformationsQueryTransformationsBase, TransformationTrait, BaseModel):
     """The identity map: input and output coordinates are the same"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['IdentityTransformation'] = Field(alias='__typename', default='IdentityTransformation', exclude=True)
 
 class GetTransformationsQueryTransformationsBaseMapAxisTransformation(TransformationMapAxisTransformation, GetTransformationsQueryTransformationsBase, TransformationTrait, BaseModel):
     """A permutation of axes, mapping each input axis to an output axis by name"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['MapAxisTransformation'] = Field(alias='__typename', default='MapAxisTransformation', exclude=True)
 
 class GetTransformationsQueryTransformationsBaseRotationTransformation(TransformationRotationTransformation, GetTransformationsQueryTransformationsBase, TransformationTrait, BaseModel):
     """A rotation, given as an orthonormal matrix"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['RotationTransformation'] = Field(alias='__typename', default='RotationTransformation', exclude=True)
 
 class GetTransformationsQueryTransformationsBaseScaleTransformation(TransformationScaleTransformation, GetTransformationsQueryTransformationsBase, TransformationTrait, BaseModel):
     """A per-axis multiplication, with one entry per input axis"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
 
 class GetTransformationsQueryTransformationsBaseSequenceTransformation(TransformationSequenceTransformation, GetTransformationsQueryTransformationsBase, TransformationTrait, BaseModel):
     """An ordered composition of steps, applied first to last: one edge, carrying its map as `steps`. The ingest writes one for a stepped lens and for a downsampled pyramid level (a scale, then the half-voxel translation)"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
 
 class GetTransformationsQueryTransformationsBaseTranslationTransformation(TransformationTranslationTransformation, GetTransformationsQueryTransformationsBase, TransformationTrait, BaseModel):
     """A per-axis offset, with one entry per input axis"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['TranslationTransformation'] = Field(alias='__typename', default='TranslationTransformation', exclude=True)
 
 class GetTransformationsQueryTransformationsBaseUnmappableTransformation(TransformationUnmappableTransformation, GetTransformationsQueryTransformationsBase, TransformationTrait, BaseModel):
     """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
+    __identifier__: ClassVar[Literal['@mikro/transformation']] = '@mikro/transformation'
     typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
 
 class GetTransformationsQueryTransformationsBaseCatchAll(GetTransformationsQueryTransformationsBase, BaseModel):
@@ -13225,6 +13685,146 @@ Returns:
         variables['input'] = _input
         return self.execute(DeleteMeshCollectionMutation, variables, task=task).delete_mesh_collection
 
+    async def acreate_metric(self, target: MetricTargetInput | MetricTargetCoercible, key: str, magnitude: float | None | UnsetType=UNSET, unit: str | None | UnsetType=UNSET, code: str | None | UnsetType=UNSET, supersedes: IDCoercible | None | UnsetType=UNSET, task: TaskLike | None=None) -> Metric:
+        """CreateMetric 
+ A metric is immutable: a correction is a new metric that `supersedes` the old one,
+ and there is no update. `createMetric` announces itself (a CREATED @mikro/metric
+ signal); `createMetrics` records at most 5000 in one transaction and announces none,
+ a reader finds them in mikro's change feed. Who recorded it (app, release, client,
+ task) is read off the request, never sent.
+
+Args:
+    target: The object a metric is about: its structure and id, as rekuest's signals and STRUCTURE ports spell them (required)
+    key: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    magnitude: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    unit: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    code: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    supersedes: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    Metric
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['target'] = target
+        _input['key'] = key
+        if magnitude is not UNSET:
+            _input['magnitude'] = magnitude
+        if unit is not UNSET:
+            _input['unit'] = unit
+        if code is not UNSET:
+            _input['code'] = code
+        if supersedes is not UNSET:
+            _input['supersedes'] = supersedes
+        variables['input'] = _input
+        return (await self.aexecute(CreateMetricMutation, variables, task=task)).create_metric
+
+    def create_metric(self, target: MetricTargetInput | MetricTargetCoercible, key: str, magnitude: float | None | UnsetType=UNSET, unit: str | None | UnsetType=UNSET, code: str | None | UnsetType=UNSET, supersedes: IDCoercible | None | UnsetType=UNSET, task: TaskLike | None=None) -> Metric:
+        """CreateMetric 
+ A metric is immutable: a correction is a new metric that `supersedes` the old one,
+ and there is no update. `createMetric` announces itself (a CREATED @mikro/metric
+ signal); `createMetrics` records at most 5000 in one transaction and announces none,
+ a reader finds them in mikro's change feed. Who recorded it (app, release, client,
+ task) is read off the request, never sent.
+
+Args:
+    target: The object a metric is about: its structure and id, as rekuest's signals and STRUCTURE ports spell them (required)
+    key: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    magnitude: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    unit: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    code: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    supersedes: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    Metric
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['target'] = target
+        _input['key'] = key
+        if magnitude is not UNSET:
+            _input['magnitude'] = magnitude
+        if unit is not UNSET:
+            _input['unit'] = unit
+        if code is not UNSET:
+            _input['code'] = code
+        if supersedes is not UNSET:
+            _input['supersedes'] = supersedes
+        variables['input'] = _input
+        return self.execute(CreateMetricMutation, variables, task=task).create_metric
+
+    async def acreate_metrics(self, metrics: Iterable[MetricInput], task: TaskLike | None=None) -> tuple[Metric, ...]:
+        """CreateMetrics 
+
+Record many values in one transaction. No signal is sent for each: a reader finds them in mikro's change feed
+
+Args:
+    metrics: One value about one object: a quantity (magnitude and unit) or a code, exactly one (required) (list) (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    list[Metric]
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['metrics'] = metrics
+        variables['input'] = _input
+        return (await self.aexecute(CreateMetricsMutation, variables, task=task)).create_metrics
+
+    def create_metrics(self, metrics: Iterable[MetricInput], task: TaskLike | None=None) -> tuple[Metric, ...]:
+        """CreateMetrics 
+
+Record many values in one transaction. No signal is sent for each: a reader finds them in mikro's change feed
+
+Args:
+    metrics: One value about one object: a quantity (magnitude and unit) or a code, exactly one (required) (list) (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    list[Metric]
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['metrics'] = metrics
+        variables['input'] = _input
+        return self.execute(CreateMetricsMutation, variables, task=task).create_metrics
+
+    async def adelete_metric(self, id: IDCoercible, task: TaskLike | None=None) -> ID:
+        """DeleteMetric 
+ A metric a correction supersedes is kept while the correction stands.
+
+Args:
+    id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ID
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['id'] = id
+        variables['input'] = _input
+        return (await self.aexecute(DeleteMetricMutation, variables, task=task)).delete_metric
+
+    def delete_metric(self, id: IDCoercible, task: TaskLike | None=None) -> ID:
+        """DeleteMetric 
+ A metric a correction supersedes is kept while the correction stands.
+
+Args:
+    id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ID
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['id'] = id
+        variables['input'] = _input
+        return self.execute(DeleteMetricMutation, variables, task=task).delete_metric
+
     async def acreate_network_collection(self, store: KonnektionCoercible, axes: Iterable[AxisInput | AxisName], name: str | None | UnsetType=UNSET, folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, provenance_metadata: Any | None | UnsetType=UNSET, task: TaskLike | None=None) -> NetworkCollection:
         """CreateNetworkCollection 
 
@@ -16643,6 +17243,136 @@ Returns:
             variables['offset'] = offset
         return self.execute(SearchMeshCollectionsQuery, variables, task=task).options
 
+    async def aget_metric(self, id: IDCoercible, task: TaskLike | None=None) -> Metric:
+        """GetMetric 
+
+Get a single metric by ID
+
+Args:
+    id (ID): No description
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    Metric
+"""
+        variables: dict[str, builtins.object] = {}
+        variables['id'] = id
+        return (await self.aexecute(GetMetricQuery, variables, task=task)).metric
+
+    def get_metric(self, id: IDCoercible, task: TaskLike | None=None) -> Metric:
+        """GetMetric 
+
+Get a single metric by ID
+
+Args:
+    id (ID): No description
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    Metric
+"""
+        variables: dict[str, builtins.object] = {}
+        variables['id'] = id
+        return self.execute(GetMetricQuery, variables, task=task).metric
+
+    async def asearch_metrics(self, search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, requires: list[DescriptorConstraintInput] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[SearchMetricsQueryOptions, ...]:
+        """SearchMetrics 
+ What a port's picker asks: `$requires` is the port's own constraints, handed on
+ unchanged. A metric has no name, so it is searched and labelled by its key.
+
+Args:
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    requires (list[DescriptorConstraintInput] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    list[SearchMetricsQueryMetrics]
+"""
+        variables: dict[str, builtins.object] = {}
+        if search is not UNSET:
+            variables['search'] = search
+        if values is not UNSET:
+            variables['values'] = values
+        if requires is not UNSET:
+            variables['requires'] = requires
+        if limit is not UNSET:
+            variables['limit'] = limit
+        if offset is not UNSET:
+            variables['offset'] = offset
+        return (await self.aexecute(SearchMetricsQuery, variables, task=task)).options
+
+    def search_metrics(self, search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, requires: list[DescriptorConstraintInput] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[SearchMetricsQueryOptions, ...]:
+        """SearchMetrics 
+ What a port's picker asks: `$requires` is the port's own constraints, handed on
+ unchanged. A metric has no name, so it is searched and labelled by its key.
+
+Args:
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    requires (list[DescriptorConstraintInput] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    list[SearchMetricsQueryMetrics]
+"""
+        variables: dict[str, builtins.object] = {}
+        if search is not UNSET:
+            variables['search'] = search
+        if values is not UNSET:
+            variables['values'] = values
+        if requires is not UNSET:
+            variables['requires'] = requires
+        if limit is not UNSET:
+            variables['limit'] = limit
+        if offset is not UNSET:
+            variables['offset'] = offset
+        return self.execute(SearchMetricsQuery, variables, task=task).options
+
+    async def alist_metrics(self, filters: MetricFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[Metric, ...]:
+        """ListMetrics 
+
+List metrics: values recorded about annotations and datasets, by apps and people
+
+Args:
+    filters (MetricFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    list[Metric]
+"""
+        variables: dict[str, builtins.object] = {}
+        if filters is not UNSET:
+            variables['filters'] = filters
+        if pagination is not UNSET:
+            variables['pagination'] = pagination
+        return (await self.aexecute(ListMetricsQuery, variables, task=task)).metrics
+
+    def list_metrics(self, filters: MetricFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[Metric, ...]:
+        """ListMetrics 
+
+List metrics: values recorded about annotations and datasets, by apps and people
+
+Args:
+    filters (MetricFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    list[Metric]
+"""
+        variables: dict[str, builtins.object] = {}
+        if filters is not UNSET:
+            variables['filters'] = filters
+        if pagination is not UNSET:
+            variables['pagination'] = pagination
+        return self.execute(ListMetricsQuery, variables, task=task).metrics
+
     async def aget_network_collection(self, id: IDCoercible, task: TaskLike | None=None) -> NetworkCollection:
         """GetNetworkCollection 
 
@@ -17255,6 +17985,7 @@ CreateLensInput.model_rebuild()
 CreateMeshCollectionInput.model_rebuild()
 CreateMeshLayerInput.model_rebuild()
 CreateMeshLensInput.model_rebuild()
+CreateMetricsInput.model_rebuild()
 CreateNetworkCollectionInput.model_rebuild()
 CreateNetworkLayerInput.model_rebuild()
 CreateNetworkLensInput.model_rebuild()
@@ -17283,6 +18014,8 @@ LightPortInput.model_rebuild()
 LightpathGraphInput.model_rebuild()
 MeshCollectionDerivedFromInput.model_rebuild()
 MeshCollectionFilter.model_rebuild()
+MetricFilter.model_rebuild()
+MetricInput.model_rebuild()
 MirrorElementInput.model_rebuild()
 NetworkCollectionFilter.model_rebuild()
 ObjectiveElementInput.model_rebuild()

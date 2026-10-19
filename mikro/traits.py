@@ -1281,6 +1281,38 @@ class AxisInputTrait(BaseModel):
         return {"name": name, "type": default_axis_type(name)}
 
 
+class MetricTargetInputTrait(BaseModel):
+    """Lets the object a metric is about be given as the object itself.
+
+    ``mikro.create_metric(target=dataset, key="my_app/mean", magnitude=3.2, unit="µm")``,
+    or ``target=lens.dataset``: every class generated for a type the server identifies
+    carries the structure it travels as (``__identifier__``, from the schema's
+    ``@identified``), a nested selection included. Which structures a metric may be
+    about is the server's to say, and it says so in prose: an object of any other
+    identified structure is handed on, not refused here.
+
+    The widening is declared (``coercible_inputs``), so the top-level ``target=`` of
+    ``create_metric`` is typed to take the object. A target nested in a ``MetricInput``
+    (``create_metrics``) is coerced too, but its field stays typed ``MetricTargetInput``,
+    as a nested ``AxisInput`` does: a checker flags the object there.
+    """
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_object(cls, value: Any) -> Any:
+        if isinstance(value, (dict, cls)):
+            return value
+        # Read off the class: a nested selection shares no base with the fragment of
+        # its type, so only the stamp itself says what it is.
+        identifier = getattr(type(value), "__identifier__", None)
+        if identifier is None:
+            raise ValueError(
+                f"A metric target is an annotation or a dataset, or a MetricTargetInput, "
+                f"not a {type(value).__name__}, which no structure identifies"
+            )
+        return {"identifier": identifier, "object": get_attributes_or_error(value, "id")}
+
+
 class ValueHistogramInputTrait(BaseModel):
     """Builds the render metadata of an array in one call."""
 

@@ -1,0 +1,21 @@
+# A metric is immutable: a correction is a new metric that `supersedes` the old one,
+# and there is no update. `createMetric` announces itself (a CREATED @mikro/metric
+# signal); `createMetrics` records at most 5000 in one transaction and announces none,
+# a reader finds them in mikro's change feed. Who recorded it (app, release, client,
+# task) is read off the request, never sent.
+mutation CreateMetric($input: MetricInput!) {
+  createMetric(input: $input) {
+    ...Metric
+  }
+}
+
+mutation CreateMetrics($input: CreateMetricsInput!) {
+  createMetrics(input: $input) {
+    ...Metric
+  }
+}
+
+# A metric a correction supersedes is kept while the correction stands.
+mutation DeleteMetric($input: DeleteMetricInput!) {
+  deleteMetric(input: $input)
+}

@@ -1,0 +1,24 @@
+# A metric is one value recorded about an annotation or a dataset: a quantity
+# (`magnitude` in `unit`) or a `code` a process emitted, never both. It is an
+# observation; what it means is kraph's to say. `target` is the object it is about,
+# spelled as a signal or a STRUCTURE port spells it (`@mikro/arraydataset`, its id).
+fragment Metric on Metric {
+  id
+  uuid
+  key
+  magnitude
+  unit
+  code
+  target {
+    id
+    identifier
+    object
+    uuid
+  }
+  supersedes {
+    id
+  }
+  producerApp
+  producerVersion
+  createdAt
+}

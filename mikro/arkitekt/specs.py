@@ -44,7 +44,7 @@ from typing import Annotated, Any
 from arkitekt_spec.actions import DescriptorOperator
 from arkitekt_spec.declare.annotations import Provides, Requires
 
-from mikro.api.schema import Annotation, ArrayLens
+from mikro.api.schema import Annotation, ArrayLens, Metric
 from mikro.traits import AxisSource, axis_table
 
 # --- The descriptor keys --------------------------------------------------------
@@ -70,6 +70,18 @@ DTYPE = "@mikro/dtype"
 """The element type of its values, as numpy spells it (uint8, uint16, float32, ...): its level-0 zarr store's."""
 ANNOTATION_KIND = "@mikro/annotation_kind"
 """The shape one annotation is drawn as, as the names of ``AnnotationKind``."""
+METRIC_KEY = "@mikro/metric_key"
+"""What a metric measured, namespaced by who measured it: ``ais_suite.measure_profile/threshold_distance``."""
+MAGNITUDE = "@mikro/magnitude"
+"""A quantity's number; absent for a code."""
+UNIT = "@mikro/unit"
+"""A quantity's unit, as the server normalized it; absent for a code."""
+METRIC_CODE = "@mikro/metric_code"
+"""The category a process emitted; absent for a quantity."""
+TARGET_IDENTIFIER = "@mikro/target_identifier"
+"""The structure of the object a metric is about: ``@mikro/annotation``, ``@mikro/arraydataset``, ..."""
+TARGET_OBJECT = "@mikro/target_object"
+"""The id of the object a metric is about."""
 
 
 def lens_descriptors(lens: AxisSource) -> dict[str, Any]:
@@ -133,6 +145,29 @@ def annotation_descriptors(annotation: Any) -> dict[str, Any]:  # noqa: ANN401 -
         N_TIME_AXES: counts["TIME"],
     }
 
+
+
+def metric_descriptors(metric: Metric) -> dict[str, Any]:
+    """The descriptors of one metric: its key, its value, and the object it is about.
+
+    The same keys the mikro server declares for ``@mikro/metric``: a quantity says its
+    magnitude and unit, a code its code, never both.
+
+    Args:
+        metric: The metric to describe.
+
+    Returns:
+        Its descriptors, by key.
+    """
+    value: dict[str, Any] = (
+        {METRIC_CODE: metric.code} if metric.code is not None else {MAGNITUDE: metric.magnitude, UNIT: metric.unit}
+    )
+    return {
+        METRIC_KEY: metric.key,
+        **value,
+        TARGET_IDENTIFIER: metric.target.identifier,
+        TARGET_OBJECT: str(metric.target.object),
+    }
 
 # --- By spatial rank: exactly one of these holds for any lens -------------------
 

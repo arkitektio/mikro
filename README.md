@@ -215,6 +215,36 @@ surface to draw marks on, and `space.chart()` bootstraps a chart from what is al
 modality (SMLM, calcium imaging, high-content screening, CLEM, MRI, tractography, ...) and composes
 it into a mikro scene, and together they use every layer kind the API offers.
 
+### Metrics: one value about an annotation or a dataset
+
+A metric is an observation: what a process computed or someone counted, about an annotation, an
+array, a table or a sparse dataset. It is a quantity (`magnitude` in a `unit` pint reads) or a
+`code` a process emitted, never both, under a key namespaced by whoever measured it. Hand the object
+itself as the `target`, a nested one included (`target=lens.dataset`): every generated class of a
+type the server identifies carries its structure as `__identifier__`.
+
+```python
+from mikro.api.schema import MetricFilter, MetricInput, MetricTargetFilter
+
+mikro.create_metric(target=dataset, key="my_app/mean_intensity", magnitude=812.4, unit="dimensionless")
+mikro.create_metric(target=annotation, key="segmenter_v2/class", code="segmenter_v2/class_3")
+
+# Up to 5000 in one transaction. The batch sends no signal; mikro's change feed still has every one.
+mikro.create_metrics(metrics=[MetricInput(target=dataset, key="my_app/area", magnitude=a, unit="µm**2") for a in areas])
+```
+
+Inside a `MetricInput` the object is coerced all the same, but a type checker sees the field as
+`MetricTargetInput` and flags it; the spelling it accepts is
+`MetricTargetInput(identifier="@mikro/arraydataset", object=dataset.id)`.
+
+A metric is immutable: a correction is a new one that `supersedes` it
+(`mikro.create_metric(..., supersedes=wrong)`), and the corrected one stays as long as the
+correction does. An object that has a metric cannot be deleted until the last one is. Which app
+recorded a metric, and in which task, is read off the request; you never send it.
+`mikro.list_metrics(filters=MetricFilter(target=MetricTargetFilter(identifier="@mikro/arraydataset", object=dataset.id)))`
+reads back what was recorded about one object. A metric also travels between actions as
+`@mikro/metric`.
+
 ### Standalone
 
 Outside arkitekt, you build the client yourself from a `MikroRath` and a `DataLayer`, and you use it

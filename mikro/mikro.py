@@ -54,6 +54,7 @@ class Mikro(Composition, MikroApi):
         "@mikro/sparsedataset": schema.SparseDataset,
         "@mikro/annotationcollection": schema.AnnotationCollection,
         "@mikro/annotation": schema.Annotation,
+        "@mikro/metric": schema.Metric,
         "@mikro/arraylens": schema.ArrayLens,
         "@mikro/tablelens": schema.TableLens,
         "@mikro/sparselens": schema.SparseLens,

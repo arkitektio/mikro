@@ -64,6 +64,7 @@ projects:
               ID: rath.scalars.IDCoercible
             coercible_inputs:
               AxisInput: mikro.scalars.AxisName
+              MetricTargetInput: mikro.scalars.MetricTargetCoercible
             expand_input_types:
               - input
         scalar_definitions:
@@ -86,9 +87,18 @@ projects:
           Temperature: kanne.scalars.Temperature
           ID: rath.scalars.ID
           ByteCount: mikro.scalars.ByteCount
+        # The structure each type is known by across the hub (arkitekt-service's
+        # `@identified`), on every class generated for it: a nested selection is a
+        # class of its own, so `lens.dataset` says what it is too.
+        directive_class_vars:
+          - directive: identified
+            argument: by
+            attribute: __identifier__
         additional_bases:
           AxisInput:
             - mikro.traits.AxisInputTrait
+          MetricTargetInput:
+            - mikro.traits.MetricTargetInputTrait
           ValueHistogramInput:
             - mikro.traits.ValueHistogramInputTrait
           TransferFunctionInput:

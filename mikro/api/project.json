@@ -82,6 +82,9 @@
                 "AxisInput": [
                     "mikro.traits.AxisInputTrait"
                 ],
+                "MetricTargetInput": [
+                    "mikro.traits.MetricTargetInputTrait"
+                ],
                 "ValueHistogramInput": [
                     "mikro.traits.ValueHistogramInputTrait"
                 ],
@@ -190,6 +193,13 @@
                 ]
             },
             "additional_config": {},
+            "directive_class_vars": [
+                {
+                    "directive": "identified",
+                    "argument": "by",
+                    "attribute": "__identifier__"
+                }
+            ],
             "force_plugin_order": true,
             "omitted_document_rules": [
                 "no_unused_fragments"
@@ -236,7 +246,8 @@
                         "ID": "rath.scalars.IDCoercible"
                     },
                     "coercible_inputs": {
-                        "AxisInput": "mikro.scalars.AxisName"
+                        "AxisInput": "mikro.scalars.AxisName",
+                        "MetricTargetInput": "mikro.scalars.MetricTargetCoercible"
                     },
                     "expand_input_types": [
                         "input"

@@ -1,4 +1,6 @@
-directive @auth(required_scopes: [String!] = null, required_roles: [String!] = null, required_org_roles: [String!] = null) on FIELD_DEFINITION
+directive @auth(required_scopes: [String!], required_roles: [String!], required_org_roles: [String!], any_scope_of: [String!], any_role_of: [String!], any_org_role_of: [String!], allow_scoped: Boolean) on FIELD_DEFINITION
+
+directive @identified(by: String!) on OBJECT
 
 directive @oneOf on INPUT_OBJECT
 
@@ -44,7 +46,7 @@ input AffineTransformInput @unionElementOf(union: "TransformInput", discriminato
 }
 
 """A general affine map, given as an M x (N+1) matrix with rows outermost"""
-type AffineTransformation implements Transformation @key(fields: "id", resolvable: true) {
+type AffineTransformation implements Transformation @key(fields: "id", resolvable: true) @identified(by: "@mikro/transformation") {
   id: ID!
   kind: TransformKind!
   name: String
@@ -111,7 +113,7 @@ type AffineTransformation implements Transformation @key(fields: "id", resolvabl
 """
 A named camera tour of a scene: the poses a viewer pans through, in order. A view artifact -- it cascades with the scene, no placement walk crosses it, and refining a registration moves the data but never the camera
 """
-type Animation @key(fields: "id", resolvable: true) {
+type Animation @key(fields: "id", resolvable: true) @identified(by: "@mikro/animation") {
   """
   This object's descriptors, a flat mapping of key to value: the facts about it that an action's port can `require` and a trigger can test (e.g. `@mikro/n_channels`). The keys are the ones mikro declares for this structure, and the values are the ones a signal about the object carries. Empty for a structure that declares none
   """
@@ -232,7 +234,7 @@ input AnimationWaypointInput {
 """
 A human-drawn shape in an annotation collection's coordinate system. It belongs to the collection, not to a scene: delete the scene and the annotation survives
 """
-type Annotation @key(fields: "id", resolvable: true) {
+type Annotation @key(fields: "id", resolvable: true) @identified(by: "@mikro/annotation") {
   id: UUID!
 
   """
@@ -291,6 +293,11 @@ type Annotation @key(fields: "id", resolvable: true) {
   The lenses cut to this annotation with `createLens(annotation:)`, oldest cut first. A record of the act, not a relation in space: a lens is immutable and a shape is not, so moving the shape afterwards leaves these where they were cut -- `lenses(filters: {overlapsAnnotation})` is the question about where things are now. One lens may be listed by several shapes, since a lens is one row per selection. What was *computed* from the shape is `derivedResidents`
   """
   derivedLenses: [ArrayLens!]!
+
+  """
+  The descriptors `createLens(input: {lens:, annotation: <this>})` would give the lens it returns, without making it: what the crop of that lens to this shape provides to an action's port. The reverse of `ArrayLens.descriptorsUnder`, for asking with the shape -- in the same request that draws it. Null when the shape has no box or misses the lens, or the lens is not an array lens
+  """
+  descriptorsUnder(lens: ID!): JSON
 
   """
   Everything computed from this annotation, whatever kind of container it is: the data whose `derivedFrom` named this shape as an ANNOTATION source -- a crop written out as a dataset, an image straightened along a path, a table measured inside an ROI. The other end of those edges, exactly as `ArrayDataset.derivedResidents` is, and as kind-blind: the shape is usually named with no transform. A record of the act: editing the shape afterwards changes none of it. The edge itself, with the lens the pixels came from beside it, is on each child's own `derivedFrom`
@@ -360,7 +367,7 @@ type AnnotationChartLayer implements ChartLayer @key(fields: "id", resolvable: t
 """
 A named set of human-drawn annotations, owning the coordinate system they are drawn in. The CRUD counterpart of a table dataset's machine-produced rows: shapes a person draws and edits, sharing one drawing space and one registration story
 """
-type AnnotationCollection @key(fields: "id", resolvable: true) {
+type AnnotationCollection @key(fields: "id", resolvable: true) @identified(by: "@mikro/annotationcollection") {
   """
   This object's descriptors, a flat mapping of key to value: the facts about it that an action's port can `require` and a trigger can test (e.g. `@mikro/n_channels`). The keys are the ones mikro declares for this structure, and the values are the ones a signal about the object carries. Empty for a structure that declares none
   """
@@ -457,6 +464,11 @@ input AnnotationCollectionFilter {
   NOT: AnnotationCollectionFilter
   DISTINCT: Boolean
 
+  """
+  Filter to the objects satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored on every row. A key the structure does not declare is refused rather than ignored
+  """
+  requires: [DescriptorConstraintInput!]
+
   """Filter by the folder this annotation collection is filed in"""
   folder: ID
 
@@ -525,7 +537,7 @@ input AnnotationFilter {
   DISTINCT: Boolean
 
   """
-  Filter to the annotations satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL: `@mikro/annotation_kind` is the kind (named as the descriptor names it, e.g. PATH) and the axis counts are those of the collection's drawing space. A key annotations do not declare is refused rather than ignored
+  Filter to the annotations satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored on every annotation: `@mikro/annotation_kind` is the kind (named as the descriptor names it, e.g. PATH) and the axis counts are those of the collection's drawing space. A key annotations do not declare is refused rather than ignored
   """
   requires: [DescriptorConstraintInput!]
 
@@ -682,7 +694,7 @@ type AnnotationLayer implements Layer @key(fields: "id", resolvable: true) {
 """
 A selection over an annotation collection by windows in its drawing space
 """
-type AnnotationLens implements Lens @key(fields: "id", resolvable: true) {
+type AnnotationLens implements Lens @key(fields: "id", resolvable: true) @identified(by: "@mikro/annotationlens") {
   id: ID!
 
   """
@@ -817,7 +829,7 @@ input ApertureElementInput @unionElementOf(union: "OpticalElementInput", discrim
 """
 A multi-dimensional array dataset. Its dimensions and their types live on the axes of its INTRINSIC (pixel grid) coordinate system; physical units live on the physical spaces it has edges into; its pyramid levels are DataArrays, each mapping into its grid
 """
-type ArrayDataset @key(fields: "id", resolvable: true) {
+type ArrayDataset @key(fields: "id", resolvable: true) @identified(by: "@mikro/arraydataset") {
   """
   This object's descriptors, a flat mapping of key to value: the facts about it that an action's port can `require` and a trigger can test (e.g. `@mikro/n_channels`). The keys are the ones mikro declares for this structure, and the values are the ones a signal about the object carries. Empty for a structure that declares none
   """
@@ -995,7 +1007,7 @@ input ArrayDatasetFilter {
   DISTINCT: Boolean
 
   """
-  Filter to the datasets satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored at creation, and `@mikro/value_kind` from the dataset's primary derivation. A key datasets do not declare is refused rather than ignored
+  Filter to the datasets satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored on every dataset (`@mikro/value_kind` restored whenever a derivation edge leaving it is drawn). A key datasets do not declare is refused rather than ignored
   """
   requires: [DescriptorConstraintInput!]
 
@@ -1164,7 +1176,7 @@ enum ArrayDatasetTimestampField {
 """
 A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices
 """
-type ArrayLens implements Lens @key(fields: "id", resolvable: true) {
+type ArrayLens implements Lens @key(fields: "id", resolvable: true) @identified(by: "@mikro/arraylens") {
   id: ID!
 
   """
@@ -1238,6 +1250,11 @@ type ArrayLens implements Lens @key(fields: "id", resolvable: true) {
   What a layer over this lens would answer for `renderAxes`, before any layer exists: which of the lens' axes face screen x, y, z, time and intensity under the default convention. A preview for opening a viewer on a bare lens; once a layer exists, its own `renderAxes` is the one to follow -- the mapping is the view's, not the selection's
   """
   suggestedRenderAxes: RenderAxes!
+
+  """
+  The descriptors `createLens(input: {lens: <this>, annotation:})` would give the lens it returns, without making it: what a crop of this lens to the shape's box provides to an action's port (one plane of a stack is an IMAGE, a pinned channel counts one). Null when the shape has no box or misses this lens -- the cut would be refused
+  """
+  descriptorsUnder(annotation: ID!): JSON
 
   """
   The lens' axis names, in array order. A selection never drops or reorders an axis
@@ -1549,7 +1566,7 @@ type BigFileAccessGrant {
 """
 A BigFileStore represents a large object stored behind the S3 datalayer.
 """
-type BigFileStore @key(fields: "id", resolvable: true) {
+type BigFileStore @key(fields: "id", resolvable: true) @identified(by: "@mikro/bigfilestore") {
   id: ID!
   path: String!
   bucket: String!
@@ -1689,7 +1706,7 @@ input ByDimensionTransformInput @unionElementOf(union: "TransformInput", discrim
 """
 A map over a named subset of the axes: `inputAxes` onto `outputAxes`, one for one, by a `scale` and/or a `translation`, or by an `affine` -- or by none of them, which is the identity on the named axes. The axes it does not name pass through untouched, which is how a registration crosses a rank boundary: a (c,y,x) dataset placed into a (t,z,y,x) world names y and x and says nothing about t and z
 """
-type ByDimensionTransformation implements Transformation @key(fields: "id", resolvable: true) {
+type ByDimensionTransformation implements Transformation @key(fields: "id", resolvable: true) @identified(by: "@mikro/transformation") {
   id: ID!
   kind: TransformKind!
   name: String
@@ -1909,7 +1926,7 @@ type ChannelSourceNode implements LayerRenderNode {
 """
 A composition of data laid out along one metric axis, with values read off it. The second kind of composition beside a scene: a scene is a place, a chart is an axis. It names data by id and owns none of it, and it carries no unit of its own -- the unit is its world axis's
 """
-type Chart implements Visualization @key(fields: "id", resolvable: true) {
+type Chart implements Visualization @key(fields: "id", resolvable: true) @identified(by: "@mikro/chart") {
   id: ID!
   name: String!
 
@@ -1952,6 +1969,11 @@ input ChartFilter {
 
   """Filter to the charts laid out over this coordinate system"""
   coordinateSystem: ID
+
+  """
+  Filter to the objects satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored on every row. A key the structure does not declare is refused rather than ignored
+  """
+  requires: [DescriptorConstraintInput!]
 }
 
 """
@@ -2098,6 +2120,49 @@ type Client @key(fields: "id", resolvable: true) {
   id: ID!
   clientId: String!
   name: String!
+}
+
+"""
+What a guest granted it sees of the organization: the objects put in it, and what is part of them.
+"""
+type Collaboration {
+  id: ID!
+  name: String!
+  description: String
+  createdAt: DateTime!
+
+  """What is in the collaboration; what is part of these is in it too"""
+  items: [CollaborationItem!]!
+}
+
+"""
+One object in a collaboration: put there, or brought along with one that needs it to be seen.
+"""
+type CollaborationItem {
+  id: ID!
+
+  """The object's id, in its structure"""
+  objectId: String!
+  addedAt: DateTime!
+
+  """The structure the object is known by across the hub: @mikro/scene"""
+  identifier: String
+
+  """
+  Whether it is in the collaboration only as what another object in it needs to be seen
+  """
+  brought: Boolean!
+}
+
+"""An object to put in, or take out of, a collaboration"""
+input CollaborationObjectInput {
+  collaboration: ID!
+
+  """The structure the object is known by: @mikro/scene"""
+  identifier: String!
+
+  """The object's id"""
+  object: ID!
 }
 
 """
@@ -2419,7 +2484,7 @@ type Coordinate {
 """
 The axis-agnostic hub that pins metadata spokes (microscope state, OME metadata, value histograms, channel labels, light paths, phasor distributions and calibrations) to specific coordinates of an array, table or sparse dataset. Exactly one of `dataset`, `table` and `sparse` is set
 """
-type CoordinateAnchor @key(fields: "id", resolvable: true) {
+type CoordinateAnchor @key(fields: "id", resolvable: true) @identified(by: "@mikro/coordinateanchor") {
   id: ID!
 
   """The array dataset this anchor pins into, or null otherwise"""
@@ -2459,6 +2524,11 @@ input CoordinateAnchorFilter {
   OR: CoordinateAnchorFilter
   NOT: CoordinateAnchorFilter
   DISTINCT: Boolean
+
+  """
+  Filter to the objects satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored on every row. A key the structure does not declare is refused rather than ignored
+  """
+  requires: [DescriptorConstraintInput!]
 }
 
 """
@@ -2504,7 +2574,7 @@ input CoordinateInput {
 """
 A named coordinate space: a node in the transformation graph. Its axes are ordered, and that order is the order of the array's dimensions
 """
-type CoordinateSystem @key(fields: "id", resolvable: true) {
+type CoordinateSystem @key(fields: "id", resolvable: true) @identified(by: "@mikro/coordinatesystem") {
   id: ID!
   name: String!
 
@@ -2597,6 +2667,11 @@ input CoordinateSystemFilter {
   OR: CoordinateSystemFilter
   NOT: CoordinateSystemFilter
   DISTINCT: Boolean
+
+  """
+  Filter to the objects satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored on every row. A key the structure does not declare is refused rather than ignored
+  """
+  requires: [DescriptorConstraintInput!]
 
   """
   Filter to the spaces nothing lives in: pure reference frames, the worlds and atlases sources are registered into. False finds the spaces some data actually occupies
@@ -2796,6 +2871,12 @@ input CreateChartInput {
   axis: PhysicalAxisInput = null
 }
 
+"""A new collaboration"""
+input CreateCollaborationInput {
+  name: String!
+  description: String = null
+}
+
 """
 Attach metadata spokes to an array, table or sparse dataset after ingest. Exactly one of `dataset`, `table` and `sparse` names the container; `anchor` carries the coordinates and the spokes. Get-or-create on (container, coordinates): a second call at the same coordinates adds its spokes to the one anchor, and a spoke stated twice is replaced
 """
@@ -2949,6 +3030,11 @@ input CreateMeshLensInput {
   Windows, one per axis to restrict, each keeping the positions whose value lies between its min and its max (an omitted side is open). Omit for everything: the mesh collection's whole lens, or the lens cut from
   """
   windows: [WindowInput!] = null
+}
+
+"""Many metrics in one transaction, at most 5000"""
+input CreateMetricsInput {
+  metrics: [MetricInput!]!
 }
 
 """
@@ -3460,6 +3546,11 @@ input DeleteMeshCollectionInput {
   id: ID!
 }
 
+"""The metric to delete"""
+input DeleteMetricInput {
+  id: ID!
+}
+
 """Input for deleting a network collection by ID"""
 input DeleteNetworkCollectionInput {
   """The ID of the network collection to delete"""
@@ -3855,7 +3946,7 @@ scalar FabriksLike
 """
 A fabriks collection stored as a prefix of Parquet files behind the S3 datalayer. Its grid and encoding are read from its own manifest, never declared by a caller.
 """
-type FabriksStore @key(fields: "id", resolvable: true) {
+type FabriksStore @key(fields: "id", resolvable: true) @identified(by: "@mikro/fabriksstore") {
   id: ID!
   path: String!
   bucket: String!
@@ -3917,7 +4008,7 @@ input FieldTransformInput @unionElementOf(union: "TransformInput", discriminator
 """
 A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards
 """
-type FieldTransformation implements Transformation @key(fields: "id", resolvable: true) {
+type FieldTransformation implements Transformation @key(fields: "id", resolvable: true) @identified(by: "@mikro/transformation") {
   id: ID!
   kind: TransformKind!
   name: String
@@ -3984,7 +4075,7 @@ type FieldTransformation implements Transformation @key(fields: "id", resolvable
 """
 A file in its original format (e.g. a microscopy vendor file), stored in a BigFileStore. Files are the raw bytes that array datasets, table datasets and mesh collections are converted from.
 """
-type File @key(fields: "id", resolvable: true) {
+type File @key(fields: "id", resolvable: true) @identified(by: "@mikro/file") {
   """
   This object's descriptors, a flat mapping of key to value: the facts about it that an action's port can `require` and a trigger can test (e.g. `@mikro/n_channels`). The keys are the ones mikro declares for this structure, and the values are the ones a signal about the object carries. Empty for a structure that declares none
   """
@@ -4077,6 +4168,11 @@ input FileFilter {
   NOT: FileFilter
   DISTINCT: Boolean
 
+  """
+  Filter to the objects satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored on every row. A key the structure does not declare is refused rather than ignored
+  """
+  requires: [DescriptorConstraintInput!]
+
   """Filter by the folder this file belongs to"""
   folder: ID
 
@@ -4147,7 +4243,7 @@ scalar FileLike
 """
 A file and a container holding the same data, and which of the two was made from the other. **Not a derivation**: `derivedFrom` states how one space maps into another, and a file has no space, so this claims no geometry and no placement -- only that these bytes and this data are the same thing
 """
-type FileLink @key(fields: "id", resolvable: true) {
+type FileLink @key(fields: "id", resolvable: true) @identified(by: "@mikro/filelink") {
   id: ID!
 
   """The file side of the link"""
@@ -4278,6 +4374,11 @@ input FileLinkFilter {
   OR: FileLinkFilter
   NOT: FileLinkFilter
   DISTINCT: Boolean
+
+  """
+  Filter to the objects satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored on every row. A key the structure does not declare is refused rather than ignored
+  """
+  requires: [DescriptorConstraintInput!]
 
   """Filter by the file side of the link"""
   file: ID
@@ -4454,7 +4555,7 @@ input FinishZarrUploadInput {
 """
 A folder is a collection of the things mikro stores. It mimics a folder in a file system and is the top-level container for organising data.
 """
-type Folder @key(fields: "id", resolvable: true) {
+type Folder @key(fields: "id", resolvable: true) @identified(by: "@mikro/folder") {
   """
   This object's descriptors, a flat mapping of key to value: the facts about it that an action's port can `require` and a trigger can test (e.g. `@mikro/n_channels`). The keys are the ones mikro declares for this structure, and the values are the ones a signal about the object carries. Empty for a structure that declares none
   """
@@ -4899,7 +5000,7 @@ input IdentityTransformInput @unionElementOf(union: "TransformInput", discrimina
 }
 
 """The identity map: input and output coordinates are the same"""
-type IdentityTransformation implements Transformation @key(fields: "id", resolvable: true) {
+type IdentityTransformation implements Transformation @key(fields: "id", resolvable: true) @identified(by: "@mikro/transformation") {
   id: ID!
   kind: TransformKind!
   name: String
@@ -5161,7 +5262,7 @@ scalar KonnektionLike
 """
 A konnektion collection stored as a prefix of Parquet files behind the S3 datalayer. Its grid and encoding are read from its own manifest, never declared by a caller.
 """
-type KonnektionStore @key(fields: "id", resolvable: true) {
+type KonnektionStore @key(fields: "id", resolvable: true) @identified(by: "@mikro/konnektionstore") {
   id: ID!
   path: String!
   bucket: String!
@@ -5881,7 +5982,7 @@ input LensFilter {
   DISTINCT: Boolean
 
   """
-  Filter to the lenses satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored when the lens was made. `@mikro/value_kind` is asked of array lenses only and `@mikro/n_annotations` of whole annotation lenses only (a windowed one counts by geometry and is left out). A key lenses do not declare is refused rather than ignored
+  Filter to the lenses satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored on every lens, restored when what they count changes (a derivation edge, a shape drawn). A key only some kinds declare holds of no lens of another kind. A key no lens declares is refused rather than ignored
   """
   requires: [DescriptorConstraintInput!]
 
@@ -5925,6 +6026,11 @@ input LensFilter {
   Filter by whether the lens cuts anything out of its container. True keeps the crops, sub-volumes and windows; false the whole lenses, one per container -- a list meant for people usually wants true
   """
   sliced: Boolean
+
+  """
+  Filter array lenses by whether their dataset was acquired rather than computed: true keeps the lenses over the roots, false those over a derived dataset -- the same line `ArrayDatasetFilter.notDerived` draws. Only array lenses are judged: a lens over a table, sparse dataset, mesh, network or annotation collection passes true and fails false
+  """
+  notDerived: Boolean
 
   """
   Search by the lens' own name or, since most lenses have none and are known by their container's, by its container's label: the name of a dataset, table, sparse dataset or annotation collection, the name or store key of a mesh or network collection (case-insensitive substring)
@@ -6064,6 +6170,94 @@ input LightpathGraphInput {
 }
 
 """
+The directed lineage around one container or file: `up` hops of what it was made from and `down` hops of what was made from it, files included. Unlike `lineageGraph`, which returns the whole undirected derivation component, this never turns sideways -- a node's siblings appear once its parent is walked from
+"""
+type Lineage {
+  """The root's node key"""
+  root: ID!
+
+  """Every node reached, the root included, nearest-upstream first"""
+  nodes: [LineageNode!]!
+
+  """Every edge between two of `nodes`"""
+  edges: [LineageEdge!]!
+
+  """Whether the walk stopped at `limit` before reaching its depth"""
+  truncated: Boolean!
+}
+
+"""One axis of an array dataset in a lineage, at its full resolution"""
+type LineageAxis {
+  """The axis' name, e.g. 'z', 'c' or 'tau'"""
+  name: String!
+
+  """What it samples"""
+  type: AxisType!
+
+  """Its extent at level 0, if known"""
+  size: Int
+
+  """
+  The chunk extent along it: the store's inner chunk (the unit a reader decodes) where reported, else the level's chunk shape
+  """
+  chunk: Int
+}
+
+"""
+That one node was made from another. Always parent to child, the way provenance reads
+"""
+type LineageEdge {
+  """Unique within the lineage and stable across walks"""
+  key: ID!
+
+  """
+  A derivation between containers, an ingest from a file, or an export to one
+  """
+  kind: LineageEdgeKind!
+
+  """The parent's node key"""
+  source: ID!
+
+  """The child's node key"""
+  target: ID!
+
+  """
+  The task that made this step, if any: a rekuest task ID. For a file link, the link's own task when it records one; otherwise, and for every derivation, the task that made the child
+  """
+  taskId: ID
+
+  """
+  (DERIVATION) The kind of the edge's map. UNMAPPABLE where the lineage is recorded but no geometry survived
+  """
+  transformationKind: TransformKind
+
+  """What the step did to the values, if stated"""
+  valueRelation: ValueRelation
+
+  """
+  (DERIVATION) The shape the child was computed along or within, if the derivation named one
+  """
+  annotationId: ID
+
+  """
+  (DERIVATION) Whether this is the child's primary parent: the first edge its creator declared, the one that places it
+  """
+  primary: Boolean!
+
+  """
+  The parent's lens this step was computed from -- the one whose space a derivation lands in, the whole lens for an export -- always one of the parent's `lenses`. Null when the parent is a file
+  """
+  sourceLens: ID
+}
+
+"""What a lineage edge records"""
+enum LineageEdgeKind {
+  DERIVATION
+  INGEST
+  EXPORT
+}
+
+"""
 The provenance component around one piece of data: every container it was computed from or that was computed from it, transitively, and the derivation edges between them. The lineage counterpart of `coordinateGraph`, and the difference is which edges are *walked*: that one crosses every edge touching a space, so a registration pulls in everything else registered into the same world -- the neighbourhood, not the provenance. This crosses derivation edges only, in both directions, because asking a source what came out of it and asking a product what went into it are the same graph read from two ends
 """
 type LineageGraph {
@@ -6081,6 +6275,128 @@ type LineageGraph {
   Every derivation edge with both containers in `nodes`, ordered by ID. Stored direction throughout -- child to source -- so the arrow points the way provenance reads. **Kind-blind**: an UNMAPPABLE edge is here, and is the point of the kind existing, since 'this came from that and the geometry did not survive' is exactly how a measurement table hangs off the mask it was measured from. Filter on `kind` for the chain that actually places things; a registration is never here at all
   """
   edges: [Transformation!]!
+}
+
+"""One lens of a lineage node: a port data was computed from"""
+type LineageLens {
+  """The lens' ID, as the lens queries and the lens' own structure take it"""
+  id: ID!
+
+  """
+  Its name, else what it selects (`y[0:32], c[1:2]`), else `Whole`. Its container is not repeated: the node already names it
+  """
+  label: String!
+
+  """Whether it selects all of its container"""
+  whole: Boolean!
+
+  """
+  (array lens) How many positions it keeps along each of its dataset's axes, in the node's `axes` order. Null for any other kind of lens
+  """
+  shape: [Int!]
+
+  """
+  (array lens) What it narrows, one slice per narrowed axis in array order. Empty for the whole lens and any other kind
+  """
+  slices: [LineageSlice!]!
+}
+
+"""One container or file in a lineage"""
+type LineageNode {
+  """
+  `<kind>:<id>`, unique within the lineage and stable across walks: what the edges' `source` and `target` name
+  """
+  key: ID!
+
+  """What this node is"""
+  kind: LineageNodeKind!
+
+  """Its ID, as its own query takes it"""
+  id: ID!
+
+  """
+  Its name; a mesh or network collection without one is named by its store's key
+  """
+  name: String!
+
+  """
+  Hops from the root along the walk: positive downstream (made from the root), negative upstream (the root was made from it), 0 for the root. The nearest, when several paths reach it
+  """
+  depth: Int!
+
+  """When it was created"""
+  createdAt: DateTime
+
+  """
+  The task it was created through, if any: a rekuest task ID. Null for a mesh or network collection, which do not record one
+  """
+  taskId: ID
+
+  """
+  Whether it was made from something this answer leaves out -- past the depth bound, past the fan-out cap or past the limit. Walk again rooted here to continue
+  """
+  hasMoreUp: Boolean!
+
+  """
+  Whether something made from it is left out of this answer, for the same reasons
+  """
+  hasMoreDown: Boolean!
+
+  """
+  Its lenses, the ports its data is used through: the whole lens first, then every lens an edge in this answer leaves from, then the oldest of the rest up to a cap. Empty for a file
+  """
+  lenses: [LineageLens!]!
+
+  """How many lenses it has in all, which may be more than `lenses` lists"""
+  lensCount: Int!
+
+  """
+  (array dataset) Its axes in array order, with sizes and chunks at level 0. Empty for every other kind
+  """
+  axes: [LineageAxis!]!
+
+  """(array dataset) The level-0 array's dtype, where the store reports one"""
+  dtype: String
+
+  """
+  (array dataset) How many resolution levels it holds, level 0 included. 0 for every other kind
+  """
+  levels: Int!
+}
+
+"""What a lineage node is: one of the containers, or a file"""
+enum LineageNodeKind {
+  DATASET
+  TABLE_DATASET
+  SPARSE_DATASET
+  MESH_COLLECTION
+  NETWORK_COLLECTION
+  ANNOTATION_COLLECTION
+  FILE
+}
+
+"""The node a lineage walk starts from"""
+input LineageRootInput {
+  """What the root is"""
+  kind: LineageNodeKind!
+
+  """Its ID"""
+  id: ID!
+}
+
+"""One narrowed axis of an array lens: its normalized slice"""
+type LineageSlice {
+  """The dataset axis it narrows"""
+  axis: String!
+
+  """The first index it keeps"""
+  start: Int!
+
+  """The first index past the last it keeps"""
+  stop: Int!
+
+  """Every how many it keeps"""
+  step: Int!
 }
 
 """
@@ -6187,7 +6503,7 @@ input MapAxisTransformInput @unionElementOf(union: "TransformInput", discriminat
 """
 A permutation of axes, mapping each input axis to an output axis by name
 """
-type MapAxisTransformation implements Transformation @key(fields: "id", resolvable: true) {
+type MapAxisTransformation implements Transformation @key(fields: "id", resolvable: true) @identified(by: "@mikro/transformation") {
   id: ID!
   kind: TransformKind!
   name: String
@@ -6256,7 +6572,7 @@ type MediaAccessGrant {
   store: String
 }
 
-type MediaStore @key(fields: "id", resolvable: true) {
+type MediaStore @key(fields: "id", resolvable: true) @identified(by: "@mikro/mediastore") {
   id: ID!
   path: String!
   bucket: String!
@@ -6315,7 +6631,7 @@ type Membership @key(fields: "id", resolvable: true) {
 """
 An immutable collection of meshes, stored as one fabriks prefix. Ask its `store` for an access grant and query the Parquet directly (e.g. with DuckDB) rather than paginating meshes through GraphQL
 """
-type MeshCollection @key(fields: "id", resolvable: true) {
+type MeshCollection @key(fields: "id", resolvable: true) @identified(by: "@mikro/meshcollection") {
   """
   This object's descriptors, a flat mapping of key to value: the facts about it that an action's port can `require` and a trigger can test (e.g. `@mikro/n_channels`). The keys are the ones mikro declares for this structure, and the values are the ones a signal about the object carries. Empty for a structure that declares none
   """
@@ -6427,6 +6743,11 @@ input MeshCollectionFilter {
   OR: MeshCollectionFilter
   NOT: MeshCollectionFilter
   DISTINCT: Boolean
+
+  """
+  Filter to the objects satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored on every row. A key the structure does not declare is refused rather than ignored
+  """
+  requires: [DescriptorConstraintInput!]
 
   """
   Search by the collection's label: its name, or its store's key (case-insensitive substring)
@@ -6604,7 +6925,7 @@ type MeshLayer implements Layer @key(fields: "id", resolvable: true) {
 }
 
 """A selection over a mesh collection by windows in its own space"""
-type MeshLens implements Lens @key(fields: "id", resolvable: true) {
+type MeshLens implements Lens @key(fields: "id", resolvable: true) @identified(by: "@mikro/meshlens") {
   id: ID!
 
   """
@@ -6731,10 +7052,140 @@ enum MeshShading {
 }
 
 """Schema for unstructured metadata attached to a file."""
-type MetaSchema {
+type MetaSchema @identified(by: "@mikro/metaschema") {
   id: ID!
   name: String!
   schema: Any!
+}
+
+"""
+One value recorded about an annotation or a dataset, by an app or a person: a quantity (`magnitude` in `unit`) or a `code` a process emitted. Immutable: a correction is a new metric that `supersedes` it. What a metric means is not said here: kraph, reading every metric from mikro's change feed, says it
+"""
+type Metric @key(fields: "id", resolvable: true) @identified(by: "@mikro/metric") {
+  """
+  This object's descriptors, a flat mapping of key to value: the facts about it that an action's port can `require` and a trigger can test (e.g. `@mikro/n_channels`). The keys are the ones mikro declares for this structure, and the values are the ones a signal about the object carries. Empty for a structure that declares none
+  """
+  descriptors: JSON!
+  id: ID!
+
+  """
+  What was measured, namespaced by who measured it: `ais_suite.measure_profile/threshold_distance`, `user:<sub>/spine_count`
+  """
+  key: String!
+
+  """(quantity) The number, in `unit`"""
+  magnitude: Float
+
+  """(quantity) The unit of `magnitude`"""
+  unit: String
+
+  """(code) The category a process emitted"""
+  code: String
+
+  """The object this value is about"""
+  target: MetricTarget!
+
+  """The metric this one corrects, if any"""
+  supersedes: Metric
+
+  """The identifier of the app that recorded it; null when recorded by hand"""
+  producerApp: String
+
+  """The release of that app"""
+  producerVersion: String
+
+  """The user it was recorded as"""
+  creator: User
+  createdAt: DateTime!
+
+  """What a reader of the change feed keys this metric on"""
+  uuid: String!
+}
+
+input MetricFilter {
+  """Filter by list of IDs"""
+  ids: [ID!]
+  id: ID
+  key: StrFilterLookup
+  AND: MetricFilter
+  OR: MetricFilter
+  NOT: MetricFilter
+  DISTINCT: Boolean
+
+  """
+  Filter to the metrics about objects of this structure: @mikro/annotation, @mikro/arraydataset, @mikro/tabledataset or @mikro/sparsedataset
+  """
+  targetIdentifier: String
+
+  """Filter to the metrics about one object"""
+  target: MetricTargetFilter
+
+  """Filter to the metrics correcting nothing, or only to corrections"""
+  isCorrection: Boolean
+
+  """
+  Filter to the objects satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored on every row. A key the structure does not declare is refused rather than ignored
+  """
+  requires: [DescriptorConstraintInput!]
+}
+
+"""
+One value about one object: a quantity (magnitude and unit) or a code, exactly one
+"""
+input MetricInput {
+  target: MetricTargetInput!
+  key: String!
+  magnitude: Float = null
+  unit: String = null
+  code: String = null
+  supersedes: ID = null
+}
+
+input MetricOrder @oneOf {
+  createdAt: Ordering
+  key: Ordering
+  id: Ordering
+}
+
+"""
+An object metrics are recorded about: its structure and id, as rekuest's signals and STRUCTURE ports spell them, and a uuid of its own
+"""
+type MetricTarget @key(fields: "id", resolvable: true) {
+  id: ID!
+
+  """
+  The structure of the object: @mikro/annotation, @mikro/arraydataset, @mikro/tabledataset or @mikro/sparsedataset
+  """
+  identifier: String!
+
+  """The id of the object within its structure"""
+  object: ID!
+
+  """
+  The object's uuid as a metric target: what a reader of the change feed keys it on
+  """
+  uuid: String!
+}
+
+"""
+An object metrics are about: its structure and id, as a signal spells them
+"""
+input MetricTargetFilter {
+  """
+  @mikro/annotation, @mikro/arraydataset, @mikro/tabledataset or @mikro/sparsedataset
+  """
+  identifier: String!
+
+  """The id of the object within its structure"""
+  object: ID!
+}
+
+"""
+The object a metric is about: its structure and id, as rekuest's signals and STRUCTURE ports spell them
+"""
+input MetricTargetInput {
+  identifier: String!
+  object: ID!
 }
 
 """Mirror"""
@@ -6795,11 +7246,29 @@ type ModelChange {
 }
 
 type Mutation {
+  """Create an empty collaboration, to put objects in and grant a guest"""
+  createCollaboration(input: CreateCollaborationInput!): Collaboration! @auth(any_role_of: ["admin", "editor"])
+
+  """
+  Put an object in a collaboration, with what it needs to be seen: a scene brings the data its layers draw
+  """
+  addToCollaboration(input: CollaborationObjectInput!): Collaboration! @auth(any_role_of: ["admin", "editor"])
+
+  """
+  Take an object out of a collaboration, with what it brought that nothing else there needs
+  """
+  removeFromCollaboration(input: CollaborationObjectInput!): Collaboration! @auth(any_role_of: ["admin", "editor"])
+
+  """
+  Delete a collaboration: whoever was granted it sees nothing of it any more
+  """
+  deleteCollaboration(id: ID!): ID! @auth(any_role_of: ["admin", "editor"])
+
   """Upload media and return a URL for access"""
-  requestMediaUpload(input: RequestMediaUploadInput!): MediaUploadGrant! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  requestMediaUpload(input: RequestMediaUploadInput!): MediaUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Finalize a media upload after the client has written the object"""
-  finishMediaUpload(input: FinishMediaUploadInput!): MediaStore! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  finishMediaUpload(input: FinishMediaUploadInput!): MediaStore! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Request temporary S3 read credentials for a media file"""
   requestMediaAccess(input: RequestMediaAccessInput!): MediaAccessGrant!
@@ -6810,24 +7279,24 @@ type Mutation {
   requestGeneralMediaAccess(input: RequestGeneralMediaAccessInput!): GeneralMediaAccessGrant!
 
   """Request an upload grant for a big file store"""
-  requestBigfileUpload(input: RequestBigFileUploadInput!): BigFileUploadGrant! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  requestBigfileUpload(input: RequestBigFileUploadInput!): BigFileUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Finalize a big file upload after the client has written the object"""
-  finishBigfileUpload(input: FinishBigFileUploadInput!): BigFileStore! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  finishBigfileUpload(input: FinishBigFileUploadInput!): BigFileStore! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Request temporary S3 read credentials for a big file"""
   requestBigfileAccess(input: RequestBigFileAccessInput!): BigFileAccessGrant!
 
   """Request an upload grant for a Zarr store"""
-  requestZarrUpload(input: RequestZarrUploadInput!): ZarrUploadGrant! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  requestZarrUpload(input: RequestZarrUploadInput!): ZarrUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Finalize a Zarr upload after the client has written the object"""
-  finishZarrUpload(input: FinishZarrUploadInput!): ZarrStore! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  finishZarrUpload(input: FinishZarrUploadInput!): ZarrStore! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Reissue upload credentials for a Zarr store whose upload is still in flight. A grant's credentials expire, and clients hold the session token as a static credential, so a write large enough to outlive its session dies partway through. This returns a fresh session against the same prefix so the write can carry on. Refuses a store that is already populated -- that is an overwrite, not a resumption
   """
-  refreshZarrUpload(input: RefreshZarrUploadInput!): ZarrUploadGrant! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  refreshZarrUpload(input: RefreshZarrUploadInput!): ZarrUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Request temporary S3 read credentials for a Zarr store"""
   requestZarrAccess(input: RequestZarrAccessInput!): ZarrAccessGrant!
@@ -6840,17 +7309,17 @@ type Mutation {
   """
   Request an upload grant for a sparse store. The grant covers the whole prefix, so one request authorizes the group's metadata and all three of its arrays. It declares nothing about the matrix: the group states its encoding, shape and chunking, and the server reads them when the upload is finished
   """
-  requestSparseUpload(input: RequestSparseUploadInput!): SparseUploadGrant! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  requestSparseUpload(input: RequestSparseUploadInput!): SparseUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Finalize a sparse upload, which is when the group's own metadata is read. A missing encoding, a missing array, or an `indptr` whose length contradicts the declared shape are all refused here -- that is what an interrupted upload looks like, and catching it now beats a reader discovering it later
   """
-  finishSparseUpload(input: FinishSparseUploadInput!): SparseStore! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  finishSparseUpload(input: FinishSparseUploadInput!): SparseStore! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Reissue upload credentials for a sparse store whose upload is still in flight, for the reason `refreshZarrUpload` exists: three chunked arrays of a large matrix take long enough that a write can outlive its session token. Refuses a store that is already populated -- that is an overwrite, not a resumption
   """
-  refreshSparseUpload(input: RefreshSparseUploadInput!): SparseUploadGrant! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  refreshSparseUpload(input: RefreshSparseUploadInput!): SparseUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Request temporary S3 read credentials for a sparse store. Covers the whole prefix, because a lookup needs `indptr` before it knows which range of `data` to fetch
@@ -6865,12 +7334,12 @@ type Mutation {
   """
   Request an upload grant for a fabriks store. The grant covers the whole prefix, so one request authorizes the manifest, both catalogs and every level
   """
-  requestFabriksUpload(input: RequestFabriksUploadInput!): FabriksUploadGrant! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  requestFabriksUpload(input: RequestFabriksUploadInput!): FabriksUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Finalize a fabriks upload. This reads the store's `fabriks.json` and refuses a prefix that has none -- which is what an interrupted upload looks like, since the manifest is written last
   """
-  finishFabriksUpload(input: FinishFabriksUploadInput!): FabriksStore! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  finishFabriksUpload(input: FinishFabriksUploadInput!): FabriksStore! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Request temporary S3 read credentials covering a fabriks store's whole prefix
@@ -6885,12 +7354,12 @@ type Mutation {
   """
   Request an upload grant for a konnektion store. The grant covers the whole prefix, so one request authorizes the manifest, both catalogs and every level
   """
-  requestKonnektionUpload(input: RequestKonnektionUploadInput!): KonnektionUploadGrant! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  requestKonnektionUpload(input: RequestKonnektionUploadInput!): KonnektionUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Finalize a konnektion upload. This reads the store's `konnektion.json` and refuses a prefix that has none -- which is what an interrupted upload looks like, since the manifest is written last
   """
-  finishKonnektionUpload(input: FinishKonnektionUploadInput!): KonnektionStore! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  finishKonnektionUpload(input: FinishKonnektionUploadInput!): KonnektionStore! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Request temporary S3 read credentials covering a konnektion store's whole prefix
@@ -6903,10 +7372,10 @@ type Mutation {
   requestGeneralKonnektionAccess(input: RequestGeneralKonnektionAccessInput!): GeneralKonnektionAccessGrant!
 
   """Request an upload grant for a Parquet store"""
-  requestParquetUpload(input: RequestParquetUploadInput!): ParquetUploadGrant! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  requestParquetUpload(input: RequestParquetUploadInput!): ParquetUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Finalize a Parquet upload after the client has written the object"""
-  finishParquetUpload(input: FinishParquetUploadInput!): ParquetStore! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  finishParquetUpload(input: FinishParquetUploadInput!): ParquetStore! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Request temporary S3 read credentials for a Parquet file"""
   requestParquetAccess(input: RequestParquetAccessInput!): ParquetAccessGrant!
@@ -6919,475 +7388,490 @@ type Mutation {
   """
   Create a new dataset from array-like data with optional coordinate anchors and OME metadata
   """
-  createArrayDataset(input: CreateArrayDatasetInput!): ArrayDataset! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createArrayDataset(input: CreateArrayDatasetInput!): ArrayDataset! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Rename a dataset or redescribe it -- the whole of what is editable, and audited on `provenanceEntries`. Its arrays, axes and coordinate systems are fixed at creation; a recomputation is a new dataset
   """
-  updateArrayDataset(input: UpdateArrayDatasetInput!): ArrayDataset! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  updateArrayDataset(input: UpdateArrayDatasetInput!): ArrayDataset! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Nominate the scene to open for a dataset, and take its thumbnail from. Null clears it
   """
-  setDefaultScene(input: SetDefaultSceneInput!): ArrayDataset! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  setDefaultScene(input: SetDefaultSceneInput!): ArrayDataset! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Delete an existing array dataset"""
-  deleteArrayDataset(input: DeleteArrayDatasetInput!): ID! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  deleteArrayDataset(input: DeleteArrayDatasetInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Attach a phasor distribution (the 2D g/s density at one axis and harmonic) to a dataset, so a client can range a phasor overlay without reading the cube
   """
-  createPhasorHistogram(input: CreatePhasorHistogramInput!): PhasorHistogram! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createPhasorHistogram(input: CreatePhasorHistogramInput!): PhasorHistogram! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Attach an instrument-response correction to a dataset, taking a raw phasor to a calibrated one
   """
-  createPhasorCalibration(input: CreatePhasorCalibrationInput!): PhasorCalibration! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createPhasorCalibration(input: CreatePhasorCalibrationInput!): PhasorCalibration! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Attach metadata spokes to an array, table or sparse dataset after ingest: a microscope state, OME metadata, a value histogram, a channel label or a light path, pinned to some of its coordinates. Get-or-create on (container, coordinates): a second call at the same coordinates adds its spokes to the one anchor, and a spoke stated twice is replaced
   """
-  createCoordinateAnchor(input: CreateCoordinateAnchorInput!): CoordinateAnchor! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createCoordinateAnchor(input: CreateCoordinateAnchorInput!): CoordinateAnchor! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Create a SHARED coordinate system (an ownerless space) and, in one call, author the edges registering any number of sources (datasets, table datasets, mesh collections, coordinate systems) into it
   """
-  createCoordinateSystem(input: CreateCoordinateSystemInput!): CoordinateSystem! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createCoordinateSystem(input: CreateCoordinateSystemInput!): CoordinateSystem! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Rename a shared coordinate system or anchor its clock. Shared spaces only -- an owned system's name is its container's business, and where data sits is an edge (updateTransformation), not a property of the space
   """
-  updateCoordinateSystem(input: UpdateCoordinateSystemInput!): CoordinateSystem! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  updateCoordinateSystem(input: UpdateCoordinateSystemInput!): CoordinateSystem! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Delete an unused shared coordinate system. Refused while any scene is rooted in it or any transformation edge touches it. This is the only door a shared space leaves through -- deleting a scene never deletes one. Other system kinds cascade with their owner and cannot be deleted directly
   """
-  deleteCoordinateSystem(input: DeleteCoordinateSystemInput!): ID! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  deleteCoordinateSystem(input: DeleteCoordinateSystemInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Delete every registration INTO a shared space in one call, returning the deleted edge ids. The space, the scenes over it (their layers drop to UNREGISTERED) and the space's own claims into wider spaces all survive. Guarded by the space's creator: clearing a space is the space-owner's act
   """
-  clearCoordinateSystem(input: ClearCoordinateSystemInput!): [ID!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  clearCoordinateSystem(input: ClearCoordinateSystemInput!): [ID!]! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Delete every orphaned shared space in the organization -- no scene rooted in it, no edge touching it -- and return the deleted ids. The cleanup sweep for the no-garbage-collection policy: scene deletion never deletes a space, this call takes the leftovers back. Org admins sweep every orphan; anyone else sweeps only their own
   """
-  deleteOrphanedCoordinateSystems: [ID!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  deleteOrphanedCoordinateSystems: [ID!]! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Draw an annotation into a collection, or onto a scene (exactly one of the two). Drawing on a scene finds its annotation collection or mints it on first use: a coordinate system copying the world's axes, an identity registration into the world, and one annotation layer
   """
-  createAnnotation(input: CreateAnnotationInput!): Annotation! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createAnnotation(input: CreateAnnotationInput!): Annotation! @auth(any_role_of: ["admin", "editor", "bot"], allow_scoped: true)
 
   """
   Draw many annotations in one call, into a collection or onto a scene (exactly one of the two, same semantics as createAnnotation). The transform chain and version resolve once for the whole batch, and the rows insert in bulk
   """
-  createAnnotations(input: CreateAnnotationsInput!): [Annotation!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createAnnotations(input: CreateAnnotationsInput!): [Annotation!]! @auth(any_role_of: ["admin", "editor", "bot"], allow_scoped: true)
 
   """
   Edit an annotation: name, kind, vectors, pins or styling. New vectors re-derive the bounding box against the current transform chain
   """
-  updateAnnotation(input: UpdateAnnotationInput!): Annotation! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  updateAnnotation(input: UpdateAnnotationInput!): Annotation! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Delete an existing annotation"""
-  deleteAnnotation(input: DeleteAnnotationInput!): ID! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  deleteAnnotation(input: DeleteAnnotationInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Create an annotation collection explicitly, in a coordinate system of its own, optionally derived from the system the shapes are drawn over. The common path -- drawing on a scene -- goes through createAnnotation instead, which mints the scene's collection on first use
   """
-  createAnnotationCollection(input: CreateAnnotationCollectionInput!): AnnotationCollection! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createAnnotationCollection(input: CreateAnnotationCollectionInput!): AnnotationCollection! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Delete an annotation collection. Its coordinate system, its annotations and its layers cascade with it
   """
-  deleteAnnotationCollection(input: DeleteAnnotationCollectionInput!): ID! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  deleteAnnotationCollection(input: DeleteAnnotationCollectionInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   The array lens making a selection over a dataset by slices: the one that exists for that selection, or a new one with its coordinate system and its edge back into the dataset's grid
   """
-  createLens(input: CreateLensInput!): ArrayLens! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createLens(input: CreateLensInput!): ArrayLens! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   The lens keeping these windows of a table dataset's coordinate columns: the one that exists, or a new one. It lives in the table's own space
   """
-  createTableLens(input: CreateTableLensInput!): TableLens! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createTableLens(input: CreateTableLensInput!): TableLens! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   The lens keeping these windows of a sparse dataset's axes: the one that exists, or a new one. A subset of positions, never a re-indexing
   """
-  createSparseLens(input: CreateSparseLensInput!): SparseLens! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createSparseLens(input: CreateSparseLensInput!): SparseLens! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   The lens keeping these windows of a mesh collection's own space: the one that exists, or a new one
   """
-  createMeshLens(input: CreateMeshLensInput!): MeshLens! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createMeshLens(input: CreateMeshLensInput!): MeshLens! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   The lens keeping these windows of a network collection's own space: the one that exists, or a new one
   """
-  createNetworkLens(input: CreateNetworkLensInput!): NetworkLens! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createNetworkLens(input: CreateNetworkLensInput!): NetworkLens! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   The lens keeping these windows of an annotation collection's drawing space: the one that exists, or a new one
   """
-  createAnnotationLens(input: CreateAnnotationLensInput!): AnnotationLens! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createAnnotationLens(input: CreateAnnotationLensInput!): AnnotationLens! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Rename a lens, or clear its name. What it selects cannot change: a different selection is a different lens
   """
-  updateLens(input: UpdateLensInput!): Lens! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  updateLens(input: UpdateLensInput!): Lens! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Nominate the scene to open for a lens, and take its thumbnail from. Null clears it. On an unsliced lens this writes its dataset's nomination: the lens is the dataset, looked at whole
   """
-  setLensDefaultScene(input: SetLensDefaultSceneInput!): Lens! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  setLensDefaultScene(input: SetLensDefaultSceneInput!): Lens! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Delete a lens of any kind. Refused while a layer draws through it, and for a container's whole lens
   """
-  deleteLens(input: DeleteLensInput!): ID! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  deleteLens(input: DeleteLensInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Create a new scene over a world coordinate system: an adopted existing system, or an ordinary SHARED one created for it (never owned by the scene -- it outlives it)
   """
-  createScene(input: CreateSceneInput!): Scene! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createScene(input: CreateSceneInput!): Scene! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Bootstrap a renderable scene over an existing coordinate system: a shared space (its registered sources become layers, up to the policy's nchildren) or an owned system such as a dataset's intrinsic grid or a physical space (the container's own data becomes the layer). The scene adopts the system as its world; no edges are authored. This is how a dataset is staged -- pass `intrinsicSystem` to render in pixels, or a physical space it is registered into to render at physical scale
   """
-  createSceneFromCoordinateSystem(input: CreateSceneFromCoordinateSystemInput!): Scene! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createSceneFromCoordinateSystem(input: CreateSceneFromCoordinateSystemInput!): Scene! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Bootstrap a renderable scene showing one lens of any kind: a crop, a sub-volume or the whole array as one layer per channel; a window over a table as a point or track layer; a window over a mesh, network or annotation collection as that layer. Composes in the dataset's intrinsic grid, or the container's own space, unless `world` names another space the lens reaches
   """
-  createSceneFromLens(input: CreateSceneFromLensInput!): Scene! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createSceneFromLens(input: CreateSceneFromLensInput!): Scene! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Set a scene's viewer preferences: how a client should open it"""
-  updateScene(input: UpdateSceneInput!): Scene! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  updateScene(input: UpdateSceneInput!): Scene! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Delete every layer of a scene, keeping the scene itself. A pure view-state reset: no coordinate system, registration or dataset is touched, and other scenes over the same space never notice
   """
-  clearScene(input: ClearSceneInput!): Scene! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  clearScene(input: ClearSceneInput!): Scene! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Delete an existing scene"""
-  deleteScene(input: DeleteSceneInput!): ID! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  deleteScene(input: DeleteSceneInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Create a chart: a composition of data laid out along one metric axis. Over an existing coordinate system with exactly one metric, unit-carrying axis, or over one created from a single axis
   """
-  createChart(input: CreateChartInput!): Chart! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createChart(input: CreateChartInput!): Chart! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Bootstrap a chart over an existing coordinate system, drawing every array, table and annotation collection already laid along its axis. Authors no edges
   """
-  createChartFromCoordinateSystem(input: CreateChartFromCoordinateSystemInput!): Chart! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createChartFromCoordinateSystem(input: CreateChartFromCoordinateSystemInput!): Chart! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Rename or re-describe a chart. Its world is fixed"""
-  updateChart(input: UpdateChartInput!): Chart! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  updateChart(input: UpdateChartInput!): Chart! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Delete a chart and its layers. The data they drew and the chart's world are untouched
   """
-  deleteChart(input: DeleteChartInput!): ID! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  deleteChart(input: DeleteChartInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Draw an array as a trace in a chart: a lens with one metric axis free, laid along the chart's axis by the graph, and optionally one CHANNEL or INDEX axis free as one line per position
   """
-  createTraceChartLayer(input: CreateTraceChartLayerInput!): TraceChartLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createTraceChartLayer(input: CreateTraceChartLayerInput!): TraceChartLayer! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Draw a table as a series in a chart: one numeric column as the value, against the coordinate column the graph lays along the chart's axis
   """
-  createSeriesChartLayer(input: CreateSeriesChartLayerInput!): SeriesChartLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createSeriesChartLayer(input: CreateSeriesChartLayerInput!): SeriesChartLayer! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Draw an annotation collection's marks in a chart, or make a new drawing surface for the chart when no collection is named
   """
-  createAnnotationChartLayer(input: CreateAnnotationChartLayerInput!): AnnotationChartLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createAnnotationChartLayer(input: CreateAnnotationChartLayerInput!): AnnotationChartLayer! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Restyle a chart layer. View state only"""
-  updateChartLayer(input: UpdateChartLayerInput!): ChartLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  updateChartLayer(input: UpdateChartLayerInput!): ChartLayer! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Delete a chart layer. Deletes nothing it drew"""
-  deleteChartLayer(input: DeleteChartLayerInput!): ID! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  deleteChartLayer(input: DeleteChartLayerInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
+
+  """
+  Record one value about an annotation or a dataset: a quantity or a code. Announced to the hub's rekuest (a CREATED @mikro/metric signal) once committed
+  """
+  createMetric(input: MetricInput!): Metric! @auth(any_role_of: ["admin", "editor", "bot"])
+
+  """
+  Record many values in one transaction. No signal is sent for each: a reader finds them in mikro's change feed
+  """
+  createMetrics(input: CreateMetricsInput!): [Metric!]! @auth(any_role_of: ["admin", "editor", "bot"])
+
+  """
+  Delete a metric. One a correction supersedes is kept while the correction stands
+  """
+  deleteMetric(input: DeleteMetricInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Show a coordinate system as whichever composition fits it: a chart over a space with exactly one metric, unit-carrying axis, a scene over any other space with a time or space axis. Bootstrapped from what already resides in the space; authors no edges
   """
-  autoVisualize(input: AutoVisualizeInput!): Visualization! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  autoVisualize(input: AutoVisualizeInput!): Visualization! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Create one edge of the coordinate graph, mapping an input coordinate system to an output one. This is where registration lives
   """
-  createTransformation(input: CreateTransformationInput!): Transformation! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createTransformation(input: CreateTransformationInput!): Transformation! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Refine a transformation's parameters, bumping its version"""
-  updateTransformation(input: UpdateTransformationInput!): Transformation! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  updateTransformation(input: UpdateTransformationInput!): Transformation! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Delete an existing transformation"""
-  deleteTransformation(input: DeleteTransformationInput!): ID! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  deleteTransformation(input: DeleteTransformationInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Un-register a source from a space by naming the source and the space rather than the edge. Deletes every edge from the source's space into that one -- rivals are allowed, so there is no single edge to mean -- and returns their ids. An UNMAPPABLE declaration is not a placement and is never matched
   """
-  deleteRegistration(input: DeleteRegistrationInput!): [ID!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  deleteRegistration(input: DeleteRegistrationInput!): [ID!]! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Register an immutable mesh collection against a coordinate system"""
-  createMeshCollection(input: CreateMeshCollectionInput!): MeshCollection! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createMeshCollection(input: CreateMeshCollectionInput!): MeshCollection! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Delete an existing mesh collection"""
-  deleteMeshCollection(input: DeleteMeshCollectionInput!): ID! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  deleteMeshCollection(input: DeleteMeshCollectionInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Register an immutable network collection from an uploaded konnektion store, in a coordinate system of its own
   """
-  createNetworkCollection(input: CreateNetworkCollectionInput!): NetworkCollection! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createNetworkCollection(input: CreateNetworkCollectionInput!): NetworkCollection! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Delete an existing network collection"""
-  deleteNetworkCollection(input: DeleteNetworkCollectionInput!): ID! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  deleteNetworkCollection(input: DeleteNetworkCollectionInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Create a sparse dataset from one uploaded sparse store, which holds the matrix in one or more layouts. A sparse matrix is a grid of numbers with no row labels and no column labels, so **every axis says what its positions are** through its own `identifiedBy` -- a source whose own contents are the ids (which authors a FIELD edge, and is what makes the matrix reachable from a layer over that source), or the table whose rows they are (which authors a foreign key and no edge). Carried on the axis, identified-exactly-once is a property of the input rather than a rule this enforces. Nothing about the matrix itself is declared: the spec, the shape, each layout's encoding and its chunking were read from the store when its upload was finished, and are checked against these axes rather than taken from them
   """
-  createSparseDataset(input: CreateSparseDatasetInput!): SparseDataset! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createSparseDataset(input: CreateSparseDatasetInput!): SparseDataset! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Rename a sparse dataset or redescribe it -- the whole of what is editable. Its stores, axes and coordinate system are fixed at creation; a recomputation is a new dataset
   """
-  updateSparseDataset(input: UpdateSparseDatasetInput!): SparseDataset! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  updateSparseDataset(input: UpdateSparseDatasetInput!): SparseDataset! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Delete an existing sparse dataset"""
-  deleteSparseDataset(input: DeleteSparseDatasetInput!): ID! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  deleteSparseDataset(input: DeleteSparseDatasetInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Create a table dataset from a Parquet store. Its declared coordinate columns become the axes of a coordinate system it owns, which lets a localization table be placed in a scene; a table with no coordinate columns is a measurement table whose rows enumerate objects and whose lineage edge is UNMAPPABLE
   """
-  createTableDataset(input: CreateTableDatasetInput!): TableDataset! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createTableDataset(input: CreateTableDatasetInput!): TableDataset! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Rename a table dataset or redescribe it -- the whole of what is editable. Its store, columns and coordinate system are fixed at creation; a recomputation is a new table
   """
-  updateTableDataset(input: UpdateTableDatasetInput!): TableDataset! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  updateTableDataset(input: UpdateTableDatasetInput!): TableDataset! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Delete an existing table dataset"""
-  deleteTableDataset(input: DeleteTableDatasetInput!): ID! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  deleteTableDataset(input: DeleteTableDatasetInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Create a general image layer: array (lens) data rendered through a composable render graph. The kind for a layer that actually composites -- several channels together, an authored transfer curve, a tint, per-channel opacity. For a recipe of fixed shape, createIntensityLayer, createRgbLayer, createVolumeLayer and createPhasorLayer make a layer of that kind, whose settings are fields rather than a tree
   """
-  createLayer(input: CreateLayerInput!): ImageLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createLayer(input: CreateLayerInput!): ImageLayer! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Delete an existing layer"""
-  deleteLayer(input: DeleteLayerInput!): ID! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  deleteLayer(input: DeleteLayerInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Update a general image layer's lens, scene, compositing settings and render graph. Refuses every other kind, naming the mutation that does write its settings -- a layer's kind is fixed for the life of the row
   """
-  updateLayer(input: UpdateLayerInput!): ImageLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  updateLayer(input: UpdateLayerInput!): ImageLayer! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Create an RGB layer: three channels of a lens as the red, green and blue components of one picture -- a photograph, a brightfield slide -- sharing one pair of contrast limits. Its own kind rather than a three-channel render graph, because as a graph it is indistinguishable from three fluorescence markers somebody tinted red, green and blue, which is the commoner reading. Never inferred from that shape: a bootstrapped scene reaches this kind only on evidence ingest recorded -- channels labelled red, green and blue, or arrays read out of a PNG -- so state it here for a photograph that arrived with neither
   """
-  createRgbLayer(input: CreateRgbLayerInput!): RgbLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createRgbLayer(input: CreateRgbLayerInput!): RgbLayer! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Update an RGB layer's channel indices, contrast limits and compositing settings. A patch: what is not sent keeps its current value
   """
-  updateRgbLayer(input: UpdateRgbLayerInput!): RgbLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  updateRgbLayer(input: UpdateRgbLayerInput!): RgbLayer! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Create an intensity layer: one channel of a lens through one colormap -- or one solid RGBA tint, for a colour that is a measured fact rather than a choice -- with contrast limits and gamma. The fluorescence workhorse, and its own kind -- its settings are fields, not a render graph, because there is nothing here to composite
   """
-  createIntensityLayer(input: CreateIntensityLayerInput!): IntensityLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createIntensityLayer(input: CreateIntensityLayerInput!): IntensityLayer! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Update an intensity layer's channel, colormap or tint, contrast limits, gamma, projection and compositing settings. A patch: what is not sent keeps its current value
   """
-  updateIntensityLayer(input: UpdateIntensityLayerInput!): IntensityLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  updateIntensityLayer(input: UpdateIntensityLayerInput!): IntensityLayer! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Create a label layer that renders an instance / segmentation map -- an array whose values are discrete object ids. Its own layer kind, not an image layer: ids take a hashed colour, a transparent background value and an optional `colorBy` over the table they key into, and none of an image's contrast limits, gamma or colormaps
   """
-  createLabelLayer(input: CreateLabelLayerInput!): LabelLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createLabelLayer(input: CreateLabelLayerInput!): LabelLayer! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Update a label layer's render settings -- the selection, contour, hashing seed or `colorBy`. A patch: what is not sent keeps its current value
   """
-  updateLabelLayer(input: UpdateLabelLayerInput!): LabelLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  updateLabelLayer(input: UpdateLabelLayerInput!): LabelLayer! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Create a single-channel layer rendered as a 3D volume projection (MIP / attenuated-MIP / volume / isosurface). Returns an IntensityLayer with `projectionMode` set, not a kind of its own: a projection collapses z, it does not composite anything, so it is a setting on one channel. Update it with updateIntensityLayer
   """
-  createVolumeLayer(input: CreateVolumeLayerInput!): IntensityLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createVolumeLayer(input: CreateVolumeLayerInput!): IntensityLayer! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Create a phasor layer, reducing one axis of a lens to a phasor and coloring each pixel by it: a lifetime overlay over a FLIM (microtime) cube, or a spectral one over a hyperspectral cube. For a phasor composited *with* an ordinary intensity channel, use createLayer with a PhasorNode in the graph
   """
-  createPhasorLayer(input: CreatePhasorLayerInput!): PhasorLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createPhasorLayer(input: CreatePhasorLayerInput!): PhasorLayer! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Update a phasor layer's axis, harmonic, color transfer and compositing settings. A patch: what is not sent keeps its current value, except `transfer`, which replaces the whole transfer when given
   """
-  updatePhasorLayer(input: UpdatePhasorLayerInput!): PhasorLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  updatePhasorLayer(input: UpdatePhasorLayerInput!): PhasorLayer! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Create a vector layer, drawing a vector-valued lens -- an optical flow, a deformation field, an orientation map -- as glyphs sampled from the grid. The lens must carry a DISPLACEMENT value axis of 2 or 3 positions; which axis that is is derived from the axes, never chosen here. What the layer carries is view state: a glyph style, a sampling stride, a magnitude scale and a magnitude colormap window
   """
-  createVectorLayer(input: CreateVectorLayerInput!): VectorLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createVectorLayer(input: CreateVectorLayerInput!): VectorLayer! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Update a vector layer's glyph style, sampling stride, magnitude scale, colormap window and compositing settings. A patch: what is not sent keeps its current value
   """
-  updateVectorLayer(input: UpdateVectorLayerInput!): VectorLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  updateVectorLayer(input: UpdateVectorLayerInput!): VectorLayer! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Create a layer that renders an annotation collection's drawn shapes in a scene. The explicit path for a second scene: the collection's system must already be registered into that scene's world
   """
-  createAnnotationLayer(input: CreateAnnotationLayerInput!): AnnotationLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createAnnotationLayer(input: CreateAnnotationLayerInput!): AnnotationLayer! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Create a layer that renders a point cloud (e.g. SMLM localisations, centroids) from columns of a table
   """
-  createPointLayer(input: CreatePointLayerInput!): PointLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createPointLayer(input: CreatePointLayerInput!): PointLayer! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Retune a point layer after creation -- above all, switch or republish its colour picker.
   """
-  updatePointLayer(input: UpdatePointLayerInput!): PointLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  updatePointLayer(input: UpdatePointLayerInput!): PointLayer! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Create a layer that renders trajectories from columns of a table, grouped by a track id
   """
-  createTrackLayer(input: CreateTrackLayerInput!): TrackLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createTrackLayer(input: CreateTrackLayerInput!): TrackLayer! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Retune a track layer after creation -- its line width, its colouring column and the compositing it takes part in.
   """
-  updateTrackLayer(input: UpdateTrackLayerInput!): TrackLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  updateTrackLayer(input: UpdateTrackLayerInput!): TrackLayer! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Create a layer that renders a 3D mesh (surface reconstruction / isosurface) in a scene
   """
-  createMeshLayer(input: CreateMeshLayerInput!): MeshLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createMeshLayer(input: CreateMeshLayerInput!): MeshLayer! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Retune how a mesh layer is drawn: its material, wireframe, compositing, and which table column colours its objects. A patch -- an omitted field keeps its value
   """
-  updateMeshLayer(input: UpdateMeshLayerInput!): MeshLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  updateMeshLayer(input: UpdateMeshLayerInput!): MeshLayer! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Create a layer that renders a node/edge network -- a traced arbor, a vessel tree, a connectome -- in a scene
   """
-  createNetworkLayer(input: CreateNetworkLayerInput!): NetworkLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createNetworkLayer(input: CreateNetworkLayerInput!): NetworkLayer! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Retune how a network layer is drawn: its colour, its widths, whether direction and nodes are drawn, and the compositing it takes part in. A patch -- an omitted field keeps its value
   """
-  updateNetworkLayer(input: UpdateNetworkLayerInput!): NetworkLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  updateNetworkLayer(input: UpdateNetworkLayerInput!): NetworkLayer! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Attach unstructured metadata to a file"""
-  attachUnstructuredMeta(input: UnstructuredMetaInput!): UnstructuredMeta! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  attachUnstructuredMeta(input: UnstructuredMetaInput!): UnstructuredMeta! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Record a link between a file and the data it encodes, after both already exist
   """
-  linkFile(input: LinkFileInput!): [FileLink!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  linkFile(input: LinkFileInput!): [FileLink!]! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Delete a file link"""
-  unlinkFile(input: UnlinkFileInput!): ID! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  unlinkFile(input: UnlinkFileInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Create a file from file-like data"""
-  fromFileLike(input: FromFileLike!): File! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  fromFileLike(input: FromFileLike!): File! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Delete an existing file"""
-  deleteFile(input: DeleteFileInput!): ID! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  deleteFile(input: DeleteFileInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Create a new folder to organize data"""
-  createFolder(input: CreateFolderInput!): Folder! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createFolder(input: CreateFolderInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Create a new folder to organize data"""
-  ensureFolder(input: CreateFolderInput!): Folder! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  ensureFolder(input: CreateFolderInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Update folder metadata"""
-  updateFolder(input: ChangeFolderInput!): Folder! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  updateFolder(input: ChangeFolderInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Revert folder to a previous version"""
-  revertFolder(input: RevertInput!): Folder! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  revertFolder(input: RevertInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Pin a folder for quick access"""
-  pinFolder(input: PinFolderInput!): Folder! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  pinFolder(input: PinFolderInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Delete an existing folder"""
-  deleteFolder(input: DeleteFolderInput!): ID! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  deleteFolder(input: DeleteFolderInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Add folders as children of another folder"""
-  putFoldersInFolder(input: AssociateInput!): Folder! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  putFoldersInFolder(input: AssociateInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Remove folders from being children of another folder"""
-  releaseFoldersFromFolder(input: DesociateInput!): Folder! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  releaseFoldersFromFolder(input: DesociateInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Add files to a folder"""
-  putFilesInFolder(input: AssociateInput!): Folder! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  putFilesInFolder(input: AssociateInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Remove files from a folder"""
-  releaseFilesFromFolder(input: DesociateInput!): Folder! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  releaseFilesFromFolder(input: DesociateInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """File array datasets in a folder"""
-  putArrayDatasetsInFolder(input: AssociateInput!): Folder! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  putArrayDatasetsInFolder(input: AssociateInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Unfile array datasets from a folder. They are not deleted, only unfiled
   """
-  releaseArrayDatasetsFromFolder(input: DesociateInput!): Folder! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  releaseArrayDatasetsFromFolder(input: DesociateInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """File table datasets in a folder"""
-  putTableDatasetsInFolder(input: AssociateInput!): Folder! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  putTableDatasetsInFolder(input: AssociateInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Unfile table datasets from a folder. They are not deleted, only unfiled
   """
-  releaseTableDatasetsFromFolder(input: DesociateInput!): Folder! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  releaseTableDatasetsFromFolder(input: DesociateInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """File mesh collections in a folder"""
-  putMeshCollectionsInFolder(input: AssociateInput!): Folder! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  putMeshCollectionsInFolder(input: AssociateInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Unfile mesh collections from a folder. They are not deleted, only unfiled
   """
-  releaseMeshCollectionsFromFolder(input: DesociateInput!): Folder! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  releaseMeshCollectionsFromFolder(input: DesociateInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """File annotation collections in a folder"""
-  putAnnotationCollectionsInFolder(input: AssociateInput!): Folder! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  putAnnotationCollectionsInFolder(input: AssociateInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Unfile annotation collections from a folder. They are not deleted, only unfiled
   """
-  releaseAnnotationCollectionsFromFolder(input: DesociateInput!): Folder! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  releaseAnnotationCollectionsFromFolder(input: DesociateInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Adopt an uploaded media file as a pre-rendered picture of a scene"""
-  createSceneSnapshot(input: SceneSnapshotInput!): SceneSnapshot! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createSceneSnapshot(input: SceneSnapshotInput!): SceneSnapshot! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Delete an existing scene snapshot"""
-  deleteSceneSnapshot(input: DeleteSceneSnapshotInput!): ID! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  deleteSceneSnapshot(input: DeleteSceneSnapshotInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Pin a scene snapshot for quick access"""
-  pinSceneSnapshot(input: PinSceneSnapshotInput!): SceneSnapshot! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  pinSceneSnapshot(input: PinSceneSnapshotInput!): SceneSnapshot! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Author a named camera tour of a scene"""
-  createAnimation(input: CreateAnimationInput!): Animation! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createAnimation(input: CreateAnimationInput!): Animation! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Re-author a camera tour: rename it, or replace its stops"""
-  updateAnimation(input: UpdateAnimationInput!): Animation! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  updateAnimation(input: UpdateAnimationInput!): Animation! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Delete an existing camera tour"""
-  deleteAnimation(input: DeleteAnimationInput!): ID! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  deleteAnimation(input: DeleteAnimationInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
 }
 
 """
 An immutable collection of networks, stored as one konnektion prefix. Ask its `store` for an access grant and query the Parquet directly (e.g. with DuckDB) rather than paginating nodes through GraphQL
 """
-type NetworkCollection @key(fields: "id", resolvable: true) {
+type NetworkCollection @key(fields: "id", resolvable: true) @identified(by: "@mikro/networkcollection") {
   """
   This object's descriptors, a flat mapping of key to value: the facts about it that an action's port can `require` and a trigger can test (e.g. `@mikro/n_channels`). The keys are the ones mikro declares for this structure, and the values are the ones a signal about the object carries. Empty for a structure that declares none
   """
@@ -7479,6 +7963,11 @@ input NetworkCollectionFilter {
   OR: NetworkCollectionFilter
   NOT: NetworkCollectionFilter
   DISTINCT: Boolean
+
+  """
+  Filter to the objects satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored on every row. A key the structure does not declare is refused rather than ignored
+  """
+  requires: [DescriptorConstraintInput!]
 
   """
   Search by the collection's label: its name, or its store's key (case-insensitive substring)
@@ -7690,7 +8179,7 @@ type NetworkLayer implements Layer @key(fields: "id", resolvable: true) {
 }
 
 """A selection over a network collection by windows in its own space"""
-type NetworkLens implements Lens @key(fields: "id", resolvable: true) {
+type NetworkLens implements Lens @key(fields: "id", resolvable: true) @identified(by: "@mikro/networklens") {
   id: ID!
 
   """
@@ -8182,7 +8671,7 @@ The `ParquetLike` scalar type represents a reference to a parquet object previou
 """
 scalar ParquetLike
 
-type ParquetStore @key(fields: "id", resolvable: true) {
+type ParquetStore @key(fields: "id", resolvable: true) @identified(by: "@mikro/parquetstore") {
   id: ID!
   path: String!
   bucket: String!
@@ -8902,237 +9391,258 @@ type Query {
   _service: _Service!
 
   """List the Rekuest tasks under which objects were created or changed"""
-  tasks(filters: TaskFilter, ordering: [TaskOrder!]! = [], pagination: OffsetPaginationInput): [Task!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  tasks(filters: TaskFilter, ordering: [TaskOrder!]! = [], pagination: OffsetPaginationInput): [Task!]! @auth
 
   """List folders (collections of images, files and tables)"""
-  folders(filters: FolderFilter, ordering: [FolderOrder!]! = [], pagination: OffsetPaginationInput): [Folder!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  folders(filters: FolderFilter, ordering: [FolderOrder!]! = [], pagination: OffsetPaginationInput): [Folder!]! @auth
 
   """List folders created by the current user"""
-  myfolders(filters: FolderFilter, ordering: [FolderOrder!]! = [], pagination: OffsetPaginationInput): [Folder!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  myfolders(filters: FolderFilter, ordering: [FolderOrder!]! = [], pagination: OffsetPaginationInput): [Folder!]! @auth
 
   """List scenes (compositions of layers over array datasets)"""
-  scenes(filters: SceneFilter, ordering: [SceneOrder!]! = [], pagination: OffsetPaginationInput): [Scene!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  scenes(filters: SceneFilter, ordering: [SceneOrder!]! = [], pagination: OffsetPaginationInput): [Scene!]! @auth
 
   """Get a single scene by ID"""
-  scene(id: ID!): Scene! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  scene(id: ID!): Scene! @auth
 
   """List layers placed in scenes (a heterogeneous list of layer kinds)"""
-  layers(filters: LayerFilter, ordering: [LayerOrder!]! = [], pagination: OffsetPaginationInput): [Layer!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  layers(filters: LayerFilter, ordering: [LayerOrder!]! = [], pagination: OffsetPaginationInput): [Layer!]! @auth
 
   """Get a single layer by ID"""
-  layer(id: ID!): Layer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  layer(id: ID!): Layer! @auth
+
+  """
+  List the organization's collaborations: what a guest granted one sees of it (a guest: the collaborations granted to them)
+  """
+  collaborations: [Collaboration!]! @auth
+
+  """Get a single collaboration by ID"""
+  collaboration(id: ID!): Collaboration! @auth
 
   """List charts (compositions of data laid out along one metric axis)"""
-  charts(filters: ChartFilter, ordering: [ChartOrder!]! = [], pagination: OffsetPaginationInput): [Chart!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  charts(filters: ChartFilter, ordering: [ChartOrder!]! = [], pagination: OffsetPaginationInput): [Chart!]! @auth
 
   """Get a single chart by ID"""
-  chart(id: ID!): Chart! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  chart(id: ID!): Chart! @auth
 
   """List layers drawn in charts (a heterogeneous list of layer kinds)"""
-  chartLayers(filters: ChartLayerFilter, ordering: [ChartLayerOrder!]! = [], pagination: OffsetPaginationInput): [ChartLayer!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  chartLayers(filters: ChartLayerFilter, ordering: [ChartLayerOrder!]! = [], pagination: OffsetPaginationInput): [ChartLayer!]! @auth
 
   """Get a single chart layer by ID"""
-  chartLayer(id: ID!): ChartLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  chartLayer(id: ID!): ChartLayer! @auth
+
+  """
+  List metrics: values recorded about annotations and datasets, by apps and people
+  """
+  metrics(filters: MetricFilter, ordering: [MetricOrder!]! = [], pagination: OffsetPaginationInput): [Metric!]! @auth
+
+  """Get a single metric by ID"""
+  metric(id: ID!): Metric! @auth
 
   """
   List lenses: selections over array datasets (by slices) and over tables, sparse datasets, meshes, networks and annotation collections (by windows), a heterogeneous list of lens kinds
   """
-  lenses(filters: LensFilter, ordering: [LensOrder!]! = [], pagination: OffsetPaginationInput): [Lens!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  lenses(filters: LensFilter, ordering: [LensOrder!]! = [], pagination: OffsetPaginationInput): [Lens!]! @auth
 
   """Get a single lens of any kind by ID"""
-  lens(id: ID!): Lens! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  lens(id: ID!): Lens! @auth
 
   """
   List array datasets (N-dimensional arrays with named dimensions and anchored metadata)
   """
-  arrayDatasets(filters: ArrayDatasetFilter, ordering: [ArrayDatasetOrder!]! = [], pagination: OffsetPaginationInput): [ArrayDataset!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  arrayDatasets(filters: ArrayDatasetFilter, ordering: [ArrayDatasetOrder!]! = [], pagination: OffsetPaginationInput): [ArrayDataset!]! @auth
 
   """Get a single array dataset by ID"""
-  arrayDataset(id: ID!): ArrayDataset! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  arrayDataset(id: ID!): ArrayDataset! @auth
 
   """List data arrays (the multiscale zarr arrays backing array datasets)"""
-  dataArrays(filters: DataArrayFilter, ordering: [DataArrayOrder!]! = [], pagination: OffsetPaginationInput): [DataArray!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  dataArrays(filters: DataArrayFilter, ordering: [DataArrayOrder!]! = [], pagination: OffsetPaginationInput): [DataArray!]! @auth
 
   """Get a single data array by ID"""
-  dataArray(id: ID!): DataArray! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  dataArray(id: ID!): DataArray! @auth
 
   """
   List coordinate anchors (the hubs pinning metadata spokes to coordinates of an array, table or sparse dataset)
   """
-  coordinateAnchors(filters: CoordinateAnchorFilter, pagination: OffsetPaginationInput): [CoordinateAnchor!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  coordinateAnchors(filters: CoordinateAnchorFilter, pagination: OffsetPaginationInput): [CoordinateAnchor!]! @auth
 
   """
   List annotations (human-drawn shapes, each in its collection's coordinate system)
   """
-  annotations(filters: AnnotationFilter, ordering: [AnnotationOrder!]! = [], pagination: OffsetPaginationInput): [Annotation!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  annotations(filters: AnnotationFilter, ordering: [AnnotationOrder!]! = [], pagination: OffsetPaginationInput): [Annotation!]! @auth
 
   """Get a single annotation by ID"""
-  annotation(id: ID!): Annotation! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  annotation(id: ID!): Annotation! @auth
 
   """
   List annotation collections (named sets of human-drawn shapes, each owning the coordinate system they are drawn in)
   """
-  annotationCollections(filters: AnnotationCollectionFilter, ordering: [AnnotationCollectionOrder!]! = [], pagination: OffsetPaginationInput): [AnnotationCollection!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  annotationCollections(filters: AnnotationCollectionFilter, ordering: [AnnotationCollectionOrder!]! = [], pagination: OffsetPaginationInput): [AnnotationCollection!]! @auth
 
   """Get a single annotation collection by ID"""
-  annotationCollection(id: ID!): AnnotationCollection! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  annotationCollection(id: ID!): AnnotationCollection! @auth
 
   """List coordinate systems (the nodes of the RFC-5 coordinate graph)"""
-  coordinateSystems(filters: CoordinateSystemFilter, ordering: [CoordinateSystemOrder!]! = [], pagination: OffsetPaginationInput): [CoordinateSystem!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  coordinateSystems(filters: CoordinateSystemFilter, ordering: [CoordinateSystemOrder!]! = [], pagination: OffsetPaginationInput): [CoordinateSystem!]! @auth
 
   """Get a single coordinate system by ID"""
-  coordinateSystem(id: ID!): CoordinateSystem! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  coordinateSystem(id: ID!): CoordinateSystem! @auth
 
   """
   List transformations (the directed edges of the coordinate graph). Compose them client-side; the server never resolves a path to world, because the same dataset can sit in two scenes under two registrations
   """
-  transformations(filters: TransformationFilter, ordering: [TransformationOrder!]! = [], pagination: OffsetPaginationInput): [Transformation!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  transformations(filters: TransformationFilter, ordering: [TransformationOrder!]! = [], pagination: OffsetPaginationInput): [Transformation!]! @auth
 
   """Get a single transformation by ID"""
-  transformation(id: ID!): Transformation! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  transformation(id: ID!): Transformation! @auth
 
   """
   List mesh collections (immutable Parquet-backed mesh sets, each in a coordinate system of its own)
   """
-  meshCollections(filters: MeshCollectionFilter, pagination: OffsetPaginationInput): [MeshCollection!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  meshCollections(filters: MeshCollectionFilter, pagination: OffsetPaginationInput): [MeshCollection!]! @auth
 
   """Get a single mesh collection by ID"""
-  meshCollection(id: ID!): MeshCollection! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  meshCollection(id: ID!): MeshCollection! @auth
 
   """
   List network collections (immutable Parquet-backed node/edge networks, each in a coordinate system of its own)
   """
-  networkCollections(filters: NetworkCollectionFilter, pagination: OffsetPaginationInput): [NetworkCollection!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  networkCollections(filters: NetworkCollectionFilter, pagination: OffsetPaginationInput): [NetworkCollection!]! @auth
 
   """Get a single network collection by ID"""
-  networkCollection(id: ID!): NetworkCollection! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  networkCollection(id: ID!): NetworkCollection! @auth
 
   """
   List sparse datasets (matrices over two enumerated axes, stored as anndata-spelled zarr groups)
   """
-  sparseDatasets(filters: SparseDatasetFilter, ordering: [SparseDatasetOrder!]! = [], pagination: OffsetPaginationInput): [SparseDataset!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  sparseDatasets(filters: SparseDatasetFilter, ordering: [SparseDatasetOrder!]! = [], pagination: OffsetPaginationInput): [SparseDataset!]! @auth
 
   """Get a single sparse dataset by ID"""
-  sparseDataset(id: ID!): SparseDataset! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  sparseDataset(id: ID!): SparseDataset! @auth
 
   """
   List table datasets (Parquet-backed tables of scientific records: measurements, localizations, expression levels)
   """
-  tableDatasets(filters: TableDatasetFilter, ordering: [TableDatasetOrder!]! = [], pagination: OffsetPaginationInput): [TableDataset!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  tableDatasets(filters: TableDatasetFilter, ordering: [TableDatasetOrder!]! = [], pagination: OffsetPaginationInput): [TableDataset!]! @auth
 
   """Get a single table dataset by ID"""
-  tableDataset(id: ID!): TableDataset! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  tableDataset(id: ID!): TableDataset! @auth
 
   """
   List scene snapshots (pre-rendered pictures of a composition, for previewing it without compositing the layers)
   """
-  sceneSnapshots(filters: SceneSnapshotFilter, ordering: [SceneSnapshotOrder!]! = [], pagination: OffsetPaginationInput): [SceneSnapshot!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  sceneSnapshots(filters: SceneSnapshotFilter, ordering: [SceneSnapshotOrder!]! = [], pagination: OffsetPaginationInput): [SceneSnapshot!]! @auth
 
   """List animations (named camera tours through a scene)"""
-  animations(filters: AnimationFilter, ordering: [AnimationOrder!]! = [], pagination: OffsetPaginationInput): [Animation!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  animations(filters: AnimationFilter, ordering: [AnimationOrder!]! = [], pagination: OffsetPaginationInput): [Animation!]! @auth
 
   """List files (raw microscopy files such as .czi or .ome.tiff)"""
-  files(filters: FileFilter, ordering: [FileOrder!]! = [], pagination: OffsetPaginationInput): [File!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  files(filters: FileFilter, ordering: [FileOrder!]! = [], pagination: OffsetPaginationInput): [File!]! @auth
 
   """List files created by the current user"""
-  myfiles(filters: FileFilter, ordering: [FileOrder!]! = [], pagination: OffsetPaginationInput): [File!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  myfiles(filters: FileFilter, ordering: [FileOrder!]! = [], pagination: OffsetPaginationInput): [File!]! @auth
 
   """
   Get statistics about array datasets: counts and time-bucketed series over the datasets of the current organization
   """
-  arrayDatasetsStats(filters: ArrayDatasetFilter = null): ArrayDatasetStats! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  arrayDatasetsStats(filters: ArrayDatasetFilter = null): ArrayDatasetStats! @auth
 
   """
   The k annotations of one collection nearest to a point, by cube distance between the point and each annotation's intrinsic bounding box (GiST-accelerated; 0 inside the box). Scoped to one collection because boxes only compare within one frame; the point is in the collection's nearest-intrinsic space, in its coordinate order
   """
-  nearestAnnotations(collection: ID!, point: [Float!]!, limit: Int! = 10): [Annotation!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  nearestAnnotations(collection: ID!, point: [Float!]!, limit: Int! = 10): [Annotation!]! @auth
 
   """
   Walk the coordinate graph out from one system: every coordinate system it reaches and every edge between them. Reachability is undirected (an edge pointing into the system relates to it as much as one pointing out), the edges keep their true direction, and nothing is composed -- what the list queries cannot answer is 'which edges relate to *this* one', because relatedness is transitive and a filter is not
   """
-  coordinateGraph(coordinateSystem: ID!, maxDepth: Int = null): CoordinateGraph! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  coordinateGraph(coordinateSystem: ID!, maxDepth: Int = null): CoordinateGraph! @auth
 
   """
   Walk the *derivation* edges out from one container and return its provenance component: everything this data was computed from, everything computed from it, transitively in both directions, and the edges between them. Distinct from `coordinateGraph`, which walks every edge touching a space -- a registration there drags in every other dataset registered into the same world, which is a neighbourhood rather than a lineage. Nodes are containers, not spaces: a dataset's grid, its levels and its lenses are one node in a provenance story. Kind-blind, so an UNMAPPABLE edge is included and is the point -- that is how a measurement table hangs off the mask it was measured from; filter on `kind` for the chain that actually places things. Root it at any container's coordinate system
   """
-  lineageGraph(coordinateSystem: ID!, maxDepth: Int = null): LineageGraph! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  lineageGraph(coordinateSystem: ID!, maxDepth: Int = null): LineageGraph! @auth
+
+  """
+  The directed lineage around one container or file: `up` hops of what it was made from and `down` hops of what was made from it, with the tasks that made each step and the files it was ingested from or exported to. One recursive walk per direction, so the cost follows the lineage and not the organization. A node whose hops were cut off -- by depth, by `fanout` per node or by `limit` overall -- says so in `hasMoreUp`/`hasMoreDown`; walk again rooted there to continue. Unlike `lineageGraph` it never turns sideways: a node's siblings appear once its parent is walked from
+  """
+  lineage(start: LineageRootInput!, up: Int! = 1, down: Int! = 3, limit: Int! = 300, fanout: Int! = 50): Lineage! @auth
 
   """
   Every attribute plan reachable from one system: one per FIELD edge landing on a table, discovered across the fact component -- probe a source image and the plans of the instance mask derived from it come back, each carrying the `path` of steps from the probed system to its root. Registrations are never crossed (no scene, no world). A plan is instructions, never attributes -- map along the path, sample this array, look the value up in this parquet -- and takes no coordinate, so a client fetches it once and executes it per hover against the chunks it is already rendering. Cache it against the FIELD edge plus every path step (ids and versions); `maxDepth` bounds the discovery. Each plan is a chain of `hops`: the landing, then every declared reference reachable from it -- `Column.references` into another table, a matrix axis a table identifies, or the same axis walked into the matrix -- up to `maxJoinDepth` (default 1, at most 4; 0 is the landing alone), each bound from the hop before and executed by the client in order. The server reads no store and composes nothing
   """
-  attributePlans(system: ID!, maxDepth: Int = null, maxJoinDepth: Int! = 1): [AttributePlan!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  attributePlans(system: ID!, maxDepth: Int = null, maxJoinDepth: Int! = 1): [AttributePlan!]! @auth
 
   """
   Every column a mesh collection's objects can be coloured or filtered by: one entry per (joinPath, table, column), with the control its declared role admits. **The set this returns is exactly the set `createMeshLayer(colorBys:)` and `filterBys` accept** -- same reachability walk, same measure-vs-categorical rule -- which is what makes it an options query rather than a suggestion. Distinct from `attributePlans`, which answers a different question (how to execute a lookup per hover) over a different set: it walks the whole fact component and returns plans rooted at a source mask that mesh ids cannot execute, drops tables the write path accepts, and fails outright on a storeless array. Both pickers read these same options, because both branch on the same split. `joinPath` follows `references` from table to table -- pass an option's path back verbatim to select it. The columns' *values* are not here: a picker wanting a class list or a numeric range reads them from the parquet it already has an `accessGrant` for
   """
-  colorByOptions(meshCollection: ID!, filters: ColumnOptionFilter = null, pagination: OffsetPaginationInput = null, maxJoinDepth: Int! = 1): [ColorByOption!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  colorByOptions(meshCollection: ID!, filters: ColumnOptionFilter = null, pagination: OffsetPaginationInput = null, maxJoinDepth: Int! = 1): [ColorByOption!]! @auth
 
   """
   Every column a mesh collection's objects can be filtered by -- **the same set `colorByOptions` returns**, under the name that reads right where a rule is being authored. One relation, one walk, two names: a colouring and a rule reach the same column through the same join and branch on the same measure-vs-categorical split, so two different sets would mean one of them was wrong. What differs is what a control *means*: MEASURE takes a `min`/`max` bound here and a colormap there. Same arguments, same `joinPath` to pass back, same invariant -- everything returned is something `createMeshLayer(filterBys:)` accepts
   """
-  filterByOptions(meshCollection: ID!, filters: ColumnOptionFilter = null, pagination: OffsetPaginationInput = null, maxJoinDepth: Int! = 1): [FilterByOption!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  filterByOptions(meshCollection: ID!, filters: ColumnOptionFilter = null, pagination: OffsetPaginationInput = null, maxJoinDepth: Int! = 1): [FilterByOption!]! @auth
 
   """
   Everything a network layer over one collection can be coloured or filtered by. **The set this returns is exactly the set `createNetworkLayer(colorBys:)` and `filterBys` accept.** Two halves in one list: the GRAPH options first -- the per-node values the collection itself carries (Strahler order, degree, depth, component, a stored radius, a writer's own column), named by `graphAttribute` and always MEASURE -- then the COLUMN and SPARSE options from the shared reachability walk, rooted at depth zero so only tables keyed by this collection's **object** ids (via `createTableDataset(keyedBy: {kind: NETWORK_COLLECTION})`) are offered; the wider fact walk would offer the source image's mask-keyed tables, joins an object id cannot execute. Same arguments, same `joinPath` to pass back, same no-values rule as every other options query
   """
-  networkColorByOptions(networkCollection: ID!, filters: ColumnOptionFilter = null, pagination: OffsetPaginationInput = null, maxJoinDepth: Int! = 1): [ColorByOption!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  networkColorByOptions(networkCollection: ID!, filters: ColumnOptionFilter = null, pagination: OffsetPaginationInput = null, maxJoinDepth: Int! = 1): [ColorByOption!]! @auth
 
   """
   Everything a network layer over one collection can be filtered by -- **the same set `networkColorByOptions` returns**, under the name that reads right where a rule is being authored. A GRAPH option is the one whose rule is per node: `min`/`max` bounds over Strahler order, degree or a radius hide individual nodes and segments, where a COLUMN or SPARSE rule keeps or drops whole objects. Everything returned is something `createNetworkLayer(filterBys:)` accepts
   """
-  networkFilterByOptions(networkCollection: ID!, filters: ColumnOptionFilter = null, pagination: OffsetPaginationInput = null, maxJoinDepth: Int! = 1): [FilterByOption!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  networkFilterByOptions(networkCollection: ID!, filters: ColumnOptionFilter = null, pagination: OffsetPaginationInput = null, maxJoinDepth: Int! = 1): [FilterByOption!]! @auth
 
   """
   Every column a mask's objects can be coloured or filtered by: `colorByOptions` rooted on the lens a label layer renders instead of on a mesh collection, and the same answer for the same reason -- a mask's pixel values dereference into a table by exactly the FIELD edge a collection's ids do, so the walk, the measure-vs-categorical rule and the `joinPath` to pass back are one. **The set this returns is exactly the set `createLabelLayer(render: {colorBys: ...})` and `filterBys` accept.** The columns' *values* are not here: a picker wanting a class list or a numeric range reads them from the parquet it already has an `accessGrant` for
   """
-  labelColorByOptions(lens: ID!, filters: ColumnOptionFilter = null, pagination: OffsetPaginationInput = null, maxJoinDepth: Int! = 1): [ColorByOption!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  labelColorByOptions(lens: ID!, filters: ColumnOptionFilter = null, pagination: OffsetPaginationInput = null, maxJoinDepth: Int! = 1): [ColorByOption!]! @auth
 
   """
   Every column a mask's objects can be filtered by -- **the same set `labelColorByOptions` returns**, under the name that reads right where a rule is being authored. One relation, one walk, two names, exactly as `filterByOptions` pairs with `colorByOptions` over a collection: what differs is what a control *means*, since MEASURE takes a `min`/`max` bound here and a colormap there. Everything returned is something `createLabelLayer(render: {filterBys: ...})` accepts
   """
-  labelFilterByOptions(lens: ID!, filters: ColumnOptionFilter = null, pagination: OffsetPaginationInput = null, maxJoinDepth: Int! = 1): [FilterByOption!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  labelFilterByOptions(lens: ID!, filters: ColumnOptionFilter = null, pagination: OffsetPaginationInput = null, maxJoinDepth: Int! = 1): [FilterByOption!]! @auth
 
   """List the child folders of a folder"""
-  children(parent: ID!, filters: FolderChildrenFilter = null, pagination: ChildrenPaginationInput = null, order: ChildrenOrder = null): [FolderChild!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  children(parent: ID!, filters: FolderChildrenFilter = null, pagination: ChildrenPaginationInput = null, order: ChildrenOrder = null): [FolderChild!]! @auth
 
   """Get permissions for a specific object"""
-  permissions(identifier: String!, object: ID!): [UserObjectPermission!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  permissions(identifier: String!, object: ID!): [UserObjectPermission!]! @auth
 
   """Get available permissions for a specific identifier"""
-  availablePermissions(identifier: String!, search: String = null, values: [ID!] = null): [PermissionOption!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  availablePermissions(identifier: String!, search: String = null, values: [ID!] = null): [PermissionOption!]! @auth
 
   """List the memberships of the current organization (excluding bots)"""
-  members: [Membership!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  members: [Membership!]! @auth
 
   """Get a single Rekuest task by ID"""
   task(
     """The unique identifier of an object"""
     id: ID!
-  ): Task! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  ): Task! @auth
 
   """Get a single scene snapshot by ID"""
   sceneSnapshot(
     """The unique identifier of an object"""
     id: ID!
-  ): SceneSnapshot! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  ): SceneSnapshot! @auth
 
   """Get a single animation by ID"""
   animation(
     """The unique identifier of an object"""
     id: ID!
-  ): Animation! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  ): Animation! @auth
 
   """Get a single file by ID"""
   file(
     """The unique identifier of an object"""
     id: ID!
-  ): File! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  ): File! @auth
 
   """Get a single folder by ID"""
   folder(
     """The unique identifier of an object"""
     id: ID!
-  ): Folder! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  ): Folder! @auth
 }
 
 input RefreshSparseUploadInput {
@@ -9383,7 +9893,7 @@ input RotationTransformInput @unionElementOf(union: "TransformInput", discrimina
 }
 
 """A rotation, given as an orthonormal matrix"""
-type RotationTransformation implements Transformation @key(fields: "id", resolvable: true) {
+type RotationTransformation implements Transformation @key(fields: "id", resolvable: true) @identified(by: "@mikro/transformation") {
   id: ID!
   kind: TransformKind!
   name: String
@@ -9564,7 +10074,7 @@ input ScaleTransformInput @unionElementOf(union: "TransformInput", discriminator
 }
 
 """A per-axis multiplication, with one entry per input axis"""
-type ScaleTransformation implements Transformation @key(fields: "id", resolvable: true) {
+type ScaleTransformation implements Transformation @key(fields: "id", resolvable: true) @identified(by: "@mikro/transformation") {
   id: ID!
   kind: TransformKind!
   name: String
@@ -9631,7 +10141,7 @@ type ScaleTransformation implements Transformation @key(fields: "id", resolvable
 """
 A composition of layers over a shared world coordinate system. The scene carries no units of its own -- they are per-axis, on the axes of its world system
 """
-type Scene implements Visualization @key(fields: "id", resolvable: true) {
+type Scene implements Visualization @key(fields: "id", resolvable: true) @identified(by: "@mikro/scene") {
   id: ID!
   name: String!
 
@@ -9705,6 +10215,11 @@ input SceneFilter {
   NOT: SceneFilter
   DISTINCT: Boolean
 
+  """
+  Filter to the objects satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored on every row. A key the structure does not declare is refused rather than ignored
+  """
+  requires: [DescriptorConstraintInput!]
+
   """Search by name (case-insensitive substring)"""
   search: String
 
@@ -9739,7 +10254,7 @@ input ScenePolicyInput {
 """
 A pre-rendered picture of a composition: every layer of the scene, blended. Clients use snapshots to preview without compositing the layers themselves. A picture of the scene, not of any one lens in it -- `Lens.latestSnapshot` and `ArrayDataset.latestSnapshot` offer the newest picture of the scene the lens nominates, which may stage other data too
 """
-type SceneSnapshot @key(fields: "id", resolvable: true) {
+type SceneSnapshot @key(fields: "id", resolvable: true) @identified(by: "@mikro/scenesnapshot") {
   """
   This object's descriptors, a flat mapping of key to value: the facts about it that an action's port can `require` and a trigger can test (e.g. `@mikro/n_channels`). The keys are the ones mikro declares for this structure, and the values are the ones a signal about the object carries. Empty for a structure that declares none
   """
@@ -9854,7 +10369,7 @@ input SelectorInput {
 """
 An ordered composition of steps, applied first to last: one edge, carrying its map as `steps`. The ingest writes one for a stepped lens and for a downsampled pyramid level (a scale, then the half-voxel translation)
 """
-type SequenceTransformation implements Transformation @key(fields: "id", resolvable: true) {
+type SequenceTransformation implements Transformation @key(fields: "id", resolvable: true) @identified(by: "@mikro/transformation") {
   id: ID!
   kind: TransformKind!
   name: String
@@ -10241,7 +10756,7 @@ input SparseColorByInput @unionElementOf(union: "LabelColorByInput", discriminat
 """
 A sparse matrix over two enumerated axes -- objects on one, features on the other -- stored as anndata-spelled zarr groups. It exists because a colouring names one *column*, so a colourable measurement is a column of a table: right for a few hundred features and impossible for a transcriptome, where a feature stops being a schema fact and becomes a data one. **Each axis is identified exactly once**, by its own `identifiedBy` -- a source whose contents are the ids, or the table whose rows the positions are. Its stores, axes and coordinate system are fixed at creation; a recomputation is a new dataset
 """
-type SparseDataset @key(fields: "id", resolvable: true) {
+type SparseDataset @key(fields: "id", resolvable: true) @identified(by: "@mikro/sparsedataset") {
   """
   This object's descriptors, a flat mapping of key to value: the facts about it that an action's port can `require` and a trigger can test (e.g. `@mikro/n_channels`). The keys are the ones mikro declares for this structure, and the values are the ones a signal about the object carries. Empty for a structure that declares none
   """
@@ -10361,6 +10876,11 @@ input SparseDatasetFilter {
   NOT: SparseDatasetFilter
   DISTINCT: Boolean
 
+  """
+  Filter to the objects satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored on every row. A key the structure does not declare is refused rather than ignored
+  """
+  requires: [DescriptorConstraintInput!]
+
   """Filter by the folder this sparse dataset is filed in"""
   folder: ID
 
@@ -10449,7 +10969,7 @@ type SparseLayout {
 """
 A selection over a sparse dataset by windows on its axes: the positions kept, never re-indexed. Lives in the dataset's own space
 """
-type SparseLens implements Lens @key(fields: "id", resolvable: true) {
+type SparseLens implements Lens @key(fields: "id", resolvable: true) @identified(by: "@mikro/sparselens") {
   id: ID!
 
   """
@@ -10523,7 +11043,7 @@ type SparseLens implements Lens @key(fields: "id", resolvable: true) {
 """
 A sparse matrix stored as an anndata-spelled zarr group behind the S3 datalayer: `data`, `indices` and `indptr`, with the encoding, shape and chunking read from the group itself rather than declared. Its `encoding` says which axis `indptr` indexes, and so which question it answers in one contiguous read -- ask the other and there is no range to read at all.
 """
-type SparseStore @key(fields: "id", resolvable: true) {
+type SparseStore @key(fields: "id", resolvable: true) @identified(by: "@mikro/sparsestore") {
   id: ID!
   path: String!
   bucket: String!
@@ -10632,43 +11152,43 @@ input StrFilterLookup {
 
 type Subscription {
   """Subscribe to real-time file updates"""
-  files(folder: ID = null): FileEvent! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  files(folder: ID = null): FileEvent! @auth
 
   """
   Follow one annotation collection: an event for every annotation drawn into it, edited or deleted. Carries changes only -- read the collection's current annotations with the `annotations` query first
   """
-  annotations(collection: ID!): AnnotationEvent! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  annotations(collection: ID!): AnnotationEvent! @auth
 
   """
   Follow one scene: an event for every layer added to it, edited or removed. Carries changes only -- read the scene's current layers first
   """
-  layers(scene: ID!): LayerEvent! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  layers(scene: ID!): LayerEvent! @auth
 
   """
   Follow the array datasets of one folder, or of the whole organization when no folder is given: an event for every one created, edited or deleted
   """
-  arrayDatasets(folder: ID = null): ArrayDatasetEvent! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  arrayDatasets(folder: ID = null): ArrayDatasetEvent! @auth
 
   """
   Follow the table datasets of one folder, or of the whole organization when no folder is given: an event for every one created, edited or deleted
   """
-  tableDatasets(folder: ID = null): TableDatasetEvent! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  tableDatasets(folder: ID = null): TableDatasetEvent! @auth
 
   """
   Follow the organization's scenes: an event for every one created, edited or deleted
   """
-  scenes: SceneEvent! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  scenes: SceneEvent! @auth
 
   """
   Follow the lenses of one container -- given by its kind and its id -- or of the whole organization when neither is given: an event for every selection made, renamed or deleted, the whole lens a new container is born with included. Carries changes only -- read the container's current lenses first
   """
-  lenses(kind: LensKind = null, container: ID = null): LensEvent! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  lenses(kind: LensKind = null, container: ID = null): LensEvent! @auth
 }
 
 """
 A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL
 """
-type TableDataset @key(fields: "id", resolvable: true) {
+type TableDataset @key(fields: "id", resolvable: true) @identified(by: "@mikro/tabledataset") {
   """
   This object's descriptors, a flat mapping of key to value: the facts about it that an action's port can `require` and a trigger can test (e.g. `@mikro/n_channels`). The keys are the ones mikro declares for this structure, and the values are the ones a signal about the object carries. Empty for a structure that declares none
   """
@@ -10835,6 +11355,11 @@ input TableDatasetFilter {
   NOT: TableDatasetFilter
   DISTINCT: Boolean
 
+  """
+  Filter to the objects satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored on every row. A key the structure does not declare is refused rather than ignored
+  """
+  requires: [DescriptorConstraintInput!]
+
   """Filter by the folder this table dataset is filed in"""
   folder: ID
 
@@ -10934,7 +11459,7 @@ input TableIdentifiesInput @unionElementOf(union: "IdentificationInput", discrim
 """
 A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space
 """
-type TableLens implements Lens @key(fields: "id", resolvable: true) {
+type TableLens implements Lens @key(fields: "id", resolvable: true) @identified(by: "@mikro/tablelens") {
   id: ID!
 
   """
@@ -11474,6 +11999,11 @@ input TransformationFilter {
   DISTINCT: Boolean
 
   """
+  Filter to the objects satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored on every row. A key the structure does not declare is refused rather than ignored
+  """
+  requires: [DescriptorConstraintInput!]
+
+  """
   Filter by how much the edge's map is actually known, e.g. UNKNOWN to list every placement that is still an assumption
   """
   validity: PlacementValidity
@@ -11532,7 +12062,7 @@ input TranslationTransformInput @unionElementOf(union: "TransformInput", discrim
 }
 
 """A per-axis offset, with one entry per input axis"""
-type TranslationTransformation implements Transformation @key(fields: "id", resolvable: true) {
+type TranslationTransformation implements Transformation @key(fields: "id", resolvable: true) @identified(by: "@mikro/transformation") {
   id: ID!
   kind: TransformKind!
   name: String
@@ -11622,7 +12152,7 @@ input UnmappableTransformInput @unionElementOf(union: "TransformInput", discrimi
 """
 A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like
 """
-type UnmappableTransformation implements Transformation @key(fields: "id", resolvable: true) {
+type UnmappableTransformation implements Transformation @key(fields: "id", resolvable: true) @identified(by: "@mikro/transformation") {
   id: ID!
   kind: TransformKind!
   name: String
@@ -12353,7 +12883,7 @@ type ZarrAccessGrant {
   store: String
 }
 
-type ZarrStore @key(fields: "id", resolvable: true) {
+type ZarrStore @key(fields: "id", resolvable: true) @identified(by: "@mikro/zarrstore") {
   id: ID!
   path: String!
   bucket: String!
@@ -12413,7 +12943,7 @@ type ZarrUploadGrant {
 
 scalar _Any
 
-union _Entity = AffineTransformation | Animation | AnimationWaypoint | Annotation | AnnotationChartLayer | AnnotationCollection | AnnotationLayer | AnnotationLens | ArrayDataset | ArrayLens | Axis | BigFileStore | ByDimensionTransformation | ChannelLabel | Chart | Client | Column | CoordinateAnchor | CoordinateSystem | DataArray | FabriksStore | FieldTransformation | File | FileLink | Folder | IdentityTransformation | ImageLayer | IntensityLayer | KonnektionStore | LabelLayer | LightPath | MapAxisTransformation | MediaStore | Membership | MeshCollection | MeshLayer | MeshLens | NetworkCollection | NetworkLayer | NetworkLens | OmeMetadata | OptikitState | Organization | ParquetStore | PhasorCalibration | PhasorHistogram | PhasorLayer | PointLayer | RgbLayer | RotationTransformation | ScaleTransformation | Scene | SceneSnapshot | SequenceTransformation | SeriesChartLayer | SparseArray | SparseAxisReference | SparseDataset | SparseLens | SparseStore | TableDataset | TableLens | Task | TraceChartLayer | TrackLayer | TranslationTransformation | UnmappableTransformation | User | ValueHistogram | VectorLayer | ZarrStore
+union _Entity = AffineTransformation | Animation | AnimationWaypoint | Annotation | AnnotationChartLayer | AnnotationCollection | AnnotationLayer | AnnotationLens | ArrayDataset | ArrayLens | Axis | BigFileStore | ByDimensionTransformation | ChannelLabel | Chart | Client | Column | CoordinateAnchor | CoordinateSystem | DataArray | FabriksStore | FieldTransformation | File | FileLink | Folder | IdentityTransformation | ImageLayer | IntensityLayer | KonnektionStore | LabelLayer | LightPath | MapAxisTransformation | MediaStore | Membership | MeshCollection | MeshLayer | MeshLens | Metric | MetricTarget | NetworkCollection | NetworkLayer | NetworkLens | OmeMetadata | OptikitState | Organization | ParquetStore | PhasorCalibration | PhasorHistogram | PhasorLayer | PointLayer | RgbLayer | RotationTransformation | ScaleTransformation | Scene | SceneSnapshot | SequenceTransformation | SeriesChartLayer | SparseArray | SparseAxisReference | SparseDataset | SparseLens | SparseStore | TableDataset | TableLens | Task | TraceChartLayer | TrackLayer | TranslationTransformation | UnmappableTransformation | User | ValueHistogram | VectorLayer | ZarrStore
 
 type _Service {
   sdl: String!

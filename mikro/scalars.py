@@ -12,7 +12,7 @@ import mimetypes
 import uuid
 from collections.abc import Hashable, Mapping
 from pathlib import Path
-from typing import IO, TYPE_CHECKING, Any, Protocol, TypeAlias
+from typing import IO, TYPE_CHECKING, Any, ClassVar, Literal, Protocol, TypeAlias
 
 import numpy as np
 import xarray as xr
@@ -60,6 +60,53 @@ in-memory DataFrame, a path to a parquet file already on disk, or a pyarrow
 
 FileCoercible: TypeAlias = str | bytes | Path | io.BufferedReader
 """ A type alias for file-like structures that can be coerced into an xarray DataArray."""
+
+
+# What a metric may be about, one protocol per structure. Every class turms generates
+# for a type the server identifies is stamped `__identifier__: ClassVar[Literal[...]]`
+# (`@identified`), a nested selection (`lens.dataset`) included, so a checker matches
+# exactly the classes of these four types: a lens, a scene or a slice is flagged. The
+# server stays the authority at runtime and refuses any other structure in prose.
+
+
+class AnnotationTarget(Protocol):
+    """An annotation, from any selection of one."""
+
+    __identifier__: ClassVar[Literal["@mikro/annotation"]]
+
+    @property
+    def id(self) -> str: ...
+
+
+class ArrayDatasetTarget(Protocol):
+    """An array dataset, from any selection of one (``lens.dataset`` too)."""
+
+    __identifier__: ClassVar[Literal["@mikro/arraydataset"]]
+
+    @property
+    def id(self) -> str: ...
+
+
+class TableDatasetTarget(Protocol):
+    """A table dataset, from any selection of one."""
+
+    __identifier__: ClassVar[Literal["@mikro/tabledataset"]]
+
+    @property
+    def id(self) -> str: ...
+
+
+class SparseDatasetTarget(Protocol):
+    """A sparse dataset, from any selection of one."""
+
+    __identifier__: ClassVar[Literal["@mikro/sparsedataset"]]
+
+    @property
+    def id(self) -> str: ...
+
+
+MetricTargetCoercible: TypeAlias = AnnotationTarget | ArrayDatasetTarget | TableDatasetTarget | SparseDatasetTarget
+""" What a metric's target accepts besides a ``MetricTargetInput``: the object itself, as fetched."""
 
 
 MicrometersCoercible: TypeAlias = int | float

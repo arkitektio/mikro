@@ -38,6 +38,7 @@ from mikro.api.schema import (
     Folder,
     MeshCollection,
     MeshLens,
+    Metric,
     NetworkCollection,
     NetworkLens,
     Scene,
@@ -54,6 +55,7 @@ from mikro.api.schema import (
     SearchFoldersQuery,
     SearchMeshCollectionsQuery,
     SearchMeshLensesQuery,
+    SearchMetricsQuery,
     SearchNetworkCollectionsQuery,
     SearchNetworkLensesQuery,
     SearchSceneSnapshotsQuery,
@@ -68,7 +70,7 @@ from mikro.api.schema import (
     TransformationBase,
 )
 
-from mikro.arkitekt.specs import annotation_descriptors, lens_descriptors
+from mikro.arkitekt.specs import annotation_descriptors, lens_descriptors, metric_descriptors
 from mikro.datalayer import DataLayer
 from mikro.middleware.upload import UploadMiddleware
 from mikro.mikro import Mikro
@@ -267,6 +269,14 @@ async def expand_scene(id: str, mikro: Mikro) -> Scene:
 async def expand_chart(id: str, mikro: Mikro) -> Chart:
     """A chart, by id."""
     return await mikro.aget_chart(id)
+
+
+# Searched by key, narrowed by what the port requires: a port typed on one key is
+# offered the metrics of that key.
+@registry.structure("@mikro/metric", widget=_search(SearchMetricsQuery), describe=metric_descriptors)
+async def expand_metric(id: str, mikro: Mikro) -> Metric:
+    """A metric, by id."""
+    return await mikro.aget_metric(id)
 
 
 @registry.structure("@mikro/scenesnapshot", widget=_search(SearchSceneSnapshotsQuery))

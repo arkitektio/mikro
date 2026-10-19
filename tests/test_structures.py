@@ -29,6 +29,7 @@ IDENTIFIERS = {
     "@mikro/arraylens",
     "@mikro/meshcollection",
     "@mikro/meshlens",
+    "@mikro/metric",
     "@mikro/networkcollection",
     "@mikro/networklens",
     "@mikro/scene",
@@ -76,7 +77,7 @@ def test_a_lens_and_a_dataset_say_how_they_are_described() -> None:
     assert structures.get_fullfilled_structure("@mikro/arraydataset").describe is lens_descriptors
     # Nothing else carries descriptors a port could constrain on.
     described = {i for i, s in structures.identifier_structure_map.items() if s.describe}
-    assert described == {"@mikro/arraylens", "@mikro/arraydataset", "@mikro/annotation"}
+    assert described == {"@mikro/arraylens", "@mikro/arraydataset", "@mikro/annotation", "@mikro/metric"}
 
 
 def test_an_annotation_is_described_by_its_shape_and_the_axes_it_is_drawn_in() -> None:
@@ -97,6 +98,47 @@ def test_an_annotation_is_described_by_its_shape_and_the_axes_it_is_drawn_in() -
         "@mikro/n_time_axes": 0,
     }
 
+
+
+def test_a_metric_is_described_by_its_key_its_value_and_what_it_is_about() -> None:
+    """The keys the server declares for `@mikro/metric`: a quantity says magnitude and unit, a code its code."""
+    from types import SimpleNamespace
+
+    from mikro.arkitekt.specs import metric_descriptors
+
+    structures = declared.registry.structure_registry
+    assert structures.get_fullfilled_structure("@mikro/metric").describe is metric_descriptors
+
+    target = SimpleNamespace(identifier="@mikro/arraydataset", object="3")
+    quantity = SimpleNamespace(key="my_app/area", magnitude=12.0, unit="micrometer ** 2", code=None, target=target)
+    assert metric_descriptors(quantity) == {
+        "@mikro/metric_key": "my_app/area",
+        "@mikro/magnitude": 12.0,
+        "@mikro/unit": "micrometer ** 2",
+        "@mikro/target_identifier": "@mikro/arraydataset",
+        "@mikro/target_object": "3",
+    }
+    code = SimpleNamespace(key="segmenter_v2/class", magnitude=None, unit=None, code="segmenter_v2/class_3", target=target)
+    assert metric_descriptors(code) == {
+        "@mikro/metric_key": "segmenter_v2/class",
+        "@mikro/metric_code": "segmenter_v2/class_3",
+        "@mikro/target_identifier": "@mikro/arraydataset",
+        "@mikro/target_object": "3",
+    }
+
+
+def test_a_metric_is_picked_by_its_key_narrowed_by_the_ports_constraints() -> None:
+    from arkitekt_spec.scalars import get_search_query_variables
+
+    widget = declared.registry.structure_registry.get_fullfilled_structure("@mikro/metric").default_widget
+    assert widget is not None and widget.kind == "SEARCH" and widget.ward == "mikro"
+    assert get_search_query_variables(widget.query)[:3] == ["search", "values", "requires"]
+
+def test_every_fragment_a_structure_expands_by_is_identified_as_that_structure() -> None:
+    """The hand-written `Mikro.FRAGMENTS` agrees with what the server says each type is (`@identified`)."""
+    from mikro.mikro import Mikro
+
+    assert {i: getattr(f, "__identifier__", None) for i, f in Mikro.FRAGMENTS.items()} == {i: i for i in Mikro.FRAGMENTS}
 
 def test_a_lens_structure_is_the_array_lens_and_every_kind_has_its_own() -> None:
     """`@mikro/arraylens` is pixels: a port typed on it is never handed a table lens."""
