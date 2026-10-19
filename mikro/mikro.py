@@ -1,27 +1,16 @@
-import os
-from collections.abc import AsyncGenerator, Generator, Mapping, Sequence
-from typing import Any, ClassVar
+from collections.abc import AsyncGenerator, Generator
+from typing import Any
 
 from koil import unkoil_gen
 from koil.composition import Composition
 from pydantic import Field
 from rath.origin import origin_context
 from rath.task import TASK_HEADER, TaskLike, current_task, token_of
-from rath.turms.fragment import afetch_fragments_via
 from rath.turms.funcs import TOperation
 
-from mikro.api import schema
 from mikro.api.schema import MikroApi
 from mikro.datalayer import DataLayer
 from mikro.rath import MikroRath
-
-
-FEDERATED_EXPANSION_ENV = "MIKRO_FEDERATED_EXPANSION"
-"""The environment variable :attr:`Mikro.federated_expansion` defaults from (``"1"`` = on)."""
-
-
-def _federated_expansion_default() -> bool:
-    return os.environ.get(FEDERATED_EXPANSION_ENV, "") == "1"
 
 
 class Mikro(Composition, MikroApi):
@@ -46,79 +35,10 @@ class Mikro(Composition, MikroApi):
     service (``mikro.arkitekt.service``), which builds the rath and its links.
     """
 
-    FRAGMENTS: ClassVar[Mapping[str, type]] = {
-        "@mikro/arraydataset": schema.ArrayDataset,
-        "@mikro/tabledataset": schema.TableDataset,
-        "@mikro/meshcollection": schema.MeshCollection,
-        "@mikro/networkcollection": schema.NetworkCollection,
-        "@mikro/sparsedataset": schema.SparseDataset,
-        "@mikro/annotationcollection": schema.AnnotationCollection,
-        "@mikro/annotation": schema.Annotation,
-        "@mikro/metric": schema.Metric,
-        "@mikro/arraylens": schema.ArrayLens,
-        "@mikro/tablelens": schema.TableLens,
-        "@mikro/sparselens": schema.SparseLens,
-        "@mikro/meshlens": schema.MeshLens,
-        "@mikro/networklens": schema.NetworkLens,
-        "@mikro/annotationlens": schema.AnnotationLens,
-        "@mikro/coordinatesystem": schema.CoordinateSystem,
-        "@mikro/scene": schema.Scene,
-        "@mikro/scenesnapshot": schema.SceneSnapshot,
-        "@mikro/chart": schema.Chart,
-        "@mikro/animation": schema.Animation,
-        "@mikro/folder": schema.Folder,
-        "@mikro/file": schema.File,
-    }
-    """The fragment each structure is, for federated batch expansion."""
-
     datalayer: DataLayer = Field(
         ..., description="The datalayer for interacting with the mikro api"
     )
     rath: MikroRath
-    federated_expansion: bool = Field(default_factory=_federated_expansion_default)
-    """Whether a list of mikro structures expands in one ``_entities`` request.
-
-    Off by default, and only to be switched on against a mikro server whose kante
-    is 2.3.0 or newer *and* that sets ``KANTE_REFERENCE_QUERYSET``. Older servers
-    answer ``_entities`` without organisation scoping, so a guessed id would
-    expand into another organisation's object where the ``get_x`` query refuses
-    it. A setting of *this client*: it defaults from ``MIKRO_FEDERATED_EXPANSION``
-    when the client is built, so two clients in one process may differ.
-    """
-
-
-    async def aexpand_many(self, identifier: str, ids: Sequence[Any]) -> Sequence[Any]:
-        """Expand several ids of one structure.
-
-        One ``_entities`` request. Only called when :meth:`can_expand_many` said so,
-        so the identifier is known to have a fragment. What ``_entities`` returns is
-        bound to this client, as a ``get_x`` result is.
-
-        Args:
-            identifier: The structure's identifier, e.g. ``@mikro/arraydataset``.
-            ids: The ids to expand.
-
-        Returns:
-            One object per id, in order, ``None`` where there is none.
-        """
-        fragment = self.FRAGMENTS[identifier]
-        return await afetch_fragments_via(fragment, ids, rath=self.rath, origin=self._origin())
-
-    def can_expand_many(self, identifier: str) -> bool:
-        """Whether this client can fetch several ids of ``identifier`` in one request.
-
-        Read when a run binds its structures: only then does expansion go through
-        :meth:`aexpand_many` instead of one request per id. Says no unless
-        :attr:`federated_expansion` is on *and* the structure has a fragment to
-        ask ``_entities`` for.
-
-        Args:
-            identifier: The structure's identifier.
-
-        Returns:
-            Whether a batch request would work.
-        """
-        return self.federated_expansion and identifier in self.FRAGMENTS
 
     # --- executing the generated operations
 

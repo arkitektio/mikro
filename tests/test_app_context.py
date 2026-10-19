@@ -235,7 +235,6 @@ def test_the_client_has_exactly_its_fields() -> None:
 
     assert set(Mikro.model_fields) == {
         "datalayer",
-        "federated_expansion",
         "rath",
     }
 

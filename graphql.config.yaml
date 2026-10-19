@@ -49,7 +49,7 @@ projects:
             # has to fail generation instead of vanishing. Derived rather than listed:
             # the list this replaces had drifted both ways -- still reserving
             # `for_task`/`task_token` after they were deleted, and never covering
-            # `federated_expansion`.
+            # a field the client really had.
             reserved_from:
               - mikro.mikro.Mikro
             coercible_scalars:

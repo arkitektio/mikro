@@ -134,16 +134,18 @@ def test_a_metric_is_picked_by_its_key_narrowed_by_the_ports_constraints() -> No
     assert widget is not None and widget.kind == "SEARCH" and widget.ward == "mikro"
     assert get_search_query_variables(widget.query)[:3] == ["search", "values", "requires"]
 
-def test_every_fragment_a_structure_expands_by_is_identified_as_that_structure() -> None:
-    """The hand-written `Mikro.FRAGMENTS` agrees with what the server says each type is (`@identified`)."""
-    from mikro.mikro import Mikro
-
-    assert {i: getattr(f, "__identifier__", None) for i, f in Mikro.FRAGMENTS.items()} == {i: i for i in Mikro.FRAGMENTS}
+def test_every_structure_class_the_server_identifies_says_so_itself() -> None:
+    """`__identifier__` (turms over `@identified`) agrees with the identifier each class is registered under."""
+    stamped = {
+        identifier: getattr(structure.cls, "__identifier__", None)
+        for identifier, structure in declared.registry.structure_registry.identifier_structure_map.items()
+    }
+    assert {i: s for i, s in stamped.items() if s is not None} == {i: i for i, s in stamped.items() if s is not None}
+    assert any(s is not None for s in stamped.values())
 
 def test_a_lens_structure_is_the_array_lens_and_every_kind_has_its_own() -> None:
     """`@mikro/arraylens` is pixels: a port typed on it is never handed a table lens."""
     from mikro.api import schema
-    from mikro.mikro import Mikro
 
     structures = declared.registry.structure_registry.identifier_structure_map
     kinds = {
@@ -155,9 +157,6 @@ def test_a_lens_structure_is_the_array_lens_and_every_kind_has_its_own() -> None
         "@mikro/annotationlens": schema.AnnotationLens,
     }
     assert {i: structures[i].cls for i in kinds} == kinds
-    # The same fragment answers a federated batch expansion, by its concrete type:
-    # the interface is no entity.
-    assert {i: Mikro.FRAGMENTS[i] for i in kinds} == kinds
     assert {f.Meta.type for f in kinds.values()} == {
         "ArrayLens", "TableLens", "SparseLens", "MeshLens", "NetworkLens", "AnnotationLens",
     }

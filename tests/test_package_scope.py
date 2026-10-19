@@ -100,7 +100,7 @@ def test_the_client_reserves_its_own_names_by_deriving_them() -> None:
     (``names_reserved_by`` walks the MRO and the model fields, skipping the mixin
     it is about to regenerate). A hand-written ``reserved_names`` drifts instead:
     mikro's kept two names for months after they were deleted, while never
-    covering ``federated_expansion`` -- a real field it was supposed to protect.
+    covering a field the client really had.
 
     Checked against the dumped configuration rather than the yaml, because that is
     the configuration the checked-in module was actually generated with, and it

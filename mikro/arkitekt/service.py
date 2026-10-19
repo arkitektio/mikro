@@ -4,9 +4,6 @@ Declared on one registry: the service first, then the structures whose expanders
 ask for the ``Mikro`` it returns. Each type is declared once -- the class, the
 identifier it travels under, the widget a user picks one with, and how to fetch it
 back. An app takes all of it in with ``App(services=[mikro_service])``.
-
-Fetching *many* ids is not declared: the ``Mikro`` client answers a batch in one
-federated ``_entities`` request, and binding routes through that when it can.
 """
 
 from pathlib import Path
