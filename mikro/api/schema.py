@@ -2059,6 +2059,11 @@ class DeleteCoordinateSystemInput(BaseModel):
     id: ID = Field(description='The ID of the shared coordinate system to delete')
     model_config = ConfigDict(frozen=True, extra='forbid')
 
+class DeleteLayerInput(BaseModel):
+    """Input for deleting a layer by ID"""
+    id: ID = Field(description='The ID of the layer to delete')
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
 class DeleteLensInput(BaseModel):
     """Input for deleting a lens by ID"""
     id: ID = Field(description='The ID of the lens to delete')
@@ -6382,6 +6387,19 @@ class CreateLabelLayerMutation(BaseModel):
     class Meta:
         """Meta class for CreateLabelLayer """
         document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    redLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    greenLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    blueLens {\n      id\n      slices {\n        axis\n        start\n        stop\n        step\n      }\n    }\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    phasorRender {\n      phasorAxis\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n    labelRender {\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        lens\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    meshLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    collection {\n      id\n      name\n      label\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      lens\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    networkLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    networkCollection: collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      lens\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      lens\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    pointColorBys: colorBys {\n      kind\n      table\n      column\n      lens\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    pointFilterBys: filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  ... on VectorLayer {\n    lens {\n      id\n    }\n    renderAxes {\n      x\n      y\n      z\n      t\n      intensity\n      phasor\n      vector\n    }\n  }\n  __typename\n}\n\nmutation CreateLabelLayer($input: CreateLabelLayerInput!) {\n  createLabelLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+
+class DeleteLayerMutation(BaseModel):
+    """ Removes the layer from its scene; the data it drew stays. Answers the removed layer's id."""
+    delete_layer: ID = Field(alias='deleteLayer')
+    'Delete an existing layer'
+
+    class Arguments(BaseModel):
+        """Arguments for DeleteLayer """
+        input: DeleteLayerInput
+
+    class Meta:
+        """Meta class for DeleteLayer """
+        document = 'mutation DeleteLayer($input: DeleteLayerInput!) {\n  deleteLayer(input: $input)\n}'
 
 class CreateMeshLayerMutation(BaseModel):
     """No documentation found for this operation."""
@@ -12236,6 +12254,40 @@ Returns:
             _input['order'] = order
         variables['input'] = _input
         return self.execute(CreateLabelLayerMutation, variables, task=task).create_label_layer
+
+    async def adelete_layer(self, id: IDCoercible, task: TaskLike | None=None) -> ID:
+        """DeleteLayer 
+ Removes the layer from its scene; the data it drew stays. Answers the removed layer's id.
+
+Args:
+    id: The ID of the layer to delete
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ID
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['id'] = id
+        variables['input'] = _input
+        return (await self.aexecute(DeleteLayerMutation, variables, task=task)).delete_layer
+
+    def delete_layer(self, id: IDCoercible, task: TaskLike | None=None) -> ID:
+        """DeleteLayer 
+ Removes the layer from its scene; the data it drew stays. Answers the removed layer's id.
+
+Args:
+    id: The ID of the layer to delete
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ID
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['id'] = id
+        variables['input'] = _input
+        return self.execute(DeleteLayerMutation, variables, task=task).delete_layer
 
     async def acreate_mesh_layer(self, scene: IDCoercible, lens: IDCoercible, material_color: Iterable[int] | None | UnsetType=UNSET, wireframe: bool | None | UnsetType=UNSET, shading: MeshShading | None | UnsetType=UNSET, max_level: int | None | UnsetType=UNSET, color_bys: Iterable[MeshColorByInput] | None | UnsetType=UNSET, active_color_by: int | None | UnsetType=UNSET, filter_bys: Iterable[MeshFilterByInput] | None | UnsetType=UNSET, active_filter_bys: Iterable[int] | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> LayerMeshLayer:
         """CreateMeshLayer 

@@ -45,6 +45,11 @@ mutation CreateLabelLayer($input: CreateLabelLayerInput!) {
   }
 }
 
+# Removes the layer from its scene; the data it drew stays. Answers the removed layer's id.
+mutation DeleteLayer($input: DeleteLayerInput!) {
+  deleteLayer(input: $input)
+}
+
 mutation CreateMeshLayer($input: CreateMeshLayerInput!) {
   createMeshLayer(input: $input) {
     ...Layer
