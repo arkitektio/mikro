@@ -99,7 +99,7 @@ if TYPE_CHECKING:
         ArrayLens,
         Axis,
         AxisInput,
-        AxisLookupInput,
+        DimensionPartInput,
         AxisType,
         Chart,
         ChartPolicyInput,
@@ -818,12 +818,14 @@ class DatasetTrait(HasNamedAxes):
         validity: PlacementValidity | None = None,
         mikro: "Mikro | None" = None,
     ) -> CreatedTransformation:
-        """Register this label dataset's voxels as the FIELD edge keying `table`.
+        """Register this label dataset's voxels as the key into `table`: a BY_DIMENSION with a FIELD part.
 
         A label mask is exactly the case where the array being mapped is the
-        array doing the mapping: its pixels consume this dataset's axes and
+        array doing the mapping: its pixels consume this dataset's own axes and
         produce the table's coordinate axis (the object ids), so this dataset's
-        intrinsic system is both the edge's input and its field. The edge is
+        intrinsic system is both the edge's input and the part's field. The
+        axes the two share -- a timelapse's ``t`` -- are stated as an IDENTITY
+        part, because nothing passes through unless a part says so. The key is
         many-to-one on purpose — an object is a set of voxels — and is never
         walked backwards.
 
@@ -844,7 +846,7 @@ class DatasetTrait(HasNamedAxes):
             validity: An optional PlacementValidity for the edge.
 
         Returns:
-            The created FIELD transformation.
+            The created key.
         """
         from mikro.api.schema import UNSET
 
@@ -859,12 +861,18 @@ class DatasetTrait(HasNamedAxes):
                 "selected in the query to order the output axes"
             )
 
-        transform = _transform_member(
-            "FIELD",
-            field=get_attributes_or_error(intrinsic, "id"),
-            input_axes=_axis_names_in_order(intrinsic),
-            output_axes=_axis_names_in_order(target),
+        mine, theirs = _axis_names_in_order(intrinsic), _axis_names_in_order(target)
+        shared = [axis for axis in mine if axis in theirs]
+        parts = [_part("IDENTITY", shared, shared)] if shared else []
+        parts.append(
+            _part(
+                "FIELD",
+                [axis for axis in mine if axis not in theirs],
+                [axis for axis in theirs if axis not in mine],
+                field=get_attributes_or_error(intrinsic, "id"),
+            )
         )
+        transform = _transform_member("BY_DIMENSION", parts=parts)
 
         return client_of(self, mikro).create_transformation(
             input=get_attributes_or_error(intrinsic, "id"),
@@ -1145,7 +1153,7 @@ class SparseAxisInputTrait(BaseModel):
                 raise ValueError(
                     f"`{key}` is empty. An axis of a sparse matrix is positions and nothing "
                     "else, so one that does not say what they are is one no source could ever "
-                    "key -- there is no FIELD edge onto it and no colouring along it. Name a "
+                    "key -- there is no key onto it and no colouring along it. Name a "
                     "mask, a collection, or the table whose rows the positions are."
                 )
         return value
@@ -1598,6 +1606,7 @@ class Lensable(HasNamedAxes):
         affine: Sequence[Sequence[float]] | None = None,
         input_axes: Sequence[str] | None = None,
         output_axes: Sequence[str] | None = None,
+        parts: Sequence["DimensionPartInput"] | None = None,
         value_relation: ValueRelation | ValueRelationName | None = None,
         reason: str | None = None,
     ) -> DerivedFromInput:
@@ -1608,7 +1617,8 @@ class Lensable(HasNamedAxes):
         `kind` is omitted it is inferred from which parameters are given:
         `affine` -> AFFINE, `scale` -> SCALE, `translation` -> TRANSLATION
         (scale and translation together fold into one AFFINE), `input_axes` ->
-        MAP_AXIS, nothing -> IDENTITY. An IDENTITY derivation states its
+        MAP_AXIS, nothing -> IDENTITY; a BY_DIMENSION is its `parts` (see
+        `_part`). An IDENTITY derivation states its
         transform like any other — the data is in the lens' space as-is, and
         *saying* so is what places it. Omitting the transform is the opposite
         claim: it makes the edge UNMAPPABLE, lineage without geometry, which is
@@ -1638,6 +1648,7 @@ class Lensable(HasNamedAxes):
             affine=affine,
             input_axes=input_axes,
             output_axes=output_axes,
+            parts=parts,
             reason=reason,
         )
 
@@ -1691,17 +1702,12 @@ class Lensable(HasNamedAxes):
     ) -> DerivedFromInput:
         """A rank-dropping BY_DIMENSION derivation edge keeping only `axes`.
 
-        Naming an axis on both sides IS the map; the axes left unnamed are the
-        dropped ones — a line through a volume keeps ``["x"]``, a projection
-        keeps ``["y", "x"]``. *Where* the kept axes sit along the dropped ones
-        is the lens' business: slice the lens, don't restate it here.
+        One IDENTITY part over the kept axes IS the map; the axes no part names
+        are the dropped ones — a line through a volume keeps ``["x"]``, a
+        projection keeps ``["y", "x"]``. *Where* the kept axes sit along the
+        dropped ones is the lens' business: slice the lens, don't restate it here.
         """
-        return self.derive(
-            kind="BY_DIMENSION",
-            input_axes=axes,
-            output_axes=axes,
-            value_relation=value_relation,
-        )
+        return self.derive(kind="BY_DIMENSION", parts=[_part("IDENTITY", axes, axes)], value_relation=value_relation)
 
 
 def _normalize_kind(kind: ResolvedTransformKind | Enum) -> ResolvedTransformKind:
@@ -1868,6 +1874,39 @@ def _infer_transform_kind(
     return "IDENTITY", None, None, None
 
 
+def _part(
+    kind: Literal["IDENTITY", "SCALE", "TRANSLATION", "AFFINE", "ROTATION", "FIELD"],
+    input_axes: Sequence[str],
+    output_axes: Sequence[str],
+    *,
+    scale: Sequence[float] | None = None,
+    translation: Sequence[float] | None = None,
+    affine: Sequence[Sequence[float]] | None = None,
+    field: IDCoercible | None = None,
+    unit: str | None = None,
+    min: float | None = None,
+    max: float | None = None,
+) -> "DimensionPartInput":
+    """One part of a BY_DIMENSION: `input_axes` onto `output_axes`, by one kind.
+
+    Each kind reads only its own parameter -- SCALE `scale`, TRANSLATION
+    `translation`, AFFINE and ROTATION `affine`, FIELD `field` (the array's
+    coordinate system) with its values' `unit` and declared `min`/`max` -- and
+    the server refuses any other. An IDENTITY part is a pass-through, stated.
+    """
+    from mikro.api.schema import DimensionPartInput, FieldInput, PartKind
+
+    return DimensionPartInput(
+        kind=PartKind(kind),
+        input_axes=tuple(input_axes),
+        output_axes=tuple(output_axes),
+        scale=None if scale is None else tuple(float(s) for s in scale),
+        translation=None if translation is None else tuple(float(t) for t in translation),
+        affine=None if affine is None else tuple(tuple(float(v) for v in row) for row in affine),
+        field=None if field is None else FieldInput(system=field, unit=unit, min=min, max=max),
+    )
+
+
 def _transform_member(
     kind: TransformKind | Enum,
     *,
@@ -1876,9 +1915,8 @@ def _transform_member(
     affine: Sequence[Sequence[float]] | None = None,
     input_axes: Sequence[str] | None = None,
     output_axes: Sequence[str] | None = None,
-    field: IDCoercible | None = None,
     reason: str | None = None,
-    lookup: "AxisLookupInput | None" = None,
+    parts: Sequence["DimensionPartInput"] | None = None,
 ) -> TransformInput:
     """Build the tagged member input for a transformation ``kind``.
 
@@ -1906,6 +1944,9 @@ def _transform_member(
             "the coordinate graph reads nothing else from it"
         )
 
+    if parts is not None and normalized != "BY_DIMENSION":
+        raise ValueError(f"A {normalized} transformation takes no parts: only a BY_DIMENSION maps its axes part by part")
+
     def require(name: str, value: _Given | None) -> _Given:
         """The value, or a refusal naming the parameter the kind needs."""
         if value is None:
@@ -1913,7 +1954,7 @@ def _transform_member(
         return value
 
     if normalized == "IDENTITY":
-        given = (scale, translation, affine, input_axes, output_axes, field)
+        given = (scale, translation, affine, input_axes, output_axes)
         if any(value is not None for value in given):
             raise ValueError("An IDENTITY transformation takes no parameters")
         return schema.IdentityTransformInput()
@@ -1938,32 +1979,12 @@ def _transform_member(
             input_axes=list(require("input_axes", input_axes)),
             output_axes=list(require("output_axes", output_axes)),
         )
-    if lookup is not None and normalized != "BY_DIMENSION":
-        raise ValueError(f"A {normalized} transformation takes no lookup: only BY_DIMENSION reads an axis from an array")
     if normalized == "BY_DIMENSION":
-        return schema.ByDimensionTransformInput(
-            # A lookup may be the edge's whole map, naming no axis for parameters at all.
-            input_axes=list(input_axes or ()) if lookup is not None else list(require("input_axes", input_axes)),
-            output_axes=list(output_axes or ()) if lookup is not None else list(require("output_axes", output_axes)),
-            lookup=lookup,
-            scale=None if scale is None else tuple(float(s) for s in scale),
-            translation=(
-                None if translation is None else tuple(float(t) for t in translation)
-            ),
-            affine=(
-                None
-                if affine is None
-                else tuple(
-                    tuple(row) for row in np.asarray(affine, dtype=float).tolist()
-                )
-            ),
-        )
-    if normalized == "FIELD":
-        return schema.FieldTransformInput(
-            field=require("field", field),
-            input_axes=list(require("input_axes", input_axes)),
-            output_axes=list(require("output_axes", output_axes)),
-        )
+        given = {"scale": scale, "translation": translation, "affine": affine, "input_axes": input_axes, "output_axes": output_axes}
+        stray = [name for name, value in given.items() if value is not None]
+        if stray:
+            raise ValueError(f"A BY_DIMENSION maps its axes in its parts, so it takes no {stray[0]}=: pass parts=[_part(...)] instead")
+        return schema.ByDimensionTransformInput(parts=list(require("parts", parts)))
     if normalized == "UNMAPPABLE":
         if reason is None:
             return schema.UnmappableTransformInput()
@@ -2062,53 +2083,73 @@ def _units_in_order(system: CoordinateSystemTrait) -> dict[str, object]:
     return {a.name: getattr(a, "unit", None) for a in axes}
 
 
-def _lookup_input(
+def _field_parts(
     source: object,
     space: object,
     field: "Mapping[str, DatasetTrait]",
     units: Mapping[str, str],
     source_axes: Sequence[str],
     space_axes: Sequence[str],
-) -> "AxisLookupInput | None":
-    """The lookup `register(field=...)` describes, its values read once and checked.
+) -> list["DimensionPartInput"]:
+    """The FIELD parts `register(field=...)` describes -- one axis each, read from a 1-D array -- their values read once and checked.
 
     The server records the range as declared and never reads the array, so this
     is where "strictly increasing, one value per position" is actually checked.
     """
-    from mikro.api.schema import AxisLookupInput
+    parts = []
+    for axis, dataset in field.items():
+        if axis not in source_axes or axis not in space_axes:
+            raise ValueError(f"field names '{axis}', which {getattr(source, 'name', 'the source')} {list(source_axes)} and the space {list(space_axes)} do not both have")
 
-    if not field:
-        return None
-    if len(field) > 1:
-        raise ValueError(f"An edge reads at most one axis from an array, but field names {sorted(field)}. Register through an intermediate space for a second one")
-    ((axis, dataset),) = field.items()
-    if axis not in source_axes or axis not in space_axes:
-        raise ValueError(f"field names '{axis}', which {getattr(source, 'name', 'the source')} {list(source_axes)} and the space {list(space_axes)} do not both have")
+        values = np.asarray(dataset.data.values, dtype=float)
+        if values.ndim != 1:
+            raise ValueError(f"A field is one value per position, so it is rank one, but '{getattr(dataset, 'name', '?')}' has shape {values.shape}")
+        if values.size < 2 or not bool(np.all(np.diff(values) > 0)):
+            raise ValueError(f"A field's values strictly increase, but '{getattr(dataset, 'name', '?')}' does not: {values[:8]}")
 
-    values = np.asarray(dataset.data.values, dtype=float)
-    if values.ndim != 1:
-        raise ValueError(f"A field is one value per position, so it is rank one, but '{getattr(dataset, 'name', '?')}' has shape {values.shape}")
-    if values.size < 2 or not bool(np.all(np.diff(values) > 0)):
-        raise ValueError(f"A field's values strictly increase, but '{getattr(dataset, 'name', '?')}' does not: {values[:8]}")
+        unit = units.get(axis) or next((a.unit for a in getattr(space, "axes", ()) or () if a.name == axis), None)
+        if not unit:
+            raise ValueError(f"Name the unit of the field's values for '{axis}' (field_units={{'{axis}': ...}}): the space's axis states none")
 
-    unit = units.get(axis) or next((a.unit for a in getattr(space, "axes", ()) or () if a.name == axis), None)
-    if not unit:
-        raise ValueError(f"Name the unit of the field's values for '{axis}' (field_units={{'{axis}': ...}}): the space's axis states none")
+        system = getattr(dataset, "intrinsic_system", None)
+        if system is None:
+            raise ValueError(f"'{getattr(dataset, 'name', '?')}' was fetched without its intrinsicSystem, so its space cannot be named")
+        parts.append(_part("FIELD", [axis], [axis], field=system.id, unit=str(unit), min=float(values[0]), max=float(values[-1])))
+    return parts
 
-    system = getattr(dataset, "intrinsic_system", None)
-    if system is None:
-        raise ValueError(f"'{getattr(dataset, 'name', '?')}' was fetched without its intrinsicSystem, so its space cannot be named")
-    return AxisLookupInput(axis=axis, field=system.id, unit=str(unit), min=float(values[0]), max=float(values[-1]))
+
+def _shared_part(axes: Sequence[str], factors: Sequence[float] | None, offsets: Sequence[float]) -> "DimensionPartInput":
+    """The one part a registration states over the axes the two spaces share: the kind its numbers are.
+
+    No numbers is an IDENTITY -- the same positions, said twice; a factor alone a SCALE, an
+    offset alone a TRANSLATION, both a diagonal AFFINE, which the server still reads as
+    the scale it is.
+    """
+    moved = any(offset != 0.0 for offset in offsets)
+    if factors is None and not moved:
+        return _part("IDENTITY", axes, axes)
+    if factors is None:
+        return _part("TRANSLATION", axes, axes, translation=offsets)
+    if not moved:
+        return _part("SCALE", axes, axes, scale=factors)
+    return _part(
+        "AFFINE",
+        axes,
+        axes,
+        affine=[[factors[row] if column == row else 0.0 for column in range(len(axes))] + [offsets[row]] for row in range(len(axes))],
+    )
 
 
 def _edge_axis_map(step: PathStep) -> AxisMap:
     """One edge of a path as an `AxisMap` in the direction it is walked.
 
     A kind with a matrix is that matrix, labelled with its two systems' axes.
-    A BY_DIMENSION maps the axes it names by its parameters, passes through the
-    ones it does not name that both systems have, and states nothing about the
-    rest. Walked backwards, the block over the named axes is inverted and the
-    pass-through reads the other way round.
+    A BY_DIMENSION is its parts: each maps its own axes by its own kind's
+    matrix, an IDENTITY part converting between the units its axes carry, and
+    an axis no part names is one the edge states nothing about. A FIELD part's
+    axes are read from an array, so they are left out here -- exactly as the
+    server's `asAffine` leaves them to `fields` -- and make the edge
+    forwards-only. Walked backwards, each part's block is inverted.
     """
     t = step.transformation
     kind = _normalize_kind(get_attributes_or_error(t, "kind"))
@@ -2156,77 +2197,72 @@ def _edge_axis_map(step: PathStep) -> AxisMap:
             ) from e
         return AxisMap(tuple(out_names), tuple(in_names), inverse)
 
-    acts_in = list(getattr(t, "input_axes", ()) or ())
-    acts_out = list(getattr(t, "output_axes", ()) or ())
-    if len(acts_in) != len(acts_out):
-        raise ValueError(
-            f"Transformation {getattr(t, 'id', '?')} (BY_DIMENSION) names {acts_in} -> "
-            f"{acts_out}, which is not one axis for one"
-        )
-    strangers = [a for a in acts_in if a not in in_names] + [a for a in acts_out if a not in out_names]
-    if strangers:
-        raise ValueError(
-            f"Transformation {getattr(t, 'id', '?')} (BY_DIMENSION) names axes {strangers} "
-            f"that its systems {in_names} -> {out_names} do not have"
-        )
-    n = len(acts_in)
-    affine, scale, translation = (getattr(t, name, ()) or () for name in ("affine", "scale", "translation"))
-    if len(affine):
-        sub = _homogeneous_from_rows(np.asarray(affine, dtype=float), n)
-    else:
-        # Scale, then translation: the order a SEQUENCE of the two is read in.
-        sub = np.eye(n + 1)
-        if len(scale):
-            sub[:n, :n] = np.diag([float(s) for s in scale])
-        if len(translation):
-            sub[:n, n] = [float(v) for v in translation]
-    if sub.shape != (n + 1, n + 1):
-        raise ValueError(
-            f"Transformation {getattr(t, 'id', '?')} (BY_DIMENSION) carries a "
-            f"{sub.shape[0] - 1} x {sub.shape[1] - 1} map for the {n} axes it names"
-        )
-    # A lookup's axis is read from an array, not computed: it neither passes through nor
-    # appears in the matrix, exactly as the server's `asAffine` leaves it to `lookups`.
-    lookup = getattr(t, "lookup", None)
-    looked_up = {lookup.axis, lookup.output_axis} if lookup is not None else set()
+    parts = list(getattr(t, "parts", ()) or ())
     if step.inverted:
-        if lookup is not None:
-            raise ValueError(
-                f"Transformation {getattr(t, 'id', '?')} (BY_DIMENSION) reads '{lookup.axis}' "
-                "from an array and is walked forwards only"
-            )
-        try:
-            sub = np.linalg.inv(sub)
-        except np.linalg.LinAlgError as e:
-            raise ValueError(
-                f"Transformation {getattr(t, 'id', '?')} (BY_DIMENSION) is singular and "
-                "cannot be walked backwards"
-            ) from e
+        fields = [list(part.output_axes) for part in parts if _normalize_kind(part.kind) == "FIELD"]
+        if fields:
+            raise ValueError(f"Transformation {getattr(t, 'id', '?')} (BY_DIMENSION) reads {fields} from an array and is walked forwards only")
         in_names, out_names, in_units, out_units = out_names, in_names, out_units, in_units
-        acts_in, acts_out = acts_out, acts_in
 
     rows: list[np.ndarray] = []
     stated: list[str] = []
-    for out_axis in out_names:
-        row = np.zeros(len(in_names) + 1)
-        if out_axis in acts_out:
-            block = sub[acts_out.index(out_axis)]
-            for column, in_axis in enumerate(acts_in):
-                row[in_names.index(in_axis)] = block[column]
-            row[-1] = block[n]
-        elif out_axis in in_names and out_axis not in acts_in and out_axis not in looked_up:
-            factor = _pass_through_factor(in_units[out_axis], out_units[out_axis])
-            if factor is None:
-                continue
-            row[in_names.index(out_axis)] = factor
-        else:
-            # Neither named nor shared: the edge says nothing about this axis.
+    for part in parts:
+        part_kind = _normalize_kind(part.kind)
+        if part_kind == "FIELD":
             continue
-        rows.append(row)
-        stated.append(out_axis)
+        acts_in, acts_out = list(part.input_axes), list(part.output_axes)
+        if step.inverted:
+            acts_in, acts_out = acts_out, acts_in
+        strangers = [a for a in acts_in if a not in in_names] + [a for a in acts_out if a not in out_names]
+        if strangers:
+            raise ValueError(
+                f"Transformation {getattr(t, 'id', '?')} (BY_DIMENSION) has a {part_kind} part naming axes {strangers} "
+                f"that its systems {in_names} -> {out_names} do not have"
+            )
+        if part_kind == "IDENTITY":
+            for in_axis, out_axis in zip(acts_in, acts_out):
+                factor = _pass_through_factor(in_units[in_axis], out_units[out_axis])
+                if factor is None:
+                    continue
+                row = np.zeros(len(in_names) + 1)
+                row[in_names.index(in_axis)] = factor
+                rows.append(row)
+                stated.append(out_axis)
+            continue
+        block = _part_matrix(part, part_kind)
+        if step.inverted:
+            if block.shape[0] != block.shape[1]:
+                raise ValueError(f"Transformation {getattr(t, 'id', '?')} (BY_DIMENSION) has a {part_kind} part that changes rank and cannot be walked backwards")
+            try:
+                block = np.linalg.inv(block)
+            except np.linalg.LinAlgError as e:
+                raise ValueError(f"Transformation {getattr(t, 'id', '?')} (BY_DIMENSION) has a singular {part_kind} part and cannot be walked backwards") from e
+        for index, out_axis in enumerate(acts_out):
+            row = np.zeros(len(in_names) + 1)
+            for column, in_axis in enumerate(acts_in):
+                row[in_names.index(in_axis)] = block[index][column]
+            row[-1] = block[index][len(acts_in)]
+            rows.append(row)
+            stated.append(out_axis)
+    order = [axis for axis in out_names if axis in stated]
     bottom = np.zeros(len(in_names) + 1)
     bottom[-1] = 1.0
-    return AxisMap(tuple(in_names), tuple(stated), np.vstack([*rows, bottom]))
+    return AxisMap(tuple(in_names), tuple(order), np.vstack([*[rows[stated.index(axis)] for axis in order], bottom]))
+
+
+def _part_matrix(part: object, kind: str) -> NDArray[np.float64]:
+    """One non-field part's map as a homogeneous matrix over its own axes, outputs by rows."""
+    n_in, n_out = len(part.input_axes), len(part.output_axes)  # type: ignore[attr-defined]
+    if kind in ("AFFINE", "ROTATION"):
+        return _homogeneous_from_rows(np.asarray(part.affine, dtype=float), n_in)  # type: ignore[attr-defined]
+    block = np.eye(n_in + 1)
+    if kind == "SCALE":
+        block[:n_in, :n_in] = np.diag([float(s) for s in part.scale])  # type: ignore[attr-defined]
+    elif kind == "TRANSLATION":
+        block[:n_in, n_in] = [float(v) for v in part.translation]  # type: ignore[attr-defined]
+    if n_out != n_in:
+        raise ValueError(f"A {kind} part maps its axes one for one, but this one names {n_in} onto {n_out}")
+    return block
 
 
 def _compose_axis_maps(steps: Sequence[PathStep], source_axes: Sequence[str]) -> AxisMap:
@@ -2457,7 +2493,10 @@ def _bfs_path(
     The graph query returns a heterogeneous union, and a kind this client does
     not model comes back as a fieldless catch-all that carries no trait — hence
     `object` here, and the narrowing below. Such an edge is not walkable for the
-    same reason a FIELD edge is not: nothing about it yields a matrix.
+    same reason a key is not (a BY_DIMENSION whose FIELD part dereferences a
+    mask's ids): nothing about it yields a position. A placing FIELD part is
+    walked forwards only, the axes its array gives left out of the composed map,
+    and so is a part that changes rank.
     """
     adjacency: dict[str, list[tuple[PathStep, str]]] = {}
     for t in transformations:
@@ -2465,6 +2504,9 @@ def _bfs_path(
             continue
         kind = _normalize_kind(get_attributes_or_error(t, "kind"))
         if kind not in COMPOSABLE_KINDS:
+            continue
+        parts = list(getattr(t, "parts", ()) or ())
+        if any(part.field is not None and part.field.dereference for part in parts):
             continue
         if kind == "SEQUENCE" and not all(
             _normalize_kind(step.kind) in TransformationTrait.MATRIX_KINDS
@@ -2477,7 +2519,8 @@ def _bfs_path(
             continue
         in_id, out_id = str(input_system.id), str(output_system.id)
         adjacency.setdefault(in_id, []).append((PathStep(t, False), out_id))
-        adjacency.setdefault(out_id, []).append((PathStep(t, True), in_id))
+        if all(_normalize_kind(part.kind) != "FIELD" and len(part.input_axes) == len(part.output_axes) for part in parts):
+            adjacency.setdefault(out_id, []).append((PathStep(t, True), in_id))
 
     if start_id == target_id:
         return []
@@ -2690,7 +2733,12 @@ class CoordinateSystemTrait:
             world.register(table_dataset, y=144.0)               # any source with a space
             world.register(movie, scale={"y": 0.5, "x": 0.5}, field={"t": frame_times})
 
-        `field` reads one axis from a 1-D dataset's values instead of scaling it:
+        The edge is a BY_DIMENSION with one part over the shared axes -- an
+        IDENTITY, SCALE, TRANSLATION or (both) diagonal AFFINE, whichever the
+        numbers given are -- and a FIELD part per `field` entry. An axis no part
+        names is one the edge says nothing about.
+
+        `field` reads an axis from a 1-D dataset's values instead of scaling it:
         the frames of an event-triggered movie were taken at uneven instants, so
         frame `i` sits at ``frame_times[i]``. The values are ABSOLUTE coordinates
         in this space -- seconds since its ``epoch`` when it has one
@@ -2708,7 +2756,7 @@ class CoordinateSystemTrait:
             name: An optional name for the edge.
             validity: How far the claim is to be trusted.
             mikro: The client to call through; defaults to the one that fetched this object.
-            field: At most one axis read from a 1-D dataset's values, by axis name.
+            field: Axes read from 1-D datasets' values, by axis name.
             field_units: The unit of each field's values, by axis name.
             **offsets: The per-axis offset in this space's coordinates.
 
@@ -2726,14 +2774,14 @@ class CoordinateSystemTrait:
         axis_names = _axis_names_in_order(space)
         my_names = _axis_names_in_order(self)
 
-        lookup = _lookup_input(source, self, field or {}, field_units or {}, axis_names, my_names)
+        fields = _field_parts(source, self, field or {}, field_units or {}, axis_names, my_names)
 
-        # In the source's own axis order: the edge's parameters are positional
-        # against `input_axes`, so the two lists have to agree. A looked-up axis
+        # In the source's own axis order: the part's parameters are positional
+        # against its axes, so the two lists have to agree. An axis a field gives
         # is not among them: the array, not a factor, is its map.
-        looked_up = {lookup.axis} if lookup is not None else set()
+        looked_up = {axis for part in fields for axis in part.input_axes}
         shared = [axis for axis in axis_names if axis in my_names and axis not in looked_up]
-        if not shared and lookup is None:
+        if not shared and not fields:
             raise ValueError(
                 f"{getattr(source, 'name', source)} has axes {axis_names} and the "
                 f"space '{getattr(self, 'name', '?')}' has {my_names}: they share "
@@ -2755,7 +2803,7 @@ class CoordinateSystemTrait:
             )
 
         # Both vectors are positional against `shared`, so they are built the
-        # same way — a per-axis lookup in that one order — and cannot drift.
+        # same way — a per-axis read in that one order — and cannot drift.
         if scale is None:
             factors = None
         elif isinstance(scale, Mapping):
@@ -2769,14 +2817,11 @@ class CoordinateSystemTrait:
                     f"to say which is which."
                 )
 
+        parts = [_shared_part(shared, factors, [float(offsets.get(axis, 0.0)) for axis in shared])] if shared else []
         return space.transform_to(
             self,
             kind="BY_DIMENSION",
-            scale=factors,
-            translation=[float(offsets.get(axis, 0.0)) for axis in shared] if shared else None,
-            input_axes=shared,
-            output_axes=shared,
-            lookup=lookup,
+            parts=[*parts, *fields],
             name=name
             or f"{getattr(source, 'name', 'source')} -> {getattr(self, 'name', 'space')}",
             validity=validity,
@@ -3014,7 +3059,7 @@ class CoordinateSystemTrait:
         input_axes: Sequence[str] | None = None,
         output_axes: Sequence[str] | None = None,
         reason: str | None = None,
-        lookup: "AxisLookupInput | None" = None,
+        parts: Sequence["DimensionPartInput"] | None = None,
         validity: PlacementValidity | None = None,
         mikro: "Mikro | None" = None,
     ) -> CreatedTransformation:
@@ -3076,7 +3121,7 @@ class CoordinateSystemTrait:
             input_axes=input_axes,
             output_axes=output_axes,
             reason=reason,
-            lookup=lookup,
+            parts=parts,
         )
 
         return client_of(self, mikro).create_transformation(

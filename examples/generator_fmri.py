@@ -245,12 +245,7 @@ if __name__ == "__main__":
             name="fMRI · activation z-map",
             axes=["z", "y", "x"],
             derived_from=[
-                bold_ds.lens().derive(
-                    kind="BY_DIMENSION",
-                    input_axes=["z", "y", "x"],
-                    output_axes=["z", "y", "x"],
-                    value_relation=ValueRelation.TRANSFORMED,
-                )
+                bold_ds.lens().derive_projection(["z", "y", "x"], value_relation=ValueRelation.TRANSFORMED)
             ],
         )
         labels_ds = mikro.create_array_dataset(
@@ -259,12 +254,7 @@ if __name__ == "__main__":
             name="fMRI · regions",
             axes=["z", "y", "x"],
             derived_from=[
-                bold_ds.lens().derive(
-                    kind="BY_DIMENSION",
-                    input_axes=["z", "y", "x"],
-                    output_axes=["z", "y", "x"],
-                    value_relation=ValueRelation.CATEGORIZED,
-                )
+                bold_ds.lens().derive_projection(["z", "y", "x"], value_relation=ValueRelation.CATEGORIZED)
             ],
         )
 

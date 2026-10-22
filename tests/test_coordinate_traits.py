@@ -15,6 +15,7 @@ from mikro.api.schema import (
     CoordinateSystem,
     TransformationAffineTransformation,
     TransformationByDimensionTransformation,
+    TransformationPart,
     TransformationIdentityTransformation,
     TransformationMapAxisTransformation,
     TransformationRotationTransformation,
@@ -65,19 +66,32 @@ def translation_t(id="t-trans", input=UM, output=STAGE, translation=(10.0, -5.0)
     )
 
 
-def by_dimension_t(input, output, axes, *, to=None, id="t-dim", scale=(), translation=(), affine=()):
-    """A registration: the named `axes` of `input` onto `to` (the same names by default) of `output`."""
+def part(kind, axes, to=None, *, scale=(), translation=(), affine=(), field=None):
+    """One part as the wire spells it: every parameter present, the ones its kind does not read empty."""
+    return TransformationPart(kind=kind, inputAxes=tuple(axes), outputAxes=tuple(to or axes), scale=scale, translation=translation, affine=affine, field=field)
+
+
+def by_dimension_t(input, output, *parts_, id="t-dim"):
+    """A BY_DIMENSION of `parts_`, the edge's own axes their concatenation."""
     return TransformationByDimensionTransformation(
         id=id,
         kind="BY_DIMENSION",
         version=0,
         input=input,
         output=output,
-        inputAxes=tuple(axes),
-        outputAxes=tuple(to or axes),
-        scale=scale,
-        translation=translation,
-        affine=affine,
+        inputAxes=tuple(axis for p in parts_ for axis in p.input_axes),
+        outputAxes=tuple(axis for p in parts_ for axis in p.output_axes),
+        parts=parts_,
+    )
+
+
+def field_part(field, consumed=("t",), produced=("t",), *, dereference=False):
+    """A FIELD part reading `consumed` from `field`'s array, giving `produced`."""
+    return part(
+        "FIELD",
+        consumed,
+        produced,
+        field={"values": "SCALAR", "spatial": False, "dereference": dereference, "field": {"id": field.id}},
     )
 
 
@@ -204,11 +218,9 @@ class TestTransformationMatrix:
         )
         assert np.allclose(seq.apply([1.0, 1.0]), [3.0, 2.0])
 
-    def test_a_sequence_without_steps_or_through_a_field_has_no_matrix(self):
+    def test_a_sequence_without_steps_has_no_matrix(self):
         with pytest.raises(ValueError, match="no steps"):
             sequence_t().as_matrix()
-        with pytest.raises(NotImplementedError, match="FIELD"):
-            sequence_t(step("SCALE", scale=(2.0, 2.0)), step("FIELD")).as_matrix()
 
     def test_unmappable_has_no_matrix(self):
         unmappable = TransformationUnmappableTransformation(
@@ -335,10 +347,28 @@ class TestPathComposition:
         graph = SimpleNamespace(transformations=[seq])
         assert np.allclose(PIX.transform_points_to(UM, [1.0, 3.0], graph=graph), [2.5, 6.5])
 
-    def test_a_sequence_through_a_field_is_not_walkable(self):
-        seq = sequence_t(step("SCALE", scale=(2.0, 2.0)), step("FIELD"))
+    def test_a_placing_field_is_walked_forwards_and_leaves_its_axes_out(self):
+        """A FIELD timing a movie: t is the array's, y and x pass through -- forwards only."""
+        movie = make_system("30", "movie", ["t", "y", "x"])
+        world = make_system("31", "world", ["t", "y", "x"])
+        times = make_system("32", "times", ["t"])
+        timed = by_dimension_t(movie, world, part("IDENTITY", ["y", "x"]), field_part(times), id="t-times")
+
+        steps = _bfs_path([timed], "30", "31")
+        assert [(s.transformation.id, s.inverted) for s in steps] == [("t-times", False)]
+        composed = _compose_axis_maps(steps, movie.axis_names)
+        assert composed.output_axes == ("y", "x"), "t is the array's, so the map says nothing about it"
+
         with pytest.raises(ValueError, match="No composable"):
-            _bfs_path([seq], "1", "2")
+            _bfs_path([timed], "31", "30")
+
+    def test_a_key_is_never_walked(self):
+        """A mask's ids land on an INDEX axis: a key, which places nothing."""
+        mask = make_system("33", "mask", ["y", "x"])
+        objects = make_system("34", "objects", ["i"])
+        key = by_dimension_t(mask, objects, field_part(mask, ("y", "x"), ("i",), dereference=True), id="t-key")
+        with pytest.raises(ValueError, match="No composable"):
+            _bfs_path([key], "33", "34")
 
     def test_dimension_mismatch_names_the_edge(self):
         zyx = make_system("8", "zyx", ["z", "y", "x"])
@@ -360,7 +390,7 @@ CROP = make_system("23", "crop", ["c", "z", "y", "x"])
 def scene_graph():
     return SimpleNamespace(
         transformations=[
-            by_dimension_t(DRAWING, WORLD, ["z", "y", "x"], id="t-drawn"),
+            by_dimension_t(DRAWING, WORLD, part("IDENTITY", ["z", "y", "x"]), id="t-drawn"),
             scale_t(id="t-cal", input=GRID, output=WORLD, scale=(1.0, 2.0, 0.5, 0.5)),
             translation_t(id="t-crop", input=CROP, output=GRID, translation=(0.0, 3.0, 10.0, 20.0)),
         ]
@@ -369,7 +399,7 @@ def scene_graph():
 
 class TestByDimensionComposition:
     def test_a_by_dimension_edge_is_walkable_both_ways(self):
-        edge = by_dimension_t(DRAWING, WORLD, ["z", "y", "x"])
+        edge = by_dimension_t(DRAWING, WORLD, part("IDENTITY", ["z", "y", "x"]))
         assert [(s.transformation.id, s.inverted) for s in _bfs_path([edge], "20", "21")] == [("t-dim", False)]
         assert [(s.transformation.id, s.inverted) for s in _bfs_path([edge], "21", "20")] == [("t-dim", True)]
 
@@ -410,7 +440,7 @@ class TestByDimensionComposition:
 
     def test_scale_and_translation_apply_to_the_named_axes_in_that_order(self):
         yx = make_system("30", "plane", ["y", "x"])
-        edge = by_dimension_t(yx, WORLD, ["y", "x"], scale=(2.0, 4.0), translation=(1.0, -1.0))
+        edge = by_dimension_t(yx, WORLD, part("AFFINE", ["y", "x"], affine=((2.0, 0.0, 1.0), (0.0, 4.0, -1.0))))
         graph = SimpleNamespace(transformations=[edge])
         assert np.allclose(yx.transform_points_to(WORLD, [3.0, 5.0], axes=("y", "x"), graph=graph), [7.0, 19.0])
         back = WORLD.axis_map_to(yx, graph=graph)
@@ -418,7 +448,7 @@ class TestByDimensionComposition:
 
     def test_an_affine_is_written_over_the_named_axes_and_may_rename_them(self):
         uv = make_system("31", "sheared", ["u", "v"])
-        edge = by_dimension_t(uv, WORLD, ["u", "v"], to=["x", "y"], affine=((1.0, 1.0, 2.0), (0.0, 2.0, 0.0)))
+        edge = by_dimension_t(uv, WORLD, part("AFFINE", ["u", "v"], ["x", "y"], affine=((1.0, 1.0, 2.0), (0.0, 2.0, 0.0))))
         graph = SimpleNamespace(transformations=[edge])
         # x = u + v + 2, y = 2v
         assert np.allclose(uv.transform_points_to(WORLD, [3.0, 4.0], axes=("y", "x"), graph=graph), [8.0, 9.0])
@@ -437,8 +467,9 @@ class TestByDimensionComposition:
             )
 
         nm, um = with_units("40", "nanometer"), with_units("41", "micrometer")
-        graph = SimpleNamespace(transformations=[by_dimension_t(nm, um, ["x"])])
-        # x is named, so its numbers are the edge's own; z passes through and is converted.
+        graph = SimpleNamespace(transformations=[by_dimension_t(nm, um, part("IDENTITY", ["z"]), part("SCALE", ["x"], scale=(1.0,)))])
+        # z is an IDENTITY part -- the same position, said twice -- so it is converted; x is a
+        # SCALE part, whose numbers are the edge's own.
         assert np.allclose(nm.transform_points_to(um, [500.0, 7.0], graph=graph), [0.5, 7.0])
         assert np.allclose(um.transform_points_to(nm, [0.5, 7.0], graph=graph), [500.0, 7.0])
 
@@ -500,19 +531,17 @@ class TestRegister:
     def test_channel_axis_is_not_placed_in_the_world(self):
         transform = self.place(["c", "y", "x"])["transform"]
         assert transform.kind == "BY_DIMENSION"
-        assert transform.input_axes == ("y", "x")
-        assert transform.output_axes == ("y", "x")
-        assert transform.translation == (0.0, 0.0)
+        (shared,) = transform.parts
+        assert (shared.kind, shared.input_axes, shared.output_axes) == ("IDENTITY", ("y", "x"), ("y", "x")), "no numbers: the same positions, said twice"
 
     def test_offsets_are_positional_against_the_named_axes(self):
-        transform = self.place(["z", "y", "x"], x=288.0, y=144.0)["transform"]
-        assert transform.input_axes == ("z", "y", "x")
-        assert transform.translation == (0.0, 144.0, 288.0)
+        (shared,) = self.place(["z", "y", "x"], x=288.0, y=144.0)["transform"].parts
+        assert (shared.kind, shared.input_axes) == ("TRANSLATION", ("z", "y", "x"))
+        assert shared.translation == (0.0, 144.0, 288.0)
 
     def test_matching_axes_name_all_of_them(self):
-        transform = self.place(["t", "z", "y", "x"])["transform"]
-        assert transform.input_axes == ("t", "z", "y", "x")
-        assert len(transform.translation) == 4
+        (shared,) = self.place(["t", "z", "y", "x"])["transform"].parts
+        assert shared.input_axes == ("t", "z", "y", "x")
 
     def test_no_shared_axes_is_refused(self):
         with pytest.raises(ValueError, match="share"):
@@ -536,7 +565,7 @@ class TestRegister:
         )
         seen = self.register(table)
         assert seen["input"] == "tbl"
-        assert seen["transform"].input_axes == ("y", "x")
+        assert seen["transform"].parts[0].input_axes == ("y", "x")
 
     def test_a_coordinate_system_registers_directly(self):
         seen = self.register(make_system("stage", "stage", ["y", "x"]))
@@ -567,19 +596,19 @@ class TestRegisterScale:
         return seen["transform"]
 
     def test_scale_and_translation_line_up_with_the_named_axes(self):
+        """Both at once are one diagonal AFFINE part: the scale on the diagonal, the offset last."""
         transform = self.register(scale={"z": 1.0, "y": 0.2, "x": 0.2}, x=10.0)
         assert transform.kind == "BY_DIMENSION"
-        assert transform.input_axes == ("z", "y", "x")
-        assert transform.scale == (1.0, 0.2, 0.2)
-        assert transform.translation == (0.0, 0.0, 10.0)
-        assert len(transform.scale) == len(transform.input_axes)
-        assert len(transform.translation) == len(transform.input_axes)
+        (shared,) = transform.parts
+        assert (shared.kind, shared.input_axes) == ("AFFINE", ("z", "y", "x"))
+        assert shared.affine == ((1.0, 0.0, 0.0, 0.0), (0.0, 0.2, 0.0, 0.0), (0.0, 0.0, 0.2, 10.0))
 
     def test_an_unnamed_axis_scales_by_one(self):
-        assert self.register(scale={"x": 0.2}).scale == (1.0, 1.0, 0.2)
+        (shared,) = self.register(scale={"x": 0.2}).parts
+        assert (shared.kind, shared.scale) == ("SCALE", (1.0, 1.0, 0.2))
 
     def test_a_sequence_is_positional_against_the_shared_axes(self):
-        assert self.register(scale=[1.0, 0.2, 0.2]).scale == (1.0, 0.2, 0.2)
+        assert self.register(scale=[1.0, 0.2, 0.2]).parts[0].scale == (1.0, 0.2, 0.2)
 
     def test_a_sequence_of_the_wrong_length_is_refused(self):
         # Sized to the dataset's four axes, but the edge acts on the three shared
@@ -594,9 +623,9 @@ class TestRegisterScale:
     def test_the_channel_axis_is_simply_not_claimed(self):
         """A physical world has no business naming a channel axis, and
         BY_DIMENSION is what lets it stay silent about one."""
-        transform = self.register(scale={"z": 1.0, "y": 0.2, "x": 0.2})
-        assert "c" not in transform.input_axes
-        assert "c" not in transform.output_axes
+        (shared,) = self.register(scale={"z": 1.0, "y": 0.2, "x": 0.2}).parts
+        assert "c" not in shared.input_axes
+        assert "c" not in shared.output_axes
 
 
 class TestSpaceHelpers:

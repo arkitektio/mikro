@@ -138,7 +138,6 @@ TransformKind = Literal[
     "ROTATION",
     "MAP_AXIS",
     "BY_DIMENSION",
-    "FIELD",
     "UNMAPPABLE",
 ]
 
@@ -151,7 +150,7 @@ ResolvedTransformKind = Union[TransformKind, Literal["SEQUENCE"]]
 
 #: The kinds with a closed-form homogeneous matrix. A SEQUENCE is one of them: it
 #: carries its ordered steps, so it composes from what the edge already holds. Its
-#: matrix still fails when a step is of a kind that has none (a FIELD, an UNMAPPABLE).
+#: matrix still fails when a step is of a kind that has none (an UNMAPPABLE).
 MATRIX_KINDS: Final[frozenset[ResolvedTransformKind]] = frozenset(
     {"IDENTITY", "SCALE", "TRANSLATION", "AFFINE", "ROTATION", "MAP_AXIS", "SEQUENCE"}
 )
@@ -159,7 +158,9 @@ MATRIX_KINDS: Final[frozenset[ResolvedTransformKind]] = frozenset(
 #: The kinds a path may be composed through. BY_DIMENSION has no matrix of its own
 #: -- it acts on a named subset of the axes and may change rank -- but it composes
 #: by axis name, and it is the edge of every registration and every scene drawing
-#: space, so a path that could not cross it would stop at the first scene.
+#: space, so a path that could not cross it would stop at the first scene. One with a
+#: FIELD part composes forwards only, unless the part is a key (a mask's ids): the axes
+#: its array gives are left out of the matrix.
 COMPOSABLE_KINDS: Final[frozenset[ResolvedTransformKind]] = MATRIX_KINDS | frozenset({"BY_DIMENSION"})
 
 

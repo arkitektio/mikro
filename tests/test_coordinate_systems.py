@@ -237,9 +237,10 @@ def test_register_places_a_dataset_in_the_world(mikro: Mikro, deployed_app: Depl
     assert tuple(edge.output_axes) == ("z", "y", "x")
     assert "c" not in edge.input_axes
 
-    # A BY_DIMENSION carries its map on itself: the voxel size handed to `register`
-    # comes back as the edge's own scale, over the axes it names.
-    assert tuple(edge.scale) == (0.2, 0.2, 0.2)
+    # A BY_DIMENSION is its parts: the voxel size handed to `register` comes back as
+    # one SCALE part over the axes it names.
+    (part,) = edge.parts
+    assert (part.kind, tuple(part.input_axes), tuple(part.scale)) == ("SCALE", ("z", "y", "x"), (0.2, 0.2, 0.2))
 
 
 @pytest.mark.integration
@@ -275,12 +276,14 @@ def test_register_reads_an_uneven_time_axis_from_a_field(mikro: Mikro, deployed_
     graph = deployed_app.mikro.get_coordinate_graph(coordinate_system=world.id)
     edge = _edge(graph, movie.intrinsic_system.id, world.id)
     assert edge.kind == TransformKind.BY_DIMENSION
-    assert tuple(edge.input_axes) == ("y", "x"), "only the scaled axes are named"
-    assert tuple(edge.scale) == (0.5, 0.5)
-    assert edge.lookup is not None
-    assert (edge.lookup.axis, edge.lookup.output_axis, edge.lookup.unit) == ("t", "t", "second")
-    assert (edge.lookup.min, edge.lookup.max) == (0.0, 7.5)
-    assert str(edge.lookup.field.id) == str(times.intrinsic_system.id)
+    assert tuple(edge.input_axes) == ("y", "x", "t"), "the edge's axes are its parts', in part order"
+    scale, field = edge.parts
+    assert (scale.kind, tuple(scale.input_axes), tuple(scale.scale)) == ("SCALE", ("y", "x"), (0.5, 0.5))
+    assert (field.kind, tuple(field.input_axes), tuple(field.output_axes)) == ("FIELD", ("t",), ("t",))
+    assert field.field is not None
+    assert (field.field.unit, field.field.min, field.field.max) == ("second", 0.0, 7.5)
+    assert (field.field.values, field.field.spatial, field.field.dereference) == ("SCALAR", False, False)
+    assert str(field.field.field.id) == str(times.intrinsic_system.id)
 
 
 @pytest.mark.integration
@@ -451,10 +454,10 @@ def test_a_lens_fetched_by_id_comes_back_as_its_kind(mikro: Mikro, registered_da
 
 
 @pytest.mark.integration
-def test_a_scene_is_staged_from_a_lens_and_its_layers_say_how_they_face_the_screen(
+def test_a_scene_is_staged_from_a_lens(
     mikro: Mikro, registered_dataset: Placed
 ) -> None:
-    """A crop is staged from the lens, and `render_axes` is the layer's, not the lens'."""
+    """A crop is staged from the lens: every layer draws through it. Which axis faces the screen is the viewer's, stated by no layer."""
     crop = registered_dataset.dataset.lens(z=(0, 2))
     scene = mikro.create_scene_from_lens(lens=crop.id, nominate=False, name="a staged crop")
 
@@ -462,8 +465,7 @@ def test_a_scene_is_staged_from_a_lens_and_its_layers_say_how_they_face_the_scre
     assert layers, "One layer per channel"
     for layer in layers:
         assert str(layer.lens.id) == str(crop.id), "Every layer draws through the staged lens"
-        assert (layer.render_axes.y, layer.render_axes.x) == ("y", "x")
-    assert not hasattr(crop, "render_axes")
+        assert not hasattr(layer, "render_axes")
 
 
 @pytest.mark.integration

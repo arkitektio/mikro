@@ -220,12 +220,7 @@ if __name__ == "__main__":
             axes=["z", "y", "x"],
             # The rank-4 -> rank-3 hop: BY_DIMENSION naming the three shared axes.
             derived_from=[
-                source.lens().derive(
-                    kind="BY_DIMENSION",
-                    input_axes=["z", "y", "x"],
-                    output_axes=["z", "y", "x"],
-                    value_relation=ValueRelation.CATEGORIZED,
-                )
+                source.lens().derive_projection(["z", "y", "x"], value_relation=ValueRelation.CATEGORIZED)
             ],
         )
 

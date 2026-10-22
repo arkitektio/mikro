@@ -19,8 +19,8 @@ fragment Window on Window {
 # An array lens selects by index slices, and is what an action that works on pixels is
 # handed. `slices` comes back in the server's one normalized spelling -- dataset axis order,
 # explicit ints, a full axis dropped -- so it is not what was sent, and it is empty for the
-# dataset's whole lens. Which axis faces the screen is no longer here: `renderAxes` is a
-# field of the layer that draws the lens.
+# dataset's whole lens. Which axis faces the screen is the viewer's, read off a layer's
+# placement under its view; `suggestedRenderAxes` is the server's convention for a bare lens.
 fragment ArrayLens on ArrayLens {
   id
   name

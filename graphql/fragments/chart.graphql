@@ -28,13 +28,16 @@ fragment ChartLayer on ChartLayer {
     inputAxes
     outputAxes
     total
-    lookups {
+    fields {
       outputAxis
+      inner
+      base
+      component
+      scale
+      offset
       inputAxis
       innerScale
       innerOffset
-      scale
-      offset
       dataset {
         id
       }

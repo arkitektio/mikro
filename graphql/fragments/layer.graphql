@@ -14,18 +14,6 @@ fragment Layer on Layer {
     lens {
       id
     }
-    # Which lens axis faces screen x, y, z, time and intensity. A convention of the view,
-    # so it is the layer's and not the lens': two layers over one lens may disagree.
-    # Inlined in every arm, for the reason spelled out on LabelLayer below.
-    renderAxes {
-      x
-      y
-      z
-      t
-      intensity
-      phasor
-      vector
-    }
   }
   # The three fixed-shape kinds. Their settings are columns rather than a render graph, so
   # `renderGraph` is null on them and these fields are the only way to read back what was
@@ -37,15 +25,6 @@ fragment Layer on Layer {
   ... on IntensityLayer {
     lens {
       id
-    }
-    renderAxes {
-      x
-      y
-      z
-      t
-      intensity
-      phasor
-      vector
     }
     # Aliased, and it has to be. `PointLayer.colormap` below is `ColorMap` where this one
     # is `ColorMap!` -- an intensity layer always has one, a point cloud need not -- and
@@ -64,15 +43,6 @@ fragment Layer on Layer {
   ... on RgbLayer {
     lens {
       id
-    }
-    renderAxes {
-      x
-      y
-      z
-      t
-      intensity
-      phasor
-      vector
     }
     # Three single-channel crops of `lens`: the channel is the colour, so each component
     # is named by the lens that pins it rather than by an index into the layer's own.
@@ -113,15 +83,6 @@ fragment Layer on Layer {
     lens {
       id
     }
-    renderAxes {
-      x
-      y
-      z
-      t
-      intensity
-      phasor
-      vector
-    }
     phasorRender {
       phasorAxis
       harmonic
@@ -156,15 +117,6 @@ fragment Layer on Layer {
   ... on LabelLayer {
     lens {
       id
-    }
-    renderAxes {
-      x
-      y
-      z
-      t
-      intensity
-      phasor
-      vector
     }
     # Selected rather than left off: without it a label layer's colouring is write-only from
     # Python -- `createLabelLayer` takes a picker and nothing could read back what it stored.
@@ -296,10 +248,6 @@ fragment Layer on Layer {
     lineWidth
     colormap
     trackIdColumn
-    xColumn
-    yColumn
-    zColumn
-    tColumn
   }
   # Inlined rather than spread, for the reason given on LabelLayer: a nested fragment spread
   # inside an *interface* fragment breaks the generated module's import.
@@ -401,9 +349,6 @@ fragment Layer on Layer {
       id
       name
     }
-    xColumn
-    yColumn
-    zColumn
     pointSize
     colormap
     activeColorBy
@@ -445,15 +390,6 @@ fragment Layer on Layer {
   ... on VectorLayer {
     lens {
       id
-    }
-    renderAxes {
-      x
-      y
-      z
-      t
-      intensity
-      phasor
-      vector
     }
   }
 }

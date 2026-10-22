@@ -1,3 +1,26 @@
+# One part of a BY_DIMENSION: its own input axes onto its own output axes, by one kind. Each
+# kind fills only its own field; a FIELD part's array says what its values are, and
+# `dereference` says they are ids keying a table's rows (a mask's) rather than positions.
+fragment TransformationPart on TransformationPart {
+  kind
+  inputAxes
+  outputAxes
+  scale
+  translation
+  affine
+  field {
+    unit
+    min
+    max
+    values
+    spatial
+    dereference
+    field {
+      id
+    }
+  }
+}
+
 fragment Transformation on Transformation {
   id
   kind
@@ -25,11 +48,6 @@ fragment Transformation on Transformation {
     inputAxes
     outputAxes
   }
-  ... on FieldTransformation {
-    field {
-      ...CoordinateSystem
-    }
-  }
   # A SEQUENCE carries its map on itself: ordered steps, each a kind and that kind's
   # parameters in the axis order of the sequence's input. A step is not an edge -- no id, no
   # endpoints -- so there is nothing further to fetch, and the whole matrix composes from this.
@@ -40,29 +58,16 @@ fragment Transformation on Transformation {
       translation
       affine
       reason
-      field {
-        id
-      }
     }
   }
-  # A BY_DIMENSION states its map over the axes it names: a scale and/or a translation, or an
-  # affine. All three empty is the identity on those axes. A `lookup` reads one further axis
-  # from a 1-D array's values -- the instants an event-triggered movie's frames were taken at.
+  # A BY_DIMENSION is its parts, side by side: each maps its own axes by one kind -- a pixel
+  # size on (y, x), the instants of each frame read from an array on t. An axis no part names
+  # is one the edge says nothing about; `inputAxes`/`outputAxes` are the parts' axes in order.
   ... on ByDimensionTransformation {
     inputAxes
     outputAxes
-    scale
-    translation
-    affine
-    lookup {
-      axis
-      outputAxis
-      unit
-      min
-      max
-      field {
-        id
-      }
+    parts {
+      ...TransformationPart
     }
   }
 }

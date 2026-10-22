@@ -19,7 +19,6 @@ import pytest
 from mikro.api.schema import (
     AffineTransformInput,
     ByDimensionTransformInput,
-    FieldTransformInput,
     IdentityTransformInput,
     MapAxisTransformInput,
     RotationTransformInput,
@@ -27,7 +26,7 @@ from mikro.api.schema import (
     TranslationTransformInput,
     UnmappableTransformInput,
 )
-from mikro.traits import _transform_member
+from mikro.traits import _part, _transform_member
 
 
 def test_identity_carries_only_its_discriminator() -> None:
@@ -76,49 +75,31 @@ def test_map_axis_takes_its_axes_by_field_name() -> None:
     assert member.output_axes == ("x", "y")
 
 
-def test_by_dimension_carries_only_the_parameters_it_was_given() -> None:
-    """The optional three used to be assembled in an untyped dict and splatted
-    in; an omitted one must still arrive as None, not as a missing key."""
-    member = _transform_member(
-        "BY_DIMENSION",
-        input_axes=["z", "y"],
-        output_axes=["z", "y"],
-        scale=[1.0, 0.2],
-    )
+def test_a_by_dimension_is_its_parts() -> None:
+    """Each part names its own axes and carries only its own kind's parameter."""
+    pixel = _part("SCALE", ["y", "x"], ["y", "x"], scale=[0.5, 2])
+    times = _part("FIELD", ["t"], ["t"], field="9", unit="second", min=0.0, max=7.5)
+    member = _transform_member("BY_DIMENSION", parts=[pixel, times])
     assert isinstance(member, ByDimensionTransformInput)
-    assert member.input_axes == ("z", "y")
-    assert member.scale == (1.0, 0.2)
-    assert member.translation is None
-    assert member.affine is None
+    assert member.parts == (pixel, times)
+    assert (pixel.kind, pixel.input_axes, pixel.scale, pixel.translation, pixel.affine, pixel.field) == ("SCALE", ("y", "x"), (0.5, 2.0), None, None, None)
+    assert times.field is not None and (times.field.system, times.field.unit, times.field.min, times.field.max) == ("9", "second", 0.0, 7.5)
 
 
-def test_by_dimension_takes_all_three_optionals() -> None:
-    member = _transform_member(
-        "BY_DIMENSION",
-        input_axes=["y", "x"],
-        output_axes=["y", "x"],
-        scale=[1, 2],
-        translation=[3, 4],
-        affine=[[1, 0], [0, 1]],
-    )
-    assert member.scale == (1.0, 2.0)
-    assert member.translation == (3.0, 4.0)
-    assert member.affine == ((1.0, 0.0), (0.0, 1.0))
+def test_a_by_dimension_needs_its_parts() -> None:
+    with pytest.raises(ValueError, match="BY_DIMENSION transformation needs parts"):
+        _transform_member("BY_DIMENSION")
 
 
-def test_by_dimension_needs_its_axes() -> None:
-    with pytest.raises(ValueError, match="BY_DIMENSION transformation needs input_axes"):
-        _transform_member("BY_DIMENSION", scale=[1.0])
+def test_a_by_dimension_takes_no_flat_parameters() -> None:
+    """The flat spelling is gone: a scale beside the parts would be a second, unnamed map."""
+    with pytest.raises(ValueError, match="takes no scale="):
+        _transform_member("BY_DIMENSION", scale=[1.0], parts=[_part("IDENTITY", ["y"], ["y"])])
 
 
-def test_field() -> None:
-    member = _transform_member(
-        "FIELD", field="17", input_axes=["y", "x"], output_axes=["row"]
-    )
-    assert isinstance(member, FieldTransformInput)
-    assert member.field == "17"
-    assert member.input_axes == ("y", "x")
-    assert member.output_axes == ("row",)
+def test_only_a_by_dimension_takes_parts() -> None:
+    with pytest.raises(ValueError, match="takes no parts"):
+        _transform_member("SCALE", scale=[1.0], parts=[_part("IDENTITY", ["y"], ["y"])])
 
 
 def test_unmappable_with_and_without_a_reason() -> None:
