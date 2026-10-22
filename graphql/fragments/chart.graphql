@@ -28,6 +28,17 @@ fragment ChartLayer on ChartLayer {
     inputAxes
     outputAxes
     total
+    lookups {
+      outputAxis
+      inputAxis
+      innerScale
+      innerOffset
+      scale
+      offset
+      dataset {
+        id
+      }
+    }
   }
   ... on TraceChartLayer {
     lens {

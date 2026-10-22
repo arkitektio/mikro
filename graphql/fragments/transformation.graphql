@@ -46,12 +46,23 @@ fragment Transformation on Transformation {
     }
   }
   # A BY_DIMENSION states its map over the axes it names: a scale and/or a translation, or an
-  # affine. All three empty is the identity on those axes.
+  # affine. All three empty is the identity on those axes. A `lookup` reads one further axis
+  # from a 1-D array's values -- the instants an event-triggered movie's frames were taken at.
   ... on ByDimensionTransformation {
     inputAxes
     outputAxes
     scale
     translation
     affine
+    lookup {
+      axis
+      outputAxis
+      unit
+      min
+      max
+      field {
+        id
+      }
+    }
   }
 }

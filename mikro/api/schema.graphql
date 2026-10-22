@@ -13,6 +13,30 @@ schema @link(url: "https://specs.apollo.dev/federation/v2.11", import: ["@key"])
 }
 
 """
+The time truth: when the data at a coordinate anchor's coordinates was acquired, from the first of it to the last
+"""
+type AcquisitionWindow @key(fields: "id", resolvable: true) {
+  id: ID!
+
+  """When the first of the data at these coordinates was acquired"""
+  start: DateTime!
+
+  """When the last of it was acquired. Equal to start for one instant"""
+  end: DateTime!
+}
+
+"""
+Input type for an acquisition window: when the data at an anchor's coordinates was acquired, from the first of it to the last
+"""
+input AcquisitionWindowInput {
+  """When the first of the data at these coordinates was acquired"""
+  start: DateTime!
+
+  """When the last of it was acquired. Defaults to start: one instant"""
+  end: DateTime = null
+}
+
+"""
 A whole placement path composed into one affine map, labelled with the axes it is written over. `matrix` is M x (N+1) with rows outermost -- the same layout an AffineTransformation's `affine` uses -- its columns in `inputAxes` order and its last column the translation. **`outputAxes` names only the destination axes the path actually constrains**: a (c,y,x) dataset registered on (y,x) into a (t,z,y,x) world gets two rows, not four, because the registration says nothing about t and z and a zero row there would pin the data at their origin rather than leave it unstated. `total` is whether the map covers every destination axis
 """
 type AffinePlacement {
@@ -32,9 +56,14 @@ type AffinePlacement {
   outputAxes: [String!]!
 
   """
-  Whether `outputAxes` covers every axis of the destination space. False for a partial registration -- an honest map over the axes it names, and silence about the rest
+  Whether `outputAxes` and `lookups` together cover every axis of the destination space. False for a partial registration -- an honest map over the axes it names, and silence about the rest
   """
   total: Boolean!
+
+  """
+  The destination axes given by an array's values rather than by a row of `matrix`, e.g. the time of each frame of an event-triggered movie. An axis is in `outputAxes` or here, never both
+  """
+  lookups: [PlacementLookup!]!
 }
 
 """
@@ -859,6 +888,21 @@ type ArrayDataset @key(fields: "id", resolvable: true) @identified(by: "@mikro/a
   """The assigner of the creating task, if any"""
   createdThroughBy: User
 
+  """
+  Derived from the coordinate anchors by core.logic.acquisition.start: The earliest moment any of its anchors says it was acquired at. Null when no anchor states it, or when they disagree
+  """
+  acquisitionStart: DateTime
+
+  """
+  Derived from the coordinate anchors by core.logic.acquisition.end: The latest moment any of its anchors says it was acquired at. Null when no anchor states it, or when they disagree
+  """
+  acquisitionEnd: DateTime
+
+  """
+  Anchors of this dataset that cannot all be true, found while deriving its columns: an anchor contradicting one it holds over. Each leaves its column null. Empty when the metadata is consistent
+  """
+  derivationConflicts: [DerivationConflict!]!
+
   """The multiscale data arrays belonging to this dataset"""
   dataArrays(filters: DataArrayFilter, ordering: [DataArrayOrder!]! = [], pagination: OffsetPaginationInput): [DataArray!]!
 
@@ -1068,6 +1112,26 @@ input ArrayDatasetFilter {
   sourceSeriesIdentifier: String
 
   """
+  Filter by whether the dataset was converted out of a file: true for the series a converter read from an upload, false for data written straight in (by an app, an agent, a script). Pair `false` with `notDerived` for the acquired data that came without a file
+  """
+  hasSourceFile: Boolean
+
+  """
+  Filter to datasets acquired, at least in part, after this moment: their `acquisitionEnd` is at or after it. With `acquiredBefore`, the datasets whose acquisition overlaps the window. A dataset with no stated acquisition time never matches
+  """
+  acquiredAfter: DateTime
+
+  """
+  Filter to datasets acquired, at least in part, before this moment: their `acquisitionStart` is at or before it. With `acquiredAfter`, the datasets whose acquisition overlaps the window. A dataset with no stated acquisition time never matches
+  """
+  acquiredBefore: DateTime
+
+  """
+  Filter by whether the dataset's anchors contradict each other: true finds the nonsensical metadata (`derivationConflicts`), false the consistent
+  """
+  hasDerivationConflicts: Boolean
+
+  """
   Filter by whether the dataset nominates a scene to open (through its whole lens). False finds the ones with no thumbnail
   """
   hasDefaultScene: Boolean
@@ -1075,6 +1139,7 @@ input ArrayDatasetFilter {
 
 input ArrayDatasetOrder @oneOf {
   createdAt: Ordering
+  acquisitionStart: Ordering
   name: Ordering
   id: Ordering
 }
@@ -1431,6 +1496,62 @@ input AxisInput {
 }
 
 """
+The lookup a BY_DIMENSION edge carries on one axis: that axis' output is the value of a 1-D array at the input index, rather than computed from the parameters
+"""
+type AxisLookup {
+  """The input axis the array is read along"""
+  axis: String!
+
+  """The output axis its values land on"""
+  outputAxis: String!
+
+  """The unit of the array's values"""
+  unit: String!
+
+  """The array's first value, as declared by its writer"""
+  min: Float!
+
+  """The array's last value, as declared by its writer"""
+  max: Float!
+
+  """The coordinate system of the array whose values are the map"""
+  field: CoordinateSystem!
+}
+
+"""
+One axis of a BY_DIMENSION edge whose output is the value of a 1-D array at the input index: a movie whose frames were taken at uneven instants, a stack with uneven z steps. The array's values strictly increase; between samples the map interpolates linearly, so a pyramid level's fractional index is still a position
+"""
+input AxisLookupInput {
+  """
+  The input axis the lookup reads, e.g. 't'. It is not one of the edge's `inputAxes`: those are the axes its parameters act on
+  """
+  axis: String!
+
+  """The output axis the array's values land on. Defaults to `axis`"""
+  outputAxis: String = null
+
+  """
+  The coordinate system of the 1-D array whose values are the map, alone in its system, with one value per position of `axis`
+  """
+  field: ID!
+
+  """
+  The unit of the array's values, e.g. 'second'. Converted into the output axis' unit when read
+  """
+  unit: String!
+
+  """
+  The array's first value, declared: the server never reads array contents
+  """
+  min: Float!
+
+  """
+  The array's last value, declared. Greater than `min`: the values strictly increase
+  """
+  max: Float!
+}
+
+"""
 The semantic kind of an axis. Axes are declared in the order the data has them -- for an array, its store's dimension order; for a table, its coordinate columns as declared -- and no ordering by type is required of them: the time, channel and phasor axes are found by type rather than by position. What the render axes are derived from is the relative order of the SPACE axes, the last being x.
 """
 enum AxisType {
@@ -1696,11 +1817,12 @@ The fields a BY_DIMENSION member of TransformInput reads. Published for codegen;
 """
 input ByDimensionTransformInput @unionElementOf(union: "TransformInput", discriminator: "kind", key: "BY_DIMENSION") {
   kind: CreatableTransformKind! = BY_DIMENSION
-  inputAxes: [String!]!
-  outputAxes: [String!]!
+  inputAxes: [String!]! = []
+  outputAxes: [String!]! = []
   scale: [Float!] = null
   translation: [Float!] = null
   affine: [[Float!]!] = null
+  lookup: AxisLookupInput = null
 }
 
 """
@@ -1778,6 +1900,11 @@ type ByDimensionTransformation implements Transformation @key(fields: "id", reso
   The matrix over the named axes, M x (N+1) with rows outermost, in `outputAxes` x `inputAxes` order. Empty when the map is stated per axis or not at all. When present it is the whole map: a `scale` or `translation` beside it is not read
   """
   affine: [[Float!]!]!
+
+  """
+  One further axis read from a 1-D array's values rather than computed from the parameters, e.g. the instants an event-triggered movie's frames were taken at. Null when every axis is named or passes through
+  """
+  lookup: AxisLookup
 }
 
 """
@@ -2502,6 +2629,9 @@ type CoordinateAnchor @key(fields: "id", resolvable: true) @identified(by: "@mik
   channelLabel: ChannelLabel
   lightGraph: LightPath
 
+  """When the data at these coordinates was acquired"""
+  acquisitionWindow: AcquisitionWindow
+
   """The OME image metadata recorded at this coordinate"""
   omeMetadata: OmeMetadata
   phasorHistograms(pagination: OffsetPaginationInput): [PhasorHistogram!]!
@@ -2543,6 +2673,7 @@ input CoordinateAnchorInput {
   lightGraph: LightpathGraphInput = null
   phasorHistogram: PhasorHistogramInput = null
   phasorCalibration: PhasorCalibrationInput = null
+  acquisitionWindow: AcquisitionWindowInput = null
 }
 
 """
@@ -3602,6 +3733,22 @@ input DeleteTransformationInput {
 }
 
 """
+Anchors of a dataset that cannot all be true, found deriving one of its columns: an anchor contradicting one it holds over. The column is left null
+"""
+type DerivationConflict @key(fields: "id", resolvable: true) {
+  id: ID!
+
+  """The derived field the conflict left null, e.g. 'acquisition_start'"""
+  field: String!
+
+  """What the anchors say that cannot all be true"""
+  reason: String!
+
+  """The IDs of the anchors that contradict each other"""
+  anchors: [ID!]!
+}
+
+"""
 Which kind of thing a derivation names as the source its data was computed from: the discriminator of `DerivedFromInput`. The edge itself is the same whichever is chosen -- child space in, source space out -- so a table named as TABLE_DATASET and the same table named as COORDINATE_SYSTEM write the identical row; the read side reports what lives at the far end through `CoordinateSystem.residents`, not which member was used to say it
 """
 enum DerivationSourceKind {
@@ -3688,6 +3835,49 @@ input DerivedFromInput {
   What the derivation did to the *values* -- orthogonal to the transform's `kind`, which only says where the data sits: IDENTICAL for a crop or reorder (statistics transfer), TRANSFORMED for a deconvolution, a normalization, or a table of measurements read off an image, CATEGORIZED for a threshold or segmentation (values became labels -- a bootstrapped scene then renders as a label map). Omit when unstated; the algorithm itself belongs to task provenance
   """
   valueRelation: ValueRelation = null
+}
+
+"""One thing made from a `descendants` root, as a tile names it"""
+type DescendantNode {
+  """`<kind>:<id>`, the same key `lineage` gives it"""
+  key: ID!
+
+  """What it is"""
+  kind: LineageNodeKind!
+
+  """Its ID, as its own query takes it"""
+  id: ID!
+
+  """
+  Its name; a mesh or network collection without one is named by its store's key
+  """
+  name: String!
+
+  """Hops below the root, at its nearest"""
+  depth: Int!
+
+  """
+  The key of what it was made from on its nearest path to the root -- the root's own key one hop down -- so the nodes read as a tree
+  """
+  parent: ID!
+}
+
+"""
+What was made from one root: its descendants, without the edges, lenses or arrays `lineage` carries
+"""
+type Descendants {
+  """The root's node key"""
+  root: ID!
+
+  """
+  Everything made from the root within `down` hops, nearest first, each once
+  """
+  nodes: [DescendantNode!]!
+
+  """
+  Whether something made from it was left out -- past `down`, past `fanout` or past the shared `limit`. `lineage` rooted here walks on
+  """
+  more: Boolean!
 }
 
 """
@@ -9076,6 +9266,39 @@ input PinholeElementInput @unionElementOf(union: "OpticalElementInput", discrimi
 }
 
 """
+One destination axis of a placement given by a lookup: the world coordinate of source index `i` along `inputAxis` is `scale * field[innerScale * i + innerOffset] + offset`, where `field` is the 1-D array of `dataset`. The array's values strictly increase and are the positions of the sample *centres*; between samples the map interpolates linearly, so a fractional index (a pyramid level's) is still a position. The server never reads the values: fetch the array once and evaluate it, or invert it by binary search to find the sample at a world coordinate
+"""
+type PlacementLookup {
+  """The destination axis this lookup gives"""
+  outputAxis: String!
+
+  """The source axis whose index the array is read at"""
+  inputAxis: String!
+
+  """Source index to array index: the factor"""
+  innerScale: Float!
+
+  """Source index to array index: the offset"""
+  innerOffset: Float!
+
+  """
+  Array value to destination coordinate: the factor, including the unit conversion from the array's values
+  """
+  scale: Float!
+
+  """Array value to destination coordinate: the offset"""
+  offset: Float!
+
+  """The coordinate system of the array whose values are the map"""
+  field: CoordinateSystem!
+
+  """
+  The 1-D dataset whose values are the map. Read its level-0 store to evaluate the lookup
+  """
+  dataset: ArrayDataset!
+}
+
+"""
 Whether a layer has a place in its scene's world, and if not, why not. Derived, never stored.
 """
 enum PlacementState {
@@ -9568,6 +9791,16 @@ type Query {
   lineage(start: LineageRootInput!, up: Int! = 1, down: Int! = 3, limit: Int! = 300, fanout: Int! = 50): Lineage! @auth
 
   """
+  The newest parentless data, whatever its kind, newest first: what a home page lists. A root has no up-hop in `lineage` -- no derivation edge into another container and no file it was converted from; a file is one unless it was exported from a container. A file's converted series and a dataset's mask are not roots: they are reached from their parent, with `descendants`. Annotation collections are drawn rather than brought in and are never listed. `kinds` narrows it; the default is every other kind. `filters` narrows it further, by creator, collaboration, creation time and acquisition time
+  """
+  roots(kinds: [LineageNodeKind!] = null, pagination: OffsetPaginationInput = null, filters: RootFilter = null): [RootNode!]! @auth
+
+  """
+  What was made from each of many containers or files, `down` hops deep, in one walk: a page of tiles asks once rather than once per tile. Kind-blind like `lineage` -- a table uploaded on its own is a root just as a converted series is -- but downstream only, and without the edges, lenses and arrays `lineage` carries. `limit` is shared by every root; `fanout` caps the hops per node. A root another organization owns answers nothing, so the result can be shorter than `starts`
+  """
+  descendants(starts: [LineageRootInput!]!, down: Int! = 3, limit: Int! = 500, fanout: Int! = 20): [Descendants!]! @auth
+
+  """
   Every attribute plan reachable from one system: one per FIELD edge landing on a table, discovered across the fact component -- probe a source image and the plans of the instance mask derived from it come back, each carrying the `path` of steps from the probed system to its root. Registrations are never crossed (no scene, no world). A plan is instructions, never attributes -- map along the path, sample this array, look the value up in this parquet -- and takes no coordinate, so a client fetches it once and executes it per hover against the chunks it is already rendering. Cache it against the FIELD edge plus every path step (ids and versions); `maxDepth` bounds the discovery. Each plan is a chain of `hops`: the landing, then every declared reference reachable from it -- `Column.references` into another table, a matrix axis a table identifies, or the same axis walked into the matrix -- up to `maxJoinDepth` (default 1, at most 4; 0 is the landing alone), each bound from the hop before and executed by the client in order. The server reads no store and composes nothing
   """
   attributePlans(system: ID!, maxDepth: Int = null, maxJoinDepth: Int! = 1): [AttributePlan!]! @auth
@@ -9882,6 +10115,67 @@ type RgbLayer implements Layer @key(fields: "id", resolvable: true) {
   Per pyramid level, the path from that level's voxel grid to this scene's world system. What a multiscale renderer consumes directly: pick a level by zoom and use its path -- every level stars into the same intrinsic system, so the registration tail is shared. A level's path is null when the dataset is not registered into the scene
   """
   levelPaths: [LevelPlacement!]!
+}
+
+"""What narrows `roots`. A field left out does not narrow"""
+input RootFilter {
+  """
+  Only what this user created, by their subject ID. Kinds that record no creator drop out
+  """
+  owner: ID = null
+
+  """
+  Only what was put in this collaboration. A file counts when it, or a series converted out of it, was put there
+  """
+  collaboration: ID = null
+
+  """Only what was created at or after this moment"""
+  createdAfter: DateTime = null
+
+  """Only what was created at or before this moment"""
+  createdBefore: DateTime = null
+
+  """
+  Only what was acquired, at least in part, at or after this moment -- the same overlap as `ArrayDatasetFilter.acquiredAfter`. A file is judged by the series converted out of it; kinds with no acquisition time drop out
+  """
+  acquiredAfter: DateTime = null
+
+  """
+  Only what was acquired, at least in part, at or before this moment -- the same overlap as `ArrayDatasetFilter.acquiredBefore`. A file is judged by the series converted out of it; kinds with no acquisition time drop out
+  """
+  acquiredBefore: DateTime = null
+
+  """
+  Only what is named with this text, anywhere in the name, ignoring case. A file also matches by the name of a series converted out of it. An unnamed mesh or network collection never matches
+  """
+  search: String = null
+
+  """
+  Only data satisfying every one of these specs, as `ArrayDatasetFilter.spec` reads them, e.g. [VOLUME, TIMESERIES]. A file is judged by the series converted out of it, and matches only when one series meets both this and the acquisition window; kinds that are not array data drop out
+  """
+  spec: [ArrayDatasetSpec!] = null
+}
+
+"""
+A piece of parentless data: nothing it was made from is recorded, so it is where a lineage starts
+"""
+type RootNode {
+  """`<kind>:<id>`, the same key `lineage` gives it"""
+  key: ID!
+
+  """What it is"""
+  kind: LineageNodeKind!
+
+  """Its ID, as its own query takes it"""
+  id: ID!
+
+  """
+  Its name; a mesh or network collection without one is named by its store's key
+  """
+  name: String!
+
+  """When it was created"""
+  createdAt: DateTime
 }
 
 """
@@ -11367,6 +11661,11 @@ input TableDatasetFilter {
   folders: [ID!]
 
   """
+  Filter by whether the table was converted out of a file: true for the tables a converter read from an upload, false for those written straight in
+  """
+  hasSourceFile: Boolean
+
+  """
   Filter by the dataset the table was computed from, following its derivation edge
   """
   dataset: ID
@@ -11825,6 +12124,11 @@ input TransformInput {
 
   """(UNMAPPABLE) Why nothing corresponds. Purely descriptive"""
   reason: String = null
+
+  """
+  (BY_DIMENSION) One further axis read from a 1-D array's values rather than computed
+  """
+  lookup: AxisLookupInput = null
 }
 
 """
@@ -12943,7 +13247,7 @@ type ZarrUploadGrant {
 
 scalar _Any
 
-union _Entity = AffineTransformation | Animation | AnimationWaypoint | Annotation | AnnotationChartLayer | AnnotationCollection | AnnotationLayer | AnnotationLens | ArrayDataset | ArrayLens | Axis | BigFileStore | ByDimensionTransformation | ChannelLabel | Chart | Client | Column | CoordinateAnchor | CoordinateSystem | DataArray | FabriksStore | FieldTransformation | File | FileLink | Folder | IdentityTransformation | ImageLayer | IntensityLayer | KonnektionStore | LabelLayer | LightPath | MapAxisTransformation | MediaStore | Membership | MeshCollection | MeshLayer | MeshLens | Metric | MetricTarget | NetworkCollection | NetworkLayer | NetworkLens | OmeMetadata | OptikitState | Organization | ParquetStore | PhasorCalibration | PhasorHistogram | PhasorLayer | PointLayer | RgbLayer | RotationTransformation | ScaleTransformation | Scene | SceneSnapshot | SequenceTransformation | SeriesChartLayer | SparseArray | SparseAxisReference | SparseDataset | SparseLens | SparseStore | TableDataset | TableLens | Task | TraceChartLayer | TrackLayer | TranslationTransformation | UnmappableTransformation | User | ValueHistogram | VectorLayer | ZarrStore
+union _Entity = AcquisitionWindow | AffineTransformation | Animation | AnimationWaypoint | Annotation | AnnotationChartLayer | AnnotationCollection | AnnotationLayer | AnnotationLens | ArrayDataset | ArrayLens | Axis | BigFileStore | ByDimensionTransformation | ChannelLabel | Chart | Client | Column | CoordinateAnchor | CoordinateSystem | DataArray | DerivationConflict | FabriksStore | FieldTransformation | File | FileLink | Folder | IdentityTransformation | ImageLayer | IntensityLayer | KonnektionStore | LabelLayer | LightPath | MapAxisTransformation | MediaStore | Membership | MeshCollection | MeshLayer | MeshLens | Metric | MetricTarget | NetworkCollection | NetworkLayer | NetworkLens | OmeMetadata | OptikitState | Organization | ParquetStore | PhasorCalibration | PhasorHistogram | PhasorLayer | PointLayer | RgbLayer | RotationTransformation | ScaleTransformation | Scene | SceneSnapshot | SequenceTransformation | SeriesChartLayer | SparseArray | SparseAxisReference | SparseDataset | SparseLens | SparseStore | TableDataset | TableLens | Task | TraceChartLayer | TrackLayer | TranslationTransformation | UnmappableTransformation | User | ValueHistogram | VectorLayer | ZarrStore
 
 type _Service {
   sdl: String!

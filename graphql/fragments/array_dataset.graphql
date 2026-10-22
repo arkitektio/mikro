@@ -4,6 +4,8 @@ fragment ArrayDataset on ArrayDataset {
   axisNames
   shape
   multiscale
+  acquisitionStart
+  acquisitionEnd
   intrinsicSystem {
     ...CoordinateSystem
   }

@@ -99,6 +99,7 @@ if TYPE_CHECKING:
         ArrayLens,
         Axis,
         AxisInput,
+        AxisLookupInput,
         AxisType,
         Chart,
         ChartPolicyInput,
@@ -1877,6 +1878,7 @@ def _transform_member(
     output_axes: Sequence[str] | None = None,
     field: IDCoercible | None = None,
     reason: str | None = None,
+    lookup: "AxisLookupInput | None" = None,
 ) -> TransformInput:
     """Build the tagged member input for a transformation ``kind``.
 
@@ -1936,10 +1938,14 @@ def _transform_member(
             input_axes=list(require("input_axes", input_axes)),
             output_axes=list(require("output_axes", output_axes)),
         )
+    if lookup is not None and normalized != "BY_DIMENSION":
+        raise ValueError(f"A {normalized} transformation takes no lookup: only BY_DIMENSION reads an axis from an array")
     if normalized == "BY_DIMENSION":
         return schema.ByDimensionTransformInput(
-            input_axes=list(require("input_axes", input_axes)),
-            output_axes=list(require("output_axes", output_axes)),
+            # A lookup may be the edge's whole map, naming no axis for parameters at all.
+            input_axes=list(input_axes or ()) if lookup is not None else list(require("input_axes", input_axes)),
+            output_axes=list(output_axes or ()) if lookup is not None else list(require("output_axes", output_axes)),
+            lookup=lookup,
             scale=None if scale is None else tuple(float(s) for s in scale),
             translation=(
                 None if translation is None else tuple(float(t) for t in translation)
@@ -2056,6 +2062,45 @@ def _units_in_order(system: CoordinateSystemTrait) -> dict[str, object]:
     return {a.name: getattr(a, "unit", None) for a in axes}
 
 
+def _lookup_input(
+    source: object,
+    space: object,
+    field: "Mapping[str, DatasetTrait]",
+    units: Mapping[str, str],
+    source_axes: Sequence[str],
+    space_axes: Sequence[str],
+) -> "AxisLookupInput | None":
+    """The lookup `register(field=...)` describes, its values read once and checked.
+
+    The server records the range as declared and never reads the array, so this
+    is where "strictly increasing, one value per position" is actually checked.
+    """
+    from mikro.api.schema import AxisLookupInput
+
+    if not field:
+        return None
+    if len(field) > 1:
+        raise ValueError(f"An edge reads at most one axis from an array, but field names {sorted(field)}. Register through an intermediate space for a second one")
+    ((axis, dataset),) = field.items()
+    if axis not in source_axes or axis not in space_axes:
+        raise ValueError(f"field names '{axis}', which {getattr(source, 'name', 'the source')} {list(source_axes)} and the space {list(space_axes)} do not both have")
+
+    values = np.asarray(dataset.data.values, dtype=float)
+    if values.ndim != 1:
+        raise ValueError(f"A field is one value per position, so it is rank one, but '{getattr(dataset, 'name', '?')}' has shape {values.shape}")
+    if values.size < 2 or not bool(np.all(np.diff(values) > 0)):
+        raise ValueError(f"A field's values strictly increase, but '{getattr(dataset, 'name', '?')}' does not: {values[:8]}")
+
+    unit = units.get(axis) or next((a.unit for a in getattr(space, "axes", ()) or () if a.name == axis), None)
+    if not unit:
+        raise ValueError(f"Name the unit of the field's values for '{axis}' (field_units={{'{axis}': ...}}): the space's axis states none")
+
+    system = getattr(dataset, "intrinsic_system", None)
+    if system is None:
+        raise ValueError(f"'{getattr(dataset, 'name', '?')}' was fetched without its intrinsicSystem, so its space cannot be named")
+    return AxisLookupInput(axis=axis, field=system.id, unit=str(unit), min=float(values[0]), max=float(values[-1]))
+
+
 def _edge_axis_map(step: PathStep) -> AxisMap:
     """One edge of a path as an `AxisMap` in the direction it is walked.
 
@@ -2140,7 +2185,16 @@ def _edge_axis_map(step: PathStep) -> AxisMap:
             f"Transformation {getattr(t, 'id', '?')} (BY_DIMENSION) carries a "
             f"{sub.shape[0] - 1} x {sub.shape[1] - 1} map for the {n} axes it names"
         )
+    # A lookup's axis is read from an array, not computed: it neither passes through nor
+    # appears in the matrix, exactly as the server's `asAffine` leaves it to `lookups`.
+    lookup = getattr(t, "lookup", None)
+    looked_up = {lookup.axis, lookup.output_axis} if lookup is not None else set()
     if step.inverted:
+        if lookup is not None:
+            raise ValueError(
+                f"Transformation {getattr(t, 'id', '?')} (BY_DIMENSION) reads '{lookup.axis}' "
+                "from an array and is walked forwards only"
+            )
         try:
             sub = np.linalg.inv(sub)
         except np.linalg.LinAlgError as e:
@@ -2160,7 +2214,7 @@ def _edge_axis_map(step: PathStep) -> AxisMap:
             for column, in_axis in enumerate(acts_in):
                 row[in_names.index(in_axis)] = block[column]
             row[-1] = block[n]
-        elif out_axis in in_names and out_axis not in acts_in:
+        elif out_axis in in_names and out_axis not in acts_in and out_axis not in looked_up:
             factor = _pass_through_factor(in_units[out_axis], out_units[out_axis])
             if factor is None:
                 continue
@@ -2597,6 +2651,8 @@ class CoordinateSystemTrait:
         source: Registrable,
         *,
         scale: Mapping[str, float] | Sequence[float] | None = None,
+        field: "Mapping[str, DatasetTrait] | None" = None,
+        field_units: Mapping[str, str] | None = None,
         name: str | None = None,
         validity: PlacementValidity | None = None,
         mikro: "Mikro | None" = None,
@@ -2632,6 +2688,18 @@ class CoordinateSystemTrait:
             world.register(dataset, x=288.0)                     # shifted along x
             world.register(dataset, scale={"z": 1.0, "y": 0.2, "x": 0.2})
             world.register(table_dataset, y=144.0)               # any source with a space
+            world.register(movie, scale={"y": 0.5, "x": 0.5}, field={"t": frame_times})
+
+        `field` reads one axis from a 1-D dataset's values instead of scaling it:
+        the frames of an event-triggered movie were taken at uneven instants, so
+        frame `i` sits at ``frame_times[i]``. The values are ABSOLUTE coordinates
+        in this space -- seconds since its ``epoch`` when it has one
+        (``create_space(..., epoch=datetime(...))``), which is the reference that
+        makes them wall-clock times; nothing is offset or derived. The dataset holds one value per
+        position along that axis, strictly increasing, alone in its own space.
+        The values are read once here, to check that and to declare their range
+        (the server never reads array contents). `field_units` names the unit
+        of those values per axis; it defaults to this space's unit for the axis.
 
         Args:
             source: Anything that lives in a space.
@@ -2640,6 +2708,8 @@ class CoordinateSystemTrait:
             name: An optional name for the edge.
             validity: How far the claim is to be trusted.
             mikro: The client to call through; defaults to the one that fetched this object.
+            field: At most one axis read from a 1-D dataset's values, by axis name.
+            field_units: The unit of each field's values, by axis name.
             **offsets: The per-axis offset in this space's coordinates.
 
         Returns:
@@ -2647,18 +2717,23 @@ class CoordinateSystemTrait:
 
         Raises:
             ValueError: If the two spaces share no axis, if a scale or an offset
-                names an unshared one, or if a positional scale is the wrong
-                length.
+                names an unshared one, if a positional scale is the wrong
+                length, or if a field is not one strictly increasing value per
+                position.
         """
         space = _space_of(source)
 
         axis_names = _axis_names_in_order(space)
         my_names = _axis_names_in_order(self)
 
+        lookup = _lookup_input(source, self, field or {}, field_units or {}, axis_names, my_names)
+
         # In the source's own axis order: the edge's parameters are positional
-        # against `input_axes`, so the two lists have to agree.
-        shared = [axis for axis in axis_names if axis in my_names]
-        if not shared:
+        # against `input_axes`, so the two lists have to agree. A looked-up axis
+        # is not among them: the array, not a factor, is its map.
+        looked_up = {lookup.axis} if lookup is not None else set()
+        shared = [axis for axis in axis_names if axis in my_names and axis not in looked_up]
+        if not shared and lookup is None:
             raise ValueError(
                 f"{getattr(source, 'name', source)} has axes {axis_names} and the "
                 f"space '{getattr(self, 'name', '?')}' has {my_names}: they share "
@@ -2668,6 +2743,9 @@ class CoordinateSystemTrait:
             )
 
         named = set(offsets) | (set(scale) if isinstance(scale, Mapping) else set())
+        both = sorted(named & looked_up)
+        if both:
+            raise ValueError(f"{both} is given by `field`, so it takes no scale or offset: an axis has one map")
         unplaceable = sorted(named - set(shared))
         if unplaceable:
             raise ValueError(
@@ -2695,9 +2773,10 @@ class CoordinateSystemTrait:
             self,
             kind="BY_DIMENSION",
             scale=factors,
-            translation=[float(offsets.get(axis, 0.0)) for axis in shared],
+            translation=[float(offsets.get(axis, 0.0)) for axis in shared] if shared else None,
             input_axes=shared,
             output_axes=shared,
+            lookup=lookup,
             name=name
             or f"{getattr(source, 'name', 'source')} -> {getattr(self, 'name', 'space')}",
             validity=validity,
@@ -2935,6 +3014,7 @@ class CoordinateSystemTrait:
         input_axes: Sequence[str] | None = None,
         output_axes: Sequence[str] | None = None,
         reason: str | None = None,
+        lookup: "AxisLookupInput | None" = None,
         validity: PlacementValidity | None = None,
         mikro: "Mikro | None" = None,
     ) -> CreatedTransformation:
@@ -2996,6 +3076,7 @@ class CoordinateSystemTrait:
             input_axes=input_axes,
             output_axes=output_axes,
             reason=reason,
+            lookup=lookup,
         )
 
         return client_of(self, mikro).create_transformation(

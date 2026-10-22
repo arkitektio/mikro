@@ -23,7 +23,7 @@ import pytest
 import xarray as xr
 
 from mikro.mikro import Mikro
-from mikro import canonical, dataset_arrays, space_3d
+from mikro import canonical, create_space, dataset_arrays, space_3d
 from mikro.api.schema import (
     AnnotationKind,
     ArrayDataset,
@@ -240,6 +240,62 @@ def test_register_places_a_dataset_in_the_world(mikro: Mikro, deployed_app: Depl
     # A BY_DIMENSION carries its map on itself: the voxel size handed to `register`
     # comes back as the edge's own scale, over the axes it names.
     assert tuple(edge.scale) == (0.2, 0.2, 0.2)
+
+
+@pytest.mark.integration
+def test_register_reads_an_uneven_time_axis_from_a_field(mikro: Mikro, deployed_app: DeployedMikro) -> None:
+    """An event-triggered movie: y,x scaled, t read from the instants its frames were taken at.
+
+    One edge says both. The looked-up axis is not among the named ones -- the array, not a
+    factor, is its map -- and the range comes back as the values the client read and declared.
+    """
+    from kanne.scalars import Unit
+
+    instants = np.array([0.0, 0.1, 0.15, 2.0, 2.05, 7.5])
+    world = create_space(
+        deployed_app.mikro,
+        "event world",
+        {"t": Unit("second"), "y": Unit("micrometer"), "x": Unit("micrometer")},
+    )
+    movie = mikro.create_array_dataset(
+        data=xr.DataArray(np.zeros((len(instants), 16, 16), dtype="float32"), dims=("t", "y", "x")),
+        scales=[],
+        name="coordsys_event_movie",
+        axes=["t", "y", "x"],
+    )
+    times = mikro.create_array_dataset(
+        data=xr.DataArray(instants, dims=("t",)),
+        scales=[],
+        name="coordsys_event_times",
+        axes=["t"],
+    )
+
+    world.register(movie, scale={"y": 0.5, "x": 0.5}, field={"t": times})
+
+    graph = deployed_app.mikro.get_coordinate_graph(coordinate_system=world.id)
+    edge = _edge(graph, movie.intrinsic_system.id, world.id)
+    assert edge.kind == TransformKind.BY_DIMENSION
+    assert tuple(edge.input_axes) == ("y", "x"), "only the scaled axes are named"
+    assert tuple(edge.scale) == (0.5, 0.5)
+    assert edge.lookup is not None
+    assert (edge.lookup.axis, edge.lookup.output_axis, edge.lookup.unit) == ("t", "t", "second")
+    assert (edge.lookup.min, edge.lookup.max) == (0.0, 7.5)
+    assert str(edge.lookup.field.id) == str(times.intrinsic_system.id)
+
+
+@pytest.mark.integration
+def test_a_field_that_does_not_increase_is_refused_before_the_server(mikro: Mikro, deployed_app: DeployedMikro) -> None:
+    """The server never reads the array, so the client is where 'strictly increasing' is checked."""
+    from kanne.scalars import Unit
+
+    world = create_space(deployed_app.mikro, "bad event world", {"t": Unit("second"), "y": Unit("micrometer"), "x": Unit("micrometer")})
+    movie = mikro.create_array_dataset(
+        data=xr.DataArray(np.zeros((3, 8, 8), dtype="float32"), dims=("t", "y", "x")), scales=[], name="coordsys_bad_movie", axes=["t", "y", "x"]
+    )
+    times = mikro.create_array_dataset(data=xr.DataArray(np.array([0.0, 2.0, 1.0]), dims=("t",)), scales=[], name="coordsys_bad_times", axes=["t"])
+
+    with pytest.raises(ValueError, match="strictly increase"):
+        world.register(movie, field={"t": times})
 
 
 @pytest.mark.integration
