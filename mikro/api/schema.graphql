@@ -563,6 +563,11 @@ type AnnotationEvent {
   delete: ID
 }
 
+"""Numeric/aggregatable fields of Annotation"""
+enum AnnotationField {
+  PK
+}
+
 input AnnotationFilter {
   """Filter by list of IDs"""
   ids: [ID!]
@@ -822,6 +827,26 @@ input AnnotationSpecInput {
   coordinates: [CoordinateInput!] = null
   strokeWidth: Float = null
   filled: Boolean = null
+}
+
+type AnnotationStats {
+  """Total number of items in the selection"""
+  count: Int!
+
+  """Number of distinct values for the field"""
+  distinctCount(field: AnnotationField!): Int!
+
+  """Maximum"""
+  max(field: AnnotationField!): Float
+
+  """Minimum"""
+  min(field: AnnotationField!): Float
+
+  """Average"""
+  avg(field: AnnotationField!): Float
+
+  """Sum"""
+  sum(field: AnnotationField!): Float
 }
 
 """The `Any` scalar any type"""
@@ -2013,9 +2038,20 @@ type Chart implements Visualization @key(fields: "id", resolvable: true) @identi
   axis: Axis!
 }
 
+"""Numeric/aggregatable fields of Chart"""
+enum ChartField {
+  PK
+}
+
 input ChartFilter {
   """Filter by list of IDs"""
   ids: [ID!]
+
+  """Filter for items created before this datetime"""
+  createdBefore: DateTime
+
+  """Filter for items created after this datetime"""
+  createdAfter: DateTime
   id: ID
   name: StrFilterLookup
   AND: ChartFilter
@@ -2134,6 +2170,34 @@ input ChartOrder @oneOf {
 """How a chart is drawn from what is already placed in a space"""
 input ChartPolicyInput {
   nchildren: Int! = 32
+}
+
+type ChartStats {
+  """Total number of items in the selection"""
+  count: Int!
+
+  """Number of distinct values for the field"""
+  distinctCount(field: ChartField!): Int!
+
+  """Maximum"""
+  max(field: ChartField!): Float
+
+  """Minimum"""
+  min(field: ChartField!): Float
+
+  """Average"""
+  avg(field: ChartField!): Float
+
+  """Sum"""
+  sum(field: ChartField!): Float
+
+  """Time-bucketed stats over a datetime field."""
+  series(field: ChartField!, timestampField: ChartTimestampField!, by: Granularity!): [TimeBucket!]!
+}
+
+"""Datetime fields of Chart for bucketing"""
+enum ChartTimestampField {
+  CREATED_AT
 }
 
 input ChildrenOrder {
@@ -2728,6 +2792,11 @@ input CoordinateSystemDerivedFromInput @unionElementOf(union: "DerivedFromInput"
   coordinateSystem: ID!
 }
 
+"""Numeric/aggregatable fields of CoordinateSystem"""
+enum CoordinateSystemField {
+  PK
+}
+
 input CoordinateSystemFilter {
   """Filter by list of IDs"""
   ids: [ID!]
@@ -2778,6 +2847,34 @@ input CoordinateSystemOrder @oneOf {
   name: Ordering
   createdAt: Ordering
   id: Ordering
+}
+
+type CoordinateSystemStats {
+  """Total number of items in the selection"""
+  count: Int!
+
+  """Number of distinct values for the field"""
+  distinctCount(field: CoordinateSystemField!): Int!
+
+  """Maximum"""
+  max(field: CoordinateSystemField!): Float
+
+  """Minimum"""
+  min(field: CoordinateSystemField!): Float
+
+  """Average"""
+  avg(field: CoordinateSystemField!): Float
+
+  """Sum"""
+  sum(field: CoordinateSystemField!): Float
+
+  """Time-bucketed stats over a datetime field."""
+  series(field: CoordinateSystemField!, timestampField: CoordinateSystemTimestampField!, by: Granularity!): [TimeBucket!]!
+}
+
+"""Datetime fields of CoordinateSystem for bucketing"""
+enum CoordinateSystemTimestampField {
+  CREATED_AT
 }
 
 """
@@ -2978,6 +3075,51 @@ input CreateCoordinateSystemInput {
   epoch: DateTime = null
   reference: String = null
   registrations: [RegistrationPathInput!]! = []
+}
+
+"""
+Input for registering a fixture: one binary glTF, in a unit-carrying coordinate system of its own
+"""
+input CreateFixtureInput {
+  name: String = null
+  store: GltfLike!
+  axes: [PhysicalAxisInput!]!
+  folder: ID = null
+  derivedFrom: [DerivedFromInput!] = null
+  provenanceMetadata: Any = null
+}
+
+"""
+Create a layer that renders a fixture in a scene. The model's own coordinate system is the layer's space, so it must already have a path to the scene's world
+"""
+input CreateFixtureLayerInput {
+  scene: ID!
+  lens: ID!
+  materialColor: [Int!] = null
+  wireframe: Boolean = null
+  blending: Blending = null
+  opacity: Float = null
+  visible: Boolean = null
+  order: Int = null
+  name: String = null
+}
+
+"""
+Input for the lens making a selection over a fixture, by windows in its own space: a clip box
+"""
+input CreateFixtureLensInput {
+  """The fixture to select over. Exactly one of this and `lens`"""
+  fixture: ID = null
+
+  """
+  A lens over the fixture to select within, in place of the container: the windows then intersect with its own, and the result is the model's lens for what that keeps
+  """
+  lens: ID = null
+
+  """
+  Windows, one per axis to restrict, in the model's own axes and unit: a clip box. Omit for everything: the model's whole lens, or the lens cut from
+  """
+  windows: [WindowInput!] = null
 }
 
 """Input for creating a new folder to organize images and files"""
@@ -3603,6 +3745,12 @@ input DeleteCoordinateSystemInput {
 """Input for deleting a file by ID"""
 input DeleteFileInput {
   """The ID of the file to delete"""
+  id: ID!
+}
+
+"""Input for deleting a fixture by ID"""
+input DeleteFixtureInput {
+  """The ID of the fixture to delete"""
   id: ID!
 }
 
@@ -4249,6 +4397,11 @@ type FileEvent {
   moved: File
 }
 
+"""Numeric/aggregatable fields of File"""
+enum FileField {
+  PK
+}
+
 input FileFilter {
   """Filter by list of IDs"""
   ids: [ID!]
@@ -4545,6 +4698,34 @@ input FileOrder @oneOf {
   id: Ordering
 }
 
+type FileStats {
+  """Total number of items in the selection"""
+  count: Int!
+
+  """Number of distinct values for the field"""
+  distinctCount(field: FileField!): Int!
+
+  """Maximum"""
+  max(field: FileField!): Float
+
+  """Minimum"""
+  min(field: FileField!): Float
+
+  """Average"""
+  avg(field: FileField!): Float
+
+  """Sum"""
+  sum(field: FileField!): Float
+
+  """Time-bucketed stats over a datetime field."""
+  series(field: FileField!, timestampField: FileTimestampField!, by: Granularity!): [TimeBucket!]!
+}
+
+"""Datetime fields of File for bucketing"""
+enum FileTimestampField {
+  CREATED_AT
+}
+
 """
 One column a layer may be filtered by, and how it is reached. The same set the colour-options query returns, under the name that reads right where a rule is being authored: both pickers turn on the same measure-vs-categorical split, so the candidates are one answer and this is the second way to ask for it. Every option returned is one the mutation that publishes the picker accepts -- `createMeshLayer(filterBys:)` over a collection, `createLabelLayer(render: {filterBys: ...})` over a lens
 """
@@ -4674,6 +4855,230 @@ input FinishZarrUploadInput {
 }
 
 """
+A piece of hardware around the sample -- a coverslip, a dish, a holder -- stored as one binary glTF. Ask its `store` for a `presignedUrl` and load the file whole; its space's axes carry the units its vertices are in
+"""
+type Fixture @key(fields: "id", resolvable: true) @identified(by: "@mikro/fixture") {
+  """
+  This object's descriptors, a flat mapping of key to value: the facts about it that an action's port can `require` and a trigger can test (e.g. `@mikro/n_channels`). The keys are the ones mikro declares for this structure, and the values are the ones a signal about the object carries. Empty for a structure that declares none
+  """
+  descriptors: JSON!
+
+  """
+  The folder this model is filed in. Organisational only: it says where a user keeps the model, never where it sits in space -- that is `coordinateSystem` and the edges out of it
+  """
+  folder: Folder
+  id: ID!
+  name: String
+
+  """When the model was registered"""
+  createdAt: DateTime!
+
+  """
+  The unit-carrying coordinate system the model's vertices are expressed in. Its axes carry the unit the exporter wrote, so an IDENTITY registration into a micrometre world converts by the units
+  """
+  coordinateSystem: CoordinateSystem!
+
+  """
+  The media store holding the binary glTF. Ask it for a `presignedUrl` and fetch the file whole: a viewer loads a model in one request
+  """
+  store: MediaStore!
+
+  """
+  The lenses over this model, oldest first: its whole lens and every clip box someone has cut. `windowed: true` keeps the clip boxes, `windowed: false` the whole lens, which is also `fullLens`
+  """
+  lenses(windowed: Boolean = null): [FixtureLens!]!
+
+  """
+  The lens that selects this whole model: what a layer draws through, and the handle to pass wherever a `Lens` is asked for. Every model is created with one
+  """
+  fullLens: FixtureLens
+
+  """
+  What to call this model: its name, or its file's original name when it has none
+  """
+  label: String!
+
+  """
+  The model's axis-aligned bounding box in its own space, as `{min: [x, y, z], max: [x, y, z]}` in the axes' order and unit, read from the file's accessor bounds at registration. Null when the file declares none
+  """
+  bounds: Any
+
+  """
+  Every edge from this model's space back into data it was made from, in declared order. Usually empty: a model of hardware derives from nothing and is placed by a registration instead
+  """
+  derivedFrom: [Transformation!]!
+}
+
+input FixtureFilter {
+  """Filter by list of IDs"""
+  ids: [ID!]
+
+  """Filter for items created before this datetime"""
+  createdBefore: DateTime
+
+  """Filter for items created after this datetime"""
+  createdAfter: DateTime
+
+  """Filter by the creator's subject ID"""
+  owner: ID
+  id: ID
+  name: StrFilterLookup
+  AND: FixtureFilter
+  OR: FixtureFilter
+  NOT: FixtureFilter
+  DISTINCT: Boolean
+
+  """
+  Filter to the objects satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored on every row. A key the structure does not declare is refused rather than ignored
+  """
+  requires: [DescriptorConstraintInput!]
+
+  """
+  Search by the model's label: its name, or its file's original name (case-insensitive substring)
+  """
+  search: String
+
+  """Filter by the folder this fixture is filed in"""
+  folder: ID
+
+  """
+  Filter by the coordinate system the model's vertices are expressed in (the model's own)
+  """
+  coordinateSystem: ID
+}
+
+"""
+A layer that renders a fixture -- a coverslip, a dish, a holder -- placed in a scene. The model's own materials are drawn unless `materialColor` overrides them.
+"""
+type FixtureLayer implements Layer @key(fields: "id", resolvable: true) {
+  id: ID!
+  kind: LayerKind!
+  name: String
+  scene: Scene!
+  blending: Blending!
+  opacity: Float!
+  visible: Boolean!
+  order: Int!
+
+  """
+  The path of transformation edges from this layer's source coordinate system to its scene's world system. A layer belongs to exactly one scene, so this is the one 'to world' question with a single right answer -- the path uses the layer's dataset facts plus the world's registrations, which are the same for every scene over that space. Null when the layer is unregistered or has no source system; empty when the source already is the world system. Every step is here in full, with its own validity, invariance and provenance, which is what to ask for when you care *how* the data got placed; `asAffine` is the same path composed, for when you only need the map
+  """
+  pathToWorld(at: [CoordinateInput!] = null): [PlacementStep!]
+
+  """
+  This layer's whole `pathToWorld` composed into one affine map -- the same path, same edges, same order, with the flagged steps inverted. Derived on read and stored nowhere, exactly as the path itself is, so refining one registration moves it. **Null when `pathToWorld` is null** and for the same two reasons; `placement` is what tells them apart. A field map on the path (a times array, a warp) gives its axes as the values of an array: they are in `fields`, not in the matrix, and the rest stays affine. It errors rather than returning null when a path exists but does not compose: a key from pixels to a table's rows places nothing, and a singular step cannot be walked backwards -- the error names the transformation that stopped it. `outputAxes` names only the destination axes the path constrains, so pass `strict: true` to be refused a partial map instead of handed one
+  """
+  asAffine(strict: Boolean! = false, at: [CoordinateInput!] = null): AffinePlacement
+
+  """
+  Whether this layer has a place in its scene's world, and if not, why not. A null `pathToWorld` means three different things -- nobody has registered this data yet, its geometry did not survive the operation that produced it and it can never be placed, or it is registered per index and you have not said which index -- and a client should not have to guess which. UNREGISTERED is a gap to close; UNMAPPABLE is a fact to badge; CONDITIONAL is a placement to ask again for with `at`. Pass the same `at` you would pass `pathToWorld` to be told about that coordinate. Derived, never stored
+  """
+  placement(at: [CoordinateInput!] = null): PlacementState!
+
+  """
+  How much this layer's placement is actually known: the weakest edge on its path to world. UNKNOWN while the path rests on an edge a client marked as guessed, and when there is no path at all; MANUAL once someone authored the registration; VALIDATED once it was checked, and by construction when the path is empty -- data in its own space is placed exactly. A layer placed per index reports one of its scoped routes rather than UNKNOWN; pass `at` for that coordinate's exact answer. Derived, never stored -- and distinct from a single edge's `validity`: this is the minimum over the whole path
+  """
+  placementValidity(at: [CoordinateInput!] = null): PlacementValidity!
+
+  """
+  Which geometric properties survive the whole walk from this layer's data to its scene's world: the weakest edge on its path. ISOMETRY means a distance measured in the data IS that distance in world; SIMILARITY means shapes and angles transfer and every length needs one common factor; AFFINE means only parallelism and area ratios do, so an angle or a distance read in the data means nothing in world; DIFFEOMORPHIC means nothing metric survives anywhere; NONE means there is no path at all. This is what says whether a scalar length in scene units (`pointSize`, `lineWidth`, a stroke width, a camera zoom) is well defined for this layer: it is, from SIMILARITY up. A layer placed per index reports one of its scoped routes rather than NONE; pass `at` for that coordinate's exact answer. Derived, never stored -- and distinct from a single edge's `invariance`, this being the minimum over the whole path. `placement` says which of the reasons a NONE layer has
+  """
+  placementInvariance(at: [CoordinateInput!] = null): TransformInvariance!
+
+  """The fixture lens this layer draws through"""
+  lens: FixtureLens!
+
+  """
+  One RGBA colour replacing every material of the model, each component 0..255. Null draws the model's own materials as authored
+  """
+  materialColor: [Int!]
+
+  """Whether the model is drawn as a wireframe instead of solid surfaces"""
+  wireframe: Boolean!
+
+  """
+  The lens' windows as a clip box in the collection's own space: geometry outside it is not drawn. The selection the layer draws, derived from the lens; empty for a whole lens
+  """
+  clip: [Window!]!
+
+  """
+  The fixture this layer renders: the container of the lens. Its geometry is the glTF file in the model's `store`, fetched whole rather than through this API
+  """
+  fixture: Fixture
+}
+
+"""
+A selection over a fixture by windows in its own space: a clip box, or the whole model
+"""
+type FixtureLens implements Lens @key(fields: "id", resolvable: true) @identified(by: "@mikro/fixturelens") {
+  id: ID!
+
+  """
+  This object's descriptors, a flat mapping of key to value: the facts about it that an action's port can `require` and a trigger can test (e.g. `@mikro/n_channels`). The keys are the ones mikro declares for this structure, and the values are the ones a signal about the object carries. Empty for a structure that declares none
+  """
+  descriptors: JSON!
+
+  """
+  What someone called this selection, or null when nobody has. A label only: it is no part of what the lens selects, and a client shows the selection -- or 'the whole container' -- in its place
+  """
+  name: String
+
+  """
+  What to call this lens in a list, never empty: its `name` when it has one, else its container's name followed by what it selects of it (`cells.zarr · c[0:1]`); a whole lens is called by its container. What a picker shows for an option
+  """
+  label: String!
+
+  """
+  When this selection was first asked for; a whole lens, when its container was made
+  """
+  createdAt: DateTime!
+
+  """
+  Who made this selection: the first to ask for it. The container's creator for a whole lens, which exists from the container's creation. Asking for a selection that exists hands back the row and changes nothing
+  """
+  creator: User
+
+  """The task this selection was made under, if any"""
+  createdThrough: Task
+
+  """The assigner of the creating task, if any"""
+  createdThroughBy: User
+
+  """
+  What this lens selects over: an array by slices, or a table, a sparse dataset, a mesh, a network or an annotation collection by windows
+  """
+  kind: LensKind!
+
+  """
+  The coordinate system the lens' selection is expressed in. A sliced array lens owns one (the space its slices cut out, with the derived edge recording the shift); every other lens selects within its container's own space and resolves to it
+  """
+  coordinateSystem: CoordinateSystem
+
+  """
+  The scene to open for this lens: its own nomination (`setLensDefaultScene`, or `createSceneFromLens`), falling back to its container's whole lens' while it has none. A container's nomination is its whole lens', so a whole lens answers for the container. A nomination, not a derivation
+  """
+  defaultScene: Scene
+
+  """
+  The coordinate anchors inside this selection: an anchor global along an axis, or pinned inside the lens' range on it. Empty for a container kind that carries no anchors (meshes, networks, annotation collections)
+  """
+  activeAnchors: [CoordinateAnchor!]!
+
+  """
+  The scenes this lens is rendered in: those with a layer drawing through it or through any selection within it, of any kind. Derived, never stored, exactly as `ArrayDataset.scenes` is. A layer over one channel of a crop draws the crop, and a layer over any crop draws the whole lens -- so a whole lens answers for the whole container and a window or a crop for what it contains; a scene showing a selection that reaches outside this one is that selection's to report
+  """
+  scenes: [Scene!]!
+
+  """The fixture this lens selects over"""
+  fixture: Fixture!
+
+  """
+  The windows, in the one normalized spelling: container axis order, floats, an open side as null. Empty for the whole lens
+  """
+  windows: [Window!]!
+}
+
+"""
 A folder is a collection of the things mikro stores. It mimics a folder in a file system and is the top-level container for organising data.
 """
 type Folder @key(fields: "id", resolvable: true) @identified(by: "@mikro/folder") {
@@ -4695,6 +5100,9 @@ type Folder @key(fields: "id", resolvable: true) @identified(by: "@mikro/folder"
 
   """The annotation collections filed in this folder"""
   annotationCollections(filters: AnnotationCollectionFilter, ordering: [AnnotationCollectionOrder!]! = [], pagination: OffsetPaginationInput): [AnnotationCollection!]!
+
+  """The fixtures filed in this folder"""
+  fixtures(filters: FixtureFilter, pagination: OffsetPaginationInput): [Fixture!]!
   parent: Folder
   children(filters: FolderFilter, ordering: [FolderOrder!]! = [], pagination: OffsetPaginationInput): [Folder!]!
   description: String
@@ -4723,7 +5131,7 @@ type Folder @key(fields: "id", resolvable: true) @identified(by: "@mikro/folder"
 """
 Anything filed in a folder: a sub-folder, a file, or one of the four containers
 """
-union FolderChild = Folder | File | ArrayDataset | TableDataset | MeshCollection | AnnotationCollection
+union FolderChild = Folder | File | ArrayDataset | TableDataset | MeshCollection | AnnotationCollection | Fixture
 
 input FolderChildrenFilter {
   showChildren: Boolean = null
@@ -4733,6 +5141,11 @@ input FolderChildrenFilter {
   Also list the containers that were converted from a file (those with a SOURCE file link). Hidden unless this is true, because the file they were made from is listed already. Any SOURCE link hides a container, wherever its file is kept; a RENDITION link (an export) never does
   """
   showConverted: Boolean = null
+}
+
+"""Numeric/aggregatable fields of Folder"""
+enum FolderField {
+  PK
 }
 
 input FolderFilter {
@@ -4794,6 +5207,34 @@ input FolderOrder @oneOf {
   createdAt: Ordering
   name: Ordering
   id: Ordering
+}
+
+type FolderStats {
+  """Total number of items in the selection"""
+  count: Int!
+
+  """Number of distinct values for the field"""
+  distinctCount(field: FolderField!): Int!
+
+  """Maximum"""
+  max(field: FolderField!): Float
+
+  """Minimum"""
+  min(field: FolderField!): Float
+
+  """Average"""
+  avg(field: FolderField!): Float
+
+  """Sum"""
+  sum(field: FolderField!): Float
+
+  """Time-bucketed stats over a datetime field."""
+  series(field: FolderField!, timestampField: FolderTimestampField!, by: Granularity!): [TimeBucket!]!
+}
+
+"""Datetime fields of Folder for bucketing"""
+enum FolderTimestampField {
+  CREATED_AT
 }
 
 """A quantity of frequency (``"50 Hz"``, ``"1 kHz"``)."""
@@ -4902,6 +5343,11 @@ it is a string; validating it against an expected dimension (e.g. a declared
 mechanism parameter) is the caller's job.
 """
 scalar GenericQuantity
+
+"""
+A reference to an uploaded **binary glTF** (`.glb`) media object: one file holding a fixture's scene, materials and buffers. Upload it with `requestMediaUpload` / `finishMediaUpload`; `createFixture` reads its header and refuses anything that is not glTF 2.0
+"""
+scalar GltfLike
 
 enum Granularity {
   HOUR
@@ -5848,6 +6294,11 @@ enum LayerKind {
   A vector layer rendering a vector-valued lens -- an optical flow, a deformation field, an orientation map -- as glyphs sampled from the grid. The sixth lens-backed kind, and the value axis is what makes it one: the lens carries a DISPLACEMENT axis whose positions are the components of a per-point offset, so the axis is read as geometry rather than composited as channels. Which axis that is is derived from the axis types (`vectorAxis`), never stored; what the layer carries is view state -- a glyph style, a sampling stride, a magnitude scale and a magnitude colormap window. `glyphScale` maps a magnitude in the component axis's unit to a drawn length in scene units, so like `pointSize` it means something only from SIMILARITY up.
   """
   VECTOR
+
+  """
+  A layer rendering a fixture -- a glTF scene of hardware around the sample: a coverslip, a dish, a holder, an objective housing. Not data: the model's own materials are drawn as authored, optionally overridden by one `materialColor` or shown as a `wireframe`. Its vertices are in the model's own unit-carrying space, so a registration into the world converts millimetres into micrometres by the axes' units rather than by a stated factor.
+  """
+  FIXTURE
 }
 
 enum LayerKindChoices {
@@ -5862,6 +6313,7 @@ enum LayerKindChoices {
   MESH
   NETWORK
   VECTOR
+  FIXTURE
 }
 
 """
@@ -6053,6 +6505,11 @@ type LensEvent {
   delete: ID
 }
 
+"""Numeric/aggregatable fields of Lens"""
+enum LensField {
+  PK
+}
+
 input LensFilter {
   """Filter by list of IDs"""
   ids: [ID!]
@@ -6128,6 +6585,9 @@ input LensFilter {
   """Filter to the lenses over this annotation collection"""
   annotationCollection: ID
 
+  """Filter to the lenses over this fixture"""
+  fixture: ID
+
   """
   Filter by whether the lens cuts anything out of its container. True keeps the crops, sub-volumes and windows; false the whole lenses, one per container -- a list meant for people usually wants true
   """
@@ -6160,7 +6620,7 @@ input LensFilter {
 }
 
 """
-What a lens selects over: an array (by index slices, re-indexing into a space of its own), or a table, a sparse dataset, a mesh collection, a network collection or an annotation collection (by value windows, in the container's own space).
+What a lens selects over: an array (by index slices, re-indexing into a space of its own), or a table, a sparse dataset, a mesh collection, a network collection, an annotation collection or a fixture (by value windows, in the container's own space).
 """
 enum LensKind {
   ARRAY
@@ -6169,6 +6629,7 @@ enum LensKind {
   MESH
   NETWORK
   ANNOTATION
+  FIXTURE
 }
 
 input LensOrder @oneOf {
@@ -6195,6 +6656,34 @@ input LensPlaceableFilter {
   Keep only the lenses that could source a layer of this kind, named as `LayerKind` names it. The six array kinds require the lens to be drawable at all -- an x and a y axis of more than one pixel, the gate layer creation applies -- and three ask something further: `LABEL` a primary derivation declaring CATEGORIZED, `RGB` a channel axis with at least three positions to cut the components from, and `PHASOR` a MICROTIME or SPECTRUM axis. `RGB` is capacity only -- whether those three channels *are* red, green and blue is not a question any axis can answer, which is why RGB is never inferred. The five container kinds keep the lenses over the container the kind draws: `POINT` and `TRACK` a table with coordinate columns, `MESH` a mesh collection, `NETWORK` a network collection, `ANNOTATION` an annotation collection; a sparse lens answers `placeableIn` without `asLayer` only, since nothing draws a matrix. Note that *omitting* this applies no renderability gate, so `IMAGE` is a real narrowing rather than a no-op: the unqualified filter answers what is placeable, which is a spatial question, not what is drawable
   """
   asLayer: LayerKind = null
+}
+
+type LensStats {
+  """Total number of items in the selection"""
+  count: Int!
+
+  """Number of distinct values for the field"""
+  distinctCount(field: LensField!): Int!
+
+  """Maximum"""
+  max(field: LensField!): Float
+
+  """Minimum"""
+  min(field: LensField!): Float
+
+  """Average"""
+  avg(field: LensField!): Float
+
+  """Sum"""
+  sum(field: LensField!): Float
+
+  """Time-bucketed stats over a datetime field."""
+  series(field: LensField!, timestampField: LensTimestampField!, by: Granularity!): [TimeBucket!]!
+}
+
+"""Datetime fields of Lens for bucketing"""
+enum LensTimestampField {
+  CREATED_AT
 }
 
 """
@@ -6478,6 +6967,7 @@ enum LineageNodeKind {
   MESH_COLLECTION
   NETWORK_COLLECTION
   ANNOTATION_COLLECTION
+  FIXTURE
   FILE
 }
 
@@ -7598,6 +8088,11 @@ type Mutation {
   createSparseLens(input: CreateSparseLensInput!): SparseLens! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
+  The lens keeping these windows of a fixture's own space -- a clip box: the one that exists, or a new one
+  """
+  createFixtureLens(input: CreateFixtureLensInput!): FixtureLens! @auth(any_role_of: ["admin", "editor", "bot"])
+
+  """
   The lens keeping these windows of a mesh collection's own space: the one that exists, or a new one
   """
   createMeshLens(input: CreateMeshLensInput!): MeshLens! @auth(any_role_of: ["admin", "editor", "bot"])
@@ -7743,6 +8238,14 @@ type Mutation {
   deleteNetworkCollection(input: DeleteNetworkCollectionInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
+  Register a fixture -- a coverslip, a dish, a holder -- from an uploaded binary glTF, in a unit-carrying coordinate system of its own
+  """
+  createFixture(input: CreateFixtureInput!): Fixture! @auth(any_role_of: ["admin", "editor", "bot"])
+
+  """Delete an existing fixture"""
+  deleteFixture(input: DeleteFixtureInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
+
+  """
   Create a sparse dataset from one uploaded sparse store, which holds the matrix in one or more layouts. A sparse matrix is a grid of numbers with no row labels and no column labels, so **every axis says what its positions are** through its own `identifiedBy` -- a source whose own contents are the ids (which authors a FIELD edge, and is what makes the matrix reachable from a layer over that source), or the table whose rows they are (which authors a foreign key and no edge). Carried on the axis, identified-exactly-once is a property of the input rather than a rule this enforces. Nothing about the matrix itself is declared: the spec, the shape, each layout's encoding and its chunking were read from the store when its upload was finished, and are checked against these axes rather than taken from them
   """
   createSparseDataset(input: CreateSparseDatasetInput!): SparseDataset! @auth(any_role_of: ["admin", "editor", "bot"])
@@ -7871,6 +8374,14 @@ type Mutation {
   """
   updateMeshLayer(input: UpdateMeshLayerInput!): MeshLayer! @auth(any_role_of: ["admin", "editor", "bot"])
 
+  """Create a layer that renders a fixture in a scene"""
+  createFixtureLayer(input: CreateFixtureLayerInput!): FixtureLayer! @auth(any_role_of: ["admin", "editor", "bot"])
+
+  """
+  Retune how a fixture layer is drawn: its material override, wireframe and compositing. A patch -- an omitted field keeps its value
+  """
+  updateFixtureLayer(input: UpdateFixtureLayerInput!): FixtureLayer! @auth(any_role_of: ["admin", "editor", "bot"])
+
   """
   Create a layer that renders a node/edge network -- a traced arbor, a vessel tree, a connectome -- in a scene
   """
@@ -7951,6 +8462,12 @@ type Mutation {
   Unfile mesh collections from a folder. They are not deleted, only unfiled
   """
   releaseMeshCollectionsFromFolder(input: DesociateInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
+
+  """File fixtures in a folder"""
+  putFixturesInFolder(input: AssociateInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
+
+  """Unfile fixtures from a folder. They are not deleted, only unfiled"""
+  releaseFixturesFromFolder(input: DesociateInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """File annotation collections in a folder"""
   putAnnotationCollectionsInFolder(input: AssociateInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
@@ -9692,6 +10209,14 @@ type Query {
   networkCollection(id: ID!): NetworkCollection! @auth
 
   """
+  List fixtures (binary glTF scenes of hardware around the sample, each in a unit-carrying coordinate system of its own)
+  """
+  fixtures(filters: FixtureFilter, pagination: OffsetPaginationInput): [Fixture!]! @auth
+
+  """Get a single fixture by ID"""
+  fixture(id: ID!): Fixture! @auth
+
+  """
   List sparse datasets (matrices over two enumerated axes, stored as anndata-spelled zarr groups)
   """
   sparseDatasets(filters: SparseDatasetFilter, ordering: [SparseDatasetOrder!]! = [], pagination: OffsetPaginationInput): [SparseDataset!]! @auth
@@ -9725,6 +10250,51 @@ type Query {
   Get statistics about array datasets: counts and time-bucketed series over the datasets of the current organization
   """
   arrayDatasetsStats(filters: ArrayDatasetFilter = null): ArrayDatasetStats! @auth
+
+  """
+  Get statistics about lenses: counts and time-bucketed series over the lenses of the current organization
+  """
+  lensesStats(filters: LensFilter = null): LensStats! @auth
+
+  """
+  Get statistics about coordinate systems: counts and time-bucketed series over the coordinate systems of the current organization
+  """
+  coordinateSystemsStats(filters: CoordinateSystemFilter = null): CoordinateSystemStats! @auth
+
+  """
+  Get statistics about table datasets: counts and time-bucketed series over the table datasets of the current organization
+  """
+  tableDatasetsStats(filters: TableDatasetFilter = null): TableDatasetStats! @auth
+
+  """
+  Get statistics about sparse datasets: counts and time-bucketed series over the sparse datasets of the current organization
+  """
+  sparseDatasetsStats(filters: SparseDatasetFilter = null): SparseDatasetStats! @auth
+
+  """
+  Get statistics about folders: counts and time-bucketed series over the folders of the current organization
+  """
+  foldersStats(filters: FolderFilter = null): FolderStats! @auth
+
+  """
+  Get statistics about files: counts and time-bucketed series over the files of the current organization
+  """
+  filesStats(filters: FileFilter = null): FileStats! @auth
+
+  """
+  Get statistics about annotations: counts over the annotations of the current organization
+  """
+  annotationsStats(filters: AnnotationFilter = null): AnnotationStats! @auth
+
+  """
+  Get statistics about scenes: counts over the scenes of the current organization
+  """
+  scenesStats(filters: SceneFilter = null): SceneStats! @auth
+
+  """
+  Get statistics about charts: counts and time-bucketed series over the charts of the current organization
+  """
+  chartsStats(filters: ChartFilter = null): ChartStats! @auth
 
   """
   The k annotations of one collection nearest to a point, by cube distance between the point and each annotation's intrinsic bounding box (GiST-accelerated; 0 inside the box). Scoped to one collection because boxes only compare within one frame; the point is in the collection's nearest-intrinsic space, in its coordinate order
@@ -9986,7 +10556,7 @@ input RequestZarrUploadInput {
 """
 A piece of data living in a coordinate system. Data belongs to a space; the space belongs to nobody
 """
-union Resident = ArrayDataset | DataArray | ArrayLens | TableLens | SparseLens | MeshLens | NetworkLens | AnnotationLens | MeshCollection | NetworkCollection | TableDataset | AnnotationCollection | SparseDataset
+union Resident = ArrayDataset | DataArray | ArrayLens | TableLens | SparseLens | MeshLens | NetworkLens | AnnotationLens | FixtureLens | MeshCollection | NetworkCollection | Fixture | TableDataset | AnnotationCollection | SparseDataset
 
 """Input for reverting a folder to a previous history revision"""
 input RevertInput {
@@ -10449,6 +11019,11 @@ type SceneEvent {
   delete: ID
 }
 
+"""Numeric/aggregatable fields of Scene"""
+enum SceneField {
+  PK
+}
+
 input SceneFilter {
   """Filter by list of IDs"""
   ids: [ID!]
@@ -10592,6 +11167,26 @@ input SceneSnapshotOrder @oneOf {
   createdAt: Ordering
   name: Ordering
   id: Ordering
+}
+
+type SceneStats {
+  """Total number of items in the selection"""
+  count: Int!
+
+  """Number of distinct values for the field"""
+  distinctCount(field: SceneField!): Int!
+
+  """Maximum"""
+  max(field: SceneField!): Float
+
+  """Minimum"""
+  min(field: SceneField!): Float
+
+  """Average"""
+  avg(field: SceneField!): Float
+
+  """Sum"""
+  sum(field: SceneField!): Float
 }
 
 """Where along one axis a transformation applies"""
@@ -11082,6 +11677,11 @@ type SparseDataset @key(fields: "id", resolvable: true) @identified(by: "@mikro/
   provenanceMetadata: Any!
 }
 
+"""Numeric/aggregatable fields of SparseDataset"""
+enum SparseDatasetField {
+  PK
+}
+
 input SparseDatasetFilter {
   """Filter by list of IDs"""
   ids: [ID!]
@@ -11163,6 +11763,34 @@ enum SparseDatasetSpec {
   One whole-number position pinned on every axis the matrix identifies itself by and on no other, with a layout that makes the read one contiguous range: one value per object, which is what a SPARSE colour or filter picker entry reads. Never true of a whole dataset.
   """
   SLICE
+}
+
+type SparseDatasetStats {
+  """Total number of items in the selection"""
+  count: Int!
+
+  """Number of distinct values for the field"""
+  distinctCount(field: SparseDatasetField!): Int!
+
+  """Maximum"""
+  max(field: SparseDatasetField!): Float
+
+  """Minimum"""
+  min(field: SparseDatasetField!): Float
+
+  """Average"""
+  avg(field: SparseDatasetField!): Float
+
+  """Sum"""
+  sum(field: SparseDatasetField!): Float
+
+  """Time-bucketed stats over a datetime field."""
+  series(field: SparseDatasetField!, timestampField: SparseDatasetTimestampField!, by: Granularity!): [TimeBucket!]!
+}
+
+"""Datetime fields of SparseDataset for bucketing"""
+enum SparseDatasetTimestampField {
+  CREATED_AT
 }
 
 """
@@ -11559,6 +12187,11 @@ input TableDatasetExportOfInput @unionElementOf(union: "ExportOfInput", discrimi
   tableDataset: ID!
 }
 
+"""Numeric/aggregatable fields of TableDataset"""
+enum TableDatasetField {
+  PK
+}
+
 input TableDatasetFilter {
   """Filter by list of IDs"""
   ids: [ID!]
@@ -11696,6 +12329,34 @@ enum TableDatasetSpec {
   Exactly one measured coordinate column (SPACE or TIME) and at least one numeric ATTRIBUTE column: a value against a position, what a chart draws as a SERIES layer with nothing left to choose but the value. Not the only table a chart can draw -- one with several measured coordinates is drawn along whichever the chart's axis is registered to -- and it says nothing about placement: whether a given chart can draw it depends on what is registered.
   """
   SERIES
+}
+
+type TableDatasetStats {
+  """Total number of items in the selection"""
+  count: Int!
+
+  """Number of distinct values for the field"""
+  distinctCount(field: TableDatasetField!): Int!
+
+  """Maximum"""
+  max(field: TableDatasetField!): Float
+
+  """Minimum"""
+  min(field: TableDatasetField!): Float
+
+  """Average"""
+  avg(field: TableDatasetField!): Float
+
+  """Sum"""
+  sum(field: TableDatasetField!): Float
+
+  """Time-bucketed stats over a datetime field."""
+  series(field: TableDatasetField!, timestampField: TableDatasetTimestampField!, by: Granularity!): [TimeBucket!]!
+}
+
+"""Datetime fields of TableDataset for bucketing"""
+enum TableDatasetTimestampField {
+  CREATED_AT
 }
 
 """
@@ -12573,6 +13234,34 @@ input UpdateCoordinateSystemInput {
 }
 
 """
+Retune how a fixture layer is drawn. A patch: an omitted field keeps its value, and an explicit `null` for `materialColor` returns to the model's own materials. The model and the scene are not editable
+"""
+input UpdateFixtureLayerInput {
+  """The ID of the fixture layer to update"""
+  id: ID!
+
+  """
+  One RGBA colour replacing every material of the model, each component 0..255. Null draws the model's own materials as authored. Omit to keep the current one
+  """
+  materialColor: [Int!]
+
+  """Whether to draw the model as a wireframe"""
+  wireframe: Boolean = null
+
+  """Layer-level blend mode"""
+  blending: Blending = null
+
+  """Layer alpha, from 0 (transparent) to 1 (opaque)"""
+  opacity: Float = null
+
+  """Whether the layer participates in compositing"""
+  visible: Boolean = null
+
+  """Explicit z-index for back-to-front compositing"""
+  order: Int = null
+}
+
+"""
 Update an intensity layer's render settings. Every field is a patch: what is not sent keeps its current value
 """
 input UpdateIntensityLayerInput {
@@ -13197,7 +13886,7 @@ type ZarrUploadGrant {
 
 scalar _Any
 
-union _Entity = AcquisitionWindow | AffineTransformation | Animation | AnimationWaypoint | Annotation | AnnotationChartLayer | AnnotationCollection | AnnotationLayer | AnnotationLens | ArrayDataset | ArrayLens | Axis | BigFileStore | ByDimensionTransformation | ChannelLabel | Chart | Client | Column | CoordinateAnchor | CoordinateSystem | DataArray | DerivationConflict | FabriksStore | File | FileLink | Folder | IdentityTransformation | ImageLayer | IntensityLayer | KonnektionStore | LabelLayer | LightPath | MapAxisTransformation | MediaStore | Membership | MeshCollection | MeshLayer | MeshLens | Metric | MetricTarget | NetworkCollection | NetworkLayer | NetworkLens | OmeMetadata | OptikitState | Organization | ParquetStore | PhasorCalibration | PhasorHistogram | PhasorLayer | PointLayer | RgbLayer | RotationTransformation | ScaleTransformation | Scene | SceneSnapshot | SequenceTransformation | SeriesChartLayer | SparseArray | SparseAxisReference | SparseDataset | SparseLens | SparseStore | TableDataset | TableLens | Task | TraceChartLayer | TrackLayer | TranslationTransformation | UnmappableTransformation | User | ValueHistogram | VectorLayer | ZarrStore
+union _Entity = AcquisitionWindow | AffineTransformation | Animation | AnimationWaypoint | Annotation | AnnotationChartLayer | AnnotationCollection | AnnotationLayer | AnnotationLens | ArrayDataset | ArrayLens | Axis | BigFileStore | ByDimensionTransformation | ChannelLabel | Chart | Client | Column | CoordinateAnchor | CoordinateSystem | DataArray | DerivationConflict | FabriksStore | File | FileLink | Fixture | FixtureLayer | FixtureLens | Folder | IdentityTransformation | ImageLayer | IntensityLayer | KonnektionStore | LabelLayer | LightPath | MapAxisTransformation | MediaStore | Membership | MeshCollection | MeshLayer | MeshLens | Metric | MetricTarget | NetworkCollection | NetworkLayer | NetworkLens | OmeMetadata | OptikitState | Organization | ParquetStore | PhasorCalibration | PhasorHistogram | PhasorLayer | PointLayer | RgbLayer | RotationTransformation | ScaleTransformation | Scene | SceneSnapshot | SequenceTransformation | SeriesChartLayer | SparseArray | SparseAxisReference | SparseDataset | SparseLens | SparseStore | TableDataset | TableLens | Task | TraceChartLayer | TrackLayer | TranslationTransformation | UnmappableTransformation | User | ValueHistogram | VectorLayer | ZarrStore
 
 type _Service {
   sdl: String!

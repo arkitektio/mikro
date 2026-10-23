@@ -1,0 +1,11 @@
+# `store` is a GltfLike: hand it a path or an open `.glb` and the upload middleware puts it in
+# the media store first. The server reads its header and refuses anything that is not glTF 2.0.
+mutation CreateFixture($input: CreateFixtureInput!) {
+  createFixture(input: $input) {
+    ...Fixture
+  }
+}
+
+mutation DeleteFixture($input: DeleteFixtureInput!) {
+  deleteFixture(input: $input)
+}

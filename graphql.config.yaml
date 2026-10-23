@@ -57,6 +57,7 @@ projects:
               ByteCount: mikro.scalars.ByteCountCoercible
               ImageFileLike: mikro.scalars.ImageFileCoercible
               FileLike: mikro.scalars.ImageFileCoercible
+              GltfLike: mikro.scalars.GltfCoercible
               ParquetLike: mikro.scalars.ParquetCoercible
               FabriksLike: mikro.scalars.FabriksCoercible
               KonnektionLike: mikro.scalars.KonnektionCoercible
@@ -78,6 +79,7 @@ projects:
           SporadikLike: mikro.scalars.SporadikLike
           FileLike: mikro.scalars.FileLike
           ImageFileLike: mikro.scalars.ImageFileLike
+          GltfLike: mikro.scalars.GltfLike
           ThreeDVector: mikro.scalars.ThreeDVector
           GenericQuantity: kanne.scalars.GenericQuantity
           Length: kanne.scalars.Length

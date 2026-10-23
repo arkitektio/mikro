@@ -45,6 +45,8 @@ from mikro.api.schema import (
     FinishFabriksUploadMutation,
     FinishKonnektionUploadInput,
     FinishKonnektionUploadMutation,
+    FinishMediaUploadInput,
+    FinishMediaUploadMutation,
     FinishSparseUploadInput,
     FinishSparseUploadMutation,
     FinishZarrUploadInput,
@@ -327,6 +329,15 @@ class UploadMiddleware(OperationMiddleware):
         )
         return RequestMediaUploadMutation(**x.data).request_media_upload
 
+    def _finish_media_upload(self, store_id: str, rath: "MikroRath") -> None:
+        """Finish a media upload synchronously: the server registers nothing it was not told landed."""
+        rath.query(
+            FinishMediaUploadMutation.Meta.document,
+            FinishMediaUploadMutation.Arguments(
+                input=FinishMediaUploadInput(store_id=store_id, valid=True)
+            ).model_dump(by_alias=True, exclude_unset=True),
+        )
+
     # ====================================================================
     # Credential acquisition helpers (async)
     # ====================================================================
@@ -453,6 +464,15 @@ class UploadMiddleware(OperationMiddleware):
         )
         return RequestMediaUploadMutation(**x.data).request_media_upload
 
+    async def _afinish_media_upload(self, store_id: str, rath: "MikroRath") -> None:
+        """Finish a media upload asynchronously."""
+        await rath.aquery(
+            FinishMediaUploadMutation.Meta.document,
+            FinishMediaUploadMutation.Arguments(
+                input=FinishMediaUploadInput(store_id=store_id, valid=True)
+            ).model_dump(by_alias=True, exclude_unset=True),
+        )
+
     # ====================================================================
     # Sync upload methods (obstore path)
     # ====================================================================
@@ -500,7 +520,9 @@ class UploadMiddleware(OperationMiddleware):
         endpoint_url = self.get_datalayer_url()
 
         credentials = self._request_media_credentials(file.file_name, endpoint_url, rath)
-        return store_media_file(file, credentials, datalayer)
+        store_id = store_media_file(file, credentials, datalayer)
+        self._finish_media_upload(store_id, rath)
+        return store_id
 
     def _store_fabriks(
         self, datalayer: "DataLayer", rath: "MikroRath", collection: FabriksLike
@@ -578,7 +600,9 @@ class UploadMiddleware(OperationMiddleware):
         endpoint_url = await datalayer.get_endpoint_url()
 
         credentials = await self._arequest_media_credentials(file.file_name, endpoint_url, rath)
-        return await astore_media_file(file, credentials, datalayer)
+        store_id = await astore_media_file(file, credentials, datalayer)
+        await self._afinish_media_upload(store_id, rath)
+        return store_id
 
     async def _astore_fabriks(
         self, datalayer: "DataLayer", rath: "MikroRath", collection: FabriksLike

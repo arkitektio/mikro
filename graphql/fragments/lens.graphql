@@ -104,6 +104,18 @@ fragment NetworkLens on NetworkLens {
   }
 }
 
+fragment FixtureLens on FixtureLens {
+  id
+  name
+  kind
+  fixture {
+    id
+  }
+  windows {
+    ...Window
+  }
+}
+
 fragment AnnotationLens on AnnotationLens {
   id
   name

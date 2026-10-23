@@ -1,0 +1,26 @@
+query GetFixture($id: ID!) {
+  fixture(id: $id) {
+    ...Fixture
+  }
+}
+
+query GetFixtures($filters: FixtureFilter, $pagination: OffsetPaginationInput) {
+  fixtures(filters: $filters, pagination: $pagination) {
+    ...Fixture
+  }
+}
+
+query SearchFixtures(
+  $search: String
+  $values: [ID!]
+  $limit: Int
+  $offset: Int = 0
+) {
+  options: fixtures(
+    filters: { search: $search, ids: $values }
+    pagination: { limit: $limit, offset: $offset }
+  ) {
+    value: id
+    label
+  }
+}

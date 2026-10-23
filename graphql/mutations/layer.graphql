@@ -62,6 +62,20 @@ mutation UpdateMeshLayer($input: UpdateMeshLayerInput!) {
   }
 }
 
+# A fixture's own materials are drawn unless `materialColor` overrides all of them; an update
+# that sends `materialColor: null` returns to them, one that omits it keeps the override.
+mutation CreateFixtureLayer($input: CreateFixtureLayerInput!) {
+  createFixtureLayer(input: $input) {
+    ...Layer
+  }
+}
+
+mutation UpdateFixtureLayer($input: UpdateFixtureLayerInput!) {
+  updateFixtureLayer(input: $input) {
+    ...Layer
+  }
+}
+
 # A node/edge network -- a traced arbor, a vessel tree, a connectome -- rather than a surface.
 # Its own mutation and not a mesh layer with a flag, for the reason the two collections are two
 # stores: konnektion holds a segment list and fabriks a triangle list, and nothing about either

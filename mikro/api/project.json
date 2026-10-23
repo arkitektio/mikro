@@ -1,5 +1,5 @@
 {
-    "schema": "/tmp/claude-1000/-home-jhnnsrs-Code-testing/1194486a-9aea-4308-b30a-e11da39ba706/scratchpad/sdl/mikro.graphql",
+    "schema": "/tmp/claude-1000/-home-jhnnsrs-Code-deployments-next/33742624-5961-43e3-9494-a77cf0329cb6/scratchpad/sdl/mikro.graphql",
     "documents": "graphql/**/**.graphql",
     "extensions": {
         "turms": {
@@ -31,6 +31,7 @@
                 "SporadikLike": "mikro.scalars.SporadikLike",
                 "FileLike": "mikro.scalars.FileLike",
                 "ImageFileLike": "mikro.scalars.ImageFileLike",
+                "GltfLike": "mikro.scalars.GltfLike",
                 "ThreeDVector": "mikro.scalars.ThreeDVector",
                 "GenericQuantity": "kanne.scalars.GenericQuantity",
                 "Length": "kanne.scalars.Length",
@@ -239,6 +240,7 @@
                         "ByteCount": "mikro.scalars.ByteCountCoercible",
                         "ImageFileLike": "mikro.scalars.ImageFileCoercible",
                         "FileLike": "mikro.scalars.ImageFileCoercible",
+                        "GltfLike": "mikro.scalars.GltfCoercible",
                         "ParquetLike": "mikro.scalars.ParquetCoercible",
                         "FabriksLike": "mikro.scalars.FabriksCoercible",
                         "KonnektionLike": "mikro.scalars.KonnektionCoercible",

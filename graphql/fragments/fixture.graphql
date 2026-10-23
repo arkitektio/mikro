@@ -1,0 +1,22 @@
+# Hardware around the sample -- a coverslip, a dish, a holder -- as one binary glTF. Not data:
+# its geometry is the file in `store`, fetched whole, and the API carries only what places it.
+# `bounds` is the box the server read off the file's accessors, in the model's own units.
+fragment Fixture on Fixture {
+  id
+  name
+  label
+  bounds
+  createdAt
+  coordinateSystem {
+    ...CoordinateSystem
+  }
+  store {
+    ...MediaStore
+  }
+  fullLens {
+    ...FixtureLens
+  }
+  derivedFrom {
+    ...Transformation
+  }
+}

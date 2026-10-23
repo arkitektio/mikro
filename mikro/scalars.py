@@ -742,6 +742,27 @@ class ImageFileLike:
         return f"FileLike({self.value})"
 
 
+class GltfLike(ImageFileLike):
+    """A fixture's binary glTF (``.glb``): a path or a file opened in binary mode.
+
+    Uploaded exactly like a snapshot image -- one media object, which is why this is an
+    ``ImageFileLike`` the upload middleware already handles -- and a scalar of its own because
+    ``createFixture`` reads the file's header and refuses anything that is not glTF 2.0.
+    """
+
+    def __init__(self, value: io.BufferedReader, name: str = "") -> None:
+        """Initialize the GltfLike scalar, typed for the media store whatever the platform guesses."""
+        super().__init__(value, name=name)
+        self.mime_type = "model/gltf-binary"
+
+    def __repr__(self) -> str:
+        """Return a string representation of the GltfLike scalar."""
+        return f"GltfLike({self.value})"
+
+
+GltfCoercible: TypeAlias = str | Path | io.BufferedReader
+
+
 class FileLike:
     """A custom scalar for ensuring a common format to support write to the
     parquet api supported by mikro It converts the passed value into

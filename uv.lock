@@ -224,18 +224,19 @@ wheels = [
 
 [[package]]
 name = "arkitekt-spec"
-version = "3.9.0"
+version = "3.19.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
+    { name = "certifi" },
     { name = "docstring-parser" },
     { name = "fieldz" },
     { name = "inflection" },
     { name = "pydantic" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b4/14/c5e7468a4c7de96f984e168015cacec6f60ed3140463f9e10b8f14f048b8/arkitekt_spec-3.9.0.tar.gz", hash = "sha256:f22611dffbb267b905bc0565de659b53958d67441a910f928d5b66dce1dd8e45", size = 194499, upload-time = "2026-10-13T14:47:37.018Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/52/7a/23c779701c4f08e13dfc72a335cada2c3a69ea599a2f60100424a877c2b6/arkitekt_spec-3.19.1.tar.gz", hash = "sha256:254daf97f517bbc71edf30a42c21ed852552f6042098f8b549f5ed84c28276ee", size = 248516, upload-time = "2026-10-23T18:40:27.957Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/bb/05/4841bbef9d58bf5e1aaa697abd213ef74ede7a3429f67d191d59005ba476/arkitekt_spec-3.9.0-py3-none-any.whl", hash = "sha256:376dd505ef1daea12d79f788440efec5488fc68924aed569fab8be3e713f305e", size = 233007, upload-time = "2026-10-13T14:47:35.524Z" },
+    { url = "https://files.pythonhosted.org/packages/7b/96/e06670f680985923c4bde56a89c0bc532c7de495c0ea659c3f305487c238/arkitekt_spec-3.19.1-py3-none-any.whl", hash = "sha256:ac98bc81e4b92a997e2fdba1b3b2be3f65c7a6aeeb123440e624c55800bb3001", size = 290660, upload-time = "2026-10-23T18:40:26.828Z" },
 ]
 
 [[package]]
@@ -782,10 +783,11 @@ wheels = [
 
 [[package]]
 name = "fabriks"
-version = "1.3.0"
+version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "fast-simplification" },
+    { name = "meshoptimizer" },
     { name = "numpy" },
     { name = "pyarrow" },
     { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
@@ -793,19 +795,14 @@ dependencies = [
     { name = "shapely" },
     { name = "trimesh" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d9/ea/76064e70b15b222e96aed2ffba8d72becf97f8c33a00c85a8ddca80092fe/fabriks-1.3.0.tar.gz", hash = "sha256:c4298f5d1b011ee3bf90f2e03c3073c617c6385ce942cf291ce08434c7a43f62", size = 111536, upload-time = "2026-09-21T22:51:41.72Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ec/24/fc038cab8194bad67699fd331b7b911d355832b7f26a1b622e3b55749a1c/fabriks-2.0.0.tar.gz", hash = "sha256:876a6644aec360d8e05f6dbadad4e47726608c096117570ebbd5ad363cb9781a", size = 115046, upload-time = "2026-10-23T18:58:27.526Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b6/ca/f085abc0320c23073afcdd4bb5aa5fe133c07fbf1b0e9d9ceed8e30c10bc/fabriks-1.3.0-py3-none-any.whl", hash = "sha256:f23a8da83808f0e36488987fbea9a97771f6edb3ed9be3f222a045a8135b1f82", size = 133662, upload-time = "2026-09-21T22:51:40.704Z" },
-]
-
-[package.optional-dependencies]
-meshopt = [
-    { name = "meshoptimizer" },
+    { url = "https://files.pythonhosted.org/packages/8a/48/d8528f6919499129eb82d34aff143c4cc6c3bdf440623abe457f396f514a/fabriks-2.0.0-py3-none-any.whl", hash = "sha256:375f16123f02f79bd6e565b3967f1084bd91126181aa804a9e06fc20100779e2", size = 138345, upload-time = "2026-10-23T18:58:26.081Z" },
 ]
 
 [[package]]
 name = "fakts"
-version = "5.4.0"
+version = "6.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -814,9 +811,9 @@ dependencies = [
     { name = "koil" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d5/2b/2f2f3227b5506e4aabaffeec79013d30c52a52f49a5be6819c35307a14cb/fakts-5.4.0.tar.gz", hash = "sha256:74c1c362445beef25f6dd4c80978b6cca68e5208b601083a28607e92805a8886", size = 96243, upload-time = "2026-10-04T18:56:42.049Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/10/a4/acfaef26965e8d6452cb627b09b017c4aa2abfcbc144d08ffea275973290/fakts-6.1.0.tar.gz", hash = "sha256:9e1612ecb436cee7384e1f52c0ac0be62fe12c56a9d07047f13aa50af7603ac3", size = 108357, upload-time = "2026-10-23T18:31:51.01Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f8/99/f2db152f4abec81305cea8dd91ba18a6337572352e46165e821531239f37/fakts-5.4.0-py3-none-any.whl", hash = "sha256:39886ee6302ff216ae48b25805084add0eac14e1b782158cd62e97e1f53fc31f", size = 103382, upload-time = "2026-10-04T18:56:40.528Z" },
+    { url = "https://files.pythonhosted.org/packages/c8/3a/b0421744a9dadaed6f2965502093d95603ac39775fa00b9754bae251fcf5/fakts-6.1.0-py3-none-any.whl", hash = "sha256:1fc7827bbc6490d5e06a96f86d9bbb49c441635c5e5c451654aa2b85f975d187", size = 115281, upload-time = "2026-10-23T18:31:49.532Z" },
 ]
 
 [[package]]
@@ -1350,7 +1347,7 @@ dependencies = [
 [package.optional-dependencies]
 complete = [
     { name = "duckdb" },
-    { name = "fabriks", extra = ["meshopt"] },
+    { name = "fabriks" },
     { name = "konnektion" },
     { name = "pandas" },
     { name = "pyarrow" },
@@ -1361,7 +1358,7 @@ mesh = [
     { name = "pyarrow" },
 ]
 meshopt = [
-    { name = "fabriks", extra = ["meshopt"] },
+    { name = "fabriks" },
     { name = "pyarrow" },
 ]
 network = [
@@ -1406,14 +1403,14 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "arkitekt-spec", specifier = ">=3.9" },
+    { name = "arkitekt-spec", specifier = ">=3.19.1" },
     { name = "dask", specifier = ">=2024.12.1" },
     { name = "duckdb", marker = "extra == 'complete'", specifier = ">=1.0" },
     { name = "duckdb", marker = "extra == 'table'", specifier = ">=1.0" },
+    { name = "fabriks", marker = "extra == 'complete'", specifier = ">=2" },
     { name = "fabriks", marker = "extra == 'mesh'", specifier = ">=1.3" },
-    { name = "fabriks", extras = ["meshopt"], marker = "extra == 'complete'", specifier = ">=1.3" },
-    { name = "fabriks", extras = ["meshopt"], marker = "extra == 'meshopt'", specifier = ">=1.3" },
-    { name = "fakts", specifier = ">=5.4" },
+    { name = "fabriks", marker = "extra == 'meshopt'", specifier = ">=2" },
+    { name = "fakts", specifier = ">=6.1" },
     { name = "kanne", specifier = ">=2.5.0" },
     { name = "konnektion", marker = "extra == 'complete'", specifier = ">=1.2" },
     { name = "konnektion", marker = "extra == 'network'", specifier = ">=1.2" },
@@ -1445,7 +1442,7 @@ dev = [
     { name = "cryptography", specifier = ">=44.0.3" },
     { name = "dokker", specifier = ">=2.8" },
     { name = "duckdb", specifier = ">=1.5.3" },
-    { name = "fakts", specifier = ">=5.4" },
+    { name = "fakts", specifier = ">=6.1" },
     { name = "pillow", specifier = ">=11.2.1" },
     { name = "pyarrow", specifier = ">=24" },
     { name = "pyjwt", specifier = ">=2.10.1" },

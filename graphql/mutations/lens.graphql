@@ -30,6 +30,13 @@ mutation CreateNetworkLens($input: CreateNetworkLensInput!) {
   }
 }
 
+# A clip box, in the model's own axes and unit.
+mutation CreateFixtureLens($input: CreateFixtureLensInput!) {
+  createFixtureLens(input: $input) {
+    ...FixtureLens
+  }
+}
+
 mutation CreateAnnotationLens($input: CreateAnnotationLensInput!) {
   createAnnotationLens(input: $input) {
     ...AnnotationLens
