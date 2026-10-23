@@ -430,9 +430,12 @@ if __name__ == "__main__":
             opacity=0.9,
             order=3,
         )
-        derived = (track_layer.track_id_column, track_layer.z_column,
-                   track_layer.y_column, track_layer.x_column, track_layer.t_column)
-        if derived != ("track_id", "z", "y", "x", None):
+        # The track id is derived onto the layer; the coordinate columns are the
+        # table's TIME/SPACE columns and are checked there (no TIME: streamlines).
+        derived = (track_layer.track_id_column,
+                   *[c.name for c in sorted(table.columns, key=lambda c: c.order)
+                     if c.axis_type in (AxisType.TIME, AxisType.SPACE)])
+        if derived != ("track_id", "z", "y", "x"):
             raise SystemExit(f"track layer derived {derived} — the 3D declaration did not land")
 
         print("Uploading glass brain…")

@@ -283,9 +283,12 @@ if __name__ == "__main__":
             ],
             active_color_by=0,
         )
-        if (point_layer.y_column, point_layer.x_column) != ("y", "x"):
+        # The point layer draws the table's SPACE columns, checked where they live.
+        space = [c.name for c in sorted(table.columns, key=lambda c: c.order)
+                  if c.axis_type in (AxisType.SPACE,)]
+        if space != ["y", "x"]:
             raise SystemExit(
-                f"well table derived ({point_layer.y_column}, {point_layer.x_column}) — "
+                f"well table declared SPACE columns {space} — "
                 f"declaration did not land"
             )
 

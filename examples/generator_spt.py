@@ -360,13 +360,12 @@ if __name__ == "__main__":
             order=1,
         )
 
-        # All four trajectory columns are derived from the table's declaration,
-        # never stored — their coming back named is the round-trip proof.
+        # The track id is derived onto the layer; the coordinate columns are the
+        # table's TIME/SPACE columns and are checked there.
         derived = (
             track_layer.track_id_column,
-            track_layer.t_column,
-            track_layer.y_column,
-            track_layer.x_column,
+            *[c.name for c in sorted(table.columns, key=lambda c: c.order)
+              if c.axis_type in (AxisType.TIME, AxisType.SPACE)],
         )
         if derived != ("track_id", "t", "y", "x"):
             raise SystemExit(

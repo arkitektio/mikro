@@ -341,8 +341,12 @@ if __name__ == "__main__":
             scene=scene, lens=beads.lens().id, point_size=0.25, colormap=ColorMap.YELLOW,
             opacity=0.9, order=3,
         )
-        if (point_layer.y_column, point_layer.x_column) != ("y", "x"):
-            raise SystemExit("fiducial table declaration did not land")
+        # A point layer no longer reports its position columns: they are the table's
+        # SPACE columns, so the declaration is checked where it lives.
+        space = [c.name for c in sorted(beads.columns, key=lambda c: c.order)
+                 if c.axis_type == AxisType.SPACE]
+        if space != ["y", "x"]:
+            raise SystemExit(f"fiducial table declaration did not land (SPACE columns {space})")
 
         print(f"\nDone — scene '{scene.name}' ({scene.id}):")
         print(f"  EM {em_ds.id}, LM {', '.join(d.id for d in lm_ids)} (AFFINE-registered, {THETA_DEG:.0f}°)")

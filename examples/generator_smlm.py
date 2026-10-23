@@ -414,13 +414,14 @@ if __name__ == "__main__":
             ],
         )
 
-        # The point layer's coordinate columns are derived from the table's
-        # declaration, never stored — so their coming back named is the round-trip
-        # proof that the table's space is what the layer draws from.
-        if (point_layer.y_column, point_layer.x_column) != ("y", "x"):
+        # A point layer draws the table's SPACE columns; it no longer reports them, so
+        # the declaration is checked on the table, where it lives.
+        space = [c.name for c in sorted(table.columns, key=lambda c: c.order)
+                  if c.axis_type in (AxisType.SPACE,)]
+        if space != ["y", "x"]:
             raise SystemExit(
-                f"point layer derived columns ({point_layer.y_column}, {point_layer.x_column}) "
-                f"instead of ('y', 'x') — the table declaration did not land"
+                f"table declared SPACE columns {space} instead of ['y', 'x'] — "
+                f"the table declaration did not land"
             )
 
         print(f"\nDone — scene '{scene.name}' ({scene.id}):")
