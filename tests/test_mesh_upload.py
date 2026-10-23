@@ -45,6 +45,7 @@ def collection() -> fabriks.MeshCollection:
         },
         cell_size=CELL_SIZE,
         levels=LEVELS,
+        axes=("x", "y", "z"),
     )
 
 

@@ -439,7 +439,7 @@ if __name__ == "__main__":
             raise SystemExit(f"track layer derived {derived} — the 3D declaration did not land")
 
         print("Uploading glass brain…")
-        built = build_collection({1: mesh}, levels=LEVELS)
+        built = build_collection({1: mesh}, levels=LEVELS, axes=["x", "y", "z"])
         collection = mikro.create_mesh_collection(
             name=f"v20260901-dti-glass-brain-seed{SEED}",
             store=built,

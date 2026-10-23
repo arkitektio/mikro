@@ -67,9 +67,21 @@ def create_space(
     axes: AxisSpec,
     *,
     epoch: datetime | None = None,
+    reference: str | None = None,
     registrations: Sequence[RegistrationPathInput] | None = None,
 ) -> CoordinateSystem:
     """Create a shared coordinate system: a reference frame owned by nobody.
+
+    With a `reference` it is get-or-create, which is how two callers end up in
+    *the same* space rather than two that never compose. A URI names a frame
+    that means the same thing to everyone, so the whole organization shares
+    one space for it; a plain key is your app's own::
+
+        mni = space_3d(mikro, "MNI152", unit=Unit("millimeter"), reference="nifti:mni152")
+        stage = space_3d(mikro, "stage", reference="stage")  # this app's stage, every run
+
+    An existing space is handed back as it is (its name kept) and refused if
+    `axes` or `epoch` describe it differently.
 
     Args:
         name: What to call the space — "stage", "atlas", "well A1".
@@ -83,6 +95,9 @@ def create_space(
         epoch: The wall-clock instant a TIME axis has its origin at. A property
             of the space; leave it out and the time axis is still a perfectly
             composable relative coordinate.
+        reference: What frame the space *is*. A URI (``nifti:mni152``,
+            ``templateflow:MNI152NLin2009cAsym``) is shared by everyone in the
+            organization; a plain key (``stage``) belongs to the calling app.
         registrations: `RegistrationPathInput` entries to author in the same
             call. Usually left out — `space.register(source, ...)` afterwards
             says the same thing with the source in hand.
@@ -121,6 +136,7 @@ def create_space(
         axes=_canonical_axes(axis_inputs),
         registrations=list(registrations) if registrations is not None else [],
         epoch=epoch if epoch is not None else UNSET,
+        reference=reference if reference is not None else UNSET,
     )
 
 
@@ -130,6 +146,7 @@ def space_2d(
     *,
     unit: Unit = Unit("micrometer"),
     axes: Sequence[str] = ("y", "x"),
+    reference: str | None = None,
 ) -> CoordinateSystem:
     """A flat physical space: ``(y, x)``, one length unit for both axes.
 
@@ -140,12 +157,13 @@ def space_2d(
         name: What to call the space.
         unit: The length unit both axes carry.
         axes: The axis names, in array order.
+        reference: What frame the space is, making it get-or-create (see `create_space`).
         mikro: The client to create it through.
 
     Returns:
         The created coordinate system.
     """
-    return create_space(mikro, name, {axis: unit for axis in axes})
+    return create_space(mikro, name, {axis: unit for axis in axes}, reference=reference)
 
 
 def space_3d(
@@ -154,6 +172,7 @@ def space_3d(
     *,
     unit: Unit = Unit("micrometer"),
     axes: Sequence[str] = ("z", "y", "x"),
+    reference: str | None = None,
 ) -> CoordinateSystem:
     """A volumetric physical space: ``(z, y, x)``, one length unit for all three.
 
@@ -168,12 +187,13 @@ def space_3d(
         name: What to call the space.
         unit: The length unit all three axes carry.
         axes: The axis names, in array order.
+        reference: What frame the space is, making it get-or-create (see `create_space`).
         mikro: The client to create it through.
 
     Returns:
         The created coordinate system.
     """
-    return create_space(mikro, name, {axis: unit for axis in axes})
+    return create_space(mikro, name, {axis: unit for axis in axes}, reference=reference)
 
 
 def timelapse_3d(
@@ -184,6 +204,7 @@ def timelapse_3d(
     time_unit: Unit = Unit("second"),
     axes: Sequence[str] = ("z", "y", "x"),
     epoch: datetime | None = None,
+    reference: str | None = None,
 ) -> CoordinateSystem:
     """A volumetric space with a time axis: ``(t, z, y, x)``.
 
@@ -197,6 +218,7 @@ def timelapse_3d(
         time_unit: The duration unit the time axis carries.
         axes: The spatial axis names, in array order.
         epoch: The wall-clock instant ``t = 0`` denotes.
+        reference: What frame the space is, making it get-or-create (see `create_space`).
         mikro: The client to create it through.
 
     Returns:
@@ -207,6 +229,7 @@ def timelapse_3d(
         name,
         {"t": time_unit, **{axis: unit for axis in axes}},
         epoch=epoch,
+        reference=reference,
     )
 
 

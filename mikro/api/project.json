@@ -1,5 +1,5 @@
 {
-    "schema": "/tmp/claude-1000/-home-jhnnsrs-Code-testing/6ccaf53a-27fb-40fe-bf24-45e11ddeb0c4/scratchpad/mikro.schema.graphql",
+    "schema": "/tmp/claude-1000/-home-jhnnsrs-Code-testing/1194486a-9aea-4308-b30a-e11da39ba706/scratchpad/sdl/mikro.graphql",
     "documents": "graphql/**/**.graphql",
     "extensions": {
         "turms": {

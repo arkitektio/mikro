@@ -203,6 +203,21 @@ def test_space_3d_creates_a_physical_space(deployed_app: DeployedMikro) -> None:
 
 
 @pytest.mark.integration
+def test_a_reference_hands_back_the_same_space(deployed_app: DeployedMikro) -> None:
+    """Two callers naming one frame get one space: a URI is global, a plain key the app's own."""
+    first = space_3d(deployed_app.mikro, "MNI152", unit="millimeter", reference="nifti:mni152")
+    again = space_3d(deployed_app.mikro, "MNI152 again", unit="millimeter", reference="nifti:mni152")
+
+    assert again.id == first.id
+    assert again.name == "MNI152", "the existing space comes back as it is"
+    assert (first.reference, first.reference_app) == ("nifti:mni152", None)
+
+    stage = space_3d(deployed_app.mikro, "stage", reference="stage")
+    assert stage.reference_app, "a plain key is namespaced by the calling app"
+    assert space_3d(deployed_app.mikro, "stage", reference="stage").id == stage.id
+
+
+@pytest.mark.integration
 def test_register_places_a_dataset_in_the_world(mikro: Mikro, deployed_app: DeployedMikro) -> None:
     """`register` authors one BY_DIMENSION edge over the axes the spaces share.
 

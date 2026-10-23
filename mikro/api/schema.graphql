@@ -2661,6 +2661,16 @@ type CoordinateSystem @key(fields: "id", resolvable: true) @identified(by: "@mik
   epoch: DateTime
 
   """
+  The frame this space is, by which callers find it again instead of minting a second one: a URI (`nifti:mni152`) names a frame shared by everyone in the organization, a plain key (`stage`) one of `referenceApp`'s own. The spatial counterpart of `epoch`, an identity rather than a value. Null for a space nobody needs to find again
+  """
+  reference: String
+
+  """
+  The identifier of the app an app-scoped `reference` belongs to; null for a URI reference, which belongs to nobody
+  """
+  referenceApp: String
+
+  """
   The scenes that compose over this system as their world. A SHARED space lists every scene sharing it and outlives each of them: a scene adopts a space, never owns it, and deleting a scene never deletes the space. The inverse of `Scene.worldCoordinateSystem`
   """
   scenes(filters: SceneFilter, ordering: [SceneOrder!]! = [], pagination: OffsetPaginationInput): [Scene!]!
@@ -2744,6 +2754,11 @@ input CoordinateSystemFilter {
   Filter to the objects satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored on every row. A key the structure does not declare is refused rather than ignored
   """
   requires: [DescriptorConstraintInput!]
+
+  """
+  Filter to the space holding this reference, in the scope it resolves to: a URI (`nifti:mni152`) finds the organization's one space for that frame, a plain key (`stage`) finds the calling app's own -- never another app's space under the same key
+  """
+  reference: String
 
   """
   Filter to the spaces nothing lives in: pure reference frames, the worlds and atlases sources are registered into. False finds the spaces some data actually occupies
@@ -2961,6 +2976,7 @@ input CreateCoordinateSystemInput {
   name: String!
   axes: [PhysicalAxisInput!]!
   epoch: DateTime = null
+  reference: String = null
   registrations: [RegistrationPathInput!]! = []
 }
 
@@ -3296,6 +3312,7 @@ input CreateSceneInput {
   backgroundColor: [Float!] = null
   axes: [PhysicalAxisInput!] = null
   epoch: DateTime = null
+  reference: String = null
   coordinateSystem: ID = null
   defaultFor: [ID!] = null
 }
@@ -12546,12 +12563,13 @@ input UpdateChartLayerInput {
 }
 
 """
-Input for renaming a shared coordinate system or anchoring its clock. Shared spaces only: every other system is named by the container that owns it
+Input for renaming a shared coordinate system, anchoring its clock or giving it a reference. Shared spaces only: every other system is named by the container that owns it
 """
 input UpdateCoordinateSystemInput {
   id: ID!
   name: String = null
   epoch: DateTime = null
+  reference: String = null
 }
 
 """

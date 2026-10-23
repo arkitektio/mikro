@@ -268,7 +268,7 @@ if __name__ == "__main__":
             raise SystemExit(f"layer offers {len(published)} colourings, expected 4")
 
         print("Uploading glass brain…")
-        built_mesh = build_collection({1: mesh}, levels=LEVELS)
+        built_mesh = build_collection({1: mesh}, levels=LEVELS, axes=list(COLLECTION_AXES))
         mesh_collection = mikro.create_mesh_collection(
             name=f"v20260901-dti-glass-brain-network-seed{SEED}",
             store=built_mesh,

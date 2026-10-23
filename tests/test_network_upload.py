@@ -51,6 +51,7 @@ def collection() -> konnektion.NetworkCollection:
     return konnektion.build_collection(
         {7: arbor((70.0, 60.0, 25.0)), 3: arbor((150.0, 30.0, 15.0))},
         cell_size=CELL_SIZE,
+        axes=("x", "y", "z"),
     )
 
 
@@ -109,7 +110,7 @@ def test_a_mesh_collection_is_refused_and_the_message_says_which_format_it_is() 
     trimesh = pytest.importorskip("trimesh")
 
     box = trimesh.creation.box(extents=[10.0, 10.0, 10.0]).apply_translation([30.0, 30.0, 30.0])
-    mesh = fabriks.build_collection({1: box})
+    mesh = fabriks.build_collection({1: box}, axes=("x", "y", "z"))
 
     with pytest.raises(ValueError, match="MeshCollection"):
         KonnektionLike.validate(mesh)

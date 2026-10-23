@@ -11,6 +11,8 @@ fragment CoordinateSystem on CoordinateSystem {
   id
   name
   epoch
+  reference
+  referenceApp
   axes {
     ...Axis
   }
