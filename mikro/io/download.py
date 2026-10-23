@@ -108,7 +108,7 @@ async def aopen_parquet_duckdb(
     )
 
     credentials, endpoint_url = await aget_table_credentials_and_endpoint(mikro, store_id)
-    con = create_duckdb_s3_connection(endpoint_url, credentials)
+    con = create_duckdb_s3_connection(endpoint_url, credentials, mikro.datalayer.certificates)
     relation = read_parquet_relation(con, credentials.bucket, credentials.key)
     return con, relation
 
@@ -145,7 +145,10 @@ async def adownload_presigned_file(
     async with aiohttp.ClientSession() as session:
         # ``proxy=None`` is aiohttp's own default, so an unproxied datalayer is unchanged.
         async with session.get(
-            endpoint_url + presigned_url, proxy=mikro.datalayer.proxy
+            endpoint_url + presigned_url,
+            proxy=mikro.datalayer.proxy,
+            # A pinned store by its hub's certificate alone; any other as before.
+            ssl=mikro.datalayer.ssl_context() if mikro.datalayer.certificates else True,
         ) as response:
             response.raise_for_status()
             with open(file_name, "wb") as file:

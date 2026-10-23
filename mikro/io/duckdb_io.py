@@ -31,12 +31,14 @@ def require_duckdb() -> "Any":  # noqa: ANN401
 
 
 def create_duckdb_s3_connection(
-    endpoint_url: str, grant: "S3UploadGrantLike"
+    endpoint_url: str, grant: "S3UploadGrantLike", certificates: list[str] | None = None
 ) -> "duckdb.DuckDBPyConnection":
     """Create a DuckDB connection configured to read from the Mikro S3 endpoint.
 
     Loads the ``httpfs`` extension and applies the S3 settings derived from the
     grant and endpoint (path-style addressing, matching ``create_s3_store``).
+    ``certificates`` are a pinned store's hub certificates (``DataLayer.certificates``):
+    duckdb's TLS is then given them beside the public roots, as a file.
     """
     duckdb = require_duckdb()
 
@@ -51,6 +53,10 @@ def create_duckdb_s3_connection(
     con.execute("SET s3_region='us-east-1';")  # dummy; required by duckdb/httpfs
     con.execute("SET s3_endpoint=?;", [s3_endpoint])
     con.execute("SET s3_use_ssl=?;", [use_ssl])
+    if use_ssl and certificates:
+        from arkitekt_spec.declare import tls
+
+        con.execute("SET ca_cert_file=?;", [tls.bundle_file(certificates)])
     con.execute("SET s3_access_key_id=?;", [grant.access_key])
     con.execute("SET s3_secret_access_key=?;", [grant.secret_key])
     if grant.session_token:
