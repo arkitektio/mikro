@@ -517,7 +517,6 @@ class UploadMiddleware(OperationMiddleware):
 
     def _store_kulisse(self, datalayer: "DataLayer", rath: "MikroRath", model: KulisseLike) -> str:
         """Upload a kulisse model into its own store and finish it: the server reads and checks it then."""
-        endpoint_url = self.get_datalayer_url()
         granted = rath.query(
             RequestKulisseUploadMutation.Meta.document,
             RequestKulisseUploadMutation.Arguments(
@@ -530,7 +529,6 @@ class UploadMiddleware(OperationMiddleware):
             FinishKulisseUploadMutation.Meta.document,
             FinishKulisseUploadMutation.Arguments(input=FinishKulisseUploadInput(store_id=store_id, valid=True)).model_dump(by_alias=True, exclude_unset=True),
         )
-        del endpoint_url
         return store_id
 
     def _store_fabriks(
