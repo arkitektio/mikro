@@ -25,6 +25,9 @@ from mikro.api.schema import (
 )
 from mikro.mikro import Mikro
 
+# Most of these record against a real mikro in Docker.
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.parametrize(
     ("cls", "identifier", "id"),
