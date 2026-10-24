@@ -10,6 +10,8 @@ buckets:
   # create_network_collection upload fails at its first grant.
   - name: fabriks
   - name: konnektion
+  # Fixtures: a kulisse store per model.
+  - name: kulisse
 users:
   - access_key: mikro_access_key
     name: mikronew

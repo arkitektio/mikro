@@ -57,6 +57,9 @@ datalayer:
     bucket: fabriks
   konnektion:
     bucket: konnektion
+  # Fixtures: each model is a kulisse store (one self-contained GLB).
+  kulisse:
+    bucket: kulisse
 postgres:
   db_name: mikro
   engine: django.db.backends.postgresql
