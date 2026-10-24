@@ -156,3 +156,41 @@ fragment SparseUploadGrant on SparseUploadGrant {
   maxBytes
   store
 }
+
+
+fragment KulisseUploadGrant on KulisseUploadGrant {
+  accessKey
+  secretKey
+  sessionToken
+  path
+  key
+  bucket
+  expiresIn
+  maxBytes
+  store
+}
+
+fragment KulisseAccessGrant on KulisseAccessGrant {
+  accessKey
+  secretKey
+  sessionToken
+  path
+  key
+  bucket
+  region
+  expiresIn
+  store
+}
+
+fragment KulisseStore on KulisseStore {
+  id
+  key
+  bucket
+  path
+  sizeBytes
+  ref
+  bounds
+  nodes
+  joints
+  warnings
+}

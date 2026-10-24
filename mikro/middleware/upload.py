@@ -41,6 +41,10 @@ from mikro.io.upload import (
     upload_xarray,
 )
 from mikro.api.schema import (
+    FinishKulisseUploadInput,
+    FinishKulisseUploadMutation,
+    RequestKulisseUploadInput,
+    RequestKulisseUploadMutation,
     FinishFabriksUploadInput,
     FinishFabriksUploadMutation,
     FinishKonnektionUploadInput,
@@ -53,15 +57,12 @@ from mikro.api.schema import (
     FinishZarrUploadMutation,
     RequestBigFileUploadInput,
     RequestBigfileUploadMutation,
-    RequestFabriksUploadInput,
     RequestFabriksUploadMutation,
-    RequestKonnektionUploadInput,
     RequestKonnektionUploadMutation,
     RequestMediaUploadInput,
     RequestMediaUploadMutation,
     RequestParquetUploadInput,
     RequestParquetUploadMutation,
-    RequestSparseUploadInput,
     RequestSparseUploadMutation,
     RequestZarrUploadInput,
     RequestZarrUploadMutation,
@@ -69,10 +70,12 @@ from mikro.api.schema import (
 from mikro.middleware.base import OperationMiddleware
 from mikro.scalars import (
     ArrayLike,
+    ByteCount,
     FabriksLike,
-    KonnektionLike,
     FileLike,
     ImageFileLike,
+    KonnektionLike,
+    KulisseLike,
     ParquetLike,
     SporadikLike,
 )
@@ -144,7 +147,7 @@ class UploadMiddleware(OperationMiddleware):
 
     This middleware walks the serialized variables dict, finds instances of
     uploadable scalar types (ArrayLike, ParquetLike, FileLike, ImageFileLike,
-    FabriksLike, SporadikLike), uploads them to S3, and replaces
+    KulisseLike, FabriksLike, SporadikLike), uploads them to S3, and replaces
     them with their store IDs.
 
     Provides two paths:
@@ -210,9 +213,7 @@ class UploadMiddleware(OperationMiddleware):
         """
         x = rath.query(
             RequestFabriksUploadMutation.Meta.document,
-            RequestFabriksUploadMutation.Arguments(input=RequestFabriksUploadInput()).model_dump(
-                by_alias=True, exclude_unset=True
-            ),
+            {},
         )
         return RequestFabriksUploadMutation(**x.data).request_fabriks_upload
 
@@ -240,9 +241,7 @@ class UploadMiddleware(OperationMiddleware):
         """
         x = rath.query(
             RequestKonnektionUploadMutation.Meta.document,
-            RequestKonnektionUploadMutation.Arguments(input=RequestKonnektionUploadInput()).model_dump(
-                by_alias=True, exclude_unset=True
-            ),
+            {},
         )
         return RequestKonnektionUploadMutation(**x.data).request_konnektion_upload
 
@@ -270,9 +269,7 @@ class UploadMiddleware(OperationMiddleware):
         """
         x = rath.query(
             RequestSparseUploadMutation.Meta.document,
-            RequestSparseUploadMutation.Arguments(input=RequestSparseUploadInput()).model_dump(
-                by_alias=True, exclude_unset=True
-            ),
+            {},
         )
         return RequestSparseUploadMutation(**x.data).request_sparse_upload
 
@@ -369,9 +366,7 @@ class UploadMiddleware(OperationMiddleware):
         """Get fabriks upload credentials asynchronously."""
         x = await rath.aquery(
             RequestFabriksUploadMutation.Meta.document,
-            RequestFabriksUploadMutation.Arguments(input=RequestFabriksUploadInput()).model_dump(
-                by_alias=True, exclude_unset=True
-            ),
+            {},
         )
         return RequestFabriksUploadMutation(**x.data).request_fabriks_upload
 
@@ -390,9 +385,7 @@ class UploadMiddleware(OperationMiddleware):
         """Get konnektion upload credentials asynchronously."""
         x = await rath.aquery(
             RequestKonnektionUploadMutation.Meta.document,
-            RequestKonnektionUploadMutation.Arguments(input=RequestKonnektionUploadInput()).model_dump(
-                by_alias=True, exclude_unset=True
-            ),
+            {},
         )
         return RequestKonnektionUploadMutation(**x.data).request_konnektion_upload
 
@@ -411,9 +404,7 @@ class UploadMiddleware(OperationMiddleware):
         """Get sparse upload credentials asynchronously."""
         x = await rath.aquery(
             RequestSparseUploadMutation.Meta.document,
-            RequestSparseUploadMutation.Arguments(input=RequestSparseUploadInput()).model_dump(
-                by_alias=True, exclude_unset=True
-            ),
+            {},
         )
         return RequestSparseUploadMutation(**x.data).request_sparse_upload
 
@@ -524,6 +515,24 @@ class UploadMiddleware(OperationMiddleware):
         self._finish_media_upload(store_id, rath)
         return store_id
 
+    def _store_kulisse(self, datalayer: "DataLayer", rath: "MikroRath", model: KulisseLike) -> str:
+        """Upload a kulisse model into its own store and finish it: the server reads and checks it then."""
+        endpoint_url = self.get_datalayer_url()
+        granted = rath.query(
+            RequestKulisseUploadMutation.Meta.document,
+            RequestKulisseUploadMutation.Arguments(
+                input=RequestKulisseUploadInput(original_file_name=model.file_name, file_size=ByteCount(len(model.value)))
+            ).model_dump(by_alias=True, exclude_unset=True),
+        )
+        credentials = RequestKulisseUploadMutation(**granted.data).request_kulisse_upload
+        store_id = store_media_file(model, credentials, datalayer)
+        rath.query(
+            FinishKulisseUploadMutation.Meta.document,
+            FinishKulisseUploadMutation.Arguments(input=FinishKulisseUploadInput(store_id=store_id, valid=True)).model_dump(by_alias=True, exclude_unset=True),
+        )
+        del endpoint_url
+        return store_id
+
     def _store_fabriks(
         self, datalayer: "DataLayer", rath: "MikroRath", collection: FabriksLike
     ) -> str:
@@ -602,6 +611,22 @@ class UploadMiddleware(OperationMiddleware):
         credentials = await self._arequest_media_credentials(file.file_name, endpoint_url, rath)
         store_id = await astore_media_file(file, credentials, datalayer)
         await self._afinish_media_upload(store_id, rath)
+        return store_id
+
+    async def _astore_kulisse(self, datalayer: "DataLayer", rath: "MikroRath", model: KulisseLike) -> str:
+        """Upload a kulisse model into its own store and finish it: the server reads and checks it then."""
+        granted = await rath.aquery(
+            RequestKulisseUploadMutation.Meta.document,
+            RequestKulisseUploadMutation.Arguments(
+                input=RequestKulisseUploadInput(original_file_name=model.file_name, file_size=ByteCount(len(model.value)))
+            ).model_dump(by_alias=True, exclude_unset=True),
+        )
+        credentials = RequestKulisseUploadMutation(**granted.data).request_kulisse_upload
+        store_id = await astore_media_file(model, credentials, datalayer)
+        await rath.aquery(
+            FinishKulisseUploadMutation.Meta.document,
+            FinishKulisseUploadMutation.Arguments(input=FinishKulisseUploadInput(store_id=store_id, valid=True)).model_dump(by_alias=True, exclude_unset=True),
+        )
         return store_id
 
     async def _astore_fabriks(
@@ -683,6 +708,11 @@ class UploadMiddleware(OperationMiddleware):
             (ImageFileLike,),
         )
         variables = _apply_recursive_sync(
+            partial(self._store_kulisse, datalayer, rath),
+            variables,
+            KulisseLike,
+        )
+        variables = _apply_recursive_sync(
             partial(self._store_fabriks, datalayer, rath),
             variables,
             FabriksLike,
@@ -740,6 +770,11 @@ class UploadMiddleware(OperationMiddleware):
             partial(self._aupload_mediafile, datalayer, rath),
             variables,
             (ImageFileLike,),
+        )
+        variables = await _apply_recursive_async(
+            partial(self._astore_kulisse, datalayer, rath),
+            variables,
+            KulisseLike,
         )
         variables = await _apply_recursive_async(
             partial(self._astore_fabriks, datalayer, rath),

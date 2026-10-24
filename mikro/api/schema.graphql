@@ -1685,8 +1685,7 @@ type BigFileStore @key(fields: "id", resolvable: true) @identified(by: "@mikro/b
   contentType: String
 
   """Get temporary S3 read credentials for the object."""
-  accessGrant(host: String = null): BigFileAccessGrant!
-  presignedUrl: String!
+  accessGrant: BigFileAccessGrant!
 }
 
 """Temporary S3 credentials for uploading a big file."""
@@ -1705,7 +1704,6 @@ type BigFileUploadGrant {
   originalFileName: String
   uploadFileName: String!
   uploadContentType: String
-  uploadFormField: String!
 }
 
 """Composites its children using an in-layer blend mode"""
@@ -3082,7 +3080,7 @@ Input for registering a fixture: one binary glTF, in a unit-carrying coordinate 
 """
 input CreateFixtureInput {
   name: String = null
-  store: GltfLike!
+  store: KulisseLike!
   axes: [PhysicalAxisInput!]!
   folder: ID = null
   derivedFrom: [DerivedFromInput!] = null
@@ -4275,7 +4273,7 @@ type FabriksStore @key(fields: "id", resolvable: true) @identified(by: "@mikro/f
   """
   Get temporary S3 read credentials covering this store's whole prefix -- the manifest, both catalogs and every level, in one grant.
   """
-  accessGrant(host: String = null): FabriksAccessGrant!
+  accessGrant: FabriksAccessGrant!
 }
 
 """
@@ -4296,7 +4294,6 @@ type FabriksUploadGrant {
   originalFileName: String
   uploadFileName: String!
   uploadContentType: String
-  uploadFormField: String!
 }
 
 """
@@ -4834,6 +4831,11 @@ input FinishKonnektionUploadInput {
   valid: Boolean! = true
 }
 
+input FinishKulisseUploadInput {
+  storeId: String!
+  valid: Boolean! = true
+}
+
 input FinishMediaUploadInput {
   storeId: String!
   valid: Boolean! = true
@@ -4855,7 +4857,7 @@ input FinishZarrUploadInput {
 }
 
 """
-A piece of hardware around the sample -- a coverslip, a dish, a holder -- stored as one binary glTF. Ask its `store` for a `presignedUrl` and load the file whole; its space's axes carry the units its vertices are in
+A piece of hardware around the sample -- a coverslip, a dish, a holder -- stored as one binary glTF. Ask its `store` for an `accessGrant` and load the file whole; its space's axes carry the units its vertices are in
 """
 type Fixture @key(fields: "id", resolvable: true) @identified(by: "@mikro/fixture") {
   """
@@ -4879,9 +4881,9 @@ type Fixture @key(fields: "id", resolvable: true) @identified(by: "@mikro/fixtur
   coordinateSystem: CoordinateSystem!
 
   """
-  The media store holding the binary glTF. Ask it for a `presignedUrl` and fetch the file whole: a viewer loads a model in one request
+  The kulisse store holding the model: one self-contained binary glTF and what it says about itself (nodes, joints, bounds). Ask it for an `accessGrant` and fetch the file whole: a viewer loads a model in one request
   """
-  store: MediaStore!
+  store: KulisseStore!
 
   """
   The lenses over this model, oldest first: its whole lens and every clip box someone has cut. `windowed: true` keeps the clip boxes, `windowed: false` the whole lens, which is also `fullLens`
@@ -5283,6 +5285,21 @@ type GeneralKonnektionAccessGrant {
   expiresIn: Int!
 }
 
+"""
+Temporary S3 credentials for reading the organization's kulisse models.
+"""
+type GeneralKulisseAccessGrant {
+  path: String!
+  store: String
+  status: String!
+  accessKey: String!
+  secretKey: String!
+  sessionToken: String!
+  region: String!
+  bucket: String!
+  expiresIn: Int!
+}
+
 """Temporary S3 credentials for reading a media object."""
 type GeneralMediaAccessGrant {
   path: String!
@@ -5343,11 +5360,6 @@ it is a string; validating it against an expected dimension (e.g. a declared
 mechanism parameter) is the caller's job.
 """
 scalar GenericQuantity
-
-"""
-A reference to an uploaded **binary glTF** (`.glb`) media object: one file holding a fixture's scene, materials and buffers. Upload it with `requestMediaUpload` / `finishMediaUpload`; `createFixture` reads its header and refuses anything that is not glTF 2.0
-"""
-scalar GltfLike
 
 enum Granularity {
   HOUR
@@ -5849,7 +5861,7 @@ type KonnektionStore @key(fields: "id", resolvable: true) @identified(by: "@mikr
   """
   Get temporary S3 read credentials covering this store's whole prefix -- the manifest, both catalogs and every level, in one grant.
   """
-  accessGrant(host: String = null): KonnektionAccessGrant!
+  accessGrant: KonnektionAccessGrant!
 }
 
 """
@@ -5870,7 +5882,110 @@ type KonnektionUploadGrant {
   originalFileName: String
   uploadFileName: String!
   uploadContentType: String
-  uploadFormField: String!
+}
+
+"""Temporary S3 credentials for reading a kulisse model."""
+type KulisseAccessGrant {
+  status: String!
+  accessKey: String!
+  secretKey: String!
+  sessionToken: String!
+  region: String!
+  bucket: String!
+  key: String!
+  path: String!
+  expiresIn: Int!
+  store: String
+}
+
+"""
+A reference to a kulisse store (a device or scene model, one self-contained binary glTF): the id its finished upload returned.
+"""
+scalar KulisseLike
+
+"""What a kulisse model contains, counted from its JSON."""
+type KulisseStats {
+  nodes: Int!
+  triangles: Int!
+  textures: Int!
+  animations: Int!
+}
+
+"""
+A kulisse model: a device or scene model stored as one self-contained binary glTF. Everything here is read from the file when its upload is finished, never declared by a caller.
+"""
+type KulisseStore @key(fields: "id", resolvable: true) @identified(by: "@mikro/kulissestore") {
+  id: ID!
+  path: String!
+  bucket: String!
+  key: String!
+
+  """
+  The byte budget the upload grant advertised for this store. Advertised, not enforced: a session policy bounds what a credential may write, never how much, so a store may exceed this
+  """
+  maxBytes: ByteCount
+
+  """
+  How many bytes the model holds, measured when its upload was finished. Null while unfinished
+  """
+  sizeBytes: ByteCount
+  originalFileName: String
+
+  """
+  `sha256:` and the hex digest of the model's exact bytes: what a blok decorating it names as `forModel`
+  """
+  ref: String
+
+  """The glTF version the model declares"""
+  specVersion: String
+
+  """The tool that wrote the model, as it says"""
+  generator: String
+
+  """
+  The box the default scene occupies, `{min: [x, y, z], max: [x, y, z]}` in the model's own coordinates. Null when nothing declares a box
+  """
+  bounds: JSON
+
+  """The named nodes a blok can address"""
+  nodes: [String!]
+
+  """
+  The joint table (`extras.arkitekt.joints`): name, node, type, axis, limit, mimic. Empty for a rigid model
+  """
+  joints: JSON
+
+  """The glTF extensions the model uses"""
+  extensionsUsed: [String!]
+
+  """What the reader noticed but did not refuse"""
+  warnings: [String!]
+
+  """What the model contains, counted from its JSON."""
+  stats: KulisseStats
+
+  """Get temporary S3 read credentials for the model."""
+  accessGrant: KulisseAccessGrant!
+}
+
+"""
+Temporary S3 credentials for uploading a kulisse model: one self-contained GLB, written once, then finished.
+"""
+type KulisseUploadGrant {
+  status: String!
+  accessKey: String!
+  secretKey: String!
+  sessionToken: String!
+  region: String!
+  bucket: String!
+  key: String!
+  path: String!
+  expiresIn: Int!
+  store: String!
+  maxBytes: ByteCount!
+  originalFileName: String
+  uploadFileName: String!
+  uploadContentType: String
 }
 
 """
@@ -7187,13 +7302,10 @@ type MediaStore @key(fields: "id", resolvable: true) @identified(by: "@mikro/med
   contentType: String
 
   """Get temporary S3 read credentials for the media object."""
-  accessGrant(host: String = null): MediaAccessGrant!
-
-  """Compatibility field returning the canonical S3 object path."""
-  presignedUrl(host: String = null): String!
+  accessGrant: MediaAccessGrant!
 }
 
-"""A presigned PUT grant for uploading a media object."""
+"""Temporary S3 credentials for uploading a media object."""
 type MediaUploadGrant {
   status: String!
   accessKey: String!
@@ -7209,7 +7321,6 @@ type MediaUploadGrant {
   originalFileName: String
   uploadFileName: String!
   uploadContentType: String
-  uploadFormField: String!
 }
 
 """
@@ -7910,7 +8021,7 @@ type Mutation {
   """
   Request an upload grant for a sparse store. The grant covers the whole prefix, so one request authorizes the group's metadata and all three of its arrays. It declares nothing about the matrix: the group states its encoding, shape and chunking, and the server reads them when the upload is finished
   """
-  requestSparseUpload(input: RequestSparseUploadInput!): SparseUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
+  requestSparseUpload: SparseUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Finalize a sparse upload, which is when the group's own metadata is read. A missing encoding, a missing array, or an `indptr` whose length contradicts the declared shape are all refused here -- that is what an interrupted upload looks like, and catching it now beats a reader discovering it later
@@ -7935,7 +8046,7 @@ type Mutation {
   """
   Request an upload grant for a fabriks store. The grant covers the whole prefix, so one request authorizes the manifest, both catalogs and every level
   """
-  requestFabriksUpload(input: RequestFabriksUploadInput!): FabriksUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
+  requestFabriksUpload: FabriksUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Finalize a fabriks upload. This reads the store's `fabriks.json` and refuses a prefix that has none -- which is what an interrupted upload looks like, since the manifest is written last
@@ -7953,9 +8064,27 @@ type Mutation {
   requestGeneralFabriksAccess(input: RequestGeneralFabriksAccessInput!): GeneralFabriksAccessGrant!
 
   """
+  Request an upload grant for a kulisse store: one device or scene model, a self-contained binary glTF
+  """
+  requestKulisseUpload(input: RequestKulisseUploadInput!): KulisseUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
+
+  """
+  Finalize a kulisse upload. This reads the model's header and JSON chunk, records what it says (bounds, nodes, joints) and refuses a file that is not a self-contained glTF 2.0 model
+  """
+  finishKulisseUpload(input: FinishKulisseUploadInput!): KulisseStore! @auth(any_role_of: ["admin", "editor", "bot"])
+
+  """Request temporary S3 read credentials for a kulisse model"""
+  requestKulisseAccess(input: RequestKulisseAccessInput!): KulisseAccessGrant!
+
+  """
+  Request temporary S3 read credentials for kulisse models in the organization
+  """
+  requestGeneralKulisseAccess(input: RequestGeneralKulisseAccessInput!): GeneralKulisseAccessGrant!
+
+  """
   Request an upload grant for a konnektion store. The grant covers the whole prefix, so one request authorizes the manifest, both catalogs and every level
   """
-  requestKonnektionUpload(input: RequestKonnektionUploadInput!): KonnektionUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
+  requestKonnektionUpload: KonnektionUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Finalize a konnektion upload. This reads the store's `konnektion.json` and refuses a prefix that has none -- which is what an interrupted upload looks like, since the manifest is written last
@@ -9318,10 +9447,7 @@ type ParquetStore @key(fields: "id", resolvable: true) @identified(by: "@mikro/p
   contentType: String
 
   """Get temporary S3 read credentials for the parquet object."""
-  accessGrant(host: String = null): ParquetAccessGrant!
-
-  """Compatibility field returning the canonical S3 object path."""
-  presignedUrl(host: String = null): String!
+  accessGrant: ParquetAccessGrant!
 }
 
 """Temporary S3 credentials for uploading a parquet store."""
@@ -9340,7 +9466,6 @@ type ParquetUploadGrant {
   originalFileName: String
   uploadFileName: String!
   uploadContentType: String
-  uploadFormField: String!
 }
 
 """
@@ -10466,17 +10591,10 @@ input RequestBigFileUploadInput {
   originalFileName: String!
   fileSize: ByteCount = null
   contentType: String = null
-  host: String = null
-  port: Int = null
 }
 
 input RequestFabriksAccessInput {
   storeId: String!
-}
-
-input RequestFabriksUploadInput {
-  host: String = null
-  port: Int = null
 }
 
 input RequestGeneralFabriksAccessInput {
@@ -10484,6 +10602,10 @@ input RequestGeneralFabriksAccessInput {
 }
 
 input RequestGeneralKonnektionAccessInput {
+  expiresIn: Int = null
+}
+
+input RequestGeneralKulisseAccessInput {
   expiresIn: Int = null
 }
 
@@ -10507,9 +10629,13 @@ input RequestKonnektionAccessInput {
   storeId: String!
 }
 
-input RequestKonnektionUploadInput {
-  host: String = null
-  port: Int = null
+input RequestKulisseAccessInput {
+  storeId: String!
+}
+
+input RequestKulisseUploadInput {
+  originalFileName: String!
+  fileSize: ByteCount = null
 }
 
 input RequestMediaAccessInput {
@@ -10528,17 +10654,10 @@ input RequestParquetAccessInput {
 
 input RequestParquetUploadInput {
   contentType: String = null
-  host: String = null
-  port: Int = null
 }
 
 input RequestSparseAccessInput {
   storeId: String!
-}
-
-input RequestSparseUploadInput {
-  host: String = null
-  port: Int = null
 }
 
 input RequestZarrAccessInput {
@@ -10549,8 +10668,6 @@ input RequestZarrUploadInput {
   shape: [Int!] = null
   chunks: [Int!] = null
   version: String = null
-  host: String = null
-  port: Int = null
 }
 
 """
@@ -11085,7 +11202,7 @@ type SceneSnapshot @key(fields: "id", resolvable: true) @identified(by: "@mikro/
   scene: Scene!
 
   """
-  The media store holding the rendered image. Ask it for a presignedUrl or an accessGrant to actually fetch the bytes
+  The media store holding the rendered image. Ask it for an accessGrant to actually fetch the bytes
   """
   store: MediaStore!
   name: String!
@@ -11948,7 +12065,7 @@ type SparseStore @key(fields: "id", resolvable: true) @identified(by: "@mikro/sp
   layouts: [SparseLayout!]!
 
   """Get temporary S3 read credentials for the sparse store."""
-  accessGrant(host: String = null): SparseAccessGrant!
+  accessGrant: SparseAccessGrant!
 }
 
 """
@@ -11969,7 +12086,6 @@ type SparseUploadGrant {
   originalFileName: String
   uploadFileName: String!
   uploadContentType: String
-  uploadFormField: String!
 }
 
 """Spectral window"""
@@ -13862,7 +13978,7 @@ type ZarrStore @key(fields: "id", resolvable: true) @identified(by: "@mikro/zarr
   codecs: JSON
 
   """Get temporary S3 read credentials for the Zarr object."""
-  accessGrant(host: String = null): ZarrAccessGrant!
+  accessGrant: ZarrAccessGrant!
 }
 
 """Temporary S3 credentials for uploading a Zarr store."""
@@ -13881,12 +13997,11 @@ type ZarrUploadGrant {
   originalFileName: String
   uploadFileName: String!
   uploadContentType: String
-  uploadFormField: String!
 }
 
 scalar _Any
 
-union _Entity = AcquisitionWindow | AffineTransformation | Animation | AnimationWaypoint | Annotation | AnnotationChartLayer | AnnotationCollection | AnnotationLayer | AnnotationLens | ArrayDataset | ArrayLens | Axis | BigFileStore | ByDimensionTransformation | ChannelLabel | Chart | Client | Column | CoordinateAnchor | CoordinateSystem | DataArray | DerivationConflict | FabriksStore | File | FileLink | Fixture | FixtureLayer | FixtureLens | Folder | IdentityTransformation | ImageLayer | IntensityLayer | KonnektionStore | LabelLayer | LightPath | MapAxisTransformation | MediaStore | Membership | MeshCollection | MeshLayer | MeshLens | Metric | MetricTarget | NetworkCollection | NetworkLayer | NetworkLens | OmeMetadata | OptikitState | Organization | ParquetStore | PhasorCalibration | PhasorHistogram | PhasorLayer | PointLayer | RgbLayer | RotationTransformation | ScaleTransformation | Scene | SceneSnapshot | SequenceTransformation | SeriesChartLayer | SparseArray | SparseAxisReference | SparseDataset | SparseLens | SparseStore | TableDataset | TableLens | Task | TraceChartLayer | TrackLayer | TranslationTransformation | UnmappableTransformation | User | ValueHistogram | VectorLayer | ZarrStore
+union _Entity = AcquisitionWindow | AffineTransformation | Animation | AnimationWaypoint | Annotation | AnnotationChartLayer | AnnotationCollection | AnnotationLayer | AnnotationLens | ArrayDataset | ArrayLens | Axis | BigFileStore | ByDimensionTransformation | ChannelLabel | Chart | Client | Column | CoordinateAnchor | CoordinateSystem | DataArray | DerivationConflict | FabriksStore | File | FileLink | Fixture | FixtureLayer | FixtureLens | Folder | IdentityTransformation | ImageLayer | IntensityLayer | KonnektionStore | KulisseStore | LabelLayer | LightPath | MapAxisTransformation | MediaStore | Membership | MeshCollection | MeshLayer | MeshLens | Metric | MetricTarget | NetworkCollection | NetworkLayer | NetworkLens | OmeMetadata | OptikitState | Organization | ParquetStore | PhasorCalibration | PhasorHistogram | PhasorLayer | PointLayer | RgbLayer | RotationTransformation | ScaleTransformation | Scene | SceneSnapshot | SequenceTransformation | SeriesChartLayer | SparseArray | SparseAxisReference | SparseDataset | SparseLens | SparseStore | TableDataset | TableLens | Task | TraceChartLayer | TrackLayer | TranslationTransformation | UnmappableTransformation | User | ValueHistogram | VectorLayer | ZarrStore
 
 type _Service {
   sdl: String!

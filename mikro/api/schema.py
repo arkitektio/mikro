@@ -2,7 +2,7 @@ import builtins
 from datetime import datetime
 from enum import Enum
 from kanne.scalars import Frequency, GenericQuantity, Length, Power, Temperature, Unit
-from mikro.scalars import ArrayCoercible, ArrayLike, AxisName, ByteCount, ByteCountCoercible, FabriksCoercible, FabriksLike, FileLike, GltfCoercible, GltfLike, ImageFileCoercible, ImageFileLike, KonnektionCoercible, KonnektionLike, MetricTargetCoercible, ParquetCoercible, ParquetLike, SporadikCoercible, SporadikLike, ThreeDVector
+from mikro.scalars import ArrayCoercible, ArrayLike, AxisName, ByteCount, ByteCountCoercible, FabriksCoercible, FabriksLike, FileLike, ImageFileCoercible, ImageFileLike, KonnektionCoercible, KonnektionLike, KulisseCoercible, KulisseLike, MetricTargetCoercible, ParquetCoercible, ParquetLike, SporadikCoercible, SporadikLike, ThreeDVector
 from mikro.traits import AxisInputTrait, ChartTrait, CoordinateAnchorInputTrait, CoordinateSystemTrait, CreateADatasetTrait, CreateSparseDatasetTrait, CreateTableDatasetTrait, DataArrayTrait, DatasetTrait, FileTrait, GraphColorByInputTrait, HasDownloadAccessor, HasParquestStoreTrait, HasParquetStoreAccesor, HasPresignedDownloadAccessor, HasZarrStoreAccessor, Lensable, MeshCollectionTrait, MetricTargetInputTrait, MikroFetchable, NetworkCollectionTrait, RGBAColorInputTrait, SceneTrait, SparseAxisInputTrait, SparseColorByInputTrait, SparseDatasetTrait, TableDatasetLensTrait, TransformationTrait, ValueHistogramInputTrait
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 from rath.scalars import ID, IDCoercible
@@ -1702,7 +1702,7 @@ class CreateCoordinateSystemInput(BaseModel):
 class CreateFixtureInput(BaseModel):
     """Input for registering a fixture: one binary glTF, in a unit-carrying coordinate system of its own"""
     name: str | None = None
-    store: GltfLike
+    store: KulisseLike
     axes: tuple['PhysicalAxisInput', ...]
     folder: ID | None = None
     derived_from: tuple['DerivedFromInput', ...] | None = Field(validation_alias=AliasChoices('derived_from', 'derivedFrom'), serialization_alias='derivedFrom', default=None)
@@ -2234,6 +2234,13 @@ class FinishKonnektionUploadInput(BaseModel):
     'Default: True'
     model_config = ConfigDict(frozen=True, extra='forbid')
 
+class FinishKulisseUploadInput(BaseModel):
+    """No documentation"""
+    store_id: str = Field(validation_alias=AliasChoices('store_id', 'storeId'), serialization_alias='storeId')
+    valid: Annotated[bool | None, GraphQLDefault('True')] = None
+    'Default: True'
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
 class FinishMediaUploadInput(BaseModel):
     """No documentation"""
     store_id: str = Field(validation_alias=AliasChoices('store_id', 'storeId'), serialization_alias='storeId')
@@ -2679,8 +2686,6 @@ class RequestBigFileUploadInput(BaseModel):
     original_file_name: str = Field(validation_alias=AliasChoices('original_file_name', 'originalFileName'), serialization_alias='originalFileName')
     file_size: ByteCount | None = Field(validation_alias=AliasChoices('file_size', 'fileSize'), serialization_alias='fileSize', default=None)
     content_type: str | None = Field(validation_alias=AliasChoices('content_type', 'contentType'), serialization_alias='contentType', default=None)
-    host: str | None = None
-    port: int | None = None
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class RequestFabriksAccessInput(BaseModel):
@@ -2688,21 +2693,20 @@ class RequestFabriksAccessInput(BaseModel):
     store_id: str = Field(validation_alias=AliasChoices('store_id', 'storeId'), serialization_alias='storeId')
     model_config = ConfigDict(frozen=True, extra='forbid')
 
-class RequestFabriksUploadInput(BaseModel):
-    """No documentation"""
-    host: str | None = None
-    port: int | None = None
-    model_config = ConfigDict(frozen=True, extra='forbid')
-
 class RequestKonnektionAccessInput(BaseModel):
     """No documentation"""
     store_id: str = Field(validation_alias=AliasChoices('store_id', 'storeId'), serialization_alias='storeId')
     model_config = ConfigDict(frozen=True, extra='forbid')
 
-class RequestKonnektionUploadInput(BaseModel):
+class RequestKulisseAccessInput(BaseModel):
     """No documentation"""
-    host: str | None = None
-    port: int | None = None
+    store_id: str = Field(validation_alias=AliasChoices('store_id', 'storeId'), serialization_alias='storeId')
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class RequestKulisseUploadInput(BaseModel):
+    """No documentation"""
+    original_file_name: str = Field(validation_alias=AliasChoices('original_file_name', 'originalFileName'), serialization_alias='originalFileName')
+    file_size: ByteCount | None = Field(validation_alias=AliasChoices('file_size', 'fileSize'), serialization_alias='fileSize', default=None)
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class RequestMediaAccessInput(BaseModel):
@@ -2725,14 +2729,6 @@ class RequestParquetAccessInput(BaseModel):
 class RequestParquetUploadInput(BaseModel):
     """No documentation"""
     content_type: str | None = Field(validation_alias=AliasChoices('content_type', 'contentType'), serialization_alias='contentType', default=None)
-    host: str | None = None
-    port: int | None = None
-    model_config = ConfigDict(frozen=True, extra='forbid')
-
-class RequestSparseUploadInput(BaseModel):
-    """No documentation"""
-    host: str | None = None
-    port: int | None = None
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class RequestZarrAccessInput(BaseModel):
@@ -2745,8 +2741,6 @@ class RequestZarrUploadInput(BaseModel):
     shape: tuple[int, ...] | None = None
     chunks: tuple[int, ...] | None = None
     version: str | None = None
-    host: str | None = None
-    port: int | None = None
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class RevertInput(BaseModel):
@@ -3412,7 +3406,7 @@ class BigFileUploadGrant(MikroFetchable, BaseModel):
         type = 'BigFileUploadGrant'
 
 class MediaUploadGrant(MikroFetchable, BaseModel):
-    """A presigned PUT grant for uploading a media object."""
+    """Temporary S3 credentials for uploading a media object."""
     typename: Literal['MediaUploadGrant'] = Field(alias='__typename', default='MediaUploadGrant', exclude=True)
     access_key: str = Field(alias='accessKey')
     secret_key: str = Field(alias='secretKey')
@@ -3638,6 +3632,74 @@ class SparseUploadGrant(MikroFetchable, BaseModel):
         document = 'fragment SparseUploadGrant on SparseUploadGrant {\n  accessKey\n  secretKey\n  sessionToken\n  path\n  key\n  bucket\n  expiresIn\n  maxBytes\n  store\n  __typename\n}'
         name = 'SparseUploadGrant'
         type = 'SparseUploadGrant'
+
+class KulisseUploadGrant(MikroFetchable, BaseModel):
+    """Temporary S3 credentials for uploading a kulisse model: one self-contained GLB, written once, then finished."""
+    typename: Literal['KulisseUploadGrant'] = Field(alias='__typename', default='KulisseUploadGrant', exclude=True)
+    access_key: str = Field(alias='accessKey')
+    secret_key: str = Field(alias='secretKey')
+    session_token: str = Field(alias='sessionToken')
+    path: str
+    key: str
+    bucket: str
+    expires_in: int = Field(alias='expiresIn')
+    max_bytes: ByteCount = Field(alias='maxBytes')
+    store: str
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for KulisseUploadGrant"""
+        document = 'fragment KulisseUploadGrant on KulisseUploadGrant {\n  accessKey\n  secretKey\n  sessionToken\n  path\n  key\n  bucket\n  expiresIn\n  maxBytes\n  store\n  __typename\n}'
+        name = 'KulisseUploadGrant'
+        type = 'KulisseUploadGrant'
+
+class KulisseAccessGrant(MikroFetchable, BaseModel):
+    """Temporary S3 credentials for reading a kulisse model."""
+    typename: Literal['KulisseAccessGrant'] = Field(alias='__typename', default='KulisseAccessGrant', exclude=True)
+    access_key: str = Field(alias='accessKey')
+    secret_key: str = Field(alias='secretKey')
+    session_token: str = Field(alias='sessionToken')
+    path: str
+    key: str
+    bucket: str
+    region: str
+    expires_in: int = Field(alias='expiresIn')
+    store: str | None = Field(default=None)
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for KulisseAccessGrant"""
+        document = 'fragment KulisseAccessGrant on KulisseAccessGrant {\n  accessKey\n  secretKey\n  sessionToken\n  path\n  key\n  bucket\n  region\n  expiresIn\n  store\n  __typename\n}'
+        name = 'KulisseAccessGrant'
+        type = 'KulisseAccessGrant'
+
+class KulisseStore(MikroFetchable, BaseModel):
+    """A kulisse model: a device or scene model stored as one self-contained binary glTF. Everything here is read from the file when its upload is finished, never declared by a caller."""
+    __identifier__: ClassVar[Literal['@mikro/kulissestore']] = '@mikro/kulissestore'
+    typename: Literal['KulisseStore'] = Field(alias='__typename', default='KulisseStore', exclude=True)
+    id: ID
+    key: str
+    bucket: str
+    path: str
+    size_bytes: ByteCount | None = Field(default=None, alias='sizeBytes')
+    'How many bytes the model holds, measured when its upload was finished. Null while unfinished'
+    ref: str | None = Field(default=None)
+    "`sha256:` and the hex digest of the model's exact bytes: what a blok decorating it names as `forModel`"
+    bounds: Any | None = Field(default=None)
+    "The box the default scene occupies, `{min: [x, y, z], max: [x, y, z]}` in the model's own coordinates. Null when nothing declares a box"
+    nodes: tuple[str, ...] | None = Field(default=None)
+    'The named nodes a blok can address'
+    joints: Any | None = Field(default=None)
+    'The joint table (`extras.arkitekt.joints`): name, node, type, axis, limit, mimic. Empty for a rigid model'
+    warnings: tuple[str, ...] | None = Field(default=None)
+    'What the reader noticed but did not refuse'
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for KulisseStore"""
+        document = 'fragment KulisseStore on KulisseStore {\n  id\n  key\n  bucket\n  path\n  sizeBytes\n  ref\n  bounds\n  nodes\n  joints\n  warnings\n  __typename\n}'
+        name = 'KulisseStore'
+        type = 'KulisseStore'
 
 class FolderParent(BaseModel):
     """A folder is a collection of the things mikro stores. It mimics a folder in a file system and is the top-level container for organising data."""
@@ -4153,7 +4215,7 @@ class LayerFixtureLens(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 class LayerFixture(BaseModel):
-    """A piece of hardware around the sample -- a coverslip, a dish, a holder -- stored as one binary glTF. Ask its `store` for a `presignedUrl` and load the file whole; its space's axes carry the units its vertices are in"""
+    """A piece of hardware around the sample -- a coverslip, a dish, a holder -- stored as one binary glTF. Ask its `store` for an `accessGrant` and load the file whole; its space's axes carry the units its vertices are in"""
     __identifier__: ClassVar[Literal['@mikro/fixture']] = '@mikro/fixture'
     typename: Literal['Fixture'] = Field(alias='__typename', default='Fixture', exclude=True)
     id: ID
@@ -4533,12 +4595,11 @@ class BigFileStore(HasDownloadAccessor, MikroFetchable, BaseModel):
     key: str
     bucket: str
     path: str
-    presigned_url: str = Field(alias='presignedUrl')
     model_config = ConfigDict(frozen=True)
 
     class Meta:
         """Meta class for BigFileStore"""
-        document = 'fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n  __typename\n}'
+        document = 'fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}'
         name = 'BigFileStore'
         type = 'BigFileStore'
 
@@ -4886,7 +4947,7 @@ class NetworkLens(MikroFetchable, BaseModel):
         type = 'NetworkLens'
 
 class FixtureLensFixture(BaseModel):
-    """A piece of hardware around the sample -- a coverslip, a dish, a holder -- stored as one binary glTF. Ask its `store` for a `presignedUrl` and load the file whole; its space's axes carry the units its vertices are in"""
+    """A piece of hardware around the sample -- a coverslip, a dish, a holder -- stored as one binary glTF. Ask its `store` for an `accessGrant` and load the file whole; its space's axes carry the units its vertices are in"""
     __identifier__: ClassVar[Literal['@mikro/fixture']] = '@mikro/fixture'
     typename: Literal['Fixture'] = Field(alias='__typename', default='Fixture', exclude=True)
     id: ID
@@ -4952,7 +5013,7 @@ class File(FileTrait, MikroFetchable, BaseModel):
 
     class Meta:
         """Meta class for File"""
-        document = 'fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n  __typename\n}\n\nfragment File on File {\n  id\n  name\n  store {\n    ...BigFileStore\n    __typename\n  }\n  __typename\n}'
+        document = 'fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment File on File {\n  id\n  name\n  store {\n    ...BigFileStore\n    __typename\n  }\n  __typename\n}'
         name = 'File'
         type = 'File'
 
@@ -5458,7 +5519,7 @@ class SceneSnapshot(MikroFetchable, BaseModel):
     scene: Scene
     'The composition this is a picture of'
     store: MediaStore
-    'The media store holding the rendered image. Ask it for a presignedUrl or an accessGrant to actually fetch the bytes'
+    'The media store holding the rendered image. Ask it for an accessGrant to actually fetch the bytes'
     model_config = ConfigDict(frozen=True)
 
     class Meta:
@@ -5521,7 +5582,7 @@ class FixtureDerivedFromBaseCatchAll(FixtureDerivedFromBase, BaseModel):
     typename: str = Field(alias='__typename', exclude=True)
 
 class Fixture(MikroFetchable, BaseModel):
-    """A piece of hardware around the sample -- a coverslip, a dish, a holder -- stored as one binary glTF. Ask its `store` for a `presignedUrl` and load the file whole; its space's axes carry the units its vertices are in"""
+    """A piece of hardware around the sample -- a coverslip, a dish, a holder -- stored as one binary glTF. Ask its `store` for an `accessGrant` and load the file whole; its space's axes carry the units its vertices are in"""
     __identifier__: ClassVar[Literal['@mikro/fixture']] = '@mikro/fixture'
     typename: Literal['Fixture'] = Field(alias='__typename', default='Fixture', exclude=True)
     id: ID
@@ -5534,8 +5595,8 @@ class Fixture(MikroFetchable, BaseModel):
     'When the model was registered'
     coordinate_system: CoordinateSystem = Field(alias='coordinateSystem')
     "The unit-carrying coordinate system the model's vertices are expressed in. Its axes carry the unit the exporter wrote, so an IDENTITY registration into a micrometre world converts by the units"
-    store: MediaStore
-    'The media store holding the binary glTF. Ask it for a `presignedUrl` and fetch the file whole: a viewer loads a model in one request'
+    store: KulisseStore
+    'The kulisse store holding the model: one self-contained binary glTF and what it says about itself (nodes, joints, bounds). Ask it for an `accessGrant` and fetch the file whole: a viewer loads a model in one request'
     full_lens: FixtureLens | None = Field(default=None, alias='fullLens')
     'The lens that selects this whole model: what a layer draws through, and the handle to pass wherever a `Lens` is asked for. Every model is created with one'
     derived_from: tuple[Annotated[FixtureDerivedFromBaseAffineTransformation | FixtureDerivedFromBaseByDimensionTransformation | FixtureDerivedFromBaseIdentityTransformation | FixtureDerivedFromBaseMapAxisTransformation | FixtureDerivedFromBaseRotationTransformation | FixtureDerivedFromBaseScaleTransformation | FixtureDerivedFromBaseSequenceTransformation | FixtureDerivedFromBaseTranslationTransformation | FixtureDerivedFromBaseUnmappableTransformation, Field(discriminator='typename')] | FixtureDerivedFromBaseCatchAll, ...] = Field(alias='derivedFrom')
@@ -5544,7 +5605,7 @@ class Fixture(MikroFetchable, BaseModel):
 
     class Meta:
         """Meta class for Fixture"""
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment Window on Window {\n  axis\n  min\n  max\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FixtureLens on FixtureLens {\n  id\n  name\n  kind\n  fixture {\n    id\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nfragment MediaStore on MediaStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment Fixture on Fixture {\n  id\n  name\n  label\n  bounds\n  createdAt\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...MediaStore\n    __typename\n  }\n  fullLens {\n    ...FixtureLens\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment Window on Window {\n  axis\n  min\n  max\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FixtureLens on FixtureLens {\n  id\n  name\n  kind\n  fixture {\n    id\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nfragment KulisseStore on KulisseStore {\n  id\n  key\n  bucket\n  path\n  sizeBytes\n  ref\n  bounds\n  nodes\n  joints\n  warnings\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment Fixture on Fixture {\n  id\n  name\n  label\n  bounds\n  createdAt\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...KulisseStore\n    __typename\n  }\n  fullLens {\n    ...FixtureLens\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}'
         name = 'Fixture'
         type = 'Fixture'
 
@@ -6181,7 +6242,7 @@ class FinishBigfileUploadMutation(BaseModel):
 
     class Meta:
         """Meta class for FinishBigfileUpload """
-        document = 'fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n  __typename\n}\n\nmutation FinishBigfileUpload($input: FinishBigFileUploadInput!) {\n  finishBigfileUpload(input: $input) {\n    ...BigFileStore\n    __typename\n  }\n}'
+        document = 'fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nmutation FinishBigfileUpload($input: FinishBigFileUploadInput!) {\n  finishBigfileUpload(input: $input) {\n    ...BigFileStore\n    __typename\n  }\n}'
 
 class RequestBigfileAccessMutation(BaseModel):
     """No documentation found for this operation."""
@@ -6203,11 +6264,11 @@ class RequestFabriksUploadMutation(BaseModel):
 
     class Arguments(BaseModel):
         """Arguments for RequestFabriksUpload """
-        input: RequestFabriksUploadInput
+        pass
 
     class Meta:
         """Meta class for RequestFabriksUpload """
-        document = 'fragment FabriksUploadGrant on FabriksUploadGrant {\n  accessKey\n  secretKey\n  sessionToken\n  path\n  key\n  bucket\n  expiresIn\n  maxBytes\n  store\n  __typename\n}\n\nmutation RequestFabriksUpload($input: RequestFabriksUploadInput!) {\n  requestFabriksUpload(input: $input) {\n    ...FabriksUploadGrant\n    __typename\n  }\n}'
+        document = 'fragment FabriksUploadGrant on FabriksUploadGrant {\n  accessKey\n  secretKey\n  sessionToken\n  path\n  key\n  bucket\n  expiresIn\n  maxBytes\n  store\n  __typename\n}\n\nmutation RequestFabriksUpload {\n  requestFabriksUpload {\n    ...FabriksUploadGrant\n    __typename\n  }\n}'
 
 class FinishFabriksUploadMutation(BaseModel):
     """ Reads the store's `fabriks.json` and refuses a prefix without one -- which is exactly what an
@@ -6244,11 +6305,11 @@ class RequestKonnektionUploadMutation(BaseModel):
 
     class Arguments(BaseModel):
         """Arguments for RequestKonnektionUpload """
-        input: RequestKonnektionUploadInput
+        pass
 
     class Meta:
         """Meta class for RequestKonnektionUpload """
-        document = 'fragment KonnektionUploadGrant on KonnektionUploadGrant {\n  accessKey\n  secretKey\n  sessionToken\n  path\n  key\n  bucket\n  expiresIn\n  maxBytes\n  store\n  __typename\n}\n\nmutation RequestKonnektionUpload($input: RequestKonnektionUploadInput!) {\n  requestKonnektionUpload(input: $input) {\n    ...KonnektionUploadGrant\n    __typename\n  }\n}'
+        document = 'fragment KonnektionUploadGrant on KonnektionUploadGrant {\n  accessKey\n  secretKey\n  sessionToken\n  path\n  key\n  bucket\n  expiresIn\n  maxBytes\n  store\n  __typename\n}\n\nmutation RequestKonnektionUpload {\n  requestKonnektionUpload {\n    ...KonnektionUploadGrant\n    __typename\n  }\n}'
 
 class FinishKonnektionUploadMutation(BaseModel):
     """ Reads the store's `konnektion.json` and refuses a prefix without one -- which is exactly what an
@@ -6277,6 +6338,46 @@ class RequestKonnektionAccessMutation(BaseModel):
     class Meta:
         """Meta class for RequestKonnektionAccess """
         document = 'fragment KonnektionAccessGrant on KonnektionAccessGrant {\n  accessKey\n  secretKey\n  sessionToken\n  expiresIn\n  path\n  key\n  bucket\n  __typename\n}\n\nmutation RequestKonnektionAccess($input: RequestKonnektionAccessInput!) {\n  requestKonnektionAccess(input: $input) {\n    ...KonnektionAccessGrant\n    __typename\n  }\n}'
+
+class RequestKulisseUploadMutation(BaseModel):
+    """No documentation found for this operation."""
+    request_kulisse_upload: KulisseUploadGrant = Field(alias='requestKulisseUpload')
+    'Request an upload grant for a kulisse store: one device or scene model, a self-contained binary glTF'
+
+    class Arguments(BaseModel):
+        """Arguments for RequestKulisseUpload """
+        input: RequestKulisseUploadInput
+
+    class Meta:
+        """Meta class for RequestKulisseUpload """
+        document = 'fragment KulisseUploadGrant on KulisseUploadGrant {\n  accessKey\n  secretKey\n  sessionToken\n  path\n  key\n  bucket\n  expiresIn\n  maxBytes\n  store\n  __typename\n}\n\nmutation RequestKulisseUpload($input: RequestKulisseUploadInput!) {\n  requestKulisseUpload(input: $input) {\n    ...KulisseUploadGrant\n    __typename\n  }\n}'
+
+class FinishKulisseUploadMutation(BaseModel):
+    """ Reads the model's header and JSON chunk and refuses a file that is not a self-contained
+ glTF 2.0 model; the store it returns carries the nodes, joints and bounds it read."""
+    finish_kulisse_upload: KulisseStore = Field(alias='finishKulisseUpload')
+    "Finalize a kulisse upload. This reads the model's header and JSON chunk, records what it says (bounds, nodes, joints) and refuses a file that is not a self-contained glTF 2.0 model"
+
+    class Arguments(BaseModel):
+        """Arguments for FinishKulisseUpload """
+        input: FinishKulisseUploadInput
+
+    class Meta:
+        """Meta class for FinishKulisseUpload """
+        document = 'fragment KulisseStore on KulisseStore {\n  id\n  key\n  bucket\n  path\n  sizeBytes\n  ref\n  bounds\n  nodes\n  joints\n  warnings\n  __typename\n}\n\nmutation FinishKulisseUpload($input: FinishKulisseUploadInput!) {\n  finishKulisseUpload(input: $input) {\n    ...KulisseStore\n    __typename\n  }\n}'
+
+class RequestKulisseAccessMutation(BaseModel):
+    """No documentation found for this operation."""
+    request_kulisse_access: KulisseAccessGrant = Field(alias='requestKulisseAccess')
+    'Request temporary S3 read credentials for a kulisse model'
+
+    class Arguments(BaseModel):
+        """Arguments for RequestKulisseAccess """
+        input: RequestKulisseAccessInput
+
+    class Meta:
+        """Meta class for RequestKulisseAccess """
+        document = 'fragment KulisseAccessGrant on KulisseAccessGrant {\n  accessKey\n  secretKey\n  sessionToken\n  path\n  key\n  bucket\n  region\n  expiresIn\n  store\n  __typename\n}\n\nmutation RequestKulisseAccess($input: RequestKulisseAccessInput!) {\n  requestKulisseAccess(input: $input) {\n    ...KulisseAccessGrant\n    __typename\n  }\n}'
 
 class RequestMediaUploadMutation(BaseModel):
     """No documentation found for this operation."""
@@ -6363,11 +6464,11 @@ class RequestSparseUploadMutation(BaseModel):
 
     class Arguments(BaseModel):
         """Arguments for RequestSparseUpload """
-        input: RequestSparseUploadInput
+        pass
 
     class Meta:
         """Meta class for RequestSparseUpload """
-        document = 'fragment SparseUploadGrant on SparseUploadGrant {\n  accessKey\n  secretKey\n  sessionToken\n  path\n  key\n  bucket\n  expiresIn\n  maxBytes\n  store\n  __typename\n}\n\nmutation RequestSparseUpload($input: RequestSparseUploadInput!) {\n  requestSparseUpload(input: $input) {\n    ...SparseUploadGrant\n    __typename\n  }\n}'
+        document = 'fragment SparseUploadGrant on SparseUploadGrant {\n  accessKey\n  secretKey\n  sessionToken\n  path\n  key\n  bucket\n  expiresIn\n  maxBytes\n  store\n  __typename\n}\n\nmutation RequestSparseUpload {\n  requestSparseUpload {\n    ...SparseUploadGrant\n    __typename\n  }\n}'
 
 class FinishSparseUploadMutation(BaseModel):
     """No documentation found for this operation."""
@@ -6432,11 +6533,11 @@ class FromFileLikeMutation(BaseModel):
 
     class Meta:
         """Meta class for FromFileLike """
-        document = 'fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n  __typename\n}\n\nfragment File on File {\n  id\n  name\n  store {\n    ...BigFileStore\n    __typename\n  }\n  __typename\n}\n\nmutation FromFileLike($input: FromFileLike!) {\n  fromFileLike(input: $input) {\n    ...File\n    __typename\n  }\n}'
+        document = 'fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment File on File {\n  id\n  name\n  store {\n    ...BigFileStore\n    __typename\n  }\n  __typename\n}\n\nmutation FromFileLike($input: FromFileLike!) {\n  fromFileLike(input: $input) {\n    ...File\n    __typename\n  }\n}'
 
 class CreateFixtureMutation(BaseModel):
-    """ `store` is a GltfLike: hand it a path or an open `.glb` and the upload middleware puts it in
- the media store first. The server reads its header and refuses anything that is not glTF 2.0."""
+    """ `store` is a KulisseLike: hand it a path, an open `.glb` or its bytes and the upload middleware
+ puts it in a kulisse store first, whose finish reads and checks the model."""
     create_fixture: Fixture = Field(alias='createFixture')
     'Register a fixture -- a coverslip, a dish, a holder -- from an uploaded binary glTF, in a unit-carrying coordinate system of its own'
 
@@ -6446,7 +6547,7 @@ class CreateFixtureMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateFixture """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment Window on Window {\n  axis\n  min\n  max\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FixtureLens on FixtureLens {\n  id\n  name\n  kind\n  fixture {\n    id\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nfragment MediaStore on MediaStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment Fixture on Fixture {\n  id\n  name\n  label\n  bounds\n  createdAt\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...MediaStore\n    __typename\n  }\n  fullLens {\n    ...FixtureLens\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nmutation CreateFixture($input: CreateFixtureInput!) {\n  createFixture(input: $input) {\n    ...Fixture\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment Window on Window {\n  axis\n  min\n  max\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FixtureLens on FixtureLens {\n  id\n  name\n  kind\n  fixture {\n    id\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nfragment KulisseStore on KulisseStore {\n  id\n  key\n  bucket\n  path\n  sizeBytes\n  ref\n  bounds\n  nodes\n  joints\n  warnings\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment Fixture on Fixture {\n  id\n  name\n  label\n  bounds\n  createdAt\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...KulisseStore\n    __typename\n  }\n  fullLens {\n    ...FixtureLens\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nmutation CreateFixture($input: CreateFixtureInput!) {\n  createFixture(input: $input) {\n    ...Fixture\n    __typename\n  }\n}'
 
 class DeleteFixtureMutation(BaseModel):
     """No documentation found for this operation."""
@@ -8431,7 +8532,7 @@ class GetFileQuery(BaseModel):
 
     class Meta:
         """Meta class for GetFile """
-        document = 'fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n  __typename\n}\n\nfragment File on File {\n  id\n  name\n  store {\n    ...BigFileStore\n    __typename\n  }\n  __typename\n}\n\nquery GetFile($id: ID!) {\n  file(id: $id) {\n    ...File\n    __typename\n  }\n}'
+        document = 'fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment File on File {\n  id\n  name\n  store {\n    ...BigFileStore\n    __typename\n  }\n  __typename\n}\n\nquery GetFile($id: ID!) {\n  file(id: $id) {\n    ...File\n    __typename\n  }\n}'
 
 class SearchFilesQueryOptions(FileTrait, BaseModel):
     """A file in its original format (e.g. a microscopy vendor file), stored in a BigFileStore. Files are the raw bytes that array datasets, table datasets and mesh collections are converted from."""
@@ -8468,7 +8569,7 @@ class GetFixtureQuery(BaseModel):
 
     class Meta:
         """Meta class for GetFixture """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment Window on Window {\n  axis\n  min\n  max\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FixtureLens on FixtureLens {\n  id\n  name\n  kind\n  fixture {\n    id\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nfragment MediaStore on MediaStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment Fixture on Fixture {\n  id\n  name\n  label\n  bounds\n  createdAt\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...MediaStore\n    __typename\n  }\n  fullLens {\n    ...FixtureLens\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nquery GetFixture($id: ID!) {\n  fixture(id: $id) {\n    ...Fixture\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment Window on Window {\n  axis\n  min\n  max\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FixtureLens on FixtureLens {\n  id\n  name\n  kind\n  fixture {\n    id\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nfragment KulisseStore on KulisseStore {\n  id\n  key\n  bucket\n  path\n  sizeBytes\n  ref\n  bounds\n  nodes\n  joints\n  warnings\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment Fixture on Fixture {\n  id\n  name\n  label\n  bounds\n  createdAt\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...KulisseStore\n    __typename\n  }\n  fullLens {\n    ...FixtureLens\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nquery GetFixture($id: ID!) {\n  fixture(id: $id) {\n    ...Fixture\n    __typename\n  }\n}'
 
 class GetFixturesQuery(BaseModel):
     """No documentation found for this operation."""
@@ -8482,10 +8583,10 @@ class GetFixturesQuery(BaseModel):
 
     class Meta:
         """Meta class for GetFixtures """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment Window on Window {\n  axis\n  min\n  max\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FixtureLens on FixtureLens {\n  id\n  name\n  kind\n  fixture {\n    id\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nfragment MediaStore on MediaStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment Fixture on Fixture {\n  id\n  name\n  label\n  bounds\n  createdAt\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...MediaStore\n    __typename\n  }\n  fullLens {\n    ...FixtureLens\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nquery GetFixtures($filters: FixtureFilter, $pagination: OffsetPaginationInput) {\n  fixtures(filters: $filters, pagination: $pagination) {\n    ...Fixture\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment Window on Window {\n  axis\n  min\n  max\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FixtureLens on FixtureLens {\n  id\n  name\n  kind\n  fixture {\n    id\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nfragment KulisseStore on KulisseStore {\n  id\n  key\n  bucket\n  path\n  sizeBytes\n  ref\n  bounds\n  nodes\n  joints\n  warnings\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment Fixture on Fixture {\n  id\n  name\n  label\n  bounds\n  createdAt\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...KulisseStore\n    __typename\n  }\n  fullLens {\n    ...FixtureLens\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nquery GetFixtures($filters: FixtureFilter, $pagination: OffsetPaginationInput) {\n  fixtures(filters: $filters, pagination: $pagination) {\n    ...Fixture\n    __typename\n  }\n}'
 
 class SearchFixturesQueryOptions(BaseModel):
-    """A piece of hardware around the sample -- a coverslip, a dish, a holder -- stored as one binary glTF. Ask its `store` for a `presignedUrl` and load the file whole; its space's axes carry the units its vertices are in"""
+    """A piece of hardware around the sample -- a coverslip, a dish, a holder -- stored as one binary glTF. Ask its `store` for an `accessGrant` and load the file whole; its space's axes carry the units its vertices are in"""
     __identifier__: ClassVar[Literal['@mikro/fixture']] = '@mikro/fixture'
     typename: Literal['Fixture'] = Field(alias='__typename', default='Fixture', exclude=True)
     value: ID
@@ -9698,7 +9799,7 @@ class WatchFilesSubscription(BaseModel):
 
     class Meta:
         """Meta class for WatchFiles """
-        document = 'fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n  __typename\n}\n\nfragment File on File {\n  id\n  name\n  store {\n    ...BigFileStore\n    __typename\n  }\n  __typename\n}\n\nsubscription WatchFiles($folder: ID) {\n  files(folder: $folder) {\n    create {\n      ...File\n      __typename\n    }\n    delete\n    update {\n      ...File\n      __typename\n    }\n    __typename\n  }\n}'
+        document = 'fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment File on File {\n  id\n  name\n  store {\n    ...BigFileStore\n    __typename\n  }\n  __typename\n}\n\nsubscription WatchFiles($folder: ID) {\n  files(folder: $folder) {\n    create {\n      ...File\n      __typename\n    }\n    delete\n    update {\n      ...File\n      __typename\n    }\n    __typename\n  }\n}'
 
 class MikroApi:
     """Every operation of this API as a method. Generated by turms.
@@ -11087,7 +11188,7 @@ Returns:
         variables['input'] = _input
         return self.execute(DeleteRegistrationMutation, variables, task=task).delete_registration
 
-    async def arequest_bigfile_upload(self, original_file_name: str, file_size: ByteCountCoercible | None | UnsetType=UNSET, content_type: str | None | UnsetType=UNSET, host: str | None | UnsetType=UNSET, port: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> BigFileUploadGrant:
+    async def arequest_bigfile_upload(self, original_file_name: str, file_size: ByteCountCoercible | None | UnsetType=UNSET, content_type: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> BigFileUploadGrant:
         """RequestBigfileUpload 
 
 Request an upload grant for a big file store
@@ -11096,8 +11197,6 @@ Args:
     original_file_name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
     file_size: A number of bytes. 64-bit, unlike Int: serialized as a JSON number, and accepted as a number or a numeric string.
     content_type: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    host: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    port: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
@@ -11110,14 +11209,10 @@ Returns:
             _input['fileSize'] = file_size
         if content_type is not UNSET:
             _input['contentType'] = content_type
-        if host is not UNSET:
-            _input['host'] = host
-        if port is not UNSET:
-            _input['port'] = port
         variables['input'] = _input
         return (await self.aexecute(RequestBigfileUploadMutation, variables, task=task)).request_bigfile_upload
 
-    def request_bigfile_upload(self, original_file_name: str, file_size: ByteCountCoercible | None | UnsetType=UNSET, content_type: str | None | UnsetType=UNSET, host: str | None | UnsetType=UNSET, port: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> BigFileUploadGrant:
+    def request_bigfile_upload(self, original_file_name: str, file_size: ByteCountCoercible | None | UnsetType=UNSET, content_type: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> BigFileUploadGrant:
         """RequestBigfileUpload 
 
 Request an upload grant for a big file store
@@ -11126,8 +11221,6 @@ Args:
     original_file_name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
     file_size: A number of bytes. 64-bit, unlike Int: serialized as a JSON number, and accepted as a number or a numeric string.
     content_type: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    host: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    port: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
@@ -11140,10 +11233,6 @@ Returns:
             _input['fileSize'] = file_size
         if content_type is not UNSET:
             _input['contentType'] = content_type
-        if host is not UNSET:
-            _input['host'] = host
-        if port is not UNSET:
-            _input['port'] = port
         variables['input'] = _input
         return self.execute(RequestBigfileUploadMutation, variables, task=task).request_bigfile_upload
 
@@ -11223,48 +11312,32 @@ Returns:
         variables['input'] = _input
         return self.execute(RequestBigfileAccessMutation, variables, task=task).request_bigfile_access
 
-    async def arequest_fabriks_upload(self, host: str | None | UnsetType=UNSET, port: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> FabriksUploadGrant:
+    async def arequest_fabriks_upload(self, task: TaskLike | None=None) -> FabriksUploadGrant:
         """RequestFabriksUpload 
 
 Request an upload grant for a fabriks store. The grant covers the whole prefix, so one request authorizes the manifest, both catalogs and every level
 
 Args:
-    host: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    port: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
     FabriksUploadGrant
 """
         variables: dict[str, builtins.object] = {}
-        _input: dict[str, builtins.object] = {}
-        if host is not UNSET:
-            _input['host'] = host
-        if port is not UNSET:
-            _input['port'] = port
-        variables['input'] = _input
         return (await self.aexecute(RequestFabriksUploadMutation, variables, task=task)).request_fabriks_upload
 
-    def request_fabriks_upload(self, host: str | None | UnsetType=UNSET, port: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> FabriksUploadGrant:
+    def request_fabriks_upload(self, task: TaskLike | None=None) -> FabriksUploadGrant:
         """RequestFabriksUpload 
 
 Request an upload grant for a fabriks store. The grant covers the whole prefix, so one request authorizes the manifest, both catalogs and every level
 
 Args:
-    host: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    port: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
     FabriksUploadGrant
 """
         variables: dict[str, builtins.object] = {}
-        _input: dict[str, builtins.object] = {}
-        if host is not UNSET:
-            _input['host'] = host
-        if port is not UNSET:
-            _input['port'] = port
-        variables['input'] = _input
         return self.execute(RequestFabriksUploadMutation, variables, task=task).request_fabriks_upload
 
     async def afinish_fabriks_upload(self, store_id: str, valid: bool, task: TaskLike | None=None) -> FabriksStore:
@@ -11345,48 +11418,32 @@ Returns:
         variables['input'] = _input
         return self.execute(RequestFabriksAccessMutation, variables, task=task).request_fabriks_access
 
-    async def arequest_konnektion_upload(self, host: str | None | UnsetType=UNSET, port: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> KonnektionUploadGrant:
+    async def arequest_konnektion_upload(self, task: TaskLike | None=None) -> KonnektionUploadGrant:
         """RequestKonnektionUpload 
 
 Request an upload grant for a konnektion store. The grant covers the whole prefix, so one request authorizes the manifest, both catalogs and every level
 
 Args:
-    host: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    port: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
     KonnektionUploadGrant
 """
         variables: dict[str, builtins.object] = {}
-        _input: dict[str, builtins.object] = {}
-        if host is not UNSET:
-            _input['host'] = host
-        if port is not UNSET:
-            _input['port'] = port
-        variables['input'] = _input
         return (await self.aexecute(RequestKonnektionUploadMutation, variables, task=task)).request_konnektion_upload
 
-    def request_konnektion_upload(self, host: str | None | UnsetType=UNSET, port: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> KonnektionUploadGrant:
+    def request_konnektion_upload(self, task: TaskLike | None=None) -> KonnektionUploadGrant:
         """RequestKonnektionUpload 
 
 Request an upload grant for a konnektion store. The grant covers the whole prefix, so one request authorizes the manifest, both catalogs and every level
 
 Args:
-    host: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    port: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
     KonnektionUploadGrant
 """
         variables: dict[str, builtins.object] = {}
-        _input: dict[str, builtins.object] = {}
-        if host is not UNSET:
-            _input['host'] = host
-        if port is not UNSET:
-            _input['port'] = port
-        variables['input'] = _input
         return self.execute(RequestKonnektionUploadMutation, variables, task=task).request_konnektion_upload
 
     async def afinish_konnektion_upload(self, store_id: str, valid: bool, task: TaskLike | None=None) -> KonnektionStore:
@@ -11466,6 +11523,124 @@ Returns:
         _input['storeId'] = store_id
         variables['input'] = _input
         return self.execute(RequestKonnektionAccessMutation, variables, task=task).request_konnektion_access
+
+    async def arequest_kulisse_upload(self, original_file_name: str, file_size: ByteCountCoercible | None | UnsetType=UNSET, task: TaskLike | None=None) -> KulisseUploadGrant:
+        """RequestKulisseUpload 
+
+Request an upload grant for a kulisse store: one device or scene model, a self-contained binary glTF
+
+Args:
+    original_file_name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    file_size: A number of bytes. 64-bit, unlike Int: serialized as a JSON number, and accepted as a number or a numeric string.
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    KulisseUploadGrant
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['originalFileName'] = original_file_name
+        if file_size is not UNSET:
+            _input['fileSize'] = file_size
+        variables['input'] = _input
+        return (await self.aexecute(RequestKulisseUploadMutation, variables, task=task)).request_kulisse_upload
+
+    def request_kulisse_upload(self, original_file_name: str, file_size: ByteCountCoercible | None | UnsetType=UNSET, task: TaskLike | None=None) -> KulisseUploadGrant:
+        """RequestKulisseUpload 
+
+Request an upload grant for a kulisse store: one device or scene model, a self-contained binary glTF
+
+Args:
+    original_file_name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    file_size: A number of bytes. 64-bit, unlike Int: serialized as a JSON number, and accepted as a number or a numeric string.
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    KulisseUploadGrant
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['originalFileName'] = original_file_name
+        if file_size is not UNSET:
+            _input['fileSize'] = file_size
+        variables['input'] = _input
+        return self.execute(RequestKulisseUploadMutation, variables, task=task).request_kulisse_upload
+
+    async def afinish_kulisse_upload(self, store_id: str, valid: bool, task: TaskLike | None=None) -> KulisseStore:
+        """FinishKulisseUpload 
+ Reads the model's header and JSON chunk and refuses a file that is not a self-contained
+ glTF 2.0 model; the store it returns carries the nodes, joints and bounds it read.
+
+Args:
+    store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    valid: The `Boolean` scalar type represents `true` or `false`. (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    KulisseStore
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['storeId'] = store_id
+        _input['valid'] = valid
+        variables['input'] = _input
+        return (await self.aexecute(FinishKulisseUploadMutation, variables, task=task)).finish_kulisse_upload
+
+    def finish_kulisse_upload(self, store_id: str, valid: bool, task: TaskLike | None=None) -> KulisseStore:
+        """FinishKulisseUpload 
+ Reads the model's header and JSON chunk and refuses a file that is not a self-contained
+ glTF 2.0 model; the store it returns carries the nodes, joints and bounds it read.
+
+Args:
+    store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    valid: The `Boolean` scalar type represents `true` or `false`. (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    KulisseStore
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['storeId'] = store_id
+        _input['valid'] = valid
+        variables['input'] = _input
+        return self.execute(FinishKulisseUploadMutation, variables, task=task).finish_kulisse_upload
+
+    async def arequest_kulisse_access(self, store_id: str, task: TaskLike | None=None) -> KulisseAccessGrant:
+        """RequestKulisseAccess 
+
+Request temporary S3 read credentials for a kulisse model
+
+Args:
+    store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    KulisseAccessGrant
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['storeId'] = store_id
+        variables['input'] = _input
+        return (await self.aexecute(RequestKulisseAccessMutation, variables, task=task)).request_kulisse_access
+
+    def request_kulisse_access(self, store_id: str, task: TaskLike | None=None) -> KulisseAccessGrant:
+        """RequestKulisseAccess 
+
+Request temporary S3 read credentials for a kulisse model
+
+Args:
+    store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    KulisseAccessGrant
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['storeId'] = store_id
+        variables['input'] = _input
+        return self.execute(RequestKulisseAccessMutation, variables, task=task).request_kulisse_access
 
     async def arequest_media_upload(self, original_file_name: str, file_size: ByteCountCoercible | None | UnsetType=UNSET, content_type: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> MediaUploadGrant:
         """RequestMediaUpload 
@@ -11591,15 +11766,13 @@ Returns:
         variables['input'] = _input
         return self.execute(RequestMediaAccessMutation, variables, task=task).request_media_access
 
-    async def arequest_parquet_upload(self, content_type: str | None | UnsetType=UNSET, host: str | None | UnsetType=UNSET, port: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> ParquetUploadGrant:
+    async def arequest_parquet_upload(self, content_type: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> ParquetUploadGrant:
         """RequestParquetUpload 
 
 Request an upload grant for a Parquet store
 
 Args:
     content_type: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    host: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    port: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
@@ -11609,22 +11782,16 @@ Returns:
         _input: dict[str, builtins.object] = {}
         if content_type is not UNSET:
             _input['contentType'] = content_type
-        if host is not UNSET:
-            _input['host'] = host
-        if port is not UNSET:
-            _input['port'] = port
         variables['input'] = _input
         return (await self.aexecute(RequestParquetUploadMutation, variables, task=task)).request_parquet_upload
 
-    def request_parquet_upload(self, content_type: str | None | UnsetType=UNSET, host: str | None | UnsetType=UNSET, port: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> ParquetUploadGrant:
+    def request_parquet_upload(self, content_type: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> ParquetUploadGrant:
         """RequestParquetUpload 
 
 Request an upload grant for a Parquet store
 
 Args:
     content_type: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    host: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    port: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
@@ -11634,10 +11801,6 @@ Returns:
         _input: dict[str, builtins.object] = {}
         if content_type is not UNSET:
             _input['contentType'] = content_type
-        if host is not UNSET:
-            _input['host'] = host
-        if port is not UNSET:
-            _input['port'] = port
         variables['input'] = _input
         return self.execute(RequestParquetUploadMutation, variables, task=task).request_parquet_upload
 
@@ -11717,48 +11880,32 @@ Returns:
         variables['input'] = _input
         return self.execute(RequestParquetAccessMutation, variables, task=task).request_parquet_access
 
-    async def arequest_sparse_upload(self, host: str | None | UnsetType=UNSET, port: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> SparseUploadGrant:
+    async def arequest_sparse_upload(self, task: TaskLike | None=None) -> SparseUploadGrant:
         """RequestSparseUpload 
 
 Request an upload grant for a sparse store. The grant covers the whole prefix, so one request authorizes the group's metadata and all three of its arrays. It declares nothing about the matrix: the group states its encoding, shape and chunking, and the server reads them when the upload is finished
 
 Args:
-    host: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    port: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
     SparseUploadGrant
 """
         variables: dict[str, builtins.object] = {}
-        _input: dict[str, builtins.object] = {}
-        if host is not UNSET:
-            _input['host'] = host
-        if port is not UNSET:
-            _input['port'] = port
-        variables['input'] = _input
         return (await self.aexecute(RequestSparseUploadMutation, variables, task=task)).request_sparse_upload
 
-    def request_sparse_upload(self, host: str | None | UnsetType=UNSET, port: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> SparseUploadGrant:
+    def request_sparse_upload(self, task: TaskLike | None=None) -> SparseUploadGrant:
         """RequestSparseUpload 
 
 Request an upload grant for a sparse store. The grant covers the whole prefix, so one request authorizes the group's metadata and all three of its arrays. It declares nothing about the matrix: the group states its encoding, shape and chunking, and the server reads them when the upload is finished
 
 Args:
-    host: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    port: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
     SparseUploadGrant
 """
         variables: dict[str, builtins.object] = {}
-        _input: dict[str, builtins.object] = {}
-        if host is not UNSET:
-            _input['host'] = host
-        if port is not UNSET:
-            _input['port'] = port
-        variables['input'] = _input
         return self.execute(RequestSparseUploadMutation, variables, task=task).request_sparse_upload
 
     async def afinish_sparse_upload(self, store_id: str, valid: bool, task: TaskLike | None=None) -> SparseStore:
@@ -11801,7 +11948,7 @@ Returns:
         variables['input'] = _input
         return self.execute(FinishSparseUploadMutation, variables, task=task).finish_sparse_upload
 
-    async def arequest_zarr_upload(self, shape: Iterable[int] | None | UnsetType=UNSET, chunks: Iterable[int] | None | UnsetType=UNSET, version: str | None | UnsetType=UNSET, host: str | None | UnsetType=UNSET, port: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> ZarrUploadGrant:
+    async def arequest_zarr_upload(self, shape: Iterable[int] | None | UnsetType=UNSET, chunks: Iterable[int] | None | UnsetType=UNSET, version: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> ZarrUploadGrant:
         """RequestZarrUpload 
 
 Request an upload grant for a Zarr store
@@ -11810,8 +11957,6 @@ Args:
     shape: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
     chunks: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
     version: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    host: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    port: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
@@ -11825,14 +11970,10 @@ Returns:
             _input['chunks'] = chunks
         if version is not UNSET:
             _input['version'] = version
-        if host is not UNSET:
-            _input['host'] = host
-        if port is not UNSET:
-            _input['port'] = port
         variables['input'] = _input
         return (await self.aexecute(RequestZarrUploadMutation, variables, task=task)).request_zarr_upload
 
-    def request_zarr_upload(self, shape: Iterable[int] | None | UnsetType=UNSET, chunks: Iterable[int] | None | UnsetType=UNSET, version: str | None | UnsetType=UNSET, host: str | None | UnsetType=UNSET, port: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> ZarrUploadGrant:
+    def request_zarr_upload(self, shape: Iterable[int] | None | UnsetType=UNSET, chunks: Iterable[int] | None | UnsetType=UNSET, version: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> ZarrUploadGrant:
         """RequestZarrUpload 
 
 Request an upload grant for a Zarr store
@@ -11841,8 +11982,6 @@ Args:
     shape: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
     chunks: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
     version: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    host: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    port: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
@@ -11856,10 +11995,6 @@ Returns:
             _input['chunks'] = chunks
         if version is not UNSET:
             _input['version'] = version
-        if host is not UNSET:
-            _input['host'] = host
-        if port is not UNSET:
-            _input['port'] = port
         variables['input'] = _input
         return self.execute(RequestZarrUploadMutation, variables, task=task).request_zarr_upload
 
@@ -11991,14 +12126,14 @@ Returns:
         variables['input'] = _input
         return self.execute(FromFileLikeMutation, variables, task=task).from_file_like
 
-    async def acreate_fixture(self, store: GltfCoercible, axes: Iterable[PhysicalAxisInput], name: str | None | UnsetType=UNSET, folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, provenance_metadata: Any | None | UnsetType=UNSET, task: TaskLike | None=None) -> Fixture:
+    async def acreate_fixture(self, store: KulisseCoercible, axes: Iterable[PhysicalAxisInput], name: str | None | UnsetType=UNSET, folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, provenance_metadata: Any | None | UnsetType=UNSET, task: TaskLike | None=None) -> Fixture:
         """CreateFixture 
- `store` is a GltfLike: hand it a path or an open `.glb` and the upload middleware puts it in
- the media store first. The server reads its header and refuses anything that is not glTF 2.0.
+ `store` is a KulisseLike: hand it a path, an open `.glb` or its bytes and the upload middleware
+ puts it in a kulisse store first, whose finish reads and checks the model.
 
 Args:
     name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    store: A reference to an uploaded **binary glTF** (`.glb`) media object: one file holding a fixture's scene, materials and buffers. Upload it with `requestMediaUpload` / `finishMediaUpload`; `createFixture` reads its header and refuses anything that is not glTF 2.0 (required)
+    store: A reference to a kulisse store (a device or scene model, one self-contained binary glTF): the id its finished upload returned. (required)
     axes: Input type for one axis of a unit-carrying coordinate system: its name, its semantic kind and its physical unit (required) (list) (required)
     folder: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
     derived_from: Where this data came from, as a discriminated union: `kind` selects which sort of source is being named, and only that member's id field is read -- any other is rejected. The member inputs annotated `@unionElementOf(union: "DerivedFromInput")` say which field each kind reads. Direction is always this data -> its source (required) (list)
@@ -12023,14 +12158,14 @@ Returns:
         variables['input'] = _input
         return (await self.aexecute(CreateFixtureMutation, variables, task=task)).create_fixture
 
-    def create_fixture(self, store: GltfCoercible, axes: Iterable[PhysicalAxisInput], name: str | None | UnsetType=UNSET, folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, provenance_metadata: Any | None | UnsetType=UNSET, task: TaskLike | None=None) -> Fixture:
+    def create_fixture(self, store: KulisseCoercible, axes: Iterable[PhysicalAxisInput], name: str | None | UnsetType=UNSET, folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, provenance_metadata: Any | None | UnsetType=UNSET, task: TaskLike | None=None) -> Fixture:
         """CreateFixture 
- `store` is a GltfLike: hand it a path or an open `.glb` and the upload middleware puts it in
- the media store first. The server reads its header and refuses anything that is not glTF 2.0.
+ `store` is a KulisseLike: hand it a path, an open `.glb` or its bytes and the upload middleware
+ puts it in a kulisse store first, whose finish reads and checks the model.
 
 Args:
     name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    store: A reference to an uploaded **binary glTF** (`.glb`) media object: one file holding a fixture's scene, materials and buffers. Upload it with `requestMediaUpload` / `finishMediaUpload`; `createFixture` reads its header and refuses anything that is not glTF 2.0 (required)
+    store: A reference to a kulisse store (a device or scene model, one self-contained binary glTF): the id its finished upload returned. (required)
     axes: Input type for one axis of a unit-carrying coordinate system: its name, its semantic kind and its physical unit (required) (list) (required)
     folder: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
     derived_from: Where this data came from, as a discriminated union: `kind` selects which sort of source is being named, and only that member's id field is read -- any other is rejected. The member inputs annotated `@unionElementOf(union: "DerivedFromInput")` say which field each kind reads. Direction is always this data -> its source (required) (list)

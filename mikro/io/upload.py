@@ -26,6 +26,7 @@ from mikro.scalars import (
     KonnektionLike,
     FileLike,
     ImageFileLike,
+    KulisseLike,
     ParquetLike,
     SporadikLike,
 )
@@ -43,6 +44,7 @@ DEFAULT_COMPRESSION = "zstd"
 
 if TYPE_CHECKING:
     from mikro.api.schema import (
+        KulisseUploadGrant,
         BigFileUploadGrant,
         FabriksUploadGrant,
         KonnektionUploadGrant,
@@ -292,8 +294,8 @@ async def astore_fabriks_collection(
 
 
 async def astore_media_file(
-    file: ImageFileLike,
-    credentials: "MediaUploadGrant",
+    file: "ImageFileLike | KulisseLike",
+    credentials: "MediaUploadGrant | KulisseUploadGrant",
     datalayer: "DataLayer",
 ) -> str:
     """Store a media file in the DataLayer asynchronously via obstore."""
@@ -423,8 +425,8 @@ def _store_bigfile_via_obstore(
 
 
 def _store_media_file_via_obstore(
-    file: ImageFileLike,
-    credentials: "MediaUploadGrant",
+    file: "ImageFileLike | KulisseLike",
+    credentials: "MediaUploadGrant | KulisseUploadGrant",
     endpoint_url: str,
     proxy: str | None = None,
 ) -> str:
@@ -592,8 +594,8 @@ def upload_bigfile(
 
 
 def store_media_file(
-    file: ImageFileLike,
-    credentials: "MediaUploadGrant",
+    file: "ImageFileLike | KulisseLike",
+    credentials: "MediaUploadGrant | KulisseUploadGrant",
     datalayer: "DataLayer",
 ) -> str:
     """Store a media file synchronously via obstore."""

@@ -742,25 +742,49 @@ class ImageFileLike:
         return f"FileLike({self.value})"
 
 
-class GltfLike(ImageFileLike):
-    """A fixture's binary glTF (``.glb``): a path or a file opened in binary mode.
+class KulisseLike:
+    """A kulisse model -- a device or scene model, one self-contained binary glTF (``.glb``).
 
-    Uploaded exactly like a snapshot image -- one media object, which is why this is an
-    ``ImageFileLike`` the upload middleware already handles -- and a scalar of its own because
-    ``createFixture`` reads the file's header and refuses anything that is not glTF 2.0.
+    A path, an open binary file, or the bytes themselves. The upload middleware requests a
+    kulisse store, writes the file and finishes it; the server then reads and checks the model
+    (container, joint table, budgets) and records its nodes, joints and bounds. Author and check
+    a model before uploading it with the ``kulisse`` package (``kulisse check model.glb``).
     """
 
-    def __init__(self, value: io.BufferedReader, name: str = "") -> None:
-        """Initialize the GltfLike scalar, typed for the media store whatever the platform guesses."""
-        super().__init__(value, name=name)
-        self.mime_type = "model/gltf-binary"
+    def __init__(self, value: bytes, name: str = "") -> None:
+        """Initialize the KulisseLike scalar with the model's bytes."""
+        self.value = value
+        self.file_name = Path(name).name if name else "model.glb"
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls,
+        source_type: Any,  # noqa: ANN401
+        handler: GetCoreSchemaHandler,
+    ) -> CoreSchema:
+        """Get the pydantic core schema for the validator function"""
+        return core_schema.no_info_after_validator_function(cls.validate, handler(object))
+
+    @classmethod
+    def validate(cls, v: "KulisseCoercible") -> "KulisseLike":
+        """Read a path, a binary file or bytes into the model's bytes."""
+        if isinstance(v, KulisseLike):
+            return v
+        if isinstance(v, (str, Path)):
+            path = Path(v)
+            return cls(path.read_bytes(), name=path.name)
+        if isinstance(v, (bytes, bytearray)):
+            return cls(bytes(v))
+        if isinstance(v, io.BufferedReader):
+            return cls(v.read(), name=str(v.name))
+        raise ValueError(f"A kulisse model is a path, a file opened in binary mode or bytes, not {type(v)}.")
 
     def __repr__(self) -> str:
-        """Return a string representation of the GltfLike scalar."""
-        return f"GltfLike({self.value})"
+        """Return a string representation of the KulisseLike scalar."""
+        return f"KulisseLike({self.file_name}, {len(self.value)} bytes)"
 
 
-GltfCoercible: TypeAlias = str | Path | io.BufferedReader
+KulisseCoercible: TypeAlias = str | Path | io.BufferedReader | bytes | KulisseLike
 
 
 class FileLike:

@@ -1,7 +1,7 @@
 """A fixture from a `.glb` on disk to a layer in a scene, against a real mikro.
 
-The seam that is mikro's: `GltfLike` takes a path, the upload middleware puts the file in the
-media store, and the server reads its header and boxes it. Everything below -- reading glTF,
+The seam that is mikro's: `KulisseLike` takes a path, the upload middleware puts the file in a
+kulisse store and finishes it, and the server reads and checks the model and boxes it. Everything below -- reading glTF,
 placing by units -- is the server's and tested there.
 """
 

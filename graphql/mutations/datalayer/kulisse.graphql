@@ -1,0 +1,21 @@
+mutation RequestKulisseUpload($input: RequestKulisseUploadInput!) {
+  requestKulisseUpload(input: $input) {
+    ...KulisseUploadGrant
+  }
+}
+
+
+# Reads the model's header and JSON chunk and refuses a file that is not a self-contained
+# glTF 2.0 model; the store it returns carries the nodes, joints and bounds it read.
+mutation FinishKulisseUpload($input: FinishKulisseUploadInput!) {
+  finishKulisseUpload(input: $input) {
+    ...KulisseStore
+  }
+}
+
+
+mutation RequestKulisseAccess($input: RequestKulisseAccessInput!) {
+  requestKulisseAccess(input: $input) {
+    ...KulisseAccessGrant
+  }
+}

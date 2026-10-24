@@ -1,5 +1,5 @@
-mutation RequestSparseUpload($input: RequestSparseUploadInput!) {
-  requestSparseUpload(input: $input) {
+mutation RequestSparseUpload {
+  requestSparseUpload {
     ...SparseUploadGrant
   }
 }

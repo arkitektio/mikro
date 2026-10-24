@@ -1,5 +1,5 @@
-mutation RequestFabriksUpload($input: RequestFabriksUploadInput!) {
-  requestFabriksUpload(input: $input) {
+mutation RequestFabriksUpload {
+  requestFabriksUpload {
     ...FabriksUploadGrant
   }
 }
