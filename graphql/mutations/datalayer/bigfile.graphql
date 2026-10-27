@@ -17,3 +17,12 @@ mutation RequestBigfileAccess($input: RequestBigFileAccessInput!) {
     ...BigFileAccessGrant
   }
 }
+
+
+# Reissues credentials for an upload still in flight, to the same key: a write that outlives its
+# credentials asks for this before they expire and carries on. Only the uploader may.
+mutation RefreshBigfileUpload($input: RefreshUploadInput!) {
+  refreshBigfileUpload(input: $input) {
+    ...BigFileUploadGrant
+  }
+}

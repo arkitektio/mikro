@@ -191,7 +191,9 @@ networks and annotation collections are selected by value windows instead
 a layer names a lens and nothing narrower: `mikro.create_point_layer(scene=scene.id, lens=table.lens().id)`.
 That holds for a channel too. An intensity, label or phasor layer draws a lens pinning one channel
 (`dataset.lens(c=0)`), an RGB layer names three of them, and a SPARSE colouring names the sparse lens
-that is its slice. Which axis of a lens faces the screen is the layer's to say: `layer.render_axes`.
+that is its slice. Which axis faces the screen is no field of the layer: a viewer reads it off the
+layer's placement (`layer.as_affine`) under its own view; the GraphQL field `ArrayLens.suggestedRenderAxes` states the server's
+convention for a lens nothing places yet.
 
 ### A chart: data along one axis
 

@@ -315,9 +315,9 @@ if __name__ == "__main__":
                 f"slow/fast Brownian and directed transport."
             ),
             columns=[
-                # The axis columns, in (t, y, x) file order. `t` by that exact name:
-                # the layer's derived tColumn matches a COORDINATE column literally
-                # named 't', and it is what the renderer orders each track by.
+                # The axis columns, in (t, y, x) file order. The TIME column is what the
+                # renderer orders each track by; it reads which column that is off the
+                # layer's placement, not off a name.
                 ColumnInput(name="t", axis_type=AxisType.TIME, unit="second"),
                 ColumnInput(name="y", axis_type=AxisType.SPACE, unit="micrometer"),
                 ColumnInput(name="x", axis_type=AxisType.SPACE, unit="micrometer"),

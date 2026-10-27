@@ -1,9 +1,9 @@
 """A synthetic DTI tractography scene — streamlines through a diffusion field.
 
 The MRI flagship: one head, four datasets, four layer kinds, and the first
-**three-dimensional TrackLayer** (SPT's tracks were planar; here `zColumn` derives
-too, and with no time column each streamline draws in its parquet row order — which
-is why rows are written in path order).
+**three-dimensional TrackLayer** (SPT's tracks were planar; here the placement maps
+a `z` column too, and with no time column each streamline draws in its parquet row
+order — which is why rows are written in path order).
 
 - the **FA map** ``(z, y, x)`` at 1.5 mm: bright fiber bundles in dim white matter
   inside a brain ellipsoid — the anatomical underlay, MIP'd by the bootstrap,

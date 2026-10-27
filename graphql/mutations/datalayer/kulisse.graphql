@@ -19,3 +19,12 @@ mutation RequestKulisseAccess($input: RequestKulisseAccessInput!) {
     ...KulisseAccessGrant
   }
 }
+
+
+# Reissues credentials for an upload still in flight, to the same key: a write that outlives its
+# credentials asks for this before they expire and carries on. Only the uploader may.
+mutation RefreshKulisseUpload($input: RefreshUploadInput!) {
+  refreshKulisseUpload(input: $input) {
+    ...KulisseUploadGrant
+  }
+}

@@ -373,7 +373,7 @@ class HasDownloadAccessor(ContextBound):
         from mikro.io.download import download_file
 
         store_id, key = get_attributes_or_error(self, "id", "key")
-        return download_file(client_of(self), store_id, file_name or key)
+        return download_file(client_of(self), store_id, file_name or key.rsplit("/", 1)[-1])
 
     @contextmanager
     def open(
@@ -437,28 +437,22 @@ class HasDownloadAccessor(ContextBound):
             handle.close()
 
 
-class HasPresignedDownloadAccessor(ContextBound):
-    """Presigned Download Accessor
-
-    TODO: THis should probablry bre refactored to a more generic download accessor
-
-    """
-
-    _dataset: str | None = None
+class HasMediaDownloadAccessor(ContextBound):
+    """Download accessor for a media store (a rendered scene snapshot, say)."""
 
     def download(self, file_name: str | None = None) -> str:
-        """Download the file from the presigned URL
+        """Download the media object through a media access grant.
 
         Args:
             file_name (str | None): The name of the file to save the downloaded file as
-                If None, the key from the presigned URL will be used as the file name.
+                If None, the key from the store will be used as the file name.
         Returns:
             str: The path to the downloaded file
         """
-        from mikro.io.download import download_presigned_file
+        from mikro.io.download import download_media_file
 
-        url, key = get_attributes_or_error(self, "presigned_url", "key")
-        return download_presigned_file(client_of(self), url, file_name or key)
+        store_id, key = get_attributes_or_error(self, "id", "key")
+        return download_media_file(client_of(self), store_id, file_name or key.rsplit("/", 1)[-1])
 
 
 class FileTrait:
@@ -475,7 +469,7 @@ class FileTrait:
         Returns:
             str: The path to the downloaded file
         """
-        store: HasPresignedDownloadAccessor = get_attributes_or_error(self, "store")
+        store: HasDownloadAccessor = get_attributes_or_error(self, "store")
         return store.download(file_name=file_name)
 
     @contextmanager

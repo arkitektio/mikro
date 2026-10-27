@@ -136,7 +136,7 @@
                     "mikro.traits.HasDownloadAccessor"
                 ],
                 "MediaStore": [
-                    "mikro.traits.HasPresignedDownloadAccessor"
+                    "mikro.traits.HasMediaDownloadAccessor"
                 ],
                 "ArrayLens": [
                     "mikro.traits.Lensable"

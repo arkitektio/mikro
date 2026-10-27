@@ -3,7 +3,7 @@ from datetime import datetime
 from enum import Enum
 from kanne.scalars import Frequency, GenericQuantity, Length, Power, Temperature, Unit
 from mikro.scalars import ArrayCoercible, ArrayLike, AxisName, ByteCount, ByteCountCoercible, FabriksCoercible, FabriksLike, FileLike, ImageFileCoercible, ImageFileLike, KonnektionCoercible, KonnektionLike, KulisseCoercible, KulisseLike, MetricTargetCoercible, ParquetCoercible, ParquetLike, SporadikCoercible, SporadikLike, ThreeDVector
-from mikro.traits import AxisInputTrait, ChartTrait, CoordinateAnchorInputTrait, CoordinateSystemTrait, CreateADatasetTrait, CreateSparseDatasetTrait, CreateTableDatasetTrait, DataArrayTrait, DatasetTrait, FileTrait, GraphColorByInputTrait, HasDownloadAccessor, HasParquestStoreTrait, HasParquetStoreAccesor, HasPresignedDownloadAccessor, HasZarrStoreAccessor, Lensable, MeshCollectionTrait, MetricTargetInputTrait, MikroFetchable, NetworkCollectionTrait, RGBAColorInputTrait, SceneTrait, SparseAxisInputTrait, SparseColorByInputTrait, SparseDatasetTrait, TableDatasetLensTrait, TransformationTrait, ValueHistogramInputTrait
+from mikro.traits import AxisInputTrait, ChartTrait, CoordinateAnchorInputTrait, CoordinateSystemTrait, CreateADatasetTrait, CreateSparseDatasetTrait, CreateTableDatasetTrait, DataArrayTrait, DatasetTrait, FileTrait, GraphColorByInputTrait, HasDownloadAccessor, HasMediaDownloadAccessor, HasParquestStoreTrait, HasParquetStoreAccesor, HasZarrStoreAccessor, Lensable, MeshCollectionTrait, MetricTargetInputTrait, MikroFetchable, NetworkCollectionTrait, RGBAColorInputTrait, SceneTrait, SparseAxisInputTrait, SparseColorByInputTrait, SparseDatasetTrait, TableDatasetLensTrait, TransformationTrait, ValueHistogramInputTrait
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 from rath.scalars import ID, IDCoercible
 from rath.task import TaskLike
@@ -2664,6 +2664,11 @@ class Pose3DInput(BaseModel):
     orientation: EulerInput | None = None
     model_config = ConfigDict(frozen=True, extra='forbid')
 
+class RefreshUploadInput(BaseModel):
+    """No documentation"""
+    store_id: str = Field(validation_alias=AliasChoices('store_id', 'storeId'), serialization_alias='storeId')
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
 class RegistrationPathInput(BaseModel):
     """A source (dataset, table dataset, mesh collection, or coordinate system) to register into a shared space, plus the edge that places it. The edge points from the source's own coordinate system to the shared space; the transform is validated exactly as createTransformation validates one"""
     dataset: ID | None = None
@@ -2684,7 +2689,7 @@ class RequestBigFileAccessInput(BaseModel):
 class RequestBigFileUploadInput(BaseModel):
     """No documentation"""
     original_file_name: str = Field(validation_alias=AliasChoices('original_file_name', 'originalFileName'), serialization_alias='originalFileName')
-    file_size: ByteCount | None = Field(validation_alias=AliasChoices('file_size', 'fileSize'), serialization_alias='fileSize', default=None)
+    file_size: ByteCount = Field(validation_alias=AliasChoices('file_size', 'fileSize'), serialization_alias='fileSize')
     content_type: str | None = Field(validation_alias=AliasChoices('content_type', 'contentType'), serialization_alias='contentType', default=None)
     model_config = ConfigDict(frozen=True, extra='forbid')
 
@@ -2706,7 +2711,7 @@ class RequestKulisseAccessInput(BaseModel):
 class RequestKulisseUploadInput(BaseModel):
     """No documentation"""
     original_file_name: str = Field(validation_alias=AliasChoices('original_file_name', 'originalFileName'), serialization_alias='originalFileName')
-    file_size: ByteCount | None = Field(validation_alias=AliasChoices('file_size', 'fileSize'), serialization_alias='fileSize', default=None)
+    file_size: ByteCount = Field(validation_alias=AliasChoices('file_size', 'fileSize'), serialization_alias='fileSize')
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class RequestMediaAccessInput(BaseModel):
@@ -2717,7 +2722,7 @@ class RequestMediaAccessInput(BaseModel):
 class RequestMediaUploadInput(BaseModel):
     """No documentation"""
     original_file_name: str = Field(validation_alias=AliasChoices('original_file_name', 'originalFileName'), serialization_alias='originalFileName')
-    file_size: ByteCount | None = Field(validation_alias=AliasChoices('file_size', 'fileSize'), serialization_alias='fileSize', default=None)
+    file_size: ByteCount = Field(validation_alias=AliasChoices('file_size', 'fileSize'), serialization_alias='fileSize')
     content_type: str | None = Field(validation_alias=AliasChoices('content_type', 'contentType'), serialization_alias='contentType', default=None)
     model_config = ConfigDict(frozen=True, extra='forbid')
 
@@ -4603,7 +4608,7 @@ class BigFileStore(HasDownloadAccessor, MikroFetchable, BaseModel):
         name = 'BigFileStore'
         type = 'BigFileStore'
 
-class MediaStore(HasPresignedDownloadAccessor, MikroFetchable, BaseModel):
+class MediaStore(HasMediaDownloadAccessor, MikroFetchable, BaseModel):
     """No documentation"""
     __identifier__: ClassVar[Literal['@mikro/mediastore']] = '@mikro/mediastore'
     typename: Literal['MediaStore'] = Field(alias='__typename', default='MediaStore', exclude=True)
@@ -6257,6 +6262,20 @@ class RequestBigfileAccessMutation(BaseModel):
         """Meta class for RequestBigfileAccess """
         document = 'fragment BigFileAccessGrant on BigFileAccessGrant {\n  accessKey\n  secretKey\n  sessionToken\n  expiresIn\n  path\n  key\n  bucket\n  __typename\n}\n\nmutation RequestBigfileAccess($input: RequestBigFileAccessInput!) {\n  requestBigfileAccess(input: $input) {\n    ...BigFileAccessGrant\n    __typename\n  }\n}'
 
+class RefreshBigfileUploadMutation(BaseModel):
+    """ Reissues credentials for an upload still in flight, to the same key: a write that outlives its
+ credentials asks for this before they expire and carries on. Only the uploader may."""
+    refresh_bigfile_upload: BigFileUploadGrant = Field(alias='refreshBigfileUpload')
+    "Reissue upload credentials for a bigfile upload still in flight, to the same key, so a write that outlives its credentials carries on. Only the uploader may, never for a finished store, and never past the upload's time limit"
+
+    class Arguments(BaseModel):
+        """Arguments for RefreshBigfileUpload """
+        input: RefreshUploadInput
+
+    class Meta:
+        """Meta class for RefreshBigfileUpload """
+        document = 'fragment BigFileUploadGrant on BigFileUploadGrant {\n  accessKey\n  secretKey\n  sessionToken\n  path\n  key\n  bucket\n  expiresIn\n  store\n  __typename\n}\n\nmutation RefreshBigfileUpload($input: RefreshUploadInput!) {\n  refreshBigfileUpload(input: $input) {\n    ...BigFileUploadGrant\n    __typename\n  }\n}'
+
 class RequestFabriksUploadMutation(BaseModel):
     """No documentation found for this operation."""
     request_fabriks_upload: FabriksUploadGrant = Field(alias='requestFabriksUpload')
@@ -6297,6 +6316,20 @@ class RequestFabriksAccessMutation(BaseModel):
     class Meta:
         """Meta class for RequestFabriksAccess """
         document = 'fragment FabriksAccessGrant on FabriksAccessGrant {\n  accessKey\n  secretKey\n  sessionToken\n  expiresIn\n  path\n  key\n  bucket\n  __typename\n}\n\nmutation RequestFabriksAccess($input: RequestFabriksAccessInput!) {\n  requestFabriksAccess(input: $input) {\n    ...FabriksAccessGrant\n    __typename\n  }\n}'
+
+class RefreshFabriksUploadMutation(BaseModel):
+    """ Reissues credentials for an upload still in flight, to the same key: a write that outlives its
+ credentials asks for this before they expire and carries on. Only the uploader may."""
+    refresh_fabriks_upload: FabriksUploadGrant = Field(alias='refreshFabriksUpload')
+    "Reissue upload credentials for a fabriks upload still in flight, to the same key, so a write that outlives its credentials carries on. Only the uploader may, never for a finished store, and never past the upload's time limit"
+
+    class Arguments(BaseModel):
+        """Arguments for RefreshFabriksUpload """
+        input: RefreshUploadInput
+
+    class Meta:
+        """Meta class for RefreshFabriksUpload """
+        document = 'fragment FabriksUploadGrant on FabriksUploadGrant {\n  accessKey\n  secretKey\n  sessionToken\n  path\n  key\n  bucket\n  expiresIn\n  maxBytes\n  store\n  __typename\n}\n\nmutation RefreshFabriksUpload($input: RefreshUploadInput!) {\n  refreshFabriksUpload(input: $input) {\n    ...FabriksUploadGrant\n    __typename\n  }\n}'
 
 class RequestKonnektionUploadMutation(BaseModel):
     """No documentation found for this operation."""
@@ -6339,6 +6372,20 @@ class RequestKonnektionAccessMutation(BaseModel):
         """Meta class for RequestKonnektionAccess """
         document = 'fragment KonnektionAccessGrant on KonnektionAccessGrant {\n  accessKey\n  secretKey\n  sessionToken\n  expiresIn\n  path\n  key\n  bucket\n  __typename\n}\n\nmutation RequestKonnektionAccess($input: RequestKonnektionAccessInput!) {\n  requestKonnektionAccess(input: $input) {\n    ...KonnektionAccessGrant\n    __typename\n  }\n}'
 
+class RefreshKonnektionUploadMutation(BaseModel):
+    """ Reissues credentials for an upload still in flight, to the same key: a write that outlives its
+ credentials asks for this before they expire and carries on. Only the uploader may."""
+    refresh_konnektion_upload: KonnektionUploadGrant = Field(alias='refreshKonnektionUpload')
+    "Reissue upload credentials for a konnektion upload still in flight, to the same key, so a write that outlives its credentials carries on. Only the uploader may, never for a finished store, and never past the upload's time limit"
+
+    class Arguments(BaseModel):
+        """Arguments for RefreshKonnektionUpload """
+        input: RefreshUploadInput
+
+    class Meta:
+        """Meta class for RefreshKonnektionUpload """
+        document = 'fragment KonnektionUploadGrant on KonnektionUploadGrant {\n  accessKey\n  secretKey\n  sessionToken\n  path\n  key\n  bucket\n  expiresIn\n  maxBytes\n  store\n  __typename\n}\n\nmutation RefreshKonnektionUpload($input: RefreshUploadInput!) {\n  refreshKonnektionUpload(input: $input) {\n    ...KonnektionUploadGrant\n    __typename\n  }\n}'
+
 class RequestKulisseUploadMutation(BaseModel):
     """No documentation found for this operation."""
     request_kulisse_upload: KulisseUploadGrant = Field(alias='requestKulisseUpload')
@@ -6379,6 +6426,20 @@ class RequestKulisseAccessMutation(BaseModel):
         """Meta class for RequestKulisseAccess """
         document = 'fragment KulisseAccessGrant on KulisseAccessGrant {\n  accessKey\n  secretKey\n  sessionToken\n  path\n  key\n  bucket\n  region\n  expiresIn\n  store\n  __typename\n}\n\nmutation RequestKulisseAccess($input: RequestKulisseAccessInput!) {\n  requestKulisseAccess(input: $input) {\n    ...KulisseAccessGrant\n    __typename\n  }\n}'
 
+class RefreshKulisseUploadMutation(BaseModel):
+    """ Reissues credentials for an upload still in flight, to the same key: a write that outlives its
+ credentials asks for this before they expire and carries on. Only the uploader may."""
+    refresh_kulisse_upload: KulisseUploadGrant = Field(alias='refreshKulisseUpload')
+    "Reissue upload credentials for a kulisse upload still in flight, to the same key, so a write that outlives its credentials carries on. Only the uploader may, never for a finished store, and never past the upload's time limit"
+
+    class Arguments(BaseModel):
+        """Arguments for RefreshKulisseUpload """
+        input: RefreshUploadInput
+
+    class Meta:
+        """Meta class for RefreshKulisseUpload """
+        document = 'fragment KulisseUploadGrant on KulisseUploadGrant {\n  accessKey\n  secretKey\n  sessionToken\n  path\n  key\n  bucket\n  expiresIn\n  maxBytes\n  store\n  __typename\n}\n\nmutation RefreshKulisseUpload($input: RefreshUploadInput!) {\n  refreshKulisseUpload(input: $input) {\n    ...KulisseUploadGrant\n    __typename\n  }\n}'
+
 class RequestMediaUploadMutation(BaseModel):
     """No documentation found for this operation."""
     request_media_upload: MediaUploadGrant = Field(alias='requestMediaUpload')
@@ -6417,6 +6478,20 @@ class RequestMediaAccessMutation(BaseModel):
     class Meta:
         """Meta class for RequestMediaAccess """
         document = 'fragment MediaAccessGrant on MediaAccessGrant {\n  accessKey\n  secretKey\n  sessionToken\n  expiresIn\n  path\n  key\n  bucket\n  __typename\n}\n\nmutation RequestMediaAccess($input: RequestMediaAccessInput!) {\n  requestMediaAccess(input: $input) {\n    ...MediaAccessGrant\n    __typename\n  }\n}'
+
+class RefreshMediaUploadMutation(BaseModel):
+    """ Reissues credentials for an upload still in flight, to the same key: a write that outlives its
+ credentials asks for this before they expire and carries on. Only the uploader may."""
+    refresh_media_upload: MediaUploadGrant = Field(alias='refreshMediaUpload')
+    "Reissue upload credentials for a media upload still in flight, to the same key, so a write that outlives its credentials carries on. Only the uploader may, never for a finished store, and never past the upload's time limit"
+
+    class Arguments(BaseModel):
+        """Arguments for RefreshMediaUpload """
+        input: RefreshUploadInput
+
+    class Meta:
+        """Meta class for RefreshMediaUpload """
+        document = 'fragment MediaUploadGrant on MediaUploadGrant {\n  accessKey\n  secretKey\n  sessionToken\n  path\n  key\n  bucket\n  expiresIn\n  maxBytes\n  store\n  __typename\n}\n\nmutation RefreshMediaUpload($input: RefreshUploadInput!) {\n  refreshMediaUpload(input: $input) {\n    ...MediaUploadGrant\n    __typename\n  }\n}'
 
 class RequestParquetUploadMutation(BaseModel):
     """No documentation found for this operation."""
@@ -6457,6 +6532,20 @@ class RequestParquetAccessMutation(BaseModel):
         """Meta class for RequestParquetAccess """
         document = 'fragment ParquetAccessGrant on ParquetAccessGrant {\n  accessKey\n  secretKey\n  sessionToken\n  expiresIn\n  path\n  key\n  bucket\n  __typename\n}\n\nmutation RequestParquetAccess($input: RequestParquetAccessInput!) {\n  requestParquetAccess(input: $input) {\n    ...ParquetAccessGrant\n    __typename\n  }\n}'
 
+class RefreshParquetUploadMutation(BaseModel):
+    """ Reissues credentials for an upload still in flight, to the same key: a write that outlives its
+ credentials asks for this before they expire and carries on. Only the uploader may."""
+    refresh_parquet_upload: ParquetUploadGrant = Field(alias='refreshParquetUpload')
+    "Reissue upload credentials for a parquet upload still in flight, to the same key, so a write that outlives its credentials carries on. Only the uploader may, never for a finished store, and never past the upload's time limit"
+
+    class Arguments(BaseModel):
+        """Arguments for RefreshParquetUpload """
+        input: RefreshUploadInput
+
+    class Meta:
+        """Meta class for RefreshParquetUpload """
+        document = 'fragment ParquetUploadGrant on ParquetUploadGrant {\n  accessKey\n  secretKey\n  sessionToken\n  path\n  key\n  bucket\n  expiresIn\n  maxBytes\n  store\n  __typename\n}\n\nmutation RefreshParquetUpload($input: RefreshUploadInput!) {\n  refreshParquetUpload(input: $input) {\n    ...ParquetUploadGrant\n    __typename\n  }\n}'
+
 class RequestSparseUploadMutation(BaseModel):
     """No documentation found for this operation."""
     request_sparse_upload: SparseUploadGrant = Field(alias='requestSparseUpload')
@@ -6482,6 +6571,20 @@ class FinishSparseUploadMutation(BaseModel):
     class Meta:
         """Meta class for FinishSparseUpload """
         document = 'fragment SparseStore on SparseStore {\n  id\n  key\n  bucket\n  path\n  spec\n  shape\n  layouts {\n    path\n    encoding\n    encodingVersion\n    indexedAxis\n    indexOrder\n    nnz\n    dtype\n    chunks\n    rangeReadable\n    __typename\n  }\n  __typename\n}\n\nmutation FinishSparseUpload($input: FinishSparseUploadInput!) {\n  finishSparseUpload(input: $input) {\n    ...SparseStore\n    __typename\n  }\n}'
+
+class RefreshSparseUploadMutation(BaseModel):
+    """ Reissues credentials for an upload still in flight, to the same key: a write that outlives its
+ credentials asks for this before they expire and carries on. Only the uploader may."""
+    refresh_sparse_upload: SparseUploadGrant = Field(alias='refreshSparseUpload')
+    'Reissue upload credentials for a sparse store whose upload is still in flight, for the reason `refreshZarrUpload` exists: three chunked arrays of a large matrix take long enough that a write can outlive its session token. Refuses a store that is already populated -- that is an overwrite, not a resumption'
+
+    class Arguments(BaseModel):
+        """Arguments for RefreshSparseUpload """
+        input: RefreshUploadInput
+
+    class Meta:
+        """Meta class for RefreshSparseUpload """
+        document = 'fragment SparseUploadGrant on SparseUploadGrant {\n  accessKey\n  secretKey\n  sessionToken\n  path\n  key\n  bucket\n  expiresIn\n  maxBytes\n  store\n  __typename\n}\n\nmutation RefreshSparseUpload($input: RefreshUploadInput!) {\n  refreshSparseUpload(input: $input) {\n    ...SparseUploadGrant\n    __typename\n  }\n}'
 
 class RequestZarrUploadMutation(BaseModel):
     """No documentation found for this operation."""
@@ -6521,6 +6624,20 @@ class RequestZarrAccessMutation(BaseModel):
     class Meta:
         """Meta class for RequestZarrAccess """
         document = 'fragment ZarrAccessGrant on ZarrAccessGrant {\n  accessKey\n  secretKey\n  sessionToken\n  expiresIn\n  path\n  key\n  bucket\n  __typename\n}\n\nmutation RequestZarrAccess($input: RequestZarrAccessInput!) {\n  requestZarrAccess(input: $input) {\n    ...ZarrAccessGrant\n    __typename\n  }\n}'
+
+class RefreshZarrUploadMutation(BaseModel):
+    """ Reissues credentials for an upload still in flight, to the same key: a write that outlives its
+ credentials asks for this before they expire and carries on. Only the uploader may."""
+    refresh_zarr_upload: ZarrUploadGrant = Field(alias='refreshZarrUpload')
+    "Reissue upload credentials for a Zarr store whose upload is still in flight. A grant's credentials expire, and clients hold the session token as a static credential, so a write large enough to outlive its session dies partway through. This returns a fresh session against the same prefix so the write can carry on. Refuses a store that is already populated -- that is an overwrite, not a resumption"
+
+    class Arguments(BaseModel):
+        """Arguments for RefreshZarrUpload """
+        input: RefreshUploadInput
+
+    class Meta:
+        """Meta class for RefreshZarrUpload """
+        document = 'fragment ZarrUploadGrant on ZarrUploadGrant {\n  accessKey\n  secretKey\n  sessionToken\n  path\n  key\n  bucket\n  expiresIn\n  maxBytes\n  store\n  __typename\n}\n\nmutation RefreshZarrUpload($input: RefreshUploadInput!) {\n  refreshZarrUpload(input: $input) {\n    ...ZarrUploadGrant\n    __typename\n  }\n}'
 
 class FromFileLikeMutation(BaseModel):
     """No documentation found for this operation."""
@@ -11188,14 +11305,14 @@ Returns:
         variables['input'] = _input
         return self.execute(DeleteRegistrationMutation, variables, task=task).delete_registration
 
-    async def arequest_bigfile_upload(self, original_file_name: str, file_size: ByteCountCoercible | None | UnsetType=UNSET, content_type: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> BigFileUploadGrant:
+    async def arequest_bigfile_upload(self, original_file_name: str, file_size: ByteCountCoercible, content_type: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> BigFileUploadGrant:
         """RequestBigfileUpload 
 
 Request an upload grant for a big file store
 
 Args:
     original_file_name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-    file_size: A number of bytes. 64-bit, unlike Int: serialized as a JSON number, and accepted as a number or a numeric string.
+    file_size: A number of bytes. 64-bit, unlike Int: serialized as a JSON number, and accepted as a number or a numeric string. (required)
     content_type: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
@@ -11205,21 +11322,20 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['originalFileName'] = original_file_name
-        if file_size is not UNSET:
-            _input['fileSize'] = file_size
+        _input['fileSize'] = file_size
         if content_type is not UNSET:
             _input['contentType'] = content_type
         variables['input'] = _input
         return (await self.aexecute(RequestBigfileUploadMutation, variables, task=task)).request_bigfile_upload
 
-    def request_bigfile_upload(self, original_file_name: str, file_size: ByteCountCoercible | None | UnsetType=UNSET, content_type: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> BigFileUploadGrant:
+    def request_bigfile_upload(self, original_file_name: str, file_size: ByteCountCoercible, content_type: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> BigFileUploadGrant:
         """RequestBigfileUpload 
 
 Request an upload grant for a big file store
 
 Args:
     original_file_name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-    file_size: A number of bytes. 64-bit, unlike Int: serialized as a JSON number, and accepted as a number or a numeric string.
+    file_size: A number of bytes. 64-bit, unlike Int: serialized as a JSON number, and accepted as a number or a numeric string. (required)
     content_type: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
@@ -11229,8 +11345,7 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['originalFileName'] = original_file_name
-        if file_size is not UNSET:
-            _input['fileSize'] = file_size
+        _input['fileSize'] = file_size
         if content_type is not UNSET:
             _input['contentType'] = content_type
         variables['input'] = _input
@@ -11311,6 +11426,42 @@ Returns:
         _input['storeId'] = store_id
         variables['input'] = _input
         return self.execute(RequestBigfileAccessMutation, variables, task=task).request_bigfile_access
+
+    async def arefresh_bigfile_upload(self, store_id: str, task: TaskLike | None=None) -> BigFileUploadGrant:
+        """RefreshBigfileUpload 
+ Reissues credentials for an upload still in flight, to the same key: a write that outlives its
+ credentials asks for this before they expire and carries on. Only the uploader may.
+
+Args:
+    store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    BigFileUploadGrant
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['storeId'] = store_id
+        variables['input'] = _input
+        return (await self.aexecute(RefreshBigfileUploadMutation, variables, task=task)).refresh_bigfile_upload
+
+    def refresh_bigfile_upload(self, store_id: str, task: TaskLike | None=None) -> BigFileUploadGrant:
+        """RefreshBigfileUpload 
+ Reissues credentials for an upload still in flight, to the same key: a write that outlives its
+ credentials asks for this before they expire and carries on. Only the uploader may.
+
+Args:
+    store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    BigFileUploadGrant
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['storeId'] = store_id
+        variables['input'] = _input
+        return self.execute(RefreshBigfileUploadMutation, variables, task=task).refresh_bigfile_upload
 
     async def arequest_fabriks_upload(self, task: TaskLike | None=None) -> FabriksUploadGrant:
         """RequestFabriksUpload 
@@ -11418,6 +11569,42 @@ Returns:
         variables['input'] = _input
         return self.execute(RequestFabriksAccessMutation, variables, task=task).request_fabriks_access
 
+    async def arefresh_fabriks_upload(self, store_id: str, task: TaskLike | None=None) -> FabriksUploadGrant:
+        """RefreshFabriksUpload 
+ Reissues credentials for an upload still in flight, to the same key: a write that outlives its
+ credentials asks for this before they expire and carries on. Only the uploader may.
+
+Args:
+    store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    FabriksUploadGrant
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['storeId'] = store_id
+        variables['input'] = _input
+        return (await self.aexecute(RefreshFabriksUploadMutation, variables, task=task)).refresh_fabriks_upload
+
+    def refresh_fabriks_upload(self, store_id: str, task: TaskLike | None=None) -> FabriksUploadGrant:
+        """RefreshFabriksUpload 
+ Reissues credentials for an upload still in flight, to the same key: a write that outlives its
+ credentials asks for this before they expire and carries on. Only the uploader may.
+
+Args:
+    store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    FabriksUploadGrant
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['storeId'] = store_id
+        variables['input'] = _input
+        return self.execute(RefreshFabriksUploadMutation, variables, task=task).refresh_fabriks_upload
+
     async def arequest_konnektion_upload(self, task: TaskLike | None=None) -> KonnektionUploadGrant:
         """RequestKonnektionUpload 
 
@@ -11524,14 +11711,50 @@ Returns:
         variables['input'] = _input
         return self.execute(RequestKonnektionAccessMutation, variables, task=task).request_konnektion_access
 
-    async def arequest_kulisse_upload(self, original_file_name: str, file_size: ByteCountCoercible | None | UnsetType=UNSET, task: TaskLike | None=None) -> KulisseUploadGrant:
+    async def arefresh_konnektion_upload(self, store_id: str, task: TaskLike | None=None) -> KonnektionUploadGrant:
+        """RefreshKonnektionUpload 
+ Reissues credentials for an upload still in flight, to the same key: a write that outlives its
+ credentials asks for this before they expire and carries on. Only the uploader may.
+
+Args:
+    store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    KonnektionUploadGrant
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['storeId'] = store_id
+        variables['input'] = _input
+        return (await self.aexecute(RefreshKonnektionUploadMutation, variables, task=task)).refresh_konnektion_upload
+
+    def refresh_konnektion_upload(self, store_id: str, task: TaskLike | None=None) -> KonnektionUploadGrant:
+        """RefreshKonnektionUpload 
+ Reissues credentials for an upload still in flight, to the same key: a write that outlives its
+ credentials asks for this before they expire and carries on. Only the uploader may.
+
+Args:
+    store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    KonnektionUploadGrant
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['storeId'] = store_id
+        variables['input'] = _input
+        return self.execute(RefreshKonnektionUploadMutation, variables, task=task).refresh_konnektion_upload
+
+    async def arequest_kulisse_upload(self, original_file_name: str, file_size: ByteCountCoercible, task: TaskLike | None=None) -> KulisseUploadGrant:
         """RequestKulisseUpload 
 
 Request an upload grant for a kulisse store: one device or scene model, a self-contained binary glTF
 
 Args:
     original_file_name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-    file_size: A number of bytes. 64-bit, unlike Int: serialized as a JSON number, and accepted as a number or a numeric string.
+    file_size: A number of bytes. 64-bit, unlike Int: serialized as a JSON number, and accepted as a number or a numeric string. (required)
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
@@ -11540,19 +11763,18 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['originalFileName'] = original_file_name
-        if file_size is not UNSET:
-            _input['fileSize'] = file_size
+        _input['fileSize'] = file_size
         variables['input'] = _input
         return (await self.aexecute(RequestKulisseUploadMutation, variables, task=task)).request_kulisse_upload
 
-    def request_kulisse_upload(self, original_file_name: str, file_size: ByteCountCoercible | None | UnsetType=UNSET, task: TaskLike | None=None) -> KulisseUploadGrant:
+    def request_kulisse_upload(self, original_file_name: str, file_size: ByteCountCoercible, task: TaskLike | None=None) -> KulisseUploadGrant:
         """RequestKulisseUpload 
 
 Request an upload grant for a kulisse store: one device or scene model, a self-contained binary glTF
 
 Args:
     original_file_name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-    file_size: A number of bytes. 64-bit, unlike Int: serialized as a JSON number, and accepted as a number or a numeric string.
+    file_size: A number of bytes. 64-bit, unlike Int: serialized as a JSON number, and accepted as a number or a numeric string. (required)
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
@@ -11561,8 +11783,7 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['originalFileName'] = original_file_name
-        if file_size is not UNSET:
-            _input['fileSize'] = file_size
+        _input['fileSize'] = file_size
         variables['input'] = _input
         return self.execute(RequestKulisseUploadMutation, variables, task=task).request_kulisse_upload
 
@@ -11642,14 +11863,50 @@ Returns:
         variables['input'] = _input
         return self.execute(RequestKulisseAccessMutation, variables, task=task).request_kulisse_access
 
-    async def arequest_media_upload(self, original_file_name: str, file_size: ByteCountCoercible | None | UnsetType=UNSET, content_type: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> MediaUploadGrant:
+    async def arefresh_kulisse_upload(self, store_id: str, task: TaskLike | None=None) -> KulisseUploadGrant:
+        """RefreshKulisseUpload 
+ Reissues credentials for an upload still in flight, to the same key: a write that outlives its
+ credentials asks for this before they expire and carries on. Only the uploader may.
+
+Args:
+    store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    KulisseUploadGrant
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['storeId'] = store_id
+        variables['input'] = _input
+        return (await self.aexecute(RefreshKulisseUploadMutation, variables, task=task)).refresh_kulisse_upload
+
+    def refresh_kulisse_upload(self, store_id: str, task: TaskLike | None=None) -> KulisseUploadGrant:
+        """RefreshKulisseUpload 
+ Reissues credentials for an upload still in flight, to the same key: a write that outlives its
+ credentials asks for this before they expire and carries on. Only the uploader may.
+
+Args:
+    store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    KulisseUploadGrant
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['storeId'] = store_id
+        variables['input'] = _input
+        return self.execute(RefreshKulisseUploadMutation, variables, task=task).refresh_kulisse_upload
+
+    async def arequest_media_upload(self, original_file_name: str, file_size: ByteCountCoercible, content_type: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> MediaUploadGrant:
         """RequestMediaUpload 
 
 Upload media and return a URL for access
 
 Args:
     original_file_name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-    file_size: A number of bytes. 64-bit, unlike Int: serialized as a JSON number, and accepted as a number or a numeric string.
+    file_size: A number of bytes. 64-bit, unlike Int: serialized as a JSON number, and accepted as a number or a numeric string. (required)
     content_type: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
@@ -11659,21 +11916,20 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['originalFileName'] = original_file_name
-        if file_size is not UNSET:
-            _input['fileSize'] = file_size
+        _input['fileSize'] = file_size
         if content_type is not UNSET:
             _input['contentType'] = content_type
         variables['input'] = _input
         return (await self.aexecute(RequestMediaUploadMutation, variables, task=task)).request_media_upload
 
-    def request_media_upload(self, original_file_name: str, file_size: ByteCountCoercible | None | UnsetType=UNSET, content_type: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> MediaUploadGrant:
+    def request_media_upload(self, original_file_name: str, file_size: ByteCountCoercible, content_type: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> MediaUploadGrant:
         """RequestMediaUpload 
 
 Upload media and return a URL for access
 
 Args:
     original_file_name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-    file_size: A number of bytes. 64-bit, unlike Int: serialized as a JSON number, and accepted as a number or a numeric string.
+    file_size: A number of bytes. 64-bit, unlike Int: serialized as a JSON number, and accepted as a number or a numeric string. (required)
     content_type: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
@@ -11683,8 +11939,7 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['originalFileName'] = original_file_name
-        if file_size is not UNSET:
-            _input['fileSize'] = file_size
+        _input['fileSize'] = file_size
         if content_type is not UNSET:
             _input['contentType'] = content_type
         variables['input'] = _input
@@ -11765,6 +12020,42 @@ Returns:
         _input['storeId'] = store_id
         variables['input'] = _input
         return self.execute(RequestMediaAccessMutation, variables, task=task).request_media_access
+
+    async def arefresh_media_upload(self, store_id: str, task: TaskLike | None=None) -> MediaUploadGrant:
+        """RefreshMediaUpload 
+ Reissues credentials for an upload still in flight, to the same key: a write that outlives its
+ credentials asks for this before they expire and carries on. Only the uploader may.
+
+Args:
+    store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    MediaUploadGrant
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['storeId'] = store_id
+        variables['input'] = _input
+        return (await self.aexecute(RefreshMediaUploadMutation, variables, task=task)).refresh_media_upload
+
+    def refresh_media_upload(self, store_id: str, task: TaskLike | None=None) -> MediaUploadGrant:
+        """RefreshMediaUpload 
+ Reissues credentials for an upload still in flight, to the same key: a write that outlives its
+ credentials asks for this before they expire and carries on. Only the uploader may.
+
+Args:
+    store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    MediaUploadGrant
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['storeId'] = store_id
+        variables['input'] = _input
+        return self.execute(RefreshMediaUploadMutation, variables, task=task).refresh_media_upload
 
     async def arequest_parquet_upload(self, content_type: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> ParquetUploadGrant:
         """RequestParquetUpload 
@@ -11880,6 +12171,42 @@ Returns:
         variables['input'] = _input
         return self.execute(RequestParquetAccessMutation, variables, task=task).request_parquet_access
 
+    async def arefresh_parquet_upload(self, store_id: str, task: TaskLike | None=None) -> ParquetUploadGrant:
+        """RefreshParquetUpload 
+ Reissues credentials for an upload still in flight, to the same key: a write that outlives its
+ credentials asks for this before they expire and carries on. Only the uploader may.
+
+Args:
+    store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ParquetUploadGrant
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['storeId'] = store_id
+        variables['input'] = _input
+        return (await self.aexecute(RefreshParquetUploadMutation, variables, task=task)).refresh_parquet_upload
+
+    def refresh_parquet_upload(self, store_id: str, task: TaskLike | None=None) -> ParquetUploadGrant:
+        """RefreshParquetUpload 
+ Reissues credentials for an upload still in flight, to the same key: a write that outlives its
+ credentials asks for this before they expire and carries on. Only the uploader may.
+
+Args:
+    store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ParquetUploadGrant
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['storeId'] = store_id
+        variables['input'] = _input
+        return self.execute(RefreshParquetUploadMutation, variables, task=task).refresh_parquet_upload
+
     async def arequest_sparse_upload(self, task: TaskLike | None=None) -> SparseUploadGrant:
         """RequestSparseUpload 
 
@@ -11947,6 +12274,42 @@ Returns:
         _input['valid'] = valid
         variables['input'] = _input
         return self.execute(FinishSparseUploadMutation, variables, task=task).finish_sparse_upload
+
+    async def arefresh_sparse_upload(self, store_id: str, task: TaskLike | None=None) -> SparseUploadGrant:
+        """RefreshSparseUpload 
+ Reissues credentials for an upload still in flight, to the same key: a write that outlives its
+ credentials asks for this before they expire and carries on. Only the uploader may.
+
+Args:
+    store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    SparseUploadGrant
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['storeId'] = store_id
+        variables['input'] = _input
+        return (await self.aexecute(RefreshSparseUploadMutation, variables, task=task)).refresh_sparse_upload
+
+    def refresh_sparse_upload(self, store_id: str, task: TaskLike | None=None) -> SparseUploadGrant:
+        """RefreshSparseUpload 
+ Reissues credentials for an upload still in flight, to the same key: a write that outlives its
+ credentials asks for this before they expire and carries on. Only the uploader may.
+
+Args:
+    store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    SparseUploadGrant
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['storeId'] = store_id
+        variables['input'] = _input
+        return self.execute(RefreshSparseUploadMutation, variables, task=task).refresh_sparse_upload
 
     async def arequest_zarr_upload(self, shape: Iterable[int] | None | UnsetType=UNSET, chunks: Iterable[int] | None | UnsetType=UNSET, version: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> ZarrUploadGrant:
         """RequestZarrUpload 
@@ -12073,6 +12436,42 @@ Returns:
         _input['storeId'] = store_id
         variables['input'] = _input
         return self.execute(RequestZarrAccessMutation, variables, task=task).request_zarr_access
+
+    async def arefresh_zarr_upload(self, store_id: str, task: TaskLike | None=None) -> ZarrUploadGrant:
+        """RefreshZarrUpload 
+ Reissues credentials for an upload still in flight, to the same key: a write that outlives its
+ credentials asks for this before they expire and carries on. Only the uploader may.
+
+Args:
+    store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ZarrUploadGrant
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['storeId'] = store_id
+        variables['input'] = _input
+        return (await self.aexecute(RefreshZarrUploadMutation, variables, task=task)).refresh_zarr_upload
+
+    def refresh_zarr_upload(self, store_id: str, task: TaskLike | None=None) -> ZarrUploadGrant:
+        """RefreshZarrUpload 
+ Reissues credentials for an upload still in flight, to the same key: a write that outlives its
+ credentials asks for this before they expire and carries on. Only the uploader may.
+
+Args:
+    store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ZarrUploadGrant
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['storeId'] = store_id
+        variables['input'] = _input
+        return self.execute(RefreshZarrUploadMutation, variables, task=task).refresh_zarr_upload
 
     async def afrom_file_like(self, file: ImageFileCoercible, file_name: str, folder: IDCoercible | None | UnsetType=UNSET, export_of: Iterable[ExportOfInput] | None | UnsetType=UNSET, task: TaskLike | None=None) -> File:
         """FromFileLike 

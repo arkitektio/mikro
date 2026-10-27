@@ -16,7 +16,7 @@ import pytest
 from obstore.exceptions import GenericError, NotFoundError, PermissionDeniedError
 from obstore.store import MemoryStore
 
-from mikro.api.schema import BigFileStore, File
+from mikro.api.schema import BigFileStore, File, MediaStore
 from mikro.io.errors import DownloadError
 from mikro.io.remote import GrantedObject, RemoteFile, download_to_scratch
 from mikro.traits import FileTrait, HasDownloadAccessor
@@ -392,7 +392,6 @@ def _real_file(name: str = "acquisition.tif") -> File:
             key="a3f9c2e1",
             bucket="bucket",
             path="bucket/a3f9c2e1",
-            presignedUrl="http://example.invalid/a3f9c2e1",
         ),
     ))
 
@@ -627,3 +626,19 @@ def test_cache_policy_maps_the_flag(stored) -> None:
     assert cache_of(cache=False) == "BaseCache"
     assert cache_of(cache="all") == "AllBytes"
     assert cache_of(cache="readahead") == "ReadAheadCache"
+
+
+def test_a_media_store_downloads_through_a_media_grant(monkeypatch) -> None:
+    """A media store (a scene snapshot's image) asks for a media grant by its id, never a
+    big-file one: the server refuses a grant asked for a store of the other kind."""
+    captured: dict[str, object] = {}
+
+    def fake_download_media_file(mikro, store_id, file_name):
+        captured.update(store_id=store_id, file_name=file_name)
+        return file_name
+
+    monkeypatch.setattr("mikro.io.download.download_media_file", fake_download_media_file)
+    store = _bound(MediaStore(id="media-id", key="snapshot.png", bucket="media", path="media/snapshot.png"))
+
+    assert store.download() == "snapshot.png"
+    assert captured == {"store_id": "media-id", "file_name": "snapshot.png"}

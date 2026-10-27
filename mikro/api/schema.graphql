@@ -5269,6 +5269,7 @@ type GeneralFabriksAccessGrant {
   sessionToken: String!
   region: String!
   bucket: String!
+  prefix: String!
   expiresIn: Int!
 }
 
@@ -5282,6 +5283,7 @@ type GeneralKonnektionAccessGrant {
   sessionToken: String!
   region: String!
   bucket: String!
+  prefix: String!
   expiresIn: Int!
 }
 
@@ -5289,40 +5291,37 @@ type GeneralKonnektionAccessGrant {
 Temporary S3 credentials for reading the organization's kulisse models.
 """
 type GeneralKulisseAccessGrant {
-  path: String!
-  store: String
   status: String!
   accessKey: String!
   secretKey: String!
   sessionToken: String!
   region: String!
   bucket: String!
+  prefix: String!
   expiresIn: Int!
 }
 
 """Temporary S3 credentials for reading a media object."""
 type GeneralMediaAccessGrant {
-  path: String!
-  store: String
   status: String!
   accessKey: String!
   secretKey: String!
   sessionToken: String!
   region: String!
   bucket: String!
+  prefix: String!
   expiresIn: Int!
 }
 
 """Temporary S3 credentials for reading a parquet object."""
 type GeneralParquetAccessGrant {
-  path: String!
-  store: String
   status: String!
   accessKey: String!
   secretKey: String!
   sessionToken: String!
   region: String!
   bucket: String!
+  prefix: String!
   expiresIn: Int!
 }
 
@@ -5334,19 +5333,19 @@ type GeneralSparseAccessGrant {
   sessionToken: String!
   region: String!
   bucket: String!
+  prefix: String!
   expiresIn: Int!
 }
 
 """Temporary S3 credentials for reading a Zarr store."""
 type GeneralZarrAccessGrant {
-  path: String!
-  store: String
   status: String!
   accessKey: String!
   secretKey: String!
   sessionToken: String!
   region: String!
   bucket: String!
+  prefix: String!
   expiresIn: Int!
 }
 
@@ -7982,6 +7981,11 @@ type Mutation {
   """Finalize a media upload after the client has written the object"""
   finishMediaUpload(input: FinishMediaUploadInput!): MediaStore! @auth(any_role_of: ["admin", "editor", "bot"])
 
+  """
+  Reissue upload credentials for a media upload still in flight, to the same key, so a write that outlives its credentials carries on. Only the uploader may, never for a finished store, and never past the upload's time limit
+  """
+  refreshMediaUpload(input: RefreshUploadInput!): MediaUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
+
   """Request temporary S3 read credentials for a media file"""
   requestMediaAccess(input: RequestMediaAccessInput!): MediaAccessGrant!
 
@@ -7989,6 +7993,11 @@ type Mutation {
   Request temporary S3 read credentials for media files in the organization
   """
   requestGeneralMediaAccess(input: RequestGeneralMediaAccessInput!): GeneralMediaAccessGrant!
+
+  """
+  Reissue upload credentials for a bigfile upload still in flight, to the same key, so a write that outlives its credentials carries on. Only the uploader may, never for a finished store, and never past the upload's time limit
+  """
+  refreshBigfileUpload(input: RefreshUploadInput!): BigFileUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Request an upload grant for a big file store"""
   requestBigfileUpload(input: RequestBigFileUploadInput!): BigFileUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
@@ -8008,7 +8017,7 @@ type Mutation {
   """
   Reissue upload credentials for a Zarr store whose upload is still in flight. A grant's credentials expire, and clients hold the session token as a static credential, so a write large enough to outlive its session dies partway through. This returns a fresh session against the same prefix so the write can carry on. Refuses a store that is already populated -- that is an overwrite, not a resumption
   """
-  refreshZarrUpload(input: RefreshZarrUploadInput!): ZarrUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
+  refreshZarrUpload(input: RefreshUploadInput!): ZarrUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Request temporary S3 read credentials for a Zarr store"""
   requestZarrAccess(input: RequestZarrAccessInput!): ZarrAccessGrant!
@@ -8031,12 +8040,17 @@ type Mutation {
   """
   Reissue upload credentials for a sparse store whose upload is still in flight, for the reason `refreshZarrUpload` exists: three chunked arrays of a large matrix take long enough that a write can outlive its session token. Refuses a store that is already populated -- that is an overwrite, not a resumption
   """
-  refreshSparseUpload(input: RefreshSparseUploadInput!): SparseUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
+  refreshSparseUpload(input: RefreshUploadInput!): SparseUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Request temporary S3 read credentials for a sparse store. Covers the whole prefix, because a lookup needs `indptr` before it knows which range of `data` to fetch
   """
   requestSparseAccess(input: RequestSparseAccessInput!): SparseAccessGrant!
+
+  """
+  Reissue upload credentials for a fabriks upload still in flight, to the same key, so a write that outlives its credentials carries on. Only the uploader may, never for a finished store, and never past the upload's time limit
+  """
+  refreshFabriksUpload(input: RefreshUploadInput!): FabriksUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Request temporary S3 read credentials for sparse stores in the organization
@@ -8047,6 +8061,11 @@ type Mutation {
   Request an upload grant for a fabriks store. The grant covers the whole prefix, so one request authorizes the manifest, both catalogs and every level
   """
   requestFabriksUpload: FabriksUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
+
+  """
+  Reissue upload credentials for a kulisse upload still in flight, to the same key, so a write that outlives its credentials carries on. Only the uploader may, never for a finished store, and never past the upload's time limit
+  """
+  refreshKulisseUpload(input: RefreshUploadInput!): KulisseUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """
   Finalize a fabriks upload. This reads the store's `fabriks.json` and refuses a prefix that has none -- which is what an interrupted upload looks like, since the manifest is written last
@@ -8064,6 +8083,11 @@ type Mutation {
   requestGeneralFabriksAccess(input: RequestGeneralFabriksAccessInput!): GeneralFabriksAccessGrant!
 
   """
+  Reissue upload credentials for a konnektion upload still in flight, to the same key, so a write that outlives its credentials carries on. Only the uploader may, never for a finished store, and never past the upload's time limit
+  """
+  refreshKonnektionUpload(input: RefreshUploadInput!): KonnektionUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
+
+  """
   Request an upload grant for a kulisse store: one device or scene model, a self-contained binary glTF
   """
   requestKulisseUpload(input: RequestKulisseUploadInput!): KulisseUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
@@ -8072,6 +8096,11 @@ type Mutation {
   Finalize a kulisse upload. This reads the model's header and JSON chunk, records what it says (bounds, nodes, joints) and refuses a file that is not a self-contained glTF 2.0 model
   """
   finishKulisseUpload(input: FinishKulisseUploadInput!): KulisseStore! @auth(any_role_of: ["admin", "editor", "bot"])
+
+  """
+  Reissue upload credentials for a parquet upload still in flight, to the same key, so a write that outlives its credentials carries on. Only the uploader may, never for a finished store, and never past the upload's time limit
+  """
+  refreshParquetUpload(input: RefreshUploadInput!): ParquetUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
 
   """Request temporary S3 read credentials for a kulisse model"""
   requestKulisseAccess(input: RequestKulisseAccessInput!): KulisseAccessGrant!
@@ -9337,7 +9366,9 @@ An organization (tenant). Every object in mikro is scoped to exactly one organiz
 """
 type Organization @key(fields: "id", resolvable: true) {
   id: ID!
-  slug: String!
+
+  """The organization across issuers and services: `<issuer>#<org>`."""
+  identifier: String!
 }
 
 """The sample"""
@@ -10529,11 +10560,7 @@ type Query {
   ): Folder! @auth
 }
 
-input RefreshSparseUploadInput {
-  storeId: String!
-}
-
-input RefreshZarrUploadInput {
+input RefreshUploadInput {
   storeId: String!
 }
 
@@ -10589,7 +10616,7 @@ input RequestBigFileAccessInput {
 
 input RequestBigFileUploadInput {
   originalFileName: String!
-  fileSize: ByteCount = null
+  fileSize: ByteCount!
   contentType: String = null
 }
 
@@ -10635,7 +10662,7 @@ input RequestKulisseAccessInput {
 
 input RequestKulisseUploadInput {
   originalFileName: String!
-  fileSize: ByteCount = null
+  fileSize: ByteCount!
 }
 
 input RequestMediaAccessInput {
@@ -10644,7 +10671,7 @@ input RequestMediaAccessInput {
 
 input RequestMediaUploadInput {
   originalFileName: String!
-  fileSize: ByteCount = null
+  fileSize: ByteCount!
   contentType: String = null
 }
 

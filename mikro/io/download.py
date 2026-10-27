@@ -1,4 +1,4 @@
-"""Reading what mikro stores: zarr arrays, parquet tables, big files.
+"""Reading what mikro stores: zarr arrays, parquet tables, big files, media objects.
 
 Every function takes the client first (``open_zarr_store(mikro, store_id)``):
 the access grant is requested through it, and the datalayer that serves the
@@ -9,7 +9,6 @@ pass the client that fetched the object. Nothing is looked up.
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import aiohttp
 import obstore  # Imported to access direct streaming capabilities
 from koil import unkoil
 from rath.scalars import ID
@@ -17,6 +16,7 @@ from zarr.storage import StorePath
 
 from mikro.api.schema import (
     BigFileAccessGrant,
+    MediaAccessGrant,
     ParquetAccessGrant,
     ZarrAccessGrant,
 )
@@ -53,6 +53,14 @@ async def aget_bigfile_credentials_and_endpoint(
 ) -> tuple[BigFileAccessGrant, str]:
     """Fetch big-file access credentials and the datalayer endpoint URL."""
     credentials = await mikro.arequest_bigfile_access(ID.validate(store))
+    return credentials, await mikro.datalayer.get_endpoint_url()
+
+
+async def aget_media_credentials_and_endpoint(
+    mikro: "Mikro", store: str
+) -> tuple[MediaAccessGrant, str]:
+    """Fetch media access credentials and the datalayer endpoint URL."""
+    credentials = await mikro.arequest_media_access(ID.validate(store))
     return credentials, await mikro.datalayer.get_endpoint_url()
 
 
@@ -130,50 +138,10 @@ def _ensure_parent_directory(file_name: str) -> None:
     parent.mkdir(parents=True, exist_ok=True)
 
 
-async def adownload_presigned_file(
-    mikro: "Mikro", presigned_url: str, file_name: str
+async def _awrite_object(
+    mikro: "Mikro", credentials: BigFileAccessGrant | MediaAccessGrant, endpoint_url: str, file_name: str
 ) -> str:
-    """Download a file from a presigned URL (a path on ``mikro``'s datalayer).
-
-    Returns:
-        The local path where the file was saved.
-    """
-    endpoint_url = await mikro.datalayer.get_endpoint_url()
-    _ensure_parent_directory(file_name)
-
-    # Stream the file in 1 MiB chunks to avoid per-read syscall overhead.
-    async with aiohttp.ClientSession() as session:
-        # ``proxy=None`` is aiohttp's own default, so an unproxied datalayer is unchanged.
-        async with session.get(
-            endpoint_url + presigned_url,
-            proxy=mikro.datalayer.proxy,
-            # A pinned store by its hub's certificate alone; any other as before.
-            ssl=mikro.datalayer.ssl_context() if mikro.datalayer.certificates else True,
-        ) as response:
-            response.raise_for_status()
-            with open(file_name, "wb") as file:
-                while True:
-                    chunk = await response.content.read(1024 * 1024)
-                    if not chunk:
-                        break
-                    file.write(chunk)
-
-    return file_name
-
-
-def download_presigned_file(mikro: "Mikro", presigned_url: str, file_name: str) -> str:
-    """Download a file from a presigned URL synchronously (see the async twin)."""
-    return unkoil(adownload_presigned_file, mikro, presigned_url, file_name)
-
-
-async def adownload_file(mikro: "Mikro", store_id: str, file_name: str) -> str:
-    """Download a big file from the store and save it to ``file_name``.
-
-    Returns:
-        The local path where the file was saved.
-    """
-    credentials, endpoint_url = await aget_bigfile_credentials_and_endpoint(mikro, store_id)
-
+    """Stream the one object a grant names into ``file_name``."""
     _ensure_parent_directory(file_name)
     store = create_s3_store(endpoint_url, credentials, proxy=mikro.datalayer.proxy)
 
@@ -186,10 +154,10 @@ async def adownload_file(mikro: "Mikro", store_id: str, file_name: str) -> str:
     return file_name
 
 
-def download_file(mikro: "Mikro", store_id: str, file_name: str) -> str:
-    """Download a big file from the store synchronously (see the async twin)."""
-    credentials, endpoint_url = unkoil(aget_bigfile_credentials_and_endpoint, mikro, store_id)
-
+def _write_object(
+    mikro: "Mikro", credentials: BigFileAccessGrant | MediaAccessGrant, endpoint_url: str, file_name: str
+) -> str:
+    """Stream the one object a grant names into ``file_name`` synchronously."""
     _ensure_parent_directory(file_name)
     store = create_s3_store(endpoint_url, credentials, proxy=mikro.datalayer.proxy)
 
@@ -199,3 +167,35 @@ def download_file(mikro: "Mikro", store_id: str, file_name: str) -> str:
         file.writelines(response.stream())
 
     return file_name
+
+
+async def adownload_file(mikro: "Mikro", store_id: str, file_name: str) -> str:
+    """Download a big file from the store and save it to ``file_name``.
+
+    Returns:
+        The local path where the file was saved.
+    """
+    credentials, endpoint_url = await aget_bigfile_credentials_and_endpoint(mikro, store_id)
+    return await _awrite_object(mikro, credentials, endpoint_url, file_name)
+
+
+def download_file(mikro: "Mikro", store_id: str, file_name: str) -> str:
+    """Download a big file from the store synchronously (see the async twin)."""
+    credentials, endpoint_url = unkoil(aget_bigfile_credentials_and_endpoint, mikro, store_id)
+    return _write_object(mikro, credentials, endpoint_url, file_name)
+
+
+async def adownload_media_file(mikro: "Mikro", store_id: str, file_name: str) -> str:
+    """Download a media object (a rendered scene snapshot, say) and save it to ``file_name``.
+
+    Returns:
+        The local path where the file was saved.
+    """
+    credentials, endpoint_url = await aget_media_credentials_and_endpoint(mikro, store_id)
+    return await _awrite_object(mikro, credentials, endpoint_url, file_name)
+
+
+def download_media_file(mikro: "Mikro", store_id: str, file_name: str) -> str:
+    """Download a media object synchronously (see the async twin)."""
+    credentials, endpoint_url = unkoil(aget_media_credentials_and_endpoint, mikro, store_id)
+    return _write_object(mikro, credentials, endpoint_url, file_name)

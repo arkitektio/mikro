@@ -17,3 +17,12 @@ mutation RequestMediaAccess($input: RequestMediaAccessInput!) {
      ...MediaAccessGrant
   }
 }
+
+
+# Reissues credentials for an upload still in flight, to the same key: a write that outlives its
+# credentials asks for this before they expire and carries on. Only the uploader may.
+mutation RefreshMediaUpload($input: RefreshUploadInput!) {
+  refreshMediaUpload(input: $input) {
+    ...MediaUploadGrant
+  }
+}
