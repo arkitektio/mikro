@@ -23,7 +23,6 @@ from arkitekt_spec.declare.app import AppRegistry
 from arkitekt_spec.declare.widgets import SearchWidget
 
 from mikro.api.schema import (
-    SCOPES,
     Animation,
     Annotation,
     AnnotationCollection,
@@ -90,9 +89,6 @@ registry = AppRegistry()
     # The server this release of the client is written against: what a hub made for
     # an app's tests runs. Moves with the server's major, not with this package's.
     image="jhnnsrs/mikro:12",
-    # What the client's operations need at mikro, as turms gathered it from the schema: every
-    # app using mikro asks for it.
-    scopes=SCOPES,
 )
 def mikro(
     mikro: Annotated[

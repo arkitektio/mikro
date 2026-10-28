@@ -7976,15 +7976,15 @@ type Mutation {
   deleteCollaboration(id: ID!): ID! @auth(required_scopes: ["mikro_share"], any_role_of: ["mikro_editor"])
 
   """Upload media and return a URL for access"""
-  requestMediaUpload(input: RequestMediaUploadInput!): MediaUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
+  requestMediaUpload(input: RequestMediaUploadInput!): MediaUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Finalize a media upload after the client has written the object"""
-  finishMediaUpload(input: FinishMediaUploadInput!): MediaStore! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
+  finishMediaUpload(input: FinishMediaUploadInput!): MediaStore! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Reissue upload credentials for a media upload still in flight, to the same key, so a write that outlives its credentials carries on. Only the uploader may, never for a finished store, and never past the upload's time limit
   """
-  refreshMediaUpload(input: RefreshUploadInput!): MediaUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
+  refreshMediaUpload(input: RefreshUploadInput!): MediaUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Request temporary S3 read credentials for a media file"""
   requestMediaAccess(input: RequestMediaAccessInput!): MediaAccessGrant! @auth(required_scopes: ["mikro_read"])
@@ -7997,27 +7997,27 @@ type Mutation {
   """
   Reissue upload credentials for a bigfile upload still in flight, to the same key, so a write that outlives its credentials carries on. Only the uploader may, never for a finished store, and never past the upload's time limit
   """
-  refreshBigfileUpload(input: RefreshUploadInput!): BigFileUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
+  refreshBigfileUpload(input: RefreshUploadInput!): BigFileUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Request an upload grant for a big file store"""
-  requestBigfileUpload(input: RequestBigFileUploadInput!): BigFileUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
+  requestBigfileUpload(input: RequestBigFileUploadInput!): BigFileUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Finalize a big file upload after the client has written the object"""
-  finishBigfileUpload(input: FinishBigFileUploadInput!): BigFileStore! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
+  finishBigfileUpload(input: FinishBigFileUploadInput!): BigFileStore! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Request temporary S3 read credentials for a big file"""
   requestBigfileAccess(input: RequestBigFileAccessInput!): BigFileAccessGrant! @auth(required_scopes: ["mikro_read"])
 
   """Request an upload grant for a Zarr store"""
-  requestZarrUpload(input: RequestZarrUploadInput!): ZarrUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
+  requestZarrUpload(input: RequestZarrUploadInput!): ZarrUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Finalize a Zarr upload after the client has written the object"""
-  finishZarrUpload(input: FinishZarrUploadInput!): ZarrStore! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
+  finishZarrUpload(input: FinishZarrUploadInput!): ZarrStore! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Reissue upload credentials for a Zarr store whose upload is still in flight. A grant's credentials expire, and clients hold the session token as a static credential, so a write large enough to outlive its session dies partway through. This returns a fresh session against the same prefix so the write can carry on. Refuses a store that is already populated -- that is an overwrite, not a resumption
   """
-  refreshZarrUpload(input: RefreshUploadInput!): ZarrUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
+  refreshZarrUpload(input: RefreshUploadInput!): ZarrUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Request temporary S3 read credentials for a Zarr store"""
   requestZarrAccess(input: RequestZarrAccessInput!): ZarrAccessGrant! @auth(required_scopes: ["mikro_read"])
@@ -8030,17 +8030,17 @@ type Mutation {
   """
   Request an upload grant for a sparse store. The grant covers the whole prefix, so one request authorizes the group's metadata and all three of its arrays. It declares nothing about the matrix: the group states its encoding, shape and chunking, and the server reads them when the upload is finished
   """
-  requestSparseUpload: SparseUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
+  requestSparseUpload: SparseUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Finalize a sparse upload, which is when the group's own metadata is read. A missing encoding, a missing array, or an `indptr` whose length contradicts the declared shape are all refused here -- that is what an interrupted upload looks like, and catching it now beats a reader discovering it later
   """
-  finishSparseUpload(input: FinishSparseUploadInput!): SparseStore! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
+  finishSparseUpload(input: FinishSparseUploadInput!): SparseStore! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Reissue upload credentials for a sparse store whose upload is still in flight, for the reason `refreshZarrUpload` exists: three chunked arrays of a large matrix take long enough that a write can outlive its session token. Refuses a store that is already populated -- that is an overwrite, not a resumption
   """
-  refreshSparseUpload(input: RefreshUploadInput!): SparseUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
+  refreshSparseUpload(input: RefreshUploadInput!): SparseUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Request temporary S3 read credentials for a sparse store. Covers the whole prefix, because a lookup needs `indptr` before it knows which range of `data` to fetch
@@ -8050,7 +8050,7 @@ type Mutation {
   """
   Reissue upload credentials for a fabriks upload still in flight, to the same key, so a write that outlives its credentials carries on. Only the uploader may, never for a finished store, and never past the upload's time limit
   """
-  refreshFabriksUpload(input: RefreshUploadInput!): FabriksUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
+  refreshFabriksUpload(input: RefreshUploadInput!): FabriksUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Request temporary S3 read credentials for sparse stores in the organization
@@ -8060,17 +8060,17 @@ type Mutation {
   """
   Request an upload grant for a fabriks store. The grant covers the whole prefix, so one request authorizes the manifest, both catalogs and every level
   """
-  requestFabriksUpload: FabriksUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
+  requestFabriksUpload: FabriksUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Reissue upload credentials for a kulisse upload still in flight, to the same key, so a write that outlives its credentials carries on. Only the uploader may, never for a finished store, and never past the upload's time limit
   """
-  refreshKulisseUpload(input: RefreshUploadInput!): KulisseUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
+  refreshKulisseUpload(input: RefreshUploadInput!): KulisseUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Finalize a fabriks upload. This reads the store's `fabriks.json` and refuses a prefix that has none -- which is what an interrupted upload looks like, since the manifest is written last
   """
-  finishFabriksUpload(input: FinishFabriksUploadInput!): FabriksStore! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
+  finishFabriksUpload(input: FinishFabriksUploadInput!): FabriksStore! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Request temporary S3 read credentials covering a fabriks store's whole prefix
@@ -8085,22 +8085,22 @@ type Mutation {
   """
   Reissue upload credentials for a konnektion upload still in flight, to the same key, so a write that outlives its credentials carries on. Only the uploader may, never for a finished store, and never past the upload's time limit
   """
-  refreshKonnektionUpload(input: RefreshUploadInput!): KonnektionUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
+  refreshKonnektionUpload(input: RefreshUploadInput!): KonnektionUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Request an upload grant for a kulisse store: one device or scene model, a self-contained binary glTF
   """
-  requestKulisseUpload(input: RequestKulisseUploadInput!): KulisseUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
+  requestKulisseUpload(input: RequestKulisseUploadInput!): KulisseUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Finalize a kulisse upload. This reads the model's header and JSON chunk, records what it says (bounds, nodes, joints) and refuses a file that is not a self-contained glTF 2.0 model
   """
-  finishKulisseUpload(input: FinishKulisseUploadInput!): KulisseStore! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
+  finishKulisseUpload(input: FinishKulisseUploadInput!): KulisseStore! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Reissue upload credentials for a parquet upload still in flight, to the same key, so a write that outlives its credentials carries on. Only the uploader may, never for a finished store, and never past the upload's time limit
   """
-  refreshParquetUpload(input: RefreshUploadInput!): ParquetUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
+  refreshParquetUpload(input: RefreshUploadInput!): ParquetUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Request temporary S3 read credentials for a kulisse model"""
   requestKulisseAccess(input: RequestKulisseAccessInput!): KulisseAccessGrant! @auth(required_scopes: ["mikro_read"])
@@ -8113,12 +8113,12 @@ type Mutation {
   """
   Request an upload grant for a konnektion store. The grant covers the whole prefix, so one request authorizes the manifest, both catalogs and every level
   """
-  requestKonnektionUpload: KonnektionUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
+  requestKonnektionUpload: KonnektionUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Finalize a konnektion upload. This reads the store's `konnektion.json` and refuses a prefix that has none -- which is what an interrupted upload looks like, since the manifest is written last
   """
-  finishKonnektionUpload(input: FinishKonnektionUploadInput!): KonnektionStore! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
+  finishKonnektionUpload(input: FinishKonnektionUploadInput!): KonnektionStore! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Request temporary S3 read credentials covering a konnektion store's whole prefix
@@ -8131,10 +8131,10 @@ type Mutation {
   requestGeneralKonnektionAccess(input: RequestGeneralKonnektionAccessInput!): GeneralKonnektionAccessGrant! @auth(required_scopes: ["mikro_read"])
 
   """Request an upload grant for a Parquet store"""
-  requestParquetUpload(input: RequestParquetUploadInput!): ParquetUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
+  requestParquetUpload(input: RequestParquetUploadInput!): ParquetUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Finalize a Parquet upload after the client has written the object"""
-  finishParquetUpload(input: FinishParquetUploadInput!): ParquetStore! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
+  finishParquetUpload(input: FinishParquetUploadInput!): ParquetStore! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Request temporary S3 read credentials for a Parquet file"""
   requestParquetAccess(input: RequestParquetAccessInput!): ParquetAccessGrant! @auth(required_scopes: ["mikro_read"])

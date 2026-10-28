@@ -194,11 +194,16 @@
                 ]
             },
             "additional_config": {},
-            "directive_class_vars": [
+            "class_fields": [
                 {
-                    "directive": "identified",
-                    "argument": "by",
-                    "attribute": "__identifier__"
+                    "name": "__identifier__",
+                    "kind": null,
+                    "collector": {
+                        "type": "type_directive",
+                        "directive": "identified",
+                        "argument": "by"
+                    },
+                    "combine": null
                 }
             ],
             "force_plugin_order": true,
@@ -225,6 +230,18 @@
                 {
                     "type": "turms.plugins.client.ClientPlugin",
                     "client_class": "MikroApi",
+                    "client_fields": [
+                        {
+                            "name": "__scopes__",
+                            "kind": "tuple[str, ...]",
+                            "collector": {
+                                "type": "root_field_directive",
+                                "directive": "auth",
+                                "argument": "required_scopes"
+                            },
+                            "combine": "union"
+                        }
+                    ],
                     "global_kwargs": [
                         {
                             "key": "task",
@@ -254,9 +271,6 @@
                     "expand_input_types": [
                         "input"
                     ]
-                },
-                {
-                    "type": "turms.plugins.scopes.ScopesPlugin"
                 }
             ],
             "processors": [],
