@@ -18,8 +18,8 @@ dependencies = [
     "numcodecs>=0.16.1",
     "obstore>=0.10.0",
     "kanne>=2.5.0",
-    # The service and structures are declared with arkitekt-spec (4.1: a service's scopes).
-    "arkitekt-spec>=4.1",
+    # The service and structures are declared with arkitekt-spec (5.0: a service reads its scopes off its client).
+    "arkitekt-spec>=5.0",
 ]
 
 [project.optional-dependencies]
@@ -59,7 +59,7 @@ dev-dependencies =  [
     "black>=23.1.0,<24",
     "pytest-aiohttp>=1.0.4,<2",
     "ruff>0.11",
-    "turms>=2.3.0",
+    "turms>=3.0",
     "cryptography>=44.0.3",
     "pyjwt>=2.10.1",
     "dokker>=2.8",
