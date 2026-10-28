@@ -254,6 +254,9 @@
                     "expand_input_types": [
                         "input"
                     ]
+                },
+                {
+                    "type": "turms.plugins.scopes.ScopesPlugin"
                 }
             ],
             "processors": [],

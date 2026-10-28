@@ -18,8 +18,8 @@ dependencies = [
     "numcodecs>=0.16.1",
     "obstore>=0.10.0",
     "kanne>=2.5.0",
-    # The service and structures are declared with arkitekt-spec.
-    "arkitekt-spec>=3.19.1",
+    # The service and structures are declared with arkitekt-spec (4.1: a service's scopes).
+    "arkitekt-spec>=4.1",
 ]
 
 [project.optional-dependencies]

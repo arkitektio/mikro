@@ -7953,705 +7953,705 @@ type ModelChange {
 
 type Mutation {
   """Create an empty collaboration, to put objects in and grant a guest"""
-  createCollaboration(input: CreateCollaborationInput!): Collaboration! @auth(any_role_of: ["admin", "editor"])
+  createCollaboration(input: CreateCollaborationInput!): Collaboration! @auth(required_scopes: ["mikro_share"], any_role_of: ["mikro_editor"])
 
   """
   Put an object in a collaboration, with what it needs to be seen: a scene brings the data its layers draw
   """
-  addToCollaboration(input: CollaborationObjectInput!): Collaboration! @auth(any_role_of: ["admin", "editor"])
+  addToCollaboration(input: CollaborationObjectInput!): Collaboration! @auth(required_scopes: ["mikro_share"], any_role_of: ["mikro_editor"])
 
   """
   Put several objects in a collaboration at once, each with what it needs to be seen; all or none. How a dataset goes in with what was derived from it
   """
-  addManyToCollaboration(input: AddManyToCollaborationInput!): Collaboration! @auth(any_role_of: ["admin", "editor"])
+  addManyToCollaboration(input: AddManyToCollaborationInput!): Collaboration! @auth(required_scopes: ["mikro_share"], any_role_of: ["mikro_editor"])
 
   """
   Take an object out of a collaboration, with what it brought that nothing else there needs
   """
-  removeFromCollaboration(input: CollaborationObjectInput!): Collaboration! @auth(any_role_of: ["admin", "editor"])
+  removeFromCollaboration(input: CollaborationObjectInput!): Collaboration! @auth(required_scopes: ["mikro_share"], any_role_of: ["mikro_editor"])
 
   """
   Delete a collaboration: whoever was granted it sees nothing of it any more
   """
-  deleteCollaboration(id: ID!): ID! @auth(any_role_of: ["admin", "editor"])
+  deleteCollaboration(id: ID!): ID! @auth(required_scopes: ["mikro_share"], any_role_of: ["mikro_editor"])
 
   """Upload media and return a URL for access"""
-  requestMediaUpload(input: RequestMediaUploadInput!): MediaUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
+  requestMediaUpload(input: RequestMediaUploadInput!): MediaUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
 
   """Finalize a media upload after the client has written the object"""
-  finishMediaUpload(input: FinishMediaUploadInput!): MediaStore! @auth(any_role_of: ["admin", "editor", "bot"])
+  finishMediaUpload(input: FinishMediaUploadInput!): MediaStore! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
 
   """
   Reissue upload credentials for a media upload still in flight, to the same key, so a write that outlives its credentials carries on. Only the uploader may, never for a finished store, and never past the upload's time limit
   """
-  refreshMediaUpload(input: RefreshUploadInput!): MediaUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
+  refreshMediaUpload(input: RefreshUploadInput!): MediaUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
 
   """Request temporary S3 read credentials for a media file"""
-  requestMediaAccess(input: RequestMediaAccessInput!): MediaAccessGrant!
+  requestMediaAccess(input: RequestMediaAccessInput!): MediaAccessGrant! @auth(required_scopes: ["mikro_read"])
 
   """
   Request temporary S3 read credentials for media files in the organization
   """
-  requestGeneralMediaAccess(input: RequestGeneralMediaAccessInput!): GeneralMediaAccessGrant!
+  requestGeneralMediaAccess(input: RequestGeneralMediaAccessInput!): GeneralMediaAccessGrant! @auth(required_scopes: ["mikro_read"])
 
   """
   Reissue upload credentials for a bigfile upload still in flight, to the same key, so a write that outlives its credentials carries on. Only the uploader may, never for a finished store, and never past the upload's time limit
   """
-  refreshBigfileUpload(input: RefreshUploadInput!): BigFileUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
+  refreshBigfileUpload(input: RefreshUploadInput!): BigFileUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
 
   """Request an upload grant for a big file store"""
-  requestBigfileUpload(input: RequestBigFileUploadInput!): BigFileUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
+  requestBigfileUpload(input: RequestBigFileUploadInput!): BigFileUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
 
   """Finalize a big file upload after the client has written the object"""
-  finishBigfileUpload(input: FinishBigFileUploadInput!): BigFileStore! @auth(any_role_of: ["admin", "editor", "bot"])
+  finishBigfileUpload(input: FinishBigFileUploadInput!): BigFileStore! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
 
   """Request temporary S3 read credentials for a big file"""
-  requestBigfileAccess(input: RequestBigFileAccessInput!): BigFileAccessGrant!
+  requestBigfileAccess(input: RequestBigFileAccessInput!): BigFileAccessGrant! @auth(required_scopes: ["mikro_read"])
 
   """Request an upload grant for a Zarr store"""
-  requestZarrUpload(input: RequestZarrUploadInput!): ZarrUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
+  requestZarrUpload(input: RequestZarrUploadInput!): ZarrUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
 
   """Finalize a Zarr upload after the client has written the object"""
-  finishZarrUpload(input: FinishZarrUploadInput!): ZarrStore! @auth(any_role_of: ["admin", "editor", "bot"])
+  finishZarrUpload(input: FinishZarrUploadInput!): ZarrStore! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
 
   """
   Reissue upload credentials for a Zarr store whose upload is still in flight. A grant's credentials expire, and clients hold the session token as a static credential, so a write large enough to outlive its session dies partway through. This returns a fresh session against the same prefix so the write can carry on. Refuses a store that is already populated -- that is an overwrite, not a resumption
   """
-  refreshZarrUpload(input: RefreshUploadInput!): ZarrUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
+  refreshZarrUpload(input: RefreshUploadInput!): ZarrUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
 
   """Request temporary S3 read credentials for a Zarr store"""
-  requestZarrAccess(input: RequestZarrAccessInput!): ZarrAccessGrant!
+  requestZarrAccess(input: RequestZarrAccessInput!): ZarrAccessGrant! @auth(required_scopes: ["mikro_read"])
 
   """
   Request temporary S3 read credentials for Zarr files in the organization
   """
-  requestGeneralZarrAccess(input: RequestGeneralZarrAccessInput!): GeneralZarrAccessGrant!
+  requestGeneralZarrAccess(input: RequestGeneralZarrAccessInput!): GeneralZarrAccessGrant! @auth(required_scopes: ["mikro_read"])
 
   """
   Request an upload grant for a sparse store. The grant covers the whole prefix, so one request authorizes the group's metadata and all three of its arrays. It declares nothing about the matrix: the group states its encoding, shape and chunking, and the server reads them when the upload is finished
   """
-  requestSparseUpload: SparseUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
+  requestSparseUpload: SparseUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
 
   """
   Finalize a sparse upload, which is when the group's own metadata is read. A missing encoding, a missing array, or an `indptr` whose length contradicts the declared shape are all refused here -- that is what an interrupted upload looks like, and catching it now beats a reader discovering it later
   """
-  finishSparseUpload(input: FinishSparseUploadInput!): SparseStore! @auth(any_role_of: ["admin", "editor", "bot"])
+  finishSparseUpload(input: FinishSparseUploadInput!): SparseStore! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
 
   """
   Reissue upload credentials for a sparse store whose upload is still in flight, for the reason `refreshZarrUpload` exists: three chunked arrays of a large matrix take long enough that a write can outlive its session token. Refuses a store that is already populated -- that is an overwrite, not a resumption
   """
-  refreshSparseUpload(input: RefreshUploadInput!): SparseUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
+  refreshSparseUpload(input: RefreshUploadInput!): SparseUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
 
   """
   Request temporary S3 read credentials for a sparse store. Covers the whole prefix, because a lookup needs `indptr` before it knows which range of `data` to fetch
   """
-  requestSparseAccess(input: RequestSparseAccessInput!): SparseAccessGrant!
+  requestSparseAccess(input: RequestSparseAccessInput!): SparseAccessGrant! @auth(required_scopes: ["mikro_read"])
 
   """
   Reissue upload credentials for a fabriks upload still in flight, to the same key, so a write that outlives its credentials carries on. Only the uploader may, never for a finished store, and never past the upload's time limit
   """
-  refreshFabriksUpload(input: RefreshUploadInput!): FabriksUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
+  refreshFabriksUpload(input: RefreshUploadInput!): FabriksUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
 
   """
   Request temporary S3 read credentials for sparse stores in the organization
   """
-  requestGeneralSparseAccess(input: RequestGeneralSparseAccessInput!): GeneralSparseAccessGrant!
+  requestGeneralSparseAccess(input: RequestGeneralSparseAccessInput!): GeneralSparseAccessGrant! @auth(required_scopes: ["mikro_read"])
 
   """
   Request an upload grant for a fabriks store. The grant covers the whole prefix, so one request authorizes the manifest, both catalogs and every level
   """
-  requestFabriksUpload: FabriksUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
+  requestFabriksUpload: FabriksUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
 
   """
   Reissue upload credentials for a kulisse upload still in flight, to the same key, so a write that outlives its credentials carries on. Only the uploader may, never for a finished store, and never past the upload's time limit
   """
-  refreshKulisseUpload(input: RefreshUploadInput!): KulisseUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
+  refreshKulisseUpload(input: RefreshUploadInput!): KulisseUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
 
   """
   Finalize a fabriks upload. This reads the store's `fabriks.json` and refuses a prefix that has none -- which is what an interrupted upload looks like, since the manifest is written last
   """
-  finishFabriksUpload(input: FinishFabriksUploadInput!): FabriksStore! @auth(any_role_of: ["admin", "editor", "bot"])
+  finishFabriksUpload(input: FinishFabriksUploadInput!): FabriksStore! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
 
   """
   Request temporary S3 read credentials covering a fabriks store's whole prefix
   """
-  requestFabriksAccess(input: RequestFabriksAccessInput!): FabriksAccessGrant!
+  requestFabriksAccess(input: RequestFabriksAccessInput!): FabriksAccessGrant! @auth(required_scopes: ["mikro_read"])
 
   """
   Request temporary S3 read credentials for fabriks stores in the organization
   """
-  requestGeneralFabriksAccess(input: RequestGeneralFabriksAccessInput!): GeneralFabriksAccessGrant!
+  requestGeneralFabriksAccess(input: RequestGeneralFabriksAccessInput!): GeneralFabriksAccessGrant! @auth(required_scopes: ["mikro_read"])
 
   """
   Reissue upload credentials for a konnektion upload still in flight, to the same key, so a write that outlives its credentials carries on. Only the uploader may, never for a finished store, and never past the upload's time limit
   """
-  refreshKonnektionUpload(input: RefreshUploadInput!): KonnektionUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
+  refreshKonnektionUpload(input: RefreshUploadInput!): KonnektionUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
 
   """
   Request an upload grant for a kulisse store: one device or scene model, a self-contained binary glTF
   """
-  requestKulisseUpload(input: RequestKulisseUploadInput!): KulisseUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
+  requestKulisseUpload(input: RequestKulisseUploadInput!): KulisseUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
 
   """
   Finalize a kulisse upload. This reads the model's header and JSON chunk, records what it says (bounds, nodes, joints) and refuses a file that is not a self-contained glTF 2.0 model
   """
-  finishKulisseUpload(input: FinishKulisseUploadInput!): KulisseStore! @auth(any_role_of: ["admin", "editor", "bot"])
+  finishKulisseUpload(input: FinishKulisseUploadInput!): KulisseStore! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
 
   """
   Reissue upload credentials for a parquet upload still in flight, to the same key, so a write that outlives its credentials carries on. Only the uploader may, never for a finished store, and never past the upload's time limit
   """
-  refreshParquetUpload(input: RefreshUploadInput!): ParquetUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
+  refreshParquetUpload(input: RefreshUploadInput!): ParquetUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
 
   """Request temporary S3 read credentials for a kulisse model"""
-  requestKulisseAccess(input: RequestKulisseAccessInput!): KulisseAccessGrant!
+  requestKulisseAccess(input: RequestKulisseAccessInput!): KulisseAccessGrant! @auth(required_scopes: ["mikro_read"])
 
   """
   Request temporary S3 read credentials for kulisse models in the organization
   """
-  requestGeneralKulisseAccess(input: RequestGeneralKulisseAccessInput!): GeneralKulisseAccessGrant!
+  requestGeneralKulisseAccess(input: RequestGeneralKulisseAccessInput!): GeneralKulisseAccessGrant! @auth(required_scopes: ["mikro_read"])
 
   """
   Request an upload grant for a konnektion store. The grant covers the whole prefix, so one request authorizes the manifest, both catalogs and every level
   """
-  requestKonnektionUpload: KonnektionUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
+  requestKonnektionUpload: KonnektionUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
 
   """
   Finalize a konnektion upload. This reads the store's `konnektion.json` and refuses a prefix that has none -- which is what an interrupted upload looks like, since the manifest is written last
   """
-  finishKonnektionUpload(input: FinishKonnektionUploadInput!): KonnektionStore! @auth(any_role_of: ["admin", "editor", "bot"])
+  finishKonnektionUpload(input: FinishKonnektionUploadInput!): KonnektionStore! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
 
   """
   Request temporary S3 read credentials covering a konnektion store's whole prefix
   """
-  requestKonnektionAccess(input: RequestKonnektionAccessInput!): KonnektionAccessGrant!
+  requestKonnektionAccess(input: RequestKonnektionAccessInput!): KonnektionAccessGrant! @auth(required_scopes: ["mikro_read"])
 
   """
   Request temporary S3 read credentials for konnektion stores in the organization
   """
-  requestGeneralKonnektionAccess(input: RequestGeneralKonnektionAccessInput!): GeneralKonnektionAccessGrant!
+  requestGeneralKonnektionAccess(input: RequestGeneralKonnektionAccessInput!): GeneralKonnektionAccessGrant! @auth(required_scopes: ["mikro_read"])
 
   """Request an upload grant for a Parquet store"""
-  requestParquetUpload(input: RequestParquetUploadInput!): ParquetUploadGrant! @auth(any_role_of: ["admin", "editor", "bot"])
+  requestParquetUpload(input: RequestParquetUploadInput!): ParquetUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
 
   """Finalize a Parquet upload after the client has written the object"""
-  finishParquetUpload(input: FinishParquetUploadInput!): ParquetStore! @auth(any_role_of: ["admin", "editor", "bot"])
+  finishParquetUpload(input: FinishParquetUploadInput!): ParquetStore! @auth(required_scopes: ["mikro_write"], any_role_of: ["admin", "editor", "bot"])
 
   """Request temporary S3 read credentials for a Parquet file"""
-  requestParquetAccess(input: RequestParquetAccessInput!): ParquetAccessGrant!
+  requestParquetAccess(input: RequestParquetAccessInput!): ParquetAccessGrant! @auth(required_scopes: ["mikro_read"])
 
   """
   Request temporary S3 read credentials for Parquet files in the organization
   """
-  requestGeneralParquetAccess(input: RequestGeneralParquetAccessInput!): GeneralParquetAccessGrant!
+  requestGeneralParquetAccess(input: RequestGeneralParquetAccessInput!): GeneralParquetAccessGrant! @auth(required_scopes: ["mikro_read"])
 
   """
   Create a new dataset from array-like data with optional coordinate anchors and OME metadata
   """
-  createArrayDataset(input: CreateArrayDatasetInput!): ArrayDataset! @auth(any_role_of: ["admin", "editor", "bot"])
+  createArrayDataset(input: CreateArrayDatasetInput!): ArrayDataset! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Rename a dataset or redescribe it -- the whole of what is editable, and audited on `provenanceEntries`. Its arrays, axes and coordinate systems are fixed at creation; a recomputation is a new dataset
   """
-  updateArrayDataset(input: UpdateArrayDatasetInput!): ArrayDataset! @auth(any_role_of: ["admin", "editor", "bot"])
+  updateArrayDataset(input: UpdateArrayDatasetInput!): ArrayDataset! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Nominate the scene to open for a dataset, and take its thumbnail from. Null clears it
   """
-  setDefaultScene(input: SetDefaultSceneInput!): ArrayDataset! @auth(any_role_of: ["admin", "editor", "bot"])
+  setDefaultScene(input: SetDefaultSceneInput!): ArrayDataset! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Delete an existing array dataset"""
-  deleteArrayDataset(input: DeleteArrayDatasetInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
+  deleteArrayDataset(input: DeleteArrayDatasetInput!): ID! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Attach a phasor distribution (the 2D g/s density at one axis and harmonic) to a dataset, so a client can range a phasor overlay without reading the cube
   """
-  createPhasorHistogram(input: CreatePhasorHistogramInput!): PhasorHistogram! @auth(any_role_of: ["admin", "editor", "bot"])
+  createPhasorHistogram(input: CreatePhasorHistogramInput!): PhasorHistogram! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Attach an instrument-response correction to a dataset, taking a raw phasor to a calibrated one
   """
-  createPhasorCalibration(input: CreatePhasorCalibrationInput!): PhasorCalibration! @auth(any_role_of: ["admin", "editor", "bot"])
+  createPhasorCalibration(input: CreatePhasorCalibrationInput!): PhasorCalibration! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Attach metadata spokes to an array, table or sparse dataset after ingest: a microscope state, OME metadata, a value histogram, a channel label or a light path, pinned to some of its coordinates. Get-or-create on (container, coordinates): a second call at the same coordinates adds its spokes to the one anchor, and a spoke stated twice is replaced
   """
-  createCoordinateAnchor(input: CreateCoordinateAnchorInput!): CoordinateAnchor! @auth(any_role_of: ["admin", "editor", "bot"])
+  createCoordinateAnchor(input: CreateCoordinateAnchorInput!): CoordinateAnchor! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Create a SHARED coordinate system (an ownerless space) and, in one call, author the edges registering any number of sources (datasets, table datasets, mesh collections, coordinate systems) into it
   """
-  createCoordinateSystem(input: CreateCoordinateSystemInput!): CoordinateSystem! @auth(any_role_of: ["admin", "editor", "bot"])
+  createCoordinateSystem(input: CreateCoordinateSystemInput!): CoordinateSystem! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Rename a shared coordinate system or anchor its clock. Shared spaces only -- an owned system's name is its container's business, and where data sits is an edge (updateTransformation), not a property of the space
   """
-  updateCoordinateSystem(input: UpdateCoordinateSystemInput!): CoordinateSystem! @auth(any_role_of: ["admin", "editor", "bot"])
+  updateCoordinateSystem(input: UpdateCoordinateSystemInput!): CoordinateSystem! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Delete an unused shared coordinate system. Refused while any scene is rooted in it or any transformation edge touches it. This is the only door a shared space leaves through -- deleting a scene never deletes one. Other system kinds cascade with their owner and cannot be deleted directly
   """
-  deleteCoordinateSystem(input: DeleteCoordinateSystemInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
+  deleteCoordinateSystem(input: DeleteCoordinateSystemInput!): ID! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Delete every registration INTO a shared space in one call, returning the deleted edge ids. The space, the scenes over it (their layers drop to UNREGISTERED) and the space's own claims into wider spaces all survive. Guarded by the space's creator: clearing a space is the space-owner's act
   """
-  clearCoordinateSystem(input: ClearCoordinateSystemInput!): [ID!]! @auth(any_role_of: ["admin", "editor", "bot"])
+  clearCoordinateSystem(input: ClearCoordinateSystemInput!): [ID!]! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Delete every orphaned shared space in the organization -- no scene rooted in it, no edge touching it -- and return the deleted ids. The cleanup sweep for the no-garbage-collection policy: scene deletion never deletes a space, this call takes the leftovers back. Org admins sweep every orphan; anyone else sweeps only their own
   """
-  deleteOrphanedCoordinateSystems: [ID!]! @auth(any_role_of: ["admin", "editor", "bot"])
+  deleteOrphanedCoordinateSystems: [ID!]! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Draw an annotation into a collection, or onto a scene (exactly one of the two). Drawing on a scene finds its annotation collection or mints it on first use: a coordinate system copying the world's axes, an identity registration into the world, and one annotation layer
   """
-  createAnnotation(input: CreateAnnotationInput!): Annotation! @auth(any_role_of: ["admin", "editor", "bot"], allow_scoped: true)
+  createAnnotation(input: CreateAnnotationInput!): Annotation! @auth(required_scopes: ["mikro_annotate"], any_role_of: ["mikro_editor", "mikro_annotator"], allow_scoped: true)
 
   """
   Draw many annotations in one call, into a collection or onto a scene (exactly one of the two, same semantics as createAnnotation). The transform chain and version resolve once for the whole batch, and the rows insert in bulk
   """
-  createAnnotations(input: CreateAnnotationsInput!): [Annotation!]! @auth(any_role_of: ["admin", "editor", "bot"], allow_scoped: true)
+  createAnnotations(input: CreateAnnotationsInput!): [Annotation!]! @auth(required_scopes: ["mikro_annotate"], any_role_of: ["mikro_editor", "mikro_annotator"], allow_scoped: true)
 
   """
   Edit an annotation: name, kind, vectors, pins or styling. New vectors re-derive the bounding box against the current transform chain
   """
-  updateAnnotation(input: UpdateAnnotationInput!): Annotation! @auth(any_role_of: ["admin", "editor", "bot"])
+  updateAnnotation(input: UpdateAnnotationInput!): Annotation! @auth(required_scopes: ["mikro_annotate"], any_role_of: ["mikro_editor", "mikro_annotator"])
 
   """Delete an existing annotation"""
-  deleteAnnotation(input: DeleteAnnotationInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
+  deleteAnnotation(input: DeleteAnnotationInput!): ID! @auth(required_scopes: ["mikro_annotate"], any_role_of: ["mikro_editor", "mikro_annotator"])
 
   """
   Create an annotation collection explicitly, in a coordinate system of its own, optionally derived from the system the shapes are drawn over. The common path -- drawing on a scene -- goes through createAnnotation instead, which mints the scene's collection on first use
   """
-  createAnnotationCollection(input: CreateAnnotationCollectionInput!): AnnotationCollection! @auth(any_role_of: ["admin", "editor", "bot"])
+  createAnnotationCollection(input: CreateAnnotationCollectionInput!): AnnotationCollection! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Delete an annotation collection. Its coordinate system, its annotations and its layers cascade with it
   """
-  deleteAnnotationCollection(input: DeleteAnnotationCollectionInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
+  deleteAnnotationCollection(input: DeleteAnnotationCollectionInput!): ID! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   The array lens making a selection over a dataset by slices: the one that exists for that selection, or a new one with its coordinate system and its edge back into the dataset's grid
   """
-  createLens(input: CreateLensInput!): ArrayLens! @auth(any_role_of: ["admin", "editor", "bot"])
+  createLens(input: CreateLensInput!): ArrayLens! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   The lens keeping these windows of a table dataset's coordinate columns: the one that exists, or a new one. It lives in the table's own space
   """
-  createTableLens(input: CreateTableLensInput!): TableLens! @auth(any_role_of: ["admin", "editor", "bot"])
+  createTableLens(input: CreateTableLensInput!): TableLens! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   The lens keeping these windows of a sparse dataset's axes: the one that exists, or a new one. A subset of positions, never a re-indexing
   """
-  createSparseLens(input: CreateSparseLensInput!): SparseLens! @auth(any_role_of: ["admin", "editor", "bot"])
+  createSparseLens(input: CreateSparseLensInput!): SparseLens! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   The lens keeping these windows of a fixture's own space -- a clip box: the one that exists, or a new one
   """
-  createFixtureLens(input: CreateFixtureLensInput!): FixtureLens! @auth(any_role_of: ["admin", "editor", "bot"])
+  createFixtureLens(input: CreateFixtureLensInput!): FixtureLens! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   The lens keeping these windows of a mesh collection's own space: the one that exists, or a new one
   """
-  createMeshLens(input: CreateMeshLensInput!): MeshLens! @auth(any_role_of: ["admin", "editor", "bot"])
+  createMeshLens(input: CreateMeshLensInput!): MeshLens! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   The lens keeping these windows of a network collection's own space: the one that exists, or a new one
   """
-  createNetworkLens(input: CreateNetworkLensInput!): NetworkLens! @auth(any_role_of: ["admin", "editor", "bot"])
+  createNetworkLens(input: CreateNetworkLensInput!): NetworkLens! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   The lens keeping these windows of an annotation collection's drawing space: the one that exists, or a new one
   """
-  createAnnotationLens(input: CreateAnnotationLensInput!): AnnotationLens! @auth(any_role_of: ["admin", "editor", "bot"])
+  createAnnotationLens(input: CreateAnnotationLensInput!): AnnotationLens! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Rename a lens, or clear its name. What it selects cannot change: a different selection is a different lens
   """
-  updateLens(input: UpdateLensInput!): Lens! @auth(any_role_of: ["admin", "editor", "bot"])
+  updateLens(input: UpdateLensInput!): Lens! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Nominate the scene to open for a lens, and take its thumbnail from. Null clears it. On an unsliced lens this writes its dataset's nomination: the lens is the dataset, looked at whole
   """
-  setLensDefaultScene(input: SetLensDefaultSceneInput!): Lens! @auth(any_role_of: ["admin", "editor", "bot"])
+  setLensDefaultScene(input: SetLensDefaultSceneInput!): Lens! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Delete a lens of any kind. Refused while a layer draws through it, and for a container's whole lens
   """
-  deleteLens(input: DeleteLensInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
+  deleteLens(input: DeleteLensInput!): ID! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Create a new scene over a world coordinate system: an adopted existing system, or an ordinary SHARED one created for it (never owned by the scene -- it outlives it)
   """
-  createScene(input: CreateSceneInput!): Scene! @auth(any_role_of: ["admin", "editor", "bot"])
+  createScene(input: CreateSceneInput!): Scene! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Bootstrap a renderable scene over an existing coordinate system: a shared space (its registered sources become layers, up to the policy's nchildren) or an owned system such as a dataset's intrinsic grid or a physical space (the container's own data becomes the layer). The scene adopts the system as its world; no edges are authored. This is how a dataset is staged -- pass `intrinsicSystem` to render in pixels, or a physical space it is registered into to render at physical scale
   """
-  createSceneFromCoordinateSystem(input: CreateSceneFromCoordinateSystemInput!): Scene! @auth(any_role_of: ["admin", "editor", "bot"])
+  createSceneFromCoordinateSystem(input: CreateSceneFromCoordinateSystemInput!): Scene! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Bootstrap a renderable scene showing one lens of any kind: a crop, a sub-volume or the whole array as one layer per channel; a window over a table as a point or track layer; a window over a mesh, network or annotation collection as that layer. Composes in the dataset's intrinsic grid, or the container's own space, unless `world` names another space the lens reaches
   """
-  createSceneFromLens(input: CreateSceneFromLensInput!): Scene! @auth(any_role_of: ["admin", "editor", "bot"])
+  createSceneFromLens(input: CreateSceneFromLensInput!): Scene! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Set a scene's viewer preferences: how a client should open it"""
-  updateScene(input: UpdateSceneInput!): Scene! @auth(any_role_of: ["admin", "editor", "bot"])
+  updateScene(input: UpdateSceneInput!): Scene! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Delete every layer of a scene, keeping the scene itself. A pure view-state reset: no coordinate system, registration or dataset is touched, and other scenes over the same space never notice
   """
-  clearScene(input: ClearSceneInput!): Scene! @auth(any_role_of: ["admin", "editor", "bot"])
+  clearScene(input: ClearSceneInput!): Scene! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Delete an existing scene"""
-  deleteScene(input: DeleteSceneInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
+  deleteScene(input: DeleteSceneInput!): ID! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Create a chart: a composition of data laid out along one metric axis. Over an existing coordinate system with exactly one metric, unit-carrying axis, or over one created from a single axis
   """
-  createChart(input: CreateChartInput!): Chart! @auth(any_role_of: ["admin", "editor", "bot"])
+  createChart(input: CreateChartInput!): Chart! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Bootstrap a chart over an existing coordinate system, drawing every array, table and annotation collection already laid along its axis. Authors no edges
   """
-  createChartFromCoordinateSystem(input: CreateChartFromCoordinateSystemInput!): Chart! @auth(any_role_of: ["admin", "editor", "bot"])
+  createChartFromCoordinateSystem(input: CreateChartFromCoordinateSystemInput!): Chart! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Rename or re-describe a chart. Its world is fixed"""
-  updateChart(input: UpdateChartInput!): Chart! @auth(any_role_of: ["admin", "editor", "bot"])
+  updateChart(input: UpdateChartInput!): Chart! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Delete a chart and its layers. The data they drew and the chart's world are untouched
   """
-  deleteChart(input: DeleteChartInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
+  deleteChart(input: DeleteChartInput!): ID! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Draw an array as a trace in a chart: a lens with one metric axis free, laid along the chart's axis by the graph, and optionally one CHANNEL or INDEX axis free as one line per position
   """
-  createTraceChartLayer(input: CreateTraceChartLayerInput!): TraceChartLayer! @auth(any_role_of: ["admin", "editor", "bot"])
+  createTraceChartLayer(input: CreateTraceChartLayerInput!): TraceChartLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Draw a table as a series in a chart: one numeric column as the value, against the coordinate column the graph lays along the chart's axis
   """
-  createSeriesChartLayer(input: CreateSeriesChartLayerInput!): SeriesChartLayer! @auth(any_role_of: ["admin", "editor", "bot"])
+  createSeriesChartLayer(input: CreateSeriesChartLayerInput!): SeriesChartLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Draw an annotation collection's marks in a chart, or make a new drawing surface for the chart when no collection is named
   """
-  createAnnotationChartLayer(input: CreateAnnotationChartLayerInput!): AnnotationChartLayer! @auth(any_role_of: ["admin", "editor", "bot"])
+  createAnnotationChartLayer(input: CreateAnnotationChartLayerInput!): AnnotationChartLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Restyle a chart layer. View state only"""
-  updateChartLayer(input: UpdateChartLayerInput!): ChartLayer! @auth(any_role_of: ["admin", "editor", "bot"])
+  updateChartLayer(input: UpdateChartLayerInput!): ChartLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Delete a chart layer. Deletes nothing it drew"""
-  deleteChartLayer(input: DeleteChartLayerInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
+  deleteChartLayer(input: DeleteChartLayerInput!): ID! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Record one value about an annotation or a dataset: a quantity or a code. Announced to the hub's rekuest (a CREATED @mikro/metric signal) once committed
   """
-  createMetric(input: MetricInput!): Metric! @auth(any_role_of: ["admin", "editor", "bot"])
+  createMetric(input: MetricInput!): Metric! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Record many values in one transaction. No signal is sent for each: a reader finds them in mikro's change feed
   """
-  createMetrics(input: CreateMetricsInput!): [Metric!]! @auth(any_role_of: ["admin", "editor", "bot"])
+  createMetrics(input: CreateMetricsInput!): [Metric!]! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Delete a metric. One a correction supersedes is kept while the correction stands
   """
-  deleteMetric(input: DeleteMetricInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
+  deleteMetric(input: DeleteMetricInput!): ID! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Show a coordinate system as whichever composition fits it: a chart over a space with exactly one metric, unit-carrying axis, a scene over any other space with a time or space axis. Bootstrapped from what already resides in the space; authors no edges
   """
-  autoVisualize(input: AutoVisualizeInput!): Visualization! @auth(any_role_of: ["admin", "editor", "bot"])
+  autoVisualize(input: AutoVisualizeInput!): Visualization! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Create one edge of the coordinate graph, mapping an input coordinate system to an output one. This is where registration lives
   """
-  createTransformation(input: CreateTransformationInput!): Transformation! @auth(any_role_of: ["admin", "editor", "bot"])
+  createTransformation(input: CreateTransformationInput!): Transformation! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Refine a transformation's parameters, bumping its version"""
-  updateTransformation(input: UpdateTransformationInput!): Transformation! @auth(any_role_of: ["admin", "editor", "bot"])
+  updateTransformation(input: UpdateTransformationInput!): Transformation! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Delete an existing transformation"""
-  deleteTransformation(input: DeleteTransformationInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
+  deleteTransformation(input: DeleteTransformationInput!): ID! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Un-register a source from a space by naming the source and the space rather than the edge. Deletes every edge from the source's space into that one -- rivals are allowed, so there is no single edge to mean -- and returns their ids. An UNMAPPABLE declaration is not a placement and is never matched
   """
-  deleteRegistration(input: DeleteRegistrationInput!): [ID!]! @auth(any_role_of: ["admin", "editor", "bot"])
+  deleteRegistration(input: DeleteRegistrationInput!): [ID!]! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Register an immutable mesh collection against a coordinate system"""
-  createMeshCollection(input: CreateMeshCollectionInput!): MeshCollection! @auth(any_role_of: ["admin", "editor", "bot"])
+  createMeshCollection(input: CreateMeshCollectionInput!): MeshCollection! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Delete an existing mesh collection"""
-  deleteMeshCollection(input: DeleteMeshCollectionInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
+  deleteMeshCollection(input: DeleteMeshCollectionInput!): ID! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Register an immutable network collection from an uploaded konnektion store, in a coordinate system of its own
   """
-  createNetworkCollection(input: CreateNetworkCollectionInput!): NetworkCollection! @auth(any_role_of: ["admin", "editor", "bot"])
+  createNetworkCollection(input: CreateNetworkCollectionInput!): NetworkCollection! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Delete an existing network collection"""
-  deleteNetworkCollection(input: DeleteNetworkCollectionInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
+  deleteNetworkCollection(input: DeleteNetworkCollectionInput!): ID! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Register a fixture -- a coverslip, a dish, a holder -- from an uploaded binary glTF, in a unit-carrying coordinate system of its own
   """
-  createFixture(input: CreateFixtureInput!): Fixture! @auth(any_role_of: ["admin", "editor", "bot"])
+  createFixture(input: CreateFixtureInput!): Fixture! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Delete an existing fixture"""
-  deleteFixture(input: DeleteFixtureInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
+  deleteFixture(input: DeleteFixtureInput!): ID! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Create a sparse dataset from one uploaded sparse store, which holds the matrix in one or more layouts. A sparse matrix is a grid of numbers with no row labels and no column labels, so **every axis says what its positions are** through its own `identifiedBy` -- a source whose own contents are the ids (which authors a FIELD edge, and is what makes the matrix reachable from a layer over that source), or the table whose rows they are (which authors a foreign key and no edge). Carried on the axis, identified-exactly-once is a property of the input rather than a rule this enforces. Nothing about the matrix itself is declared: the spec, the shape, each layout's encoding and its chunking were read from the store when its upload was finished, and are checked against these axes rather than taken from them
   """
-  createSparseDataset(input: CreateSparseDatasetInput!): SparseDataset! @auth(any_role_of: ["admin", "editor", "bot"])
+  createSparseDataset(input: CreateSparseDatasetInput!): SparseDataset! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Rename a sparse dataset or redescribe it -- the whole of what is editable. Its stores, axes and coordinate system are fixed at creation; a recomputation is a new dataset
   """
-  updateSparseDataset(input: UpdateSparseDatasetInput!): SparseDataset! @auth(any_role_of: ["admin", "editor", "bot"])
+  updateSparseDataset(input: UpdateSparseDatasetInput!): SparseDataset! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Delete an existing sparse dataset"""
-  deleteSparseDataset(input: DeleteSparseDatasetInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
+  deleteSparseDataset(input: DeleteSparseDatasetInput!): ID! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Create a table dataset from a Parquet store. Its declared coordinate columns become the axes of a coordinate system it owns, which lets a localization table be placed in a scene; a table with no coordinate columns is a measurement table whose rows enumerate objects and whose lineage edge is UNMAPPABLE
   """
-  createTableDataset(input: CreateTableDatasetInput!): TableDataset! @auth(any_role_of: ["admin", "editor", "bot"])
+  createTableDataset(input: CreateTableDatasetInput!): TableDataset! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Rename a table dataset or redescribe it -- the whole of what is editable. Its store, columns and coordinate system are fixed at creation; a recomputation is a new table
   """
-  updateTableDataset(input: UpdateTableDatasetInput!): TableDataset! @auth(any_role_of: ["admin", "editor", "bot"])
+  updateTableDataset(input: UpdateTableDatasetInput!): TableDataset! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Delete an existing table dataset"""
-  deleteTableDataset(input: DeleteTableDatasetInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
+  deleteTableDataset(input: DeleteTableDatasetInput!): ID! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Create a general image layer: array (lens) data rendered through a composable render graph. The kind for a layer that actually composites -- several channels together, an authored transfer curve, a tint, per-channel opacity. For a recipe of fixed shape, createIntensityLayer, createRgbLayer, createVolumeLayer and createPhasorLayer make a layer of that kind, whose settings are fields rather than a tree
   """
-  createLayer(input: CreateLayerInput!): ImageLayer! @auth(any_role_of: ["admin", "editor", "bot"])
+  createLayer(input: CreateLayerInput!): ImageLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Delete an existing layer"""
-  deleteLayer(input: DeleteLayerInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
+  deleteLayer(input: DeleteLayerInput!): ID! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Update a general image layer's lens, scene, compositing settings and render graph. Refuses every other kind, naming the mutation that does write its settings -- a layer's kind is fixed for the life of the row
   """
-  updateLayer(input: UpdateLayerInput!): ImageLayer! @auth(any_role_of: ["admin", "editor", "bot"])
+  updateLayer(input: UpdateLayerInput!): ImageLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Create an RGB layer: three channels of a lens as the red, green and blue components of one picture -- a photograph, a brightfield slide -- sharing one pair of contrast limits. Its own kind rather than a three-channel render graph, because as a graph it is indistinguishable from three fluorescence markers somebody tinted red, green and blue, which is the commoner reading. Never inferred from that shape: a bootstrapped scene reaches this kind only on evidence ingest recorded -- channels labelled red, green and blue, or arrays read out of a PNG -- so state it here for a photograph that arrived with neither
   """
-  createRgbLayer(input: CreateRgbLayerInput!): RgbLayer! @auth(any_role_of: ["admin", "editor", "bot"])
+  createRgbLayer(input: CreateRgbLayerInput!): RgbLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Update an RGB layer's channel indices, contrast limits and compositing settings. A patch: what is not sent keeps its current value
   """
-  updateRgbLayer(input: UpdateRgbLayerInput!): RgbLayer! @auth(any_role_of: ["admin", "editor", "bot"])
+  updateRgbLayer(input: UpdateRgbLayerInput!): RgbLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Create an intensity layer: one channel of a lens through one colormap -- or one solid RGBA tint, for a colour that is a measured fact rather than a choice -- with contrast limits and gamma. The fluorescence workhorse, and its own kind -- its settings are fields, not a render graph, because there is nothing here to composite
   """
-  createIntensityLayer(input: CreateIntensityLayerInput!): IntensityLayer! @auth(any_role_of: ["admin", "editor", "bot"])
+  createIntensityLayer(input: CreateIntensityLayerInput!): IntensityLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Update an intensity layer's channel, colormap or tint, contrast limits, gamma, projection and compositing settings. A patch: what is not sent keeps its current value
   """
-  updateIntensityLayer(input: UpdateIntensityLayerInput!): IntensityLayer! @auth(any_role_of: ["admin", "editor", "bot"])
+  updateIntensityLayer(input: UpdateIntensityLayerInput!): IntensityLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Create a label layer that renders an instance / segmentation map -- an array whose values are discrete object ids. Its own layer kind, not an image layer: ids take a hashed colour, a transparent background value and an optional `colorBy` over the table they key into, and none of an image's contrast limits, gamma or colormaps
   """
-  createLabelLayer(input: CreateLabelLayerInput!): LabelLayer! @auth(any_role_of: ["admin", "editor", "bot"])
+  createLabelLayer(input: CreateLabelLayerInput!): LabelLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Update a label layer's render settings -- the selection, contour, hashing seed or `colorBy`. A patch: what is not sent keeps its current value
   """
-  updateLabelLayer(input: UpdateLabelLayerInput!): LabelLayer! @auth(any_role_of: ["admin", "editor", "bot"])
+  updateLabelLayer(input: UpdateLabelLayerInput!): LabelLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Create a single-channel layer rendered as a 3D volume projection (MIP / attenuated-MIP / volume / isosurface). Returns an IntensityLayer with `projectionMode` set, not a kind of its own: a projection collapses z, it does not composite anything, so it is a setting on one channel. Update it with updateIntensityLayer
   """
-  createVolumeLayer(input: CreateVolumeLayerInput!): IntensityLayer! @auth(any_role_of: ["admin", "editor", "bot"])
+  createVolumeLayer(input: CreateVolumeLayerInput!): IntensityLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Create a phasor layer, reducing one axis of a lens to a phasor and coloring each pixel by it: a lifetime overlay over a FLIM (microtime) cube, or a spectral one over a hyperspectral cube. For a phasor composited *with* an ordinary intensity channel, use createLayer with a PhasorNode in the graph
   """
-  createPhasorLayer(input: CreatePhasorLayerInput!): PhasorLayer! @auth(any_role_of: ["admin", "editor", "bot"])
+  createPhasorLayer(input: CreatePhasorLayerInput!): PhasorLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Update a phasor layer's axis, harmonic, color transfer and compositing settings. A patch: what is not sent keeps its current value, except `transfer`, which replaces the whole transfer when given
   """
-  updatePhasorLayer(input: UpdatePhasorLayerInput!): PhasorLayer! @auth(any_role_of: ["admin", "editor", "bot"])
+  updatePhasorLayer(input: UpdatePhasorLayerInput!): PhasorLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Create a vector layer, drawing a vector-valued lens -- an optical flow, a deformation field, an orientation map -- as glyphs sampled from the grid. The lens must carry a DISPLACEMENT value axis of 2 or 3 positions; which axis that is is derived from the axes, never chosen here. What the layer carries is view state: a glyph style, a sampling stride, a magnitude scale and a magnitude colormap window
   """
-  createVectorLayer(input: CreateVectorLayerInput!): VectorLayer! @auth(any_role_of: ["admin", "editor", "bot"])
+  createVectorLayer(input: CreateVectorLayerInput!): VectorLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Update a vector layer's glyph style, sampling stride, magnitude scale, colormap window and compositing settings. A patch: what is not sent keeps its current value
   """
-  updateVectorLayer(input: UpdateVectorLayerInput!): VectorLayer! @auth(any_role_of: ["admin", "editor", "bot"])
+  updateVectorLayer(input: UpdateVectorLayerInput!): VectorLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Create a layer that renders an annotation collection's drawn shapes in a scene. The explicit path for a second scene: the collection's system must already be registered into that scene's world
   """
-  createAnnotationLayer(input: CreateAnnotationLayerInput!): AnnotationLayer! @auth(any_role_of: ["admin", "editor", "bot"])
+  createAnnotationLayer(input: CreateAnnotationLayerInput!): AnnotationLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Create a layer that renders a point cloud (e.g. SMLM localisations, centroids) from columns of a table
   """
-  createPointLayer(input: CreatePointLayerInput!): PointLayer! @auth(any_role_of: ["admin", "editor", "bot"])
+  createPointLayer(input: CreatePointLayerInput!): PointLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Retune a point layer after creation -- above all, switch or republish its colour picker.
   """
-  updatePointLayer(input: UpdatePointLayerInput!): PointLayer! @auth(any_role_of: ["admin", "editor", "bot"])
+  updatePointLayer(input: UpdatePointLayerInput!): PointLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Create a layer that renders trajectories from columns of a table, grouped by a track id
   """
-  createTrackLayer(input: CreateTrackLayerInput!): TrackLayer! @auth(any_role_of: ["admin", "editor", "bot"])
+  createTrackLayer(input: CreateTrackLayerInput!): TrackLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Retune a track layer after creation -- its line width, its colouring column and the compositing it takes part in.
   """
-  updateTrackLayer(input: UpdateTrackLayerInput!): TrackLayer! @auth(any_role_of: ["admin", "editor", "bot"])
+  updateTrackLayer(input: UpdateTrackLayerInput!): TrackLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Create a layer that renders a 3D mesh (surface reconstruction / isosurface) in a scene
   """
-  createMeshLayer(input: CreateMeshLayerInput!): MeshLayer! @auth(any_role_of: ["admin", "editor", "bot"])
+  createMeshLayer(input: CreateMeshLayerInput!): MeshLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Retune how a mesh layer is drawn: its material, wireframe, compositing, and which table column colours its objects. A patch -- an omitted field keeps its value
   """
-  updateMeshLayer(input: UpdateMeshLayerInput!): MeshLayer! @auth(any_role_of: ["admin", "editor", "bot"])
+  updateMeshLayer(input: UpdateMeshLayerInput!): MeshLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Create a layer that renders a fixture in a scene"""
-  createFixtureLayer(input: CreateFixtureLayerInput!): FixtureLayer! @auth(any_role_of: ["admin", "editor", "bot"])
+  createFixtureLayer(input: CreateFixtureLayerInput!): FixtureLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Retune how a fixture layer is drawn: its material override, wireframe and compositing. A patch -- an omitted field keeps its value
   """
-  updateFixtureLayer(input: UpdateFixtureLayerInput!): FixtureLayer! @auth(any_role_of: ["admin", "editor", "bot"])
+  updateFixtureLayer(input: UpdateFixtureLayerInput!): FixtureLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Create a layer that renders a node/edge network -- a traced arbor, a vessel tree, a connectome -- in a scene
   """
-  createNetworkLayer(input: CreateNetworkLayerInput!): NetworkLayer! @auth(any_role_of: ["admin", "editor", "bot"])
+  createNetworkLayer(input: CreateNetworkLayerInput!): NetworkLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Retune how a network layer is drawn: its colour, its widths, whether direction and nodes are drawn, and the compositing it takes part in. A patch -- an omitted field keeps its value
   """
-  updateNetworkLayer(input: UpdateNetworkLayerInput!): NetworkLayer! @auth(any_role_of: ["admin", "editor", "bot"])
+  updateNetworkLayer(input: UpdateNetworkLayerInput!): NetworkLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Attach unstructured metadata to a file"""
-  attachUnstructuredMeta(input: UnstructuredMetaInput!): UnstructuredMeta! @auth(any_role_of: ["admin", "editor", "bot"])
+  attachUnstructuredMeta(input: UnstructuredMetaInput!): UnstructuredMeta! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Record a link between a file and the data it encodes, after both already exist
   """
-  linkFile(input: LinkFileInput!): [FileLink!]! @auth(any_role_of: ["admin", "editor", "bot"])
+  linkFile(input: LinkFileInput!): [FileLink!]! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Delete a file link"""
-  unlinkFile(input: UnlinkFileInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
+  unlinkFile(input: UnlinkFileInput!): ID! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Create a file from file-like data"""
-  fromFileLike(input: FromFileLike!): File! @auth(any_role_of: ["admin", "editor", "bot"])
+  fromFileLike(input: FromFileLike!): File! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Delete an existing file"""
-  deleteFile(input: DeleteFileInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
+  deleteFile(input: DeleteFileInput!): ID! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Create a new folder to organize data"""
-  createFolder(input: CreateFolderInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
+  createFolder(input: CreateFolderInput!): Folder! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Create a new folder to organize data"""
-  ensureFolder(input: CreateFolderInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
+  ensureFolder(input: CreateFolderInput!): Folder! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Update folder metadata"""
-  updateFolder(input: ChangeFolderInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
+  updateFolder(input: ChangeFolderInput!): Folder! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Revert folder to a previous version"""
-  revertFolder(input: RevertInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
+  revertFolder(input: RevertInput!): Folder! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Pin a folder for quick access"""
-  pinFolder(input: PinFolderInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
+  pinFolder(input: PinFolderInput!): Folder! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Delete an existing folder"""
-  deleteFolder(input: DeleteFolderInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
+  deleteFolder(input: DeleteFolderInput!): ID! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Add folders as children of another folder"""
-  putFoldersInFolder(input: AssociateInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
+  putFoldersInFolder(input: AssociateInput!): Folder! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Remove folders from being children of another folder"""
-  releaseFoldersFromFolder(input: DesociateInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
+  releaseFoldersFromFolder(input: DesociateInput!): Folder! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Add files to a folder"""
-  putFilesInFolder(input: AssociateInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
+  putFilesInFolder(input: AssociateInput!): Folder! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Remove files from a folder"""
-  releaseFilesFromFolder(input: DesociateInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
+  releaseFilesFromFolder(input: DesociateInput!): Folder! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """File array datasets in a folder"""
-  putArrayDatasetsInFolder(input: AssociateInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
+  putArrayDatasetsInFolder(input: AssociateInput!): Folder! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Unfile array datasets from a folder. They are not deleted, only unfiled
   """
-  releaseArrayDatasetsFromFolder(input: DesociateInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
+  releaseArrayDatasetsFromFolder(input: DesociateInput!): Folder! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """File table datasets in a folder"""
-  putTableDatasetsInFolder(input: AssociateInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
+  putTableDatasetsInFolder(input: AssociateInput!): Folder! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Unfile table datasets from a folder. They are not deleted, only unfiled
   """
-  releaseTableDatasetsFromFolder(input: DesociateInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
+  releaseTableDatasetsFromFolder(input: DesociateInput!): Folder! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """File mesh collections in a folder"""
-  putMeshCollectionsInFolder(input: AssociateInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
+  putMeshCollectionsInFolder(input: AssociateInput!): Folder! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Unfile mesh collections from a folder. They are not deleted, only unfiled
   """
-  releaseMeshCollectionsFromFolder(input: DesociateInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
+  releaseMeshCollectionsFromFolder(input: DesociateInput!): Folder! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """File fixtures in a folder"""
-  putFixturesInFolder(input: AssociateInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
+  putFixturesInFolder(input: AssociateInput!): Folder! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Unfile fixtures from a folder. They are not deleted, only unfiled"""
-  releaseFixturesFromFolder(input: DesociateInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
+  releaseFixturesFromFolder(input: DesociateInput!): Folder! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """File annotation collections in a folder"""
-  putAnnotationCollectionsInFolder(input: AssociateInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
+  putAnnotationCollectionsInFolder(input: AssociateInput!): Folder! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Unfile annotation collections from a folder. They are not deleted, only unfiled
   """
-  releaseAnnotationCollectionsFromFolder(input: DesociateInput!): Folder! @auth(any_role_of: ["admin", "editor", "bot"])
+  releaseAnnotationCollectionsFromFolder(input: DesociateInput!): Folder! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Adopt an uploaded media file as a pre-rendered picture of a scene"""
-  createSceneSnapshot(input: SceneSnapshotInput!): SceneSnapshot! @auth(any_role_of: ["admin", "editor", "bot"])
+  createSceneSnapshot(input: SceneSnapshotInput!): SceneSnapshot! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Delete an existing scene snapshot"""
-  deleteSceneSnapshot(input: DeleteSceneSnapshotInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
+  deleteSceneSnapshot(input: DeleteSceneSnapshotInput!): ID! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Pin a scene snapshot for quick access"""
-  pinSceneSnapshot(input: PinSceneSnapshotInput!): SceneSnapshot! @auth(any_role_of: ["admin", "editor", "bot"])
+  pinSceneSnapshot(input: PinSceneSnapshotInput!): SceneSnapshot! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Author a named camera tour of a scene"""
-  createAnimation(input: CreateAnimationInput!): Animation! @auth(any_role_of: ["admin", "editor", "bot"])
+  createAnimation(input: CreateAnimationInput!): Animation! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Re-author a camera tour: rename it, or replace its stops"""
-  updateAnimation(input: UpdateAnimationInput!): Animation! @auth(any_role_of: ["admin", "editor", "bot"])
+  updateAnimation(input: UpdateAnimationInput!): Animation! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Delete an existing camera tour"""
-  deleteAnimation(input: DeleteAnimationInput!): ID! @auth(any_role_of: ["admin", "editor", "bot"])
+  deleteAnimation(input: DeleteAnimationInput!): ID! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 }
 
 """
@@ -10243,321 +10243,321 @@ type Query {
   _service: _Service!
 
   """List the Rekuest tasks under which objects were created or changed"""
-  tasks(filters: TaskFilter, ordering: [TaskOrder!]! = [], pagination: OffsetPaginationInput): [Task!]! @auth
+  tasks(filters: TaskFilter, ordering: [TaskOrder!]! = [], pagination: OffsetPaginationInput): [Task!]! @auth(required_scopes: ["mikro_read"])
 
   """List folders (collections of images, files and tables)"""
-  folders(filters: FolderFilter, ordering: [FolderOrder!]! = [], pagination: OffsetPaginationInput): [Folder!]! @auth
+  folders(filters: FolderFilter, ordering: [FolderOrder!]! = [], pagination: OffsetPaginationInput): [Folder!]! @auth(required_scopes: ["mikro_read"])
 
   """List folders created by the current user"""
-  myfolders(filters: FolderFilter, ordering: [FolderOrder!]! = [], pagination: OffsetPaginationInput): [Folder!]! @auth
+  myfolders(filters: FolderFilter, ordering: [FolderOrder!]! = [], pagination: OffsetPaginationInput): [Folder!]! @auth(required_scopes: ["mikro_read"])
 
   """List scenes (compositions of layers over array datasets)"""
-  scenes(filters: SceneFilter, ordering: [SceneOrder!]! = [], pagination: OffsetPaginationInput): [Scene!]! @auth
+  scenes(filters: SceneFilter, ordering: [SceneOrder!]! = [], pagination: OffsetPaginationInput): [Scene!]! @auth(required_scopes: ["mikro_read"])
 
   """Get a single scene by ID"""
-  scene(id: ID!): Scene! @auth
+  scene(id: ID!): Scene! @auth(required_scopes: ["mikro_read"])
 
   """List layers placed in scenes (a heterogeneous list of layer kinds)"""
-  layers(filters: LayerFilter, ordering: [LayerOrder!]! = [], pagination: OffsetPaginationInput): [Layer!]! @auth
+  layers(filters: LayerFilter, ordering: [LayerOrder!]! = [], pagination: OffsetPaginationInput): [Layer!]! @auth(required_scopes: ["mikro_read"])
 
   """Get a single layer by ID"""
-  layer(id: ID!): Layer! @auth
+  layer(id: ID!): Layer! @auth(required_scopes: ["mikro_read"])
 
   """
   List the organization's collaborations: what a guest granted one sees of it (a guest: the collaborations granted to them)
   """
-  collaborations: [Collaboration!]! @auth
+  collaborations: [Collaboration!]! @auth(required_scopes: ["mikro_read"])
 
   """Get a single collaboration by ID"""
-  collaboration(id: ID!): Collaboration! @auth
+  collaboration(id: ID!): Collaboration! @auth(required_scopes: ["mikro_read"])
 
   """List charts (compositions of data laid out along one metric axis)"""
-  charts(filters: ChartFilter, ordering: [ChartOrder!]! = [], pagination: OffsetPaginationInput): [Chart!]! @auth
+  charts(filters: ChartFilter, ordering: [ChartOrder!]! = [], pagination: OffsetPaginationInput): [Chart!]! @auth(required_scopes: ["mikro_read"])
 
   """Get a single chart by ID"""
-  chart(id: ID!): Chart! @auth
+  chart(id: ID!): Chart! @auth(required_scopes: ["mikro_read"])
 
   """List layers drawn in charts (a heterogeneous list of layer kinds)"""
-  chartLayers(filters: ChartLayerFilter, ordering: [ChartLayerOrder!]! = [], pagination: OffsetPaginationInput): [ChartLayer!]! @auth
+  chartLayers(filters: ChartLayerFilter, ordering: [ChartLayerOrder!]! = [], pagination: OffsetPaginationInput): [ChartLayer!]! @auth(required_scopes: ["mikro_read"])
 
   """Get a single chart layer by ID"""
-  chartLayer(id: ID!): ChartLayer! @auth
+  chartLayer(id: ID!): ChartLayer! @auth(required_scopes: ["mikro_read"])
 
   """
   List metrics: values recorded about annotations and datasets, by apps and people
   """
-  metrics(filters: MetricFilter, ordering: [MetricOrder!]! = [], pagination: OffsetPaginationInput): [Metric!]! @auth
+  metrics(filters: MetricFilter, ordering: [MetricOrder!]! = [], pagination: OffsetPaginationInput): [Metric!]! @auth(required_scopes: ["mikro_read"])
 
   """Get a single metric by ID"""
-  metric(id: ID!): Metric! @auth
+  metric(id: ID!): Metric! @auth(required_scopes: ["mikro_read"])
 
   """
   List lenses: selections over array datasets (by slices) and over tables, sparse datasets, meshes, networks and annotation collections (by windows), a heterogeneous list of lens kinds
   """
-  lenses(filters: LensFilter, ordering: [LensOrder!]! = [], pagination: OffsetPaginationInput): [Lens!]! @auth
+  lenses(filters: LensFilter, ordering: [LensOrder!]! = [], pagination: OffsetPaginationInput): [Lens!]! @auth(required_scopes: ["mikro_read"])
 
   """Get a single lens of any kind by ID"""
-  lens(id: ID!): Lens! @auth
+  lens(id: ID!): Lens! @auth(required_scopes: ["mikro_read"])
 
   """
   List array datasets (N-dimensional arrays with named dimensions and anchored metadata)
   """
-  arrayDatasets(filters: ArrayDatasetFilter, ordering: [ArrayDatasetOrder!]! = [], pagination: OffsetPaginationInput): [ArrayDataset!]! @auth
+  arrayDatasets(filters: ArrayDatasetFilter, ordering: [ArrayDatasetOrder!]! = [], pagination: OffsetPaginationInput): [ArrayDataset!]! @auth(required_scopes: ["mikro_read"])
 
   """Get a single array dataset by ID"""
-  arrayDataset(id: ID!): ArrayDataset! @auth
+  arrayDataset(id: ID!): ArrayDataset! @auth(required_scopes: ["mikro_read"])
 
   """List data arrays (the multiscale zarr arrays backing array datasets)"""
-  dataArrays(filters: DataArrayFilter, ordering: [DataArrayOrder!]! = [], pagination: OffsetPaginationInput): [DataArray!]! @auth
+  dataArrays(filters: DataArrayFilter, ordering: [DataArrayOrder!]! = [], pagination: OffsetPaginationInput): [DataArray!]! @auth(required_scopes: ["mikro_read"])
 
   """Get a single data array by ID"""
-  dataArray(id: ID!): DataArray! @auth
+  dataArray(id: ID!): DataArray! @auth(required_scopes: ["mikro_read"])
 
   """
   List coordinate anchors (the hubs pinning metadata spokes to coordinates of an array, table or sparse dataset)
   """
-  coordinateAnchors(filters: CoordinateAnchorFilter, pagination: OffsetPaginationInput): [CoordinateAnchor!]! @auth
+  coordinateAnchors(filters: CoordinateAnchorFilter, pagination: OffsetPaginationInput): [CoordinateAnchor!]! @auth(required_scopes: ["mikro_read"])
 
   """
   List annotations (human-drawn shapes, each in its collection's coordinate system)
   """
-  annotations(filters: AnnotationFilter, ordering: [AnnotationOrder!]! = [], pagination: OffsetPaginationInput): [Annotation!]! @auth
+  annotations(filters: AnnotationFilter, ordering: [AnnotationOrder!]! = [], pagination: OffsetPaginationInput): [Annotation!]! @auth(required_scopes: ["mikro_read"])
 
   """Get a single annotation by ID"""
-  annotation(id: ID!): Annotation! @auth
+  annotation(id: ID!): Annotation! @auth(required_scopes: ["mikro_read"])
 
   """
   List annotation collections (named sets of human-drawn shapes, each owning the coordinate system they are drawn in)
   """
-  annotationCollections(filters: AnnotationCollectionFilter, ordering: [AnnotationCollectionOrder!]! = [], pagination: OffsetPaginationInput): [AnnotationCollection!]! @auth
+  annotationCollections(filters: AnnotationCollectionFilter, ordering: [AnnotationCollectionOrder!]! = [], pagination: OffsetPaginationInput): [AnnotationCollection!]! @auth(required_scopes: ["mikro_read"])
 
   """Get a single annotation collection by ID"""
-  annotationCollection(id: ID!): AnnotationCollection! @auth
+  annotationCollection(id: ID!): AnnotationCollection! @auth(required_scopes: ["mikro_read"])
 
   """List coordinate systems (the nodes of the RFC-5 coordinate graph)"""
-  coordinateSystems(filters: CoordinateSystemFilter, ordering: [CoordinateSystemOrder!]! = [], pagination: OffsetPaginationInput): [CoordinateSystem!]! @auth
+  coordinateSystems(filters: CoordinateSystemFilter, ordering: [CoordinateSystemOrder!]! = [], pagination: OffsetPaginationInput): [CoordinateSystem!]! @auth(required_scopes: ["mikro_read"])
 
   """Get a single coordinate system by ID"""
-  coordinateSystem(id: ID!): CoordinateSystem! @auth
+  coordinateSystem(id: ID!): CoordinateSystem! @auth(required_scopes: ["mikro_read"])
 
   """
   List transformations (the directed edges of the coordinate graph). Compose them client-side; the server never resolves a path to world, because the same dataset can sit in two scenes under two registrations
   """
-  transformations(filters: TransformationFilter, ordering: [TransformationOrder!]! = [], pagination: OffsetPaginationInput): [Transformation!]! @auth
+  transformations(filters: TransformationFilter, ordering: [TransformationOrder!]! = [], pagination: OffsetPaginationInput): [Transformation!]! @auth(required_scopes: ["mikro_read"])
 
   """Get a single transformation by ID"""
-  transformation(id: ID!): Transformation! @auth
+  transformation(id: ID!): Transformation! @auth(required_scopes: ["mikro_read"])
 
   """
   List mesh collections (immutable Parquet-backed mesh sets, each in a coordinate system of its own)
   """
-  meshCollections(filters: MeshCollectionFilter, pagination: OffsetPaginationInput): [MeshCollection!]! @auth
+  meshCollections(filters: MeshCollectionFilter, pagination: OffsetPaginationInput): [MeshCollection!]! @auth(required_scopes: ["mikro_read"])
 
   """Get a single mesh collection by ID"""
-  meshCollection(id: ID!): MeshCollection! @auth
+  meshCollection(id: ID!): MeshCollection! @auth(required_scopes: ["mikro_read"])
 
   """
   List network collections (immutable Parquet-backed node/edge networks, each in a coordinate system of its own)
   """
-  networkCollections(filters: NetworkCollectionFilter, pagination: OffsetPaginationInput): [NetworkCollection!]! @auth
+  networkCollections(filters: NetworkCollectionFilter, pagination: OffsetPaginationInput): [NetworkCollection!]! @auth(required_scopes: ["mikro_read"])
 
   """Get a single network collection by ID"""
-  networkCollection(id: ID!): NetworkCollection! @auth
+  networkCollection(id: ID!): NetworkCollection! @auth(required_scopes: ["mikro_read"])
 
   """
   List fixtures (binary glTF scenes of hardware around the sample, each in a unit-carrying coordinate system of its own)
   """
-  fixtures(filters: FixtureFilter, pagination: OffsetPaginationInput): [Fixture!]! @auth
+  fixtures(filters: FixtureFilter, pagination: OffsetPaginationInput): [Fixture!]! @auth(required_scopes: ["mikro_read"])
 
   """Get a single fixture by ID"""
-  fixture(id: ID!): Fixture! @auth
+  fixture(id: ID!): Fixture! @auth(required_scopes: ["mikro_read"])
 
   """
   List sparse datasets (matrices over two enumerated axes, stored as anndata-spelled zarr groups)
   """
-  sparseDatasets(filters: SparseDatasetFilter, ordering: [SparseDatasetOrder!]! = [], pagination: OffsetPaginationInput): [SparseDataset!]! @auth
+  sparseDatasets(filters: SparseDatasetFilter, ordering: [SparseDatasetOrder!]! = [], pagination: OffsetPaginationInput): [SparseDataset!]! @auth(required_scopes: ["mikro_read"])
 
   """Get a single sparse dataset by ID"""
-  sparseDataset(id: ID!): SparseDataset! @auth
+  sparseDataset(id: ID!): SparseDataset! @auth(required_scopes: ["mikro_read"])
 
   """
   List table datasets (Parquet-backed tables of scientific records: measurements, localizations, expression levels)
   """
-  tableDatasets(filters: TableDatasetFilter, ordering: [TableDatasetOrder!]! = [], pagination: OffsetPaginationInput): [TableDataset!]! @auth
+  tableDatasets(filters: TableDatasetFilter, ordering: [TableDatasetOrder!]! = [], pagination: OffsetPaginationInput): [TableDataset!]! @auth(required_scopes: ["mikro_read"])
 
   """Get a single table dataset by ID"""
-  tableDataset(id: ID!): TableDataset! @auth
+  tableDataset(id: ID!): TableDataset! @auth(required_scopes: ["mikro_read"])
 
   """
   List scene snapshots (pre-rendered pictures of a composition, for previewing it without compositing the layers)
   """
-  sceneSnapshots(filters: SceneSnapshotFilter, ordering: [SceneSnapshotOrder!]! = [], pagination: OffsetPaginationInput): [SceneSnapshot!]! @auth
+  sceneSnapshots(filters: SceneSnapshotFilter, ordering: [SceneSnapshotOrder!]! = [], pagination: OffsetPaginationInput): [SceneSnapshot!]! @auth(required_scopes: ["mikro_read"])
 
   """List animations (named camera tours through a scene)"""
-  animations(filters: AnimationFilter, ordering: [AnimationOrder!]! = [], pagination: OffsetPaginationInput): [Animation!]! @auth
+  animations(filters: AnimationFilter, ordering: [AnimationOrder!]! = [], pagination: OffsetPaginationInput): [Animation!]! @auth(required_scopes: ["mikro_read"])
 
   """List files (raw microscopy files such as .czi or .ome.tiff)"""
-  files(filters: FileFilter, ordering: [FileOrder!]! = [], pagination: OffsetPaginationInput): [File!]! @auth
+  files(filters: FileFilter, ordering: [FileOrder!]! = [], pagination: OffsetPaginationInput): [File!]! @auth(required_scopes: ["mikro_read"])
 
   """List files created by the current user"""
-  myfiles(filters: FileFilter, ordering: [FileOrder!]! = [], pagination: OffsetPaginationInput): [File!]! @auth
+  myfiles(filters: FileFilter, ordering: [FileOrder!]! = [], pagination: OffsetPaginationInput): [File!]! @auth(required_scopes: ["mikro_read"])
 
   """
   Get statistics about array datasets: counts and time-bucketed series over the datasets of the current organization
   """
-  arrayDatasetsStats(filters: ArrayDatasetFilter = null): ArrayDatasetStats! @auth
+  arrayDatasetsStats(filters: ArrayDatasetFilter = null): ArrayDatasetStats! @auth(required_scopes: ["mikro_read"])
 
   """
   Get statistics about lenses: counts and time-bucketed series over the lenses of the current organization
   """
-  lensesStats(filters: LensFilter = null): LensStats! @auth
+  lensesStats(filters: LensFilter = null): LensStats! @auth(required_scopes: ["mikro_read"])
 
   """
   Get statistics about coordinate systems: counts and time-bucketed series over the coordinate systems of the current organization
   """
-  coordinateSystemsStats(filters: CoordinateSystemFilter = null): CoordinateSystemStats! @auth
+  coordinateSystemsStats(filters: CoordinateSystemFilter = null): CoordinateSystemStats! @auth(required_scopes: ["mikro_read"])
 
   """
   Get statistics about table datasets: counts and time-bucketed series over the table datasets of the current organization
   """
-  tableDatasetsStats(filters: TableDatasetFilter = null): TableDatasetStats! @auth
+  tableDatasetsStats(filters: TableDatasetFilter = null): TableDatasetStats! @auth(required_scopes: ["mikro_read"])
 
   """
   Get statistics about sparse datasets: counts and time-bucketed series over the sparse datasets of the current organization
   """
-  sparseDatasetsStats(filters: SparseDatasetFilter = null): SparseDatasetStats! @auth
+  sparseDatasetsStats(filters: SparseDatasetFilter = null): SparseDatasetStats! @auth(required_scopes: ["mikro_read"])
 
   """
   Get statistics about folders: counts and time-bucketed series over the folders of the current organization
   """
-  foldersStats(filters: FolderFilter = null): FolderStats! @auth
+  foldersStats(filters: FolderFilter = null): FolderStats! @auth(required_scopes: ["mikro_read"])
 
   """
   Get statistics about files: counts and time-bucketed series over the files of the current organization
   """
-  filesStats(filters: FileFilter = null): FileStats! @auth
+  filesStats(filters: FileFilter = null): FileStats! @auth(required_scopes: ["mikro_read"])
 
   """
   Get statistics about annotations: counts over the annotations of the current organization
   """
-  annotationsStats(filters: AnnotationFilter = null): AnnotationStats! @auth
+  annotationsStats(filters: AnnotationFilter = null): AnnotationStats! @auth(required_scopes: ["mikro_read"])
 
   """
   Get statistics about scenes: counts over the scenes of the current organization
   """
-  scenesStats(filters: SceneFilter = null): SceneStats! @auth
+  scenesStats(filters: SceneFilter = null): SceneStats! @auth(required_scopes: ["mikro_read"])
 
   """
   Get statistics about charts: counts and time-bucketed series over the charts of the current organization
   """
-  chartsStats(filters: ChartFilter = null): ChartStats! @auth
+  chartsStats(filters: ChartFilter = null): ChartStats! @auth(required_scopes: ["mikro_read"])
 
   """
   The k annotations of one collection nearest to a point, by cube distance between the point and each annotation's intrinsic bounding box (GiST-accelerated; 0 inside the box). Scoped to one collection because boxes only compare within one frame; the point is in the collection's nearest-intrinsic space, in its coordinate order
   """
-  nearestAnnotations(collection: ID!, point: [Float!]!, limit: Int! = 10): [Annotation!]! @auth
+  nearestAnnotations(collection: ID!, point: [Float!]!, limit: Int! = 10): [Annotation!]! @auth(required_scopes: ["mikro_read"])
 
   """
   Walk the coordinate graph out from one system: every coordinate system it reaches and every edge between them. Reachability is undirected (an edge pointing into the system relates to it as much as one pointing out), the edges keep their true direction, and nothing is composed -- what the list queries cannot answer is 'which edges relate to *this* one', because relatedness is transitive and a filter is not
   """
-  coordinateGraph(coordinateSystem: ID!, maxDepth: Int = null): CoordinateGraph! @auth
+  coordinateGraph(coordinateSystem: ID!, maxDepth: Int = null): CoordinateGraph! @auth(required_scopes: ["mikro_read"])
 
   """
   Walk the *derivation* edges out from one container and return its provenance component: everything this data was computed from, everything computed from it, transitively in both directions, and the edges between them. Distinct from `coordinateGraph`, which walks every edge touching a space -- a registration there drags in every other dataset registered into the same world, which is a neighbourhood rather than a lineage. Nodes are containers, not spaces: a dataset's grid, its levels and its lenses are one node in a provenance story. Kind-blind, so an UNMAPPABLE edge is included and is the point -- that is how a measurement table hangs off the mask it was measured from; filter on `kind` for the chain that actually places things. Root it at any container's coordinate system
   """
-  lineageGraph(coordinateSystem: ID!, maxDepth: Int = null): LineageGraph! @auth
+  lineageGraph(coordinateSystem: ID!, maxDepth: Int = null): LineageGraph! @auth(required_scopes: ["mikro_read"])
 
   """
   The directed lineage around one container or file: `up` hops of what it was made from and `down` hops of what was made from it, with the tasks that made each step and the files it was ingested from or exported to. One recursive walk per direction, so the cost follows the lineage and not the organization. A node whose hops were cut off -- by depth, by `fanout` per node or by `limit` overall -- says so in `hasMoreUp`/`hasMoreDown`; walk again rooted there to continue. Unlike `lineageGraph` it never turns sideways: a node's siblings appear once its parent is walked from
   """
-  lineage(start: LineageRootInput!, up: Int! = 1, down: Int! = 3, limit: Int! = 300, fanout: Int! = 50): Lineage! @auth
+  lineage(start: LineageRootInput!, up: Int! = 1, down: Int! = 3, limit: Int! = 300, fanout: Int! = 50): Lineage! @auth(required_scopes: ["mikro_read"])
 
   """
   The newest parentless data, whatever its kind, newest first: what a home page lists. A root has no up-hop in `lineage` -- no derivation edge into another container and no file it was converted from; a file is one unless it was exported from a container. A file's converted series and a dataset's mask are not roots: they are reached from their parent, with `descendants`. Annotation collections are drawn rather than brought in and are never listed. `kinds` narrows it; the default is every other kind. `filters` narrows it further, by creator, collaboration, creation time and acquisition time
   """
-  roots(kinds: [LineageNodeKind!] = null, pagination: OffsetPaginationInput = null, filters: RootFilter = null): [RootNode!]! @auth
+  roots(kinds: [LineageNodeKind!] = null, pagination: OffsetPaginationInput = null, filters: RootFilter = null): [RootNode!]! @auth(required_scopes: ["mikro_read"])
 
   """
   What was made from each of many containers or files, `down` hops deep, in one walk: a page of tiles asks once rather than once per tile. Kind-blind like `lineage` -- a table uploaded on its own is a root just as a converted series is -- but downstream only, and without the edges, lenses and arrays `lineage` carries. `limit` is shared by every root; `fanout` caps the hops per node. A root another organization owns answers nothing, so the result can be shorter than `starts`
   """
-  descendants(starts: [LineageRootInput!]!, down: Int! = 3, limit: Int! = 500, fanout: Int! = 20): [Descendants!]! @auth
+  descendants(starts: [LineageRootInput!]!, down: Int! = 3, limit: Int! = 500, fanout: Int! = 20): [Descendants!]! @auth(required_scopes: ["mikro_read"])
 
   """
   Every attribute plan reachable from one system: one per FIELD edge landing on a table, discovered across the fact component -- probe a source image and the plans of the instance mask derived from it come back, each carrying the `path` of steps from the probed system to its root. Registrations are never crossed (no scene, no world). A plan is instructions, never attributes -- map along the path, sample this array, look the value up in this parquet -- and takes no coordinate, so a client fetches it once and executes it per hover against the chunks it is already rendering. Cache it against the FIELD edge plus every path step (ids and versions); `maxDepth` bounds the discovery. Each plan is a chain of `hops`: the landing, then every declared reference reachable from it -- `Column.references` into another table, a matrix axis a table identifies, or the same axis walked into the matrix -- up to `maxJoinDepth` (default 1, at most 4; 0 is the landing alone), each bound from the hop before and executed by the client in order. The server reads no store and composes nothing
   """
-  attributePlans(system: ID!, maxDepth: Int = null, maxJoinDepth: Int! = 1): [AttributePlan!]! @auth
+  attributePlans(system: ID!, maxDepth: Int = null, maxJoinDepth: Int! = 1): [AttributePlan!]! @auth(required_scopes: ["mikro_read"])
 
   """
   Every column a mesh collection's objects can be coloured or filtered by: one entry per (joinPath, table, column), with the control its declared role admits. **The set this returns is exactly the set `createMeshLayer(colorBys:)` and `filterBys` accept** -- same reachability walk, same measure-vs-categorical rule -- which is what makes it an options query rather than a suggestion. Distinct from `attributePlans`, which answers a different question (how to execute a lookup per hover) over a different set: it walks the whole fact component and returns plans rooted at a source mask that mesh ids cannot execute, drops tables the write path accepts, and fails outright on a storeless array. Both pickers read these same options, because both branch on the same split. `joinPath` follows `references` from table to table -- pass an option's path back verbatim to select it. The columns' *values* are not here: a picker wanting a class list or a numeric range reads them from the parquet it already has an `accessGrant` for
   """
-  colorByOptions(meshCollection: ID!, filters: ColumnOptionFilter = null, pagination: OffsetPaginationInput = null, maxJoinDepth: Int! = 1): [ColorByOption!]! @auth
+  colorByOptions(meshCollection: ID!, filters: ColumnOptionFilter = null, pagination: OffsetPaginationInput = null, maxJoinDepth: Int! = 1): [ColorByOption!]! @auth(required_scopes: ["mikro_read"])
 
   """
   Every column a mesh collection's objects can be filtered by -- **the same set `colorByOptions` returns**, under the name that reads right where a rule is being authored. One relation, one walk, two names: a colouring and a rule reach the same column through the same join and branch on the same measure-vs-categorical split, so two different sets would mean one of them was wrong. What differs is what a control *means*: MEASURE takes a `min`/`max` bound here and a colormap there. Same arguments, same `joinPath` to pass back, same invariant -- everything returned is something `createMeshLayer(filterBys:)` accepts
   """
-  filterByOptions(meshCollection: ID!, filters: ColumnOptionFilter = null, pagination: OffsetPaginationInput = null, maxJoinDepth: Int! = 1): [FilterByOption!]! @auth
+  filterByOptions(meshCollection: ID!, filters: ColumnOptionFilter = null, pagination: OffsetPaginationInput = null, maxJoinDepth: Int! = 1): [FilterByOption!]! @auth(required_scopes: ["mikro_read"])
 
   """
   Everything a network layer over one collection can be coloured or filtered by. **The set this returns is exactly the set `createNetworkLayer(colorBys:)` and `filterBys` accept.** Two halves in one list: the GRAPH options first -- the per-node values the collection itself carries (Strahler order, degree, depth, component, a stored radius, a writer's own column), named by `graphAttribute` and always MEASURE -- then the COLUMN and SPARSE options from the shared reachability walk, rooted at depth zero so only tables keyed by this collection's **object** ids (via `createTableDataset(keyedBy: {kind: NETWORK_COLLECTION})`) are offered; the wider fact walk would offer the source image's mask-keyed tables, joins an object id cannot execute. Same arguments, same `joinPath` to pass back, same no-values rule as every other options query
   """
-  networkColorByOptions(networkCollection: ID!, filters: ColumnOptionFilter = null, pagination: OffsetPaginationInput = null, maxJoinDepth: Int! = 1): [ColorByOption!]! @auth
+  networkColorByOptions(networkCollection: ID!, filters: ColumnOptionFilter = null, pagination: OffsetPaginationInput = null, maxJoinDepth: Int! = 1): [ColorByOption!]! @auth(required_scopes: ["mikro_read"])
 
   """
   Everything a network layer over one collection can be filtered by -- **the same set `networkColorByOptions` returns**, under the name that reads right where a rule is being authored. A GRAPH option is the one whose rule is per node: `min`/`max` bounds over Strahler order, degree or a radius hide individual nodes and segments, where a COLUMN or SPARSE rule keeps or drops whole objects. Everything returned is something `createNetworkLayer(filterBys:)` accepts
   """
-  networkFilterByOptions(networkCollection: ID!, filters: ColumnOptionFilter = null, pagination: OffsetPaginationInput = null, maxJoinDepth: Int! = 1): [FilterByOption!]! @auth
+  networkFilterByOptions(networkCollection: ID!, filters: ColumnOptionFilter = null, pagination: OffsetPaginationInput = null, maxJoinDepth: Int! = 1): [FilterByOption!]! @auth(required_scopes: ["mikro_read"])
 
   """
   Every column a mask's objects can be coloured or filtered by: `colorByOptions` rooted on the lens a label layer renders instead of on a mesh collection, and the same answer for the same reason -- a mask's pixel values dereference into a table by exactly the FIELD edge a collection's ids do, so the walk, the measure-vs-categorical rule and the `joinPath` to pass back are one. **The set this returns is exactly the set `createLabelLayer(render: {colorBys: ...})` and `filterBys` accept.** The columns' *values* are not here: a picker wanting a class list or a numeric range reads them from the parquet it already has an `accessGrant` for
   """
-  labelColorByOptions(lens: ID!, filters: ColumnOptionFilter = null, pagination: OffsetPaginationInput = null, maxJoinDepth: Int! = 1): [ColorByOption!]! @auth
+  labelColorByOptions(lens: ID!, filters: ColumnOptionFilter = null, pagination: OffsetPaginationInput = null, maxJoinDepth: Int! = 1): [ColorByOption!]! @auth(required_scopes: ["mikro_read"])
 
   """
   Every column a mask's objects can be filtered by -- **the same set `labelColorByOptions` returns**, under the name that reads right where a rule is being authored. One relation, one walk, two names, exactly as `filterByOptions` pairs with `colorByOptions` over a collection: what differs is what a control *means*, since MEASURE takes a `min`/`max` bound here and a colormap there. Everything returned is something `createLabelLayer(render: {filterBys: ...})` accepts
   """
-  labelFilterByOptions(lens: ID!, filters: ColumnOptionFilter = null, pagination: OffsetPaginationInput = null, maxJoinDepth: Int! = 1): [FilterByOption!]! @auth
+  labelFilterByOptions(lens: ID!, filters: ColumnOptionFilter = null, pagination: OffsetPaginationInput = null, maxJoinDepth: Int! = 1): [FilterByOption!]! @auth(required_scopes: ["mikro_read"])
 
   """List the child folders of a folder"""
-  children(parent: ID!, filters: FolderChildrenFilter = null, pagination: ChildrenPaginationInput = null, order: ChildrenOrder = null): [FolderChild!]! @auth
+  children(parent: ID!, filters: FolderChildrenFilter = null, pagination: ChildrenPaginationInput = null, order: ChildrenOrder = null): [FolderChild!]! @auth(required_scopes: ["mikro_read"])
 
   """Get permissions for a specific object"""
-  permissions(identifier: String!, object: ID!): [UserObjectPermission!]! @auth
+  permissions(identifier: String!, object: ID!): [UserObjectPermission!]! @auth(required_scopes: ["mikro_read"])
 
   """Get available permissions for a specific identifier"""
-  availablePermissions(identifier: String!, search: String = null, values: [ID!] = null): [PermissionOption!]! @auth
+  availablePermissions(identifier: String!, search: String = null, values: [ID!] = null): [PermissionOption!]! @auth(required_scopes: ["mikro_read"])
 
   """List the memberships of the current organization (excluding bots)"""
-  members: [Membership!]! @auth
+  members: [Membership!]! @auth(required_scopes: ["mikro_read"])
 
   """Get a single Rekuest task by ID"""
   task(
     """The unique identifier of an object"""
     id: ID!
-  ): Task! @auth
+  ): Task! @auth(required_scopes: ["mikro_read"])
 
   """Get a single scene snapshot by ID"""
   sceneSnapshot(
     """The unique identifier of an object"""
     id: ID!
-  ): SceneSnapshot! @auth
+  ): SceneSnapshot! @auth(required_scopes: ["mikro_read"])
 
   """Get a single animation by ID"""
   animation(
     """The unique identifier of an object"""
     id: ID!
-  ): Animation! @auth
+  ): Animation! @auth(required_scopes: ["mikro_read"])
 
   """Get a single file by ID"""
   file(
     """The unique identifier of an object"""
     id: ID!
-  ): File! @auth
+  ): File! @auth(required_scopes: ["mikro_read"])
 
   """Get a single folder by ID"""
   folder(
     """The unique identifier of an object"""
     id: ID!
-  ): Folder! @auth
+  ): Folder! @auth(required_scopes: ["mikro_read"])
 }
 
 input RefreshUploadInput {
@@ -12168,37 +12168,37 @@ input StrFilterLookup {
 
 type Subscription {
   """Subscribe to real-time file updates"""
-  files(folder: ID = null): FileEvent! @auth
+  files(folder: ID = null): FileEvent! @auth(required_scopes: ["mikro_read"])
 
   """
   Follow one annotation collection: an event for every annotation drawn into it, edited or deleted. Carries changes only -- read the collection's current annotations with the `annotations` query first
   """
-  annotations(collection: ID!): AnnotationEvent! @auth
+  annotations(collection: ID!): AnnotationEvent! @auth(required_scopes: ["mikro_read"])
 
   """
   Follow one scene: an event for every layer added to it, edited or removed. Carries changes only -- read the scene's current layers first
   """
-  layers(scene: ID!): LayerEvent! @auth
+  layers(scene: ID!): LayerEvent! @auth(required_scopes: ["mikro_read"])
 
   """
   Follow the array datasets of one folder, or of the whole organization when no folder is given: an event for every one created, edited or deleted
   """
-  arrayDatasets(folder: ID = null): ArrayDatasetEvent! @auth
+  arrayDatasets(folder: ID = null): ArrayDatasetEvent! @auth(required_scopes: ["mikro_read"])
 
   """
   Follow the table datasets of one folder, or of the whole organization when no folder is given: an event for every one created, edited or deleted
   """
-  tableDatasets(folder: ID = null): TableDatasetEvent! @auth
+  tableDatasets(folder: ID = null): TableDatasetEvent! @auth(required_scopes: ["mikro_read"])
 
   """
   Follow the organization's scenes: an event for every one created, edited or deleted
   """
-  scenes: SceneEvent! @auth
+  scenes: SceneEvent! @auth(required_scopes: ["mikro_read"])
 
   """
   Follow the lenses of one container -- given by its kind and its id -- or of the whole organization when neither is given: an event for every selection made, renamed or deleted, the whole lens a new container is born with included. Carries changes only -- read the container's current lenses first
   """
-  lenses(kind: LensKind = null, container: ID = null): LensEvent! @auth
+  lenses(kind: LensKind = null, container: ID = null): LensEvent! @auth(required_scopes: ["mikro_read"])
 }
 
 """

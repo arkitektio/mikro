@@ -68,6 +68,9 @@ projects:
               MetricTargetInput: mikro.scalars.MetricTargetCoercible
             expand_input_types:
               - input
+          # SCOPES: what the operations above need at mikro, read off the schema's
+          # `@auth(required_scopes: ...)`. The service hands it to every app's manifest.
+          - type: turms.plugins.scopes.ScopesPlugin
         scalar_definitions:
           Any: typing.Any
           JSON: typing.Any

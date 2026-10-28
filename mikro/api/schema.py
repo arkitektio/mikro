@@ -19310,6 +19310,7 @@ Returns:
             variables['folder'] = folder
         for event in self.subscribe(WatchFilesSubscription, variables, task=task):
             yield event.files
+SCOPES: list[str] = ['mikro_annotate', 'mikro_read', 'mikro_write']
 AnimationFilter.model_rebuild()
 AnimationWaypointInput.model_rebuild()
 AnnotationCollectionDerivedFromInput.model_rebuild()
