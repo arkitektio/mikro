@@ -783,11 +783,10 @@ wheels = [
 
 [[package]]
 name = "fabriks"
-version = "2.0.0"
+version = "3.0.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "fast-simplification" },
-    { name = "meshoptimizer" },
     { name = "numpy" },
     { name = "pyarrow" },
     { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
@@ -795,9 +794,14 @@ dependencies = [
     { name = "shapely" },
     { name = "trimesh" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ec/24/fc038cab8194bad67699fd331b7b911d355832b7f26a1b622e3b55749a1c/fabriks-2.0.0.tar.gz", hash = "sha256:876a6644aec360d8e05f6dbadad4e47726608c096117570ebbd5ad363cb9781a", size = 115046, upload-time = "2026-10-23T18:58:27.526Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/df/35/4af88f56ca77a166fcc6607ffc3fd22c97cb5838be58b4e88625e153ddd9/fabriks-3.0.1.tar.gz", hash = "sha256:a843ccfb904c7e08ea24fdaa491d33574d10a2c318416bc865d05e5afdca4e12", size = 115377, upload-time = "2026-10-28T08:15:03.462Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8a/48/d8528f6919499129eb82d34aff143c4cc6c3bdf440623abe457f396f514a/fabriks-2.0.0-py3-none-any.whl", hash = "sha256:375f16123f02f79bd6e565b3967f1084bd91126181aa804a9e06fc20100779e2", size = 138345, upload-time = "2026-10-23T18:58:26.081Z" },
+    { url = "https://files.pythonhosted.org/packages/87/ef/fd0d3fc634ebe3ebf35743dcdb34761b6616e8f19d593cce91155594f97d/fabriks-3.0.1-py3-none-any.whl", hash = "sha256:647e91bf06178fc80accd5d03019181ead42694777aba9e2c5fee4ef8b94a9a9", size = 138651, upload-time = "2026-10-28T08:15:02.047Z" },
+]
+
+[package.optional-dependencies]
+meshopt = [
+    { name = "meshoptimizer" },
 ]
 
 [[package]]
@@ -1358,7 +1362,7 @@ mesh = [
     { name = "pyarrow" },
 ]
 meshopt = [
-    { name = "fabriks" },
+    { name = "fabriks", extra = ["meshopt"] },
     { name = "pyarrow" },
 ]
 network = [
@@ -1407,9 +1411,9 @@ requires-dist = [
     { name = "dask", specifier = ">=2024.12.1" },
     { name = "duckdb", marker = "extra == 'complete'", specifier = ">=1.0" },
     { name = "duckdb", marker = "extra == 'table'", specifier = ">=1.0" },
-    { name = "fabriks", marker = "extra == 'complete'", specifier = ">=2" },
+    { name = "fabriks", marker = "extra == 'complete'", specifier = ">=3" },
     { name = "fabriks", marker = "extra == 'mesh'", specifier = ">=1.3" },
-    { name = "fabriks", marker = "extra == 'meshopt'", specifier = ">=2" },
+    { name = "fabriks", extras = ["meshopt"], marker = "extra == 'meshopt'", specifier = ">=3" },
     { name = "fakts", specifier = ">=6.1" },
     { name = "kanne", specifier = ">=2.5.0" },
     { name = "konnektion", marker = "extra == 'complete'", specifier = ">=1.2" },

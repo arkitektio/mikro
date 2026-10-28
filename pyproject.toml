@@ -26,7 +26,7 @@ dependencies = [
 table = ["pyarrow>=12.0.1", "pandas>=2.2", "duckdb>=1.0"]
 # `fabriks` is the wire format: it owns the octree, the codecs and the simplifiers, and pulls
 # in everything that takes part in building a collection (trimesh, shapely, scipy,
-# meshoptimizer, which fabriks 2 makes its default simplifier and so a dependency).
+# fast-simplification). meshoptimizer is fabriks' `meshopt` extra: it builds from source.
 # The upload passes `parquet_compression=` to the writers; fabriks 1.3 and konnektion 1.2
 # are the releases that accept it, so these floors cannot go lower.
 mesh = ["fabriks>=1.3", "pyarrow>=12.0.1"]
@@ -36,16 +36,16 @@ mesh = ["fabriks>=1.3", "pyarrow>=12.0.1"]
 # the other one. Its dependency list is much shorter than fabriks's -- numpy and pyarrow, no
 # geometry stack -- because a graph is cut by assigning nodes rather than by intersecting.
 network = ["konnektion>=1.2", "pyarrow>=12.0.1"]
-# `codec="MESHOPT"`, for a caller whose renderer ships the EXT_meshopt_compression decoder.
-# fabriks 2 depends on meshoptimizer itself, so the extra is only a floor now; kept so that
-# `mikro[meshopt]` still installs.
-meshopt = ["fabriks>=2", "pyarrow>=12.0.1"]
+# `codec="MESHOPT"` and the MESHOPT simplifier, for a caller whose renderer ships the
+# EXT_meshopt_compression decoder. meshoptimizer ships as source only, so this extra needs a
+# C++ compiler, and `complete` leaves it out.
+meshopt = ["fabriks[meshopt]>=3", "pyarrow>=12.0.1"]
 # `sporadik` is the sparse wire format, and an extra for the same reason `fabriks` is: it owns the
 # layout, the block and the invariants, and a client that never uploads a sparse dataset should not
 # carry them. It needs nothing beyond numpy and zarr, both of which are core dependencies here
 # already, so this extra costs a caller one small pure-Python package and no transitive weight.
 sparse = ["sporadik>=0.1"]
-complete = ["fabriks>=2", "konnektion>=1.2", "sporadik>=0.1", "pyarrow>=12.0.1", "pandas>=2.2", "duckdb>=1.0"]
+complete = ["fabriks>=3", "konnektion>=1.2", "sporadik>=0.1", "pyarrow>=12.0.1", "pandas>=2.2", "duckdb>=1.0"]
 
 
 [tool.uv]
