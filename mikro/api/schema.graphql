@@ -3020,7 +3020,7 @@ Input type for creating an array dataset. Its axes are structural (name and kind
 """
 input CreateArrayDatasetInput {
   data: ArrayLike!
-  scales: [ScaleInput!]!
+  scales: [ScaleInput!]! = []
   name: String!
   axes: [AxisInput!]!
   folder: ID = null

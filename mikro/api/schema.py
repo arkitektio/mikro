@@ -1664,7 +1664,8 @@ class CreateAnnotationsInput(BaseModel):
 class CreateArrayDatasetInput(CreateADatasetTrait, BaseModel):
     """Input type for creating an array dataset. Its axes are structural (name and kind); physical units, if known, arrive afterwards through createCoordinateSystem with a registrations entry naming the dataset"""
     data: ArrayLike
-    scales: tuple['ScaleInput', ...]
+    scales: Annotated[tuple['ScaleInput', ...] | None, GraphQLDefault('[]')] = None
+    'Default: []'
     name: str
     axes: tuple[AxisInput, ...]
     folder: ID | None = None
@@ -10432,7 +10433,7 @@ Returns:
         variables['input'] = _input
         return self.execute(DeleteAnnotationCollectionMutation, variables, task=task).delete_annotation_collection
 
-    async def acreate_array_dataset(self, data: ArrayCoercible, scales: Iterable[ScaleInput], name: str, axes: Iterable[AxisInput | AxisName], folder: IDCoercible | None | UnsetType=UNSET, anchors: Iterable[CoordinateAnchorInput] | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, task: TaskLike | None=None) -> ArrayDataset:
+    async def acreate_array_dataset(self, data: ArrayCoercible, name: str, axes: Iterable[AxisInput | AxisName], scales: Iterable[ScaleInput] | UnsetType=UNSET, folder: IDCoercible | None | UnsetType=UNSET, anchors: Iterable[CoordinateAnchorInput] | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, task: TaskLike | None=None) -> ArrayDataset:
         """CreateArrayDataset 
 
 Create a new dataset from array-like data with optional coordinate anchors and OME metadata
@@ -10454,7 +10455,8 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['data'] = data
-        _input['scales'] = scales
+        if scales is not UNSET:
+            _input['scales'] = scales
         _input['name'] = name
         _input['axes'] = axes
         if folder is not UNSET:
@@ -10468,7 +10470,7 @@ Returns:
         variables['input'] = _input
         return (await self.aexecute(CreateArrayDatasetMutation, variables, task=task)).create_array_dataset
 
-    def create_array_dataset(self, data: ArrayCoercible, scales: Iterable[ScaleInput], name: str, axes: Iterable[AxisInput | AxisName], folder: IDCoercible | None | UnsetType=UNSET, anchors: Iterable[CoordinateAnchorInput] | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, task: TaskLike | None=None) -> ArrayDataset:
+    def create_array_dataset(self, data: ArrayCoercible, name: str, axes: Iterable[AxisInput | AxisName], scales: Iterable[ScaleInput] | UnsetType=UNSET, folder: IDCoercible | None | UnsetType=UNSET, anchors: Iterable[CoordinateAnchorInput] | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, task: TaskLike | None=None) -> ArrayDataset:
         """CreateArrayDataset 
 
 Create a new dataset from array-like data with optional coordinate anchors and OME metadata
@@ -10490,7 +10492,8 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['data'] = data
-        _input['scales'] = scales
+        if scales is not UNSET:
+            _input['scales'] = scales
         _input['name'] = name
         _input['axes'] = axes
         if folder is not UNSET:
@@ -10562,7 +10565,7 @@ Returns:
         variables['input'] = _input
         return self.execute(CreateChartMutation, variables, task=task).create_chart
 
-    async def acreate_chart_from_coordinate_system(self, coordinate_system: IDCoercible, policy: ChartPolicyInput, name: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> Chart:
+    async def acreate_chart_from_coordinate_system(self, coordinate_system: IDCoercible, name: str | None | UnsetType=UNSET, policy: ChartPolicyInput | UnsetType=UNSET, task: TaskLike | None=None) -> Chart:
         """CreateChartFromCoordinateSystem 
 
 Bootstrap a chart over an existing coordinate system, drawing every array, table and annotation collection already laid along its axis. Authors no edges
@@ -10581,11 +10584,12 @@ Returns:
         _input['coordinateSystem'] = coordinate_system
         if name is not UNSET:
             _input['name'] = name
-        _input['policy'] = policy
+        if policy is not UNSET:
+            _input['policy'] = policy
         variables['input'] = _input
         return (await self.aexecute(CreateChartFromCoordinateSystemMutation, variables, task=task)).create_chart_from_coordinate_system
 
-    def create_chart_from_coordinate_system(self, coordinate_system: IDCoercible, policy: ChartPolicyInput, name: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> Chart:
+    def create_chart_from_coordinate_system(self, coordinate_system: IDCoercible, name: str | None | UnsetType=UNSET, policy: ChartPolicyInput | UnsetType=UNSET, task: TaskLike | None=None) -> Chart:
         """CreateChartFromCoordinateSystem 
 
 Bootstrap a chart over an existing coordinate system, drawing every array, table and annotation collection already laid along its axis. Authors no edges
@@ -10604,7 +10608,8 @@ Returns:
         _input['coordinateSystem'] = coordinate_system
         if name is not UNSET:
             _input['name'] = name
-        _input['policy'] = policy
+        if policy is not UNSET:
+            _input['policy'] = policy
         variables['input'] = _input
         return self.execute(CreateChartFromCoordinateSystemMutation, variables, task=task).create_chart_from_coordinate_system
 
@@ -11058,7 +11063,7 @@ Returns:
         variables['input'] = _input
         return self.execute(DeleteChartLayerMutation, variables, task=task).delete_chart_layer
 
-    async def acreate_coordinate_system(self, name: str, axes: Iterable[PhysicalAxisInput], registrations: Iterable[RegistrationPathInput], epoch: datetime | None | UnsetType=UNSET, reference: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> CoordinateSystem:
+    async def acreate_coordinate_system(self, name: str, axes: Iterable[PhysicalAxisInput], epoch: datetime | None | UnsetType=UNSET, reference: str | None | UnsetType=UNSET, registrations: Iterable[RegistrationPathInput] | UnsetType=UNSET, task: TaskLike | None=None) -> CoordinateSystem:
         """CreateCoordinateSystem 
 
 Create a SHARED coordinate system (an ownerless space) and, in one call, author the edges registering any number of sources (datasets, table datasets, mesh collections, coordinate systems) into it
@@ -11082,11 +11087,12 @@ Returns:
             _input['epoch'] = epoch
         if reference is not UNSET:
             _input['reference'] = reference
-        _input['registrations'] = registrations
+        if registrations is not UNSET:
+            _input['registrations'] = registrations
         variables['input'] = _input
         return (await self.aexecute(CreateCoordinateSystemMutation, variables, task=task)).create_coordinate_system
 
-    def create_coordinate_system(self, name: str, axes: Iterable[PhysicalAxisInput], registrations: Iterable[RegistrationPathInput], epoch: datetime | None | UnsetType=UNSET, reference: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> CoordinateSystem:
+    def create_coordinate_system(self, name: str, axes: Iterable[PhysicalAxisInput], epoch: datetime | None | UnsetType=UNSET, reference: str | None | UnsetType=UNSET, registrations: Iterable[RegistrationPathInput] | UnsetType=UNSET, task: TaskLike | None=None) -> CoordinateSystem:
         """CreateCoordinateSystem 
 
 Create a SHARED coordinate system (an ownerless space) and, in one call, author the edges registering any number of sources (datasets, table datasets, mesh collections, coordinate systems) into it
@@ -11110,7 +11116,8 @@ Returns:
             _input['epoch'] = epoch
         if reference is not UNSET:
             _input['reference'] = reference
-        _input['registrations'] = registrations
+        if registrations is not UNSET:
+            _input['registrations'] = registrations
         variables['input'] = _input
         return self.execute(CreateCoordinateSystemMutation, variables, task=task).create_coordinate_system
 
@@ -11352,7 +11359,7 @@ Returns:
         variables['input'] = _input
         return self.execute(RequestBigfileUploadMutation, variables, task=task).request_bigfile_upload
 
-    async def afinish_bigfile_upload(self, store_id: str, valid: bool, task: TaskLike | None=None) -> BigFileStore:
+    async def afinish_bigfile_upload(self, store_id: str, valid: bool | UnsetType=UNSET, task: TaskLike | None=None) -> BigFileStore:
         """FinishBigfileUpload 
 
 Finalize a big file upload after the client has written the object
@@ -11368,11 +11375,12 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
-        _input['valid'] = valid
+        if valid is not UNSET:
+            _input['valid'] = valid
         variables['input'] = _input
         return (await self.aexecute(FinishBigfileUploadMutation, variables, task=task)).finish_bigfile_upload
 
-    def finish_bigfile_upload(self, store_id: str, valid: bool, task: TaskLike | None=None) -> BigFileStore:
+    def finish_bigfile_upload(self, store_id: str, valid: bool | UnsetType=UNSET, task: TaskLike | None=None) -> BigFileStore:
         """FinishBigfileUpload 
 
 Finalize a big file upload after the client has written the object
@@ -11388,7 +11396,8 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
-        _input['valid'] = valid
+        if valid is not UNSET:
+            _input['valid'] = valid
         variables['input'] = _input
         return self.execute(FinishBigfileUploadMutation, variables, task=task).finish_bigfile_upload
 
@@ -11492,7 +11501,7 @@ Returns:
         variables: dict[str, builtins.object] = {}
         return self.execute(RequestFabriksUploadMutation, variables, task=task).request_fabriks_upload
 
-    async def afinish_fabriks_upload(self, store_id: str, valid: bool, task: TaskLike | None=None) -> FabriksStore:
+    async def afinish_fabriks_upload(self, store_id: str, valid: bool | UnsetType=UNSET, task: TaskLike | None=None) -> FabriksStore:
         """FinishFabriksUpload 
  Reads the store's `fabriks.json` and refuses a prefix without one -- which is exactly what an
  interrupted upload looks like, since the manifest is written last. So this is the completion
@@ -11509,11 +11518,12 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
-        _input['valid'] = valid
+        if valid is not UNSET:
+            _input['valid'] = valid
         variables['input'] = _input
         return (await self.aexecute(FinishFabriksUploadMutation, variables, task=task)).finish_fabriks_upload
 
-    def finish_fabriks_upload(self, store_id: str, valid: bool, task: TaskLike | None=None) -> FabriksStore:
+    def finish_fabriks_upload(self, store_id: str, valid: bool | UnsetType=UNSET, task: TaskLike | None=None) -> FabriksStore:
         """FinishFabriksUpload 
  Reads the store's `fabriks.json` and refuses a prefix without one -- which is exactly what an
  interrupted upload looks like, since the manifest is written last. So this is the completion
@@ -11530,7 +11540,8 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
-        _input['valid'] = valid
+        if valid is not UNSET:
+            _input['valid'] = valid
         variables['input'] = _input
         return self.execute(FinishFabriksUploadMutation, variables, task=task).finish_fabriks_upload
 
@@ -11634,7 +11645,7 @@ Returns:
         variables: dict[str, builtins.object] = {}
         return self.execute(RequestKonnektionUploadMutation, variables, task=task).request_konnektion_upload
 
-    async def afinish_konnektion_upload(self, store_id: str, valid: bool, task: TaskLike | None=None) -> KonnektionStore:
+    async def afinish_konnektion_upload(self, store_id: str, valid: bool | UnsetType=UNSET, task: TaskLike | None=None) -> KonnektionStore:
         """FinishKonnektionUpload 
  Reads the store's `konnektion.json` and refuses a prefix without one -- which is exactly what an
  interrupted upload looks like, since the manifest is written last. So this is the completion
@@ -11651,11 +11662,12 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
-        _input['valid'] = valid
+        if valid is not UNSET:
+            _input['valid'] = valid
         variables['input'] = _input
         return (await self.aexecute(FinishKonnektionUploadMutation, variables, task=task)).finish_konnektion_upload
 
-    def finish_konnektion_upload(self, store_id: str, valid: bool, task: TaskLike | None=None) -> KonnektionStore:
+    def finish_konnektion_upload(self, store_id: str, valid: bool | UnsetType=UNSET, task: TaskLike | None=None) -> KonnektionStore:
         """FinishKonnektionUpload 
  Reads the store's `konnektion.json` and refuses a prefix without one -- which is exactly what an
  interrupted upload looks like, since the manifest is written last. So this is the completion
@@ -11672,7 +11684,8 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
-        _input['valid'] = valid
+        if valid is not UNSET:
+            _input['valid'] = valid
         variables['input'] = _input
         return self.execute(FinishKonnektionUploadMutation, variables, task=task).finish_konnektion_upload
 
@@ -11788,7 +11801,7 @@ Returns:
         variables['input'] = _input
         return self.execute(RequestKulisseUploadMutation, variables, task=task).request_kulisse_upload
 
-    async def afinish_kulisse_upload(self, store_id: str, valid: bool, task: TaskLike | None=None) -> KulisseStore:
+    async def afinish_kulisse_upload(self, store_id: str, valid: bool | UnsetType=UNSET, task: TaskLike | None=None) -> KulisseStore:
         """FinishKulisseUpload 
  Reads the model's header and JSON chunk and refuses a file that is not a self-contained
  glTF 2.0 model; the store it returns carries the nodes, joints and bounds it read.
@@ -11804,11 +11817,12 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
-        _input['valid'] = valid
+        if valid is not UNSET:
+            _input['valid'] = valid
         variables['input'] = _input
         return (await self.aexecute(FinishKulisseUploadMutation, variables, task=task)).finish_kulisse_upload
 
-    def finish_kulisse_upload(self, store_id: str, valid: bool, task: TaskLike | None=None) -> KulisseStore:
+    def finish_kulisse_upload(self, store_id: str, valid: bool | UnsetType=UNSET, task: TaskLike | None=None) -> KulisseStore:
         """FinishKulisseUpload 
  Reads the model's header and JSON chunk and refuses a file that is not a self-contained
  glTF 2.0 model; the store it returns carries the nodes, joints and bounds it read.
@@ -11824,7 +11838,8 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
-        _input['valid'] = valid
+        if valid is not UNSET:
+            _input['valid'] = valid
         variables['input'] = _input
         return self.execute(FinishKulisseUploadMutation, variables, task=task).finish_kulisse_upload
 
@@ -11946,7 +11961,7 @@ Returns:
         variables['input'] = _input
         return self.execute(RequestMediaUploadMutation, variables, task=task).request_media_upload
 
-    async def afinish_media_upload(self, store_id: str, valid: bool, task: TaskLike | None=None) -> MediaStore:
+    async def afinish_media_upload(self, store_id: str, valid: bool | UnsetType=UNSET, task: TaskLike | None=None) -> MediaStore:
         """FinishMediaUpload 
 
 Finalize a media upload after the client has written the object
@@ -11962,11 +11977,12 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
-        _input['valid'] = valid
+        if valid is not UNSET:
+            _input['valid'] = valid
         variables['input'] = _input
         return (await self.aexecute(FinishMediaUploadMutation, variables, task=task)).finish_media_upload
 
-    def finish_media_upload(self, store_id: str, valid: bool, task: TaskLike | None=None) -> MediaStore:
+    def finish_media_upload(self, store_id: str, valid: bool | UnsetType=UNSET, task: TaskLike | None=None) -> MediaStore:
         """FinishMediaUpload 
 
 Finalize a media upload after the client has written the object
@@ -11982,7 +11998,8 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
-        _input['valid'] = valid
+        if valid is not UNSET:
+            _input['valid'] = valid
         variables['input'] = _input
         return self.execute(FinishMediaUploadMutation, variables, task=task).finish_media_upload
 
@@ -12096,7 +12113,7 @@ Returns:
         variables['input'] = _input
         return self.execute(RequestParquetUploadMutation, variables, task=task).request_parquet_upload
 
-    async def afinish_parquet_upload(self, store_id: str, valid: bool, task: TaskLike | None=None) -> ParquetStore:
+    async def afinish_parquet_upload(self, store_id: str, valid: bool | UnsetType=UNSET, task: TaskLike | None=None) -> ParquetStore:
         """FinishParquetUpload 
 
 Finalize a Parquet upload after the client has written the object
@@ -12112,11 +12129,12 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
-        _input['valid'] = valid
+        if valid is not UNSET:
+            _input['valid'] = valid
         variables['input'] = _input
         return (await self.aexecute(FinishParquetUploadMutation, variables, task=task)).finish_parquet_upload
 
-    def finish_parquet_upload(self, store_id: str, valid: bool, task: TaskLike | None=None) -> ParquetStore:
+    def finish_parquet_upload(self, store_id: str, valid: bool | UnsetType=UNSET, task: TaskLike | None=None) -> ParquetStore:
         """FinishParquetUpload 
 
 Finalize a Parquet upload after the client has written the object
@@ -12132,7 +12150,8 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
-        _input['valid'] = valid
+        if valid is not UNSET:
+            _input['valid'] = valid
         variables['input'] = _input
         return self.execute(FinishParquetUploadMutation, variables, task=task).finish_parquet_upload
 
@@ -12236,7 +12255,7 @@ Returns:
         variables: dict[str, builtins.object] = {}
         return self.execute(RequestSparseUploadMutation, variables, task=task).request_sparse_upload
 
-    async def afinish_sparse_upload(self, store_id: str, valid: bool, task: TaskLike | None=None) -> SparseStore:
+    async def afinish_sparse_upload(self, store_id: str, valid: bool | UnsetType=UNSET, task: TaskLike | None=None) -> SparseStore:
         """FinishSparseUpload 
 
 Finalize a sparse upload, which is when the group's own metadata is read. A missing encoding, a missing array, or an `indptr` whose length contradicts the declared shape are all refused here -- that is what an interrupted upload looks like, and catching it now beats a reader discovering it later
@@ -12252,11 +12271,12 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
-        _input['valid'] = valid
+        if valid is not UNSET:
+            _input['valid'] = valid
         variables['input'] = _input
         return (await self.aexecute(FinishSparseUploadMutation, variables, task=task)).finish_sparse_upload
 
-    def finish_sparse_upload(self, store_id: str, valid: bool, task: TaskLike | None=None) -> SparseStore:
+    def finish_sparse_upload(self, store_id: str, valid: bool | UnsetType=UNSET, task: TaskLike | None=None) -> SparseStore:
         """FinishSparseUpload 
 
 Finalize a sparse upload, which is when the group's own metadata is read. A missing encoding, a missing array, or an `indptr` whose length contradicts the declared shape are all refused here -- that is what an interrupted upload looks like, and catching it now beats a reader discovering it later
@@ -12272,7 +12292,8 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
-        _input['valid'] = valid
+        if valid is not UNSET:
+            _input['valid'] = valid
         variables['input'] = _input
         return self.execute(FinishSparseUploadMutation, variables, task=task).finish_sparse_upload
 
@@ -12362,7 +12383,7 @@ Returns:
         variables['input'] = _input
         return self.execute(RequestZarrUploadMutation, variables, task=task).request_zarr_upload
 
-    async def afinish_zarr_upload(self, store_id: str, valid: bool, task: TaskLike | None=None) -> ZarrStore:
+    async def afinish_zarr_upload(self, store_id: str, valid: bool | UnsetType=UNSET, task: TaskLike | None=None) -> ZarrStore:
         """FinishZarrUpload 
 
 Finalize a Zarr upload after the client has written the object
@@ -12378,11 +12399,12 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
-        _input['valid'] = valid
+        if valid is not UNSET:
+            _input['valid'] = valid
         variables['input'] = _input
         return (await self.aexecute(FinishZarrUploadMutation, variables, task=task)).finish_zarr_upload
 
-    def finish_zarr_upload(self, store_id: str, valid: bool, task: TaskLike | None=None) -> ZarrStore:
+    def finish_zarr_upload(self, store_id: str, valid: bool | UnsetType=UNSET, task: TaskLike | None=None) -> ZarrStore:
         """FinishZarrUpload 
 
 Finalize a Zarr upload after the client has written the object
@@ -12398,7 +12420,8 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['storeId'] = store_id
-        _input['valid'] = valid
+        if valid is not UNSET:
+            _input['valid'] = valid
         variables['input'] = _input
         return self.execute(FinishZarrUploadMutation, variables, task=task).finish_zarr_upload
 
@@ -15490,7 +15513,7 @@ Returns:
         variables['input'] = _input
         return self.execute(CreateSceneMutation, variables, task=task).create_scene
 
-    async def acreate_scene_from_coordinate_system(self, coordinate_system: IDCoercible, policy: ScenePolicyInput, name: str | None | UnsetType=UNSET, default_for: Iterable[IDCoercible] | None | UnsetType=UNSET, task: TaskLike | None=None) -> Scene:
+    async def acreate_scene_from_coordinate_system(self, coordinate_system: IDCoercible, name: str | None | UnsetType=UNSET, policy: ScenePolicyInput | UnsetType=UNSET, default_for: Iterable[IDCoercible] | None | UnsetType=UNSET, task: TaskLike | None=None) -> Scene:
         """CreateSceneFromCoordinateSystem 
 
 Bootstrap a renderable scene over an existing coordinate system: a shared space (its registered sources become layers, up to the policy's nchildren) or an owned system such as a dataset's intrinsic grid or a physical space (the container's own data becomes the layer). The scene adopts the system as its world; no edges are authored. This is how a dataset is staged -- pass `intrinsicSystem` to render in pixels, or a physical space it is registered into to render at physical scale
@@ -15510,13 +15533,14 @@ Returns:
         _input['coordinateSystem'] = coordinate_system
         if name is not UNSET:
             _input['name'] = name
-        _input['policy'] = policy
+        if policy is not UNSET:
+            _input['policy'] = policy
         if default_for is not UNSET:
             _input['defaultFor'] = default_for
         variables['input'] = _input
         return (await self.aexecute(CreateSceneFromCoordinateSystemMutation, variables, task=task)).create_scene_from_coordinate_system
 
-    def create_scene_from_coordinate_system(self, coordinate_system: IDCoercible, policy: ScenePolicyInput, name: str | None | UnsetType=UNSET, default_for: Iterable[IDCoercible] | None | UnsetType=UNSET, task: TaskLike | None=None) -> Scene:
+    def create_scene_from_coordinate_system(self, coordinate_system: IDCoercible, name: str | None | UnsetType=UNSET, policy: ScenePolicyInput | UnsetType=UNSET, default_for: Iterable[IDCoercible] | None | UnsetType=UNSET, task: TaskLike | None=None) -> Scene:
         """CreateSceneFromCoordinateSystem 
 
 Bootstrap a renderable scene over an existing coordinate system: a shared space (its registered sources become layers, up to the policy's nchildren) or an owned system such as a dataset's intrinsic grid or a physical space (the container's own data becomes the layer). The scene adopts the system as its world; no edges are authored. This is how a dataset is staged -- pass `intrinsicSystem` to render in pixels, or a physical space it is registered into to render at physical scale
@@ -15536,7 +15560,8 @@ Returns:
         _input['coordinateSystem'] = coordinate_system
         if name is not UNSET:
             _input['name'] = name
-        _input['policy'] = policy
+        if policy is not UNSET:
+            _input['policy'] = policy
         if default_for is not UNSET:
             _input['defaultFor'] = default_for
         variables['input'] = _input
@@ -15662,7 +15687,7 @@ Returns:
         variables['input'] = _input
         return self.execute(DeleteSceneMutation, variables, task=task).delete_scene
 
-    async def acreate_scene_from_lens(self, lens: IDCoercible, nominate: bool, name: str | None | UnsetType=UNSET, kind: BootstrapLayerKind | None | UnsetType=UNSET, world: IDCoercible | None | UnsetType=UNSET, task: TaskLike | None=None) -> Scene:
+    async def acreate_scene_from_lens(self, lens: IDCoercible, name: str | None | UnsetType=UNSET, kind: BootstrapLayerKind | None | UnsetType=UNSET, world: IDCoercible | None | UnsetType=UNSET, nominate: bool | UnsetType=UNSET, task: TaskLike | None=None) -> Scene:
         """CreateSceneFromLens 
  Stages one array lens -- a crop, a sub-volume or the whole array -- one layer per
  channel. Staging a sliced lens' *space* instead would draw its whole dataset.
@@ -15687,11 +15712,12 @@ Returns:
             _input['kind'] = kind
         if world is not UNSET:
             _input['world'] = world
-        _input['nominate'] = nominate
+        if nominate is not UNSET:
+            _input['nominate'] = nominate
         variables['input'] = _input
         return (await self.aexecute(CreateSceneFromLensMutation, variables, task=task)).create_scene_from_lens
 
-    def create_scene_from_lens(self, lens: IDCoercible, nominate: bool, name: str | None | UnsetType=UNSET, kind: BootstrapLayerKind | None | UnsetType=UNSET, world: IDCoercible | None | UnsetType=UNSET, task: TaskLike | None=None) -> Scene:
+    def create_scene_from_lens(self, lens: IDCoercible, name: str | None | UnsetType=UNSET, kind: BootstrapLayerKind | None | UnsetType=UNSET, world: IDCoercible | None | UnsetType=UNSET, nominate: bool | UnsetType=UNSET, task: TaskLike | None=None) -> Scene:
         """CreateSceneFromLens 
  Stages one array lens -- a crop, a sub-volume or the whole array -- one layer per
  channel. Staging a sliced lens' *space* instead would draw its whole dataset.
@@ -15716,7 +15742,8 @@ Returns:
             _input['kind'] = kind
         if world is not UNSET:
             _input['world'] = world
-        _input['nominate'] = nominate
+        if nominate is not UNSET:
+            _input['nominate'] = nominate
         variables['input'] = _input
         return self.execute(CreateSceneFromLensMutation, variables, task=task).create_scene_from_lens
 
@@ -15892,7 +15919,7 @@ Returns:
         variables['input'] = _input
         return self.execute(PinSceneSnapshotMutation, variables, task=task).pin_scene_snapshot
 
-    async def acreate_sparse_dataset(self, name: str, store: SporadikCoercible, axes: Iterable[SparseAxisInput], description: str | None | UnsetType=UNSET, folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, anchors: Iterable[CoordinateAnchorInput] | None | UnsetType=UNSET, task: TaskLike | None=None) -> SparseDataset:
+    async def acreate_sparse_dataset(self, name: str, store: SporadikCoercible, axes: Iterable[SparseAxisInput] | UnsetType=UNSET, description: str | None | UnsetType=UNSET, folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, anchors: Iterable[CoordinateAnchorInput] | None | UnsetType=UNSET, task: TaskLike | None=None) -> SparseDataset:
         """CreateSparseDataset 
 
 Create a sparse dataset from one uploaded sparse store, which holds the matrix in one or more layouts. A sparse matrix is a grid of numbers with no row labels and no column labels, so **every axis says what its positions are** through its own `identifiedBy` -- a source whose own contents are the ids (which authors a FIELD edge, and is what makes the matrix reachable from a layer over that source), or the table whose rows they are (which authors a foreign key and no edge). Carried on the axis, identified-exactly-once is a property of the input rather than a rule this enforces. Nothing about the matrix itself is declared: the spec, the shape, each layout's encoding and its chunking were read from the store when its upload was finished, and are checked against these axes rather than taken from them
@@ -15915,7 +15942,8 @@ Returns:
         _input: dict[str, builtins.object] = {}
         _input['name'] = name
         _input['store'] = store
-        _input['axes'] = axes
+        if axes is not UNSET:
+            _input['axes'] = axes
         if description is not UNSET:
             _input['description'] = description
         if folder is not UNSET:
@@ -15929,7 +15957,7 @@ Returns:
         variables['input'] = _input
         return (await self.aexecute(CreateSparseDatasetMutation, variables, task=task)).create_sparse_dataset
 
-    def create_sparse_dataset(self, name: str, store: SporadikCoercible, axes: Iterable[SparseAxisInput], description: str | None | UnsetType=UNSET, folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, anchors: Iterable[CoordinateAnchorInput] | None | UnsetType=UNSET, task: TaskLike | None=None) -> SparseDataset:
+    def create_sparse_dataset(self, name: str, store: SporadikCoercible, axes: Iterable[SparseAxisInput] | UnsetType=UNSET, description: str | None | UnsetType=UNSET, folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, anchors: Iterable[CoordinateAnchorInput] | None | UnsetType=UNSET, task: TaskLike | None=None) -> SparseDataset:
         """CreateSparseDataset 
 
 Create a sparse dataset from one uploaded sparse store, which holds the matrix in one or more layouts. A sparse matrix is a grid of numbers with no row labels and no column labels, so **every axis says what its positions are** through its own `identifiedBy` -- a source whose own contents are the ids (which authors a FIELD edge, and is what makes the matrix reachable from a layer over that source), or the table whose rows they are (which authors a foreign key and no edge). Carried on the axis, identified-exactly-once is a property of the input rather than a rule this enforces. Nothing about the matrix itself is declared: the spec, the shape, each layout's encoding and its chunking were read from the store when its upload was finished, and are checked against these axes rather than taken from them
@@ -15952,7 +15980,8 @@ Returns:
         _input: dict[str, builtins.object] = {}
         _input['name'] = name
         _input['store'] = store
-        _input['axes'] = axes
+        if axes is not UNSET:
+            _input['axes'] = axes
         if description is not UNSET:
             _input['description'] = description
         if folder is not UNSET:
@@ -16050,7 +16079,7 @@ Returns:
         variables['input'] = _input
         return self.execute(DeleteSparseDatasetMutation, variables, task=task).delete_sparse_dataset
 
-    async def acreate_table_dataset(self, name: str, data: ParquetCoercible, columns: Iterable[ColumnInput], description: str | None | UnsetType=UNSET, folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, anchors: Iterable[CoordinateAnchorInput] | None | UnsetType=UNSET, task: TaskLike | None=None) -> TableDataset:
+    async def acreate_table_dataset(self, name: str, data: ParquetCoercible, columns: Iterable[ColumnInput] | UnsetType=UNSET, description: str | None | UnsetType=UNSET, folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, anchors: Iterable[CoordinateAnchorInput] | None | UnsetType=UNSET, task: TaskLike | None=None) -> TableDataset:
         """CreateTableDataset 
 
 Create a table dataset from a Parquet store. Its declared coordinate columns become the axes of a coordinate system it owns, which lets a localization table be placed in a scene; a table with no coordinate columns is a measurement table whose rows enumerate objects and whose lineage edge is UNMAPPABLE
@@ -16073,7 +16102,8 @@ Returns:
         _input: dict[str, builtins.object] = {}
         _input['name'] = name
         _input['data'] = data
-        _input['columns'] = columns
+        if columns is not UNSET:
+            _input['columns'] = columns
         if description is not UNSET:
             _input['description'] = description
         if folder is not UNSET:
@@ -16087,7 +16117,7 @@ Returns:
         variables['input'] = _input
         return (await self.aexecute(CreateTableDatasetMutation, variables, task=task)).create_table_dataset
 
-    def create_table_dataset(self, name: str, data: ParquetCoercible, columns: Iterable[ColumnInput], description: str | None | UnsetType=UNSET, folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, anchors: Iterable[CoordinateAnchorInput] | None | UnsetType=UNSET, task: TaskLike | None=None) -> TableDataset:
+    def create_table_dataset(self, name: str, data: ParquetCoercible, columns: Iterable[ColumnInput] | UnsetType=UNSET, description: str | None | UnsetType=UNSET, folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, anchors: Iterable[CoordinateAnchorInput] | None | UnsetType=UNSET, task: TaskLike | None=None) -> TableDataset:
         """CreateTableDataset 
 
 Create a table dataset from a Parquet store. Its declared coordinate columns become the axes of a coordinate system it owns, which lets a localization table be placed in a scene; a table with no coordinate columns is a measurement table whose rows enumerate objects and whose lineage edge is UNMAPPABLE
@@ -16110,7 +16140,8 @@ Returns:
         _input: dict[str, builtins.object] = {}
         _input['name'] = name
         _input['data'] = data
-        _input['columns'] = columns
+        if columns is not UNSET:
+            _input['columns'] = columns
         if description is not UNSET:
             _input['description'] = description
         if folder is not UNSET:

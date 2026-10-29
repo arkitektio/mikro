@@ -3040,7 +3040,7 @@ wheels = [
 
 [[package]]
 name = "turms"
-version = "3.0.0"
+version = "3.0.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "graphql-core" },
@@ -3052,9 +3052,9 @@ dependencies = [
     { name = "rich-click" },
     { name = "watchfiles" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c8/ad/0956f3cec2ceec1ea1de45dd5c28866ac3ac712d37f54f782630ea9d7460/turms-3.0.0.tar.gz", hash = "sha256:fe7a4c100514632c25c2f31f5dc7ec072c0f62eafa0dd01bbcca832db7fb3b6d", size = 105709, upload-time = "2026-10-28T13:43:11.296Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b4/fe/01a0334c3e1ef8591a3e058d7dbaa9594ea36f949a7afd65a1a7f07e6723/turms-3.0.1.tar.gz", hash = "sha256:b9c9f9388ea46d18b24714ccef2c9b026d84e1c2dc9bb45e21c5365ea019593f", size = 105889, upload-time = "2026-10-28T14:14:13.107Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/5f/eb/af193832cadfe2c4d3dbc211b28d717b9d8f6730b91f4cdef657b4ee3ccc/turms-3.0.0-py3-none-any.whl", hash = "sha256:eca048c111a6c077aafbbaa478acdd4791cb69644239b83d3d5b4100ce752cf6", size = 125360, upload-time = "2026-10-28T13:43:10.207Z" },
+    { url = "https://files.pythonhosted.org/packages/b5/3b/3e8c7b80ee3adc6525d3aee5e690908278852c2bb131916fb0895b8b1a40/turms-3.0.1-py3-none-any.whl", hash = "sha256:b38732ca77dc2f3d3d68e63b48b9314494a205f064312eafe9378ee1fb5499bc", size = 125583, upload-time = "2026-10-28T14:14:11.847Z" },
 ]
 
 [[package]]
