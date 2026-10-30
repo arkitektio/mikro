@@ -21,6 +21,8 @@ authentikate:
       sub: 1
       iss: lok
       org: test
+      roles: [mikro_admin]
+      scope: mikro_read mikro_write
       client_id: test
       client_app: test
       client_release: v0.0.1

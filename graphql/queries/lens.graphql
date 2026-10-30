@@ -58,17 +58,19 @@ query GetLenses($filters: LensFilter, $pagination: OffsetPaginationInput) {
 
 # What a port's picker asks, one query per lens kind because a port is typed on one kind.
 # `$requires` is the port's own constraints, handed on unchanged by the frontend: the
-# server keeps only the lenses satisfying them, so a `Volume` port is offered volumes.
+# server keeps only the lenses satisfying them, so a `Volume` port is offered volumes. `$fits` is
+# what the agents that could take the form can handle, handed on the same way.
 # `label` is never empty (a lens nobody named is called by its container and selection).
 query SearchArrayLenses(
   $search: String
   $values: [ID!]
   $requires: [DescriptorConstraintInput!]
+  $fits: [FitsConstraintInput!]
   $limit: Int
   $offset: Int = 0
 ) {
   options: lenses(
-    filters: { kind: ARRAY, search: $search, ids: $values, requires: $requires }
+    filters: { kind: ARRAY, search: $search, ids: $values, requires: $requires, fits: $fits }
     pagination: { limit: $limit, offset: $offset }
   ) {
     value: id

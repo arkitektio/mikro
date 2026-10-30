@@ -38,9 +38,11 @@ Three things to know:
 
 from __future__ import annotations
 
+import math
 from collections import Counter
 from typing import Annotated, Any
 
+import numpy
 from arkitekt_spec.actions import DescriptorOperator
 from arkitekt_spec.declare.annotations import Provides, Requires
 
@@ -64,6 +66,10 @@ N_CHANNELS = "@mikro/n_channels"
 """Its total extent along its CHANNEL axes."""
 N_TIMEPOINTS = "@mikro/n_timepoints"
 """Its total extent along its TIME axes."""
+SIZE = "@mikro/size"
+"""How many elements it has: the product of its shape."""
+DSIZE = "@mikro/dsize"
+"""How many bytes one element takes, from its dtype: its uncompressed size in bytes is size * dsize."""
 VALUE_KIND = "@mikro/value_kind"
 """What its values mean. Provenance: the server reads it off the data's derivation, never off its axes."""
 DTYPE = "@mikro/dtype"
@@ -103,8 +109,10 @@ def lens_descriptors(lens: AxisSource) -> dict[str, Any]:
     table = axis_table(lens)
     counts = Counter(axis_type for _, axis_type, _ in table)
     dtype = _level_zero_dtype(lens)
+    dsize = _element_size(dtype)
     return {
         **({DTYPE: dtype} if dtype is not None else {}),
+        **({DSIZE: dsize} if dsize is not None else {}),
         N_SPACE_AXES: counts["SPACE"],
         N_TIME_AXES: counts["TIME"],
         N_CHANNEL_AXES: counts["CHANNEL"],
@@ -112,7 +120,16 @@ def lens_descriptors(lens: AxisSource) -> dict[str, Any]:
         N_MICROTIME_AXES: counts["MICROTIME"],
         N_CHANNELS: sum(extent for _, axis_type, extent in table if axis_type == "CHANNEL"),
         N_TIMEPOINTS: sum(extent for _, axis_type, extent in table if axis_type == "TIME"),
+        SIZE: math.prod(extent for _, _, extent in table),
     }
+
+
+def _element_size(dtype: str | None) -> int | None:
+    """How many bytes one element takes, when numpy can read the element type."""
+    try:
+        return numpy.dtype(dtype).itemsize if dtype else None
+    except TypeError:  # a dtype another writer spelled its own way
+        return None
 
 
 def _level_zero_dtype(lens: AxisSource) -> str | None:

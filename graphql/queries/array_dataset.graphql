@@ -13,11 +13,12 @@ query GetArrayDatasets($filters: ArrayDatasetFilter, $pagination: OffsetPaginati
 query SearchArrayDatasets(
   $search: String
   $values: [ID!]
+  $fits: [FitsConstraintInput!]
   $limit: Int
   $offset: Int = 0
 ) {
   options: arrayDatasets(
-    filters: { search: $search, ids: $values }
+    filters: { search: $search, ids: $values, fits: $fits }
     pagination: { limit: $limit, offset: $offset }
   ) {
     value: id

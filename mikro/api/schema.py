@@ -1429,6 +1429,7 @@ class ArrayDatasetFilter(BaseModel):
     not_: 'ArrayDatasetFilter | None' = Field(validation_alias=AliasChoices('not_', 'NOT'), serialization_alias='NOT', default=None)
     distinct: bool | None = Field(validation_alias=AliasChoices('distinct', 'DISTINCT'), serialization_alias='DISTINCT', default=None)
     requires: tuple['DescriptorConstraintInput', ...] | None = Field(default=None, description='Filter to the datasets satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored on every dataset (`@mikro/value_kind` restored whenever a derivation edge leaving it is drawn). A key datasets do not declare is refused rather than ignored')
+    fits: tuple['FitsConstraintInput', ...] | None = Field(default=None, description="Only objects at least one of these implementations can handle: their `Fits` as `Implementation.fits.compiledPath`, with their agent's hardware.")
     folder: ID | None = Field(default=None, description='Filter by the folder this dataset is filed in')
     folders: tuple[ID, ...] | None = Field(default=None, description='Filter by a list of folder IDs')
     spec: tuple[ArrayDatasetSpec, ...] | None = Field(default=None, description='Filter to datasets satisfying every one of these specs, e.g. [VOLUME, TIMESERIES] for 3D timelapses. Materialized at creation from the axes of the intrinsic coordinate system and the level-0 shape; an axis counts only when it has more than one position, so a stack of one plane is an IMAGE and a single frame is not a TIMESERIES (use `hasAxisTypes` to ask whether an axis is declared at all). A dataset carries one spatial spec (by how many such SPACE axes it has) plus a modifier per non-spatial axis type it has more than one position along (TIMESERIES, MULTICHANNEL, SPECTRAL, FLIM, DISPLACEMENT_FIELD, COORDINATE_FIELD, INDEXED), and TRACE when it is a curve along one measured axis -- `[TRACE]` finds what a chart can draw whole. Two spatial specs together match nothing')
@@ -2091,6 +2092,11 @@ class DeleteAnnotationInput(BaseModel):
     id: ID
     model_config = ConfigDict(frozen=True, extra='forbid')
 
+class DeleteArrayDatasetInput(BaseModel):
+    """Input for deleting an array dataset by ID"""
+    id: ID = Field(description='The ID of the array dataset to delete')
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
 class DeleteChartInput(BaseModel):
     """Input for deleting a chart by ID. Deletes its layers and nothing they drew: the data, and the chart's world, are untouched"""
     id: ID = Field(description='The ID of the chart to delete')
@@ -2270,6 +2276,12 @@ class FinishZarrUploadInput(BaseModel):
     'Default: True'
     model_config = ConfigDict(frozen=True, extra='forbid')
 
+class FitsConstraintInput(BaseModel):
+    """What one implementation can handle, as the rekuest server compiled its `Fits`: objects satisfying it are ones that implementation's agent can take. `path` comes from `Implementation.fits.compiledPath`, and only comparisons of numbers over declared descriptors and `$agent` are accepted."""
+    path: str = Field(description='The formula as a PostgreSQL jsonpath.')
+    agent: Any | None = Field(default=None, description="The agent's hardware the path reads as `$agent`: numbers by name.")
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
 class FixtureFilter(BaseModel):
     """No documentation"""
     ids: tuple[ID, ...] | None = Field(default=None, description='Filter by list of IDs')
@@ -2398,6 +2410,7 @@ class LensFilter(BaseModel):
     not_: 'LensFilter | None' = Field(validation_alias=AliasChoices('not_', 'NOT'), serialization_alias='NOT', default=None)
     distinct: bool | None = Field(validation_alias=AliasChoices('distinct', 'DISTINCT'), serialization_alias='DISTINCT', default=None)
     requires: tuple[DescriptorConstraintInput, ...] | None = Field(default=None, description='Filter to the lenses satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored on every lens, restored when what they count changes (a derivation edge, a shape drawn). A key only some kinds declare holds of no lens of another kind. A key no lens declares is refused rather than ignored')
+    fits: tuple[FitsConstraintInput, ...] | None = Field(default=None, description="Only objects at least one of these implementations can handle: their `Fits` as `Implementation.fits.compiledPath`, with their agent's hardware.")
     kind: LensKind | None = Field(default=None, description='Filter by the kind of container the lens selects over')
     array_spec: tuple[ArrayDatasetSpec, ...] | None = Field(validation_alias=AliasChoices('array_spec', 'arraySpec'), serialization_alias='arraySpec', default=None, description="Filter to the array lenses whose selection satisfies every one of these specs, e.g. [IMAGE] for every plane, single-channel or not, or [PROFILE, TRACE] for what a chart draws as a trace. The spec is the selection's, not the dataset's: an axis counts only when the lens keeps more than one position along it, so one plane of a stack matches [IMAGE] and its dataset [VOLUME]")
     table_spec: tuple[TableDatasetSpec, ...] | None = Field(validation_alias=AliasChoices('table_spec', 'tableSpec'), serialization_alias='tableSpec', default=None, description="Filter to the table lenses whose selection satisfies every one of these specs, e.g. [POINTS_2D, TRACKED]. The spec is the selection's: a coordinate column a window pins to one value (min == max) does not count, so one frame of a tracking table does not match [TIMED]")
@@ -6018,6 +6031,19 @@ class CreateArrayDatasetMutation(BaseModel):
         """Meta class for CreateArrayDataset """
         document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ArrayDataset on ArrayDataset {\n  id\n  name\n  axisNames\n  shape\n  multiscale\n  acquisitionStart\n  acquisitionEnd\n  intrinsicSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  dataArrays {\n    id\n    level\n    shape\n    chunkShape\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nmutation CreateArrayDataset($input: CreateArrayDatasetInput!) {\n  createArrayDataset(input: $input) {\n    ...ArrayDataset\n    __typename\n  }\n}'
 
+class DeleteArrayDatasetMutation(BaseModel):
+    """No documentation found for this operation."""
+    delete_array_dataset: ID = Field(alias='deleteArrayDataset')
+    'Delete an existing array dataset'
+
+    class Arguments(BaseModel):
+        """Arguments for DeleteArrayDataset """
+        input: DeleteArrayDatasetInput
+
+    class Meta:
+        """Meta class for DeleteArrayDataset """
+        document = 'mutation DeleteArrayDataset($input: DeleteArrayDatasetInput!) {\n  deleteArrayDataset(input: $input)\n}'
+
 class CreateChartMutation(BaseModel):
     """ A chart adopts a world with exactly one metric, unit-carrying axis -- an existing
  `coordinateSystem`, or one made from a single `axis` -- and is then filled with layers,
@@ -7913,12 +7939,13 @@ class SearchArrayDatasetsQuery(BaseModel):
         """Arguments for SearchArrayDatasets """
         search: str | None = Field(default=None)
         values: list[ID] | None = Field(default=None)
+        fits: list[FitsConstraintInput] | None = Field(default=None)
         limit: int | None = Field(default=None)
         offset: Annotated[int | None, GraphQLDefault('0')] = Field(default=None)
 
     class Meta:
         """Meta class for SearchArrayDatasets """
-        document = 'query SearchArrayDatasets($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: arrayDatasets(\n    filters: { search: $search, ids: $values }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
+        document = 'query SearchArrayDatasets($search: String, $values: [ID!], $fits: [FitsConstraintInput!], $limit: Int, $offset: Int = 0) {\n  options: arrayDatasets(\n    filters: { search: $search, ids: $values, fits: $fits }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
 
 class AttributePlansQueryAttributePlansEdgeInput(CoordinateSystemTrait, BaseModel):
     """A named coordinate space: a node in the transformation graph. Its axes are ordered, and that order is the order of the array's dimensions"""
@@ -9125,7 +9152,8 @@ class SearchArrayLensesQueryOptionsBaseCatchAll(SearchArrayLensesQueryOptionsBas
 class SearchArrayLensesQuery(BaseModel):
     """ What a port's picker asks, one query per lens kind because a port is typed on one kind.
  `$requires` is the port's own constraints, handed on unchanged by the frontend: the
- server keeps only the lenses satisfying them, so a `Volume` port is offered volumes.
+ server keeps only the lenses satisfying them, so a `Volume` port is offered volumes. `$fits` is
+ what the agents that could take the form can handle, handed on the same way.
  `label` is never empty (a lens nobody named is called by its container and selection)."""
     options: tuple[Annotated[SearchArrayLensesQueryOptionsBaseAnnotationLens | SearchArrayLensesQueryOptionsBaseArrayLens | SearchArrayLensesQueryOptionsBaseFixtureLens | SearchArrayLensesQueryOptionsBaseMeshLens | SearchArrayLensesQueryOptionsBaseNetworkLens | SearchArrayLensesQueryOptionsBaseSparseLens | SearchArrayLensesQueryOptionsBaseTableLens, Field(discriminator='typename')] | SearchArrayLensesQueryOptionsBaseCatchAll, ...]
     'List lenses: selections over array datasets (by slices) and over tables, sparse datasets, meshes, networks and annotation collections (by windows), a heterogeneous list of lens kinds'
@@ -9135,12 +9163,13 @@ class SearchArrayLensesQuery(BaseModel):
         search: str | None = Field(default=None)
         values: list[ID] | None = Field(default=None)
         requires: list[DescriptorConstraintInput] | None = Field(default=None)
+        fits: list[FitsConstraintInput] | None = Field(default=None)
         limit: int | None = Field(default=None)
         offset: Annotated[int | None, GraphQLDefault('0')] = Field(default=None)
 
     class Meta:
         """Meta class for SearchArrayLenses """
-        document = 'query SearchArrayLenses($search: String, $values: [ID!], $requires: [DescriptorConstraintInput!], $limit: Int, $offset: Int = 0) {\n  options: lenses(\n    filters: { kind: ARRAY, search: $search, ids: $values, requires: $requires }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label\n    __typename\n  }\n}'
+        document = 'query SearchArrayLenses($search: String, $values: [ID!], $requires: [DescriptorConstraintInput!], $fits: [FitsConstraintInput!], $limit: Int, $offset: Int = 0) {\n  options: lenses(\n    filters: { kind: ARRAY, search: $search, ids: $values, requires: $requires, fits: $fits }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label\n    __typename\n  }\n}'
 
 class SearchTableLensesQueryOptionsBase(BaseModel):
     """A selection over a container that lives in a coordinate system: one row per (container, selection), so the same selection asked for twice is the same id. An ArrayLens selects over an array dataset by index slices and, when sliced, owns the crop's space and the edge back into the dataset's grid; every other kind selects over its container by value windows in the container's own axes and lives in the container's space. Every container has its whole lens from creation."""
@@ -10506,6 +10535,42 @@ Returns:
             _input['sourceFiles'] = source_files
         variables['input'] = _input
         return self.execute(CreateArrayDatasetMutation, variables, task=task).create_array_dataset
+
+    async def adelete_array_dataset(self, id: IDCoercible, task: TaskLike | None=None) -> ID:
+        """DeleteArrayDataset 
+
+Delete an existing array dataset
+
+Args:
+    id: The ID of the array dataset to delete
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ID
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['id'] = id
+        variables['input'] = _input
+        return (await self.aexecute(DeleteArrayDatasetMutation, variables, task=task)).delete_array_dataset
+
+    def delete_array_dataset(self, id: IDCoercible, task: TaskLike | None=None) -> ID:
+        """DeleteArrayDataset 
+
+Delete an existing array dataset
+
+Args:
+    id: The ID of the array dataset to delete
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ID
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['id'] = id
+        variables['input'] = _input
+        return self.execute(DeleteArrayDatasetMutation, variables, task=task).delete_array_dataset
 
     async def acreate_chart(self, name: str, description: str | None | UnsetType=UNSET, coordinate_system: IDCoercible | None | UnsetType=UNSET, axis: PhysicalAxisInput | None | UnsetType=UNSET, task: TaskLike | None=None) -> Chart:
         """CreateChart 
@@ -16865,7 +16930,7 @@ Returns:
             variables['pagination'] = pagination
         return self.execute(GetArrayDatasetsQuery, variables, task=task).array_datasets
 
-    async def asearch_array_datasets(self, search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[SearchArrayDatasetsQueryOptions, ...]:
+    async def asearch_array_datasets(self, search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, fits: list[FitsConstraintInput] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[SearchArrayDatasetsQueryOptions, ...]:
         """SearchArrayDatasets 
 
 List array datasets (N-dimensional arrays with named dimensions and anchored metadata)
@@ -16873,6 +16938,7 @@ List array datasets (N-dimensional arrays with named dimensions and anchored met
 Args:
     search (str | None, optional): No description. 
     values (list[ID] | None, optional): No description. 
+    fits (list[FitsConstraintInput] | None, optional): No description. 
     limit (int | None, optional): No description. 
     offset (int | None, optional): No description. Defaults to 0
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
@@ -16885,13 +16951,15 @@ Returns:
             variables['search'] = search
         if values is not UNSET:
             variables['values'] = values
+        if fits is not UNSET:
+            variables['fits'] = fits
         if limit is not UNSET:
             variables['limit'] = limit
         if offset is not UNSET:
             variables['offset'] = offset
         return (await self.aexecute(SearchArrayDatasetsQuery, variables, task=task)).options
 
-    def search_array_datasets(self, search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[SearchArrayDatasetsQueryOptions, ...]:
+    def search_array_datasets(self, search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, fits: list[FitsConstraintInput] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[SearchArrayDatasetsQueryOptions, ...]:
         """SearchArrayDatasets 
 
 List array datasets (N-dimensional arrays with named dimensions and anchored metadata)
@@ -16899,6 +16967,7 @@ List array datasets (N-dimensional arrays with named dimensions and anchored met
 Args:
     search (str | None, optional): No description. 
     values (list[ID] | None, optional): No description. 
+    fits (list[FitsConstraintInput] | None, optional): No description. 
     limit (int | None, optional): No description. 
     offset (int | None, optional): No description. Defaults to 0
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
@@ -16911,6 +16980,8 @@ Returns:
             variables['search'] = search
         if values is not UNSET:
             variables['values'] = values
+        if fits is not UNSET:
+            variables['fits'] = fits
         if limit is not UNSET:
             variables['limit'] = limit
         if offset is not UNSET:
@@ -18153,17 +18224,19 @@ Returns:
             variables['pagination'] = pagination
         return self.execute(GetLensesQuery, variables, task=task).lenses
 
-    async def asearch_array_lenses(self, search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, requires: list[DescriptorConstraintInput] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[Annotated[SearchArrayLensesQueryOptionsBaseAnnotationLens | SearchArrayLensesQueryOptionsBaseArrayLens | SearchArrayLensesQueryOptionsBaseFixtureLens | SearchArrayLensesQueryOptionsBaseMeshLens | SearchArrayLensesQueryOptionsBaseNetworkLens | SearchArrayLensesQueryOptionsBaseSparseLens | SearchArrayLensesQueryOptionsBaseTableLens, Field(discriminator='typename')] | SearchArrayLensesQueryOptionsBaseCatchAll, ...]:
+    async def asearch_array_lenses(self, search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, requires: list[DescriptorConstraintInput] | None | UnsetType=UNSET, fits: list[FitsConstraintInput] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[Annotated[SearchArrayLensesQueryOptionsBaseAnnotationLens | SearchArrayLensesQueryOptionsBaseArrayLens | SearchArrayLensesQueryOptionsBaseFixtureLens | SearchArrayLensesQueryOptionsBaseMeshLens | SearchArrayLensesQueryOptionsBaseNetworkLens | SearchArrayLensesQueryOptionsBaseSparseLens | SearchArrayLensesQueryOptionsBaseTableLens, Field(discriminator='typename')] | SearchArrayLensesQueryOptionsBaseCatchAll, ...]:
         """SearchArrayLenses 
  What a port's picker asks, one query per lens kind because a port is typed on one kind.
  `$requires` is the port's own constraints, handed on unchanged by the frontend: the
- server keeps only the lenses satisfying them, so a `Volume` port is offered volumes.
+ server keeps only the lenses satisfying them, so a `Volume` port is offered volumes. `$fits` is
+ what the agents that could take the form can handle, handed on the same way.
  `label` is never empty (a lens nobody named is called by its container and selection).
 
 Args:
     search (str | None, optional): No description. 
     values (list[ID] | None, optional): No description. 
     requires (list[DescriptorConstraintInput] | None, optional): No description. 
+    fits (list[FitsConstraintInput] | None, optional): No description. 
     limit (int | None, optional): No description. 
     offset (int | None, optional): No description. Defaults to 0
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
@@ -18178,23 +18251,27 @@ Returns:
             variables['values'] = values
         if requires is not UNSET:
             variables['requires'] = requires
+        if fits is not UNSET:
+            variables['fits'] = fits
         if limit is not UNSET:
             variables['limit'] = limit
         if offset is not UNSET:
             variables['offset'] = offset
         return (await self.aexecute(SearchArrayLensesQuery, variables, task=task)).options
 
-    def search_array_lenses(self, search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, requires: list[DescriptorConstraintInput] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[Annotated[SearchArrayLensesQueryOptionsBaseAnnotationLens | SearchArrayLensesQueryOptionsBaseArrayLens | SearchArrayLensesQueryOptionsBaseFixtureLens | SearchArrayLensesQueryOptionsBaseMeshLens | SearchArrayLensesQueryOptionsBaseNetworkLens | SearchArrayLensesQueryOptionsBaseSparseLens | SearchArrayLensesQueryOptionsBaseTableLens, Field(discriminator='typename')] | SearchArrayLensesQueryOptionsBaseCatchAll, ...]:
+    def search_array_lenses(self, search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, requires: list[DescriptorConstraintInput] | None | UnsetType=UNSET, fits: list[FitsConstraintInput] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[Annotated[SearchArrayLensesQueryOptionsBaseAnnotationLens | SearchArrayLensesQueryOptionsBaseArrayLens | SearchArrayLensesQueryOptionsBaseFixtureLens | SearchArrayLensesQueryOptionsBaseMeshLens | SearchArrayLensesQueryOptionsBaseNetworkLens | SearchArrayLensesQueryOptionsBaseSparseLens | SearchArrayLensesQueryOptionsBaseTableLens, Field(discriminator='typename')] | SearchArrayLensesQueryOptionsBaseCatchAll, ...]:
         """SearchArrayLenses 
  What a port's picker asks, one query per lens kind because a port is typed on one kind.
  `$requires` is the port's own constraints, handed on unchanged by the frontend: the
- server keeps only the lenses satisfying them, so a `Volume` port is offered volumes.
+ server keeps only the lenses satisfying them, so a `Volume` port is offered volumes. `$fits` is
+ what the agents that could take the form can handle, handed on the same way.
  `label` is never empty (a lens nobody named is called by its container and selection).
 
 Args:
     search (str | None, optional): No description. 
     values (list[ID] | None, optional): No description. 
     requires (list[DescriptorConstraintInput] | None, optional): No description. 
+    fits (list[FitsConstraintInput] | None, optional): No description. 
     limit (int | None, optional): No description. 
     offset (int | None, optional): No description. Defaults to 0
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
@@ -18209,6 +18286,8 @@ Returns:
             variables['values'] = values
         if requires is not UNSET:
             variables['requires'] = requires
+        if fits is not UNSET:
+            variables['fits'] = fits
         if limit is not UNSET:
             variables['limit'] = limit
         if offset is not UNSET:

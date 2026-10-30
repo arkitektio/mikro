@@ -3,3 +3,7 @@ mutation CreateArrayDataset($input: CreateArrayDatasetInput!) {
     ...ArrayDataset
   }
 }
+
+mutation DeleteArrayDataset($input: DeleteArrayDatasetInput!) {
+  deleteArrayDataset(input: $input)
+}

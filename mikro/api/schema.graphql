@@ -1090,6 +1090,11 @@ input ArrayDatasetFilter {
   """
   requires: [DescriptorConstraintInput!]
 
+  """
+  Only objects at least one of these implementations can handle: their `Fits` as `Implementation.fits.compiledPath`, with their agent's hardware.
+  """
+  fits: [FitsConstraintInput!]
+
   """Filter by the folder this dataset is filed in"""
   folder: ID
 
@@ -4013,6 +4018,17 @@ enum DescriptorOperator {
 }
 
 """
+One descriptor of an object: a fact a port can `require` and a runtime formula can read.
+"""
+type DescriptorValue {
+  """The descriptor's key, e.g. `@mikro/n_channels`."""
+  key: String!
+
+  """Its value."""
+  value: JSON!
+}
+
+"""
 An input for releasing a set of items from another item, e.g. removing images from a dataset
 """
 input DesociateInput {
@@ -4854,6 +4870,17 @@ input FinishSparseUploadInput {
 input FinishZarrUploadInput {
   storeId: String!
   valid: Boolean! = true
+}
+
+"""
+What one implementation can handle, as the rekuest server compiled its `Fits`: objects satisfying it are ones that implementation's agent can take. `path` comes from `Implementation.fits.compiledPath`, and only comparisons of numbers over declared descriptors and `$agent` are accepted.
+"""
+input FitsConstraintInput {
+  """The formula as a PostgreSQL jsonpath."""
+  path: String!
+
+  """The agent's hardware the path reads as `$agent`: numbers by name."""
+  agent: JSON = null
 }
 
 """
@@ -6662,6 +6689,11 @@ input LensFilter {
   Filter to the lenses satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored on every lens, restored when what they count changes (a derivation edge, a shape drawn). A key only some kinds declare holds of no lens of another kind. A key no lens declares is refused rather than ignored
   """
   requires: [DescriptorConstraintInput!]
+
+  """
+  Only objects at least one of these implementations can handle: their `Fits` as `Implementation.fits.compiledPath`, with their agent's hardware.
+  """
+  fits: [FitsConstraintInput!]
 
   """Filter by the kind of container the lens selects over"""
   kind: LensKind
@@ -10451,6 +10483,16 @@ type Query {
   Get statistics about charts: counts and time-bucketed series over the charts of the current organization
   """
   chartsStats(filters: ChartFilter = null): ChartStats! @auth(required_scopes: ["mikro_read"])
+
+  """
+  The descriptors of one object by its structure's identifier, as a port's `requires` and a runtime formula read them. Empty for an unknown identifier, or an object the organization cannot see.
+  """
+  describe(
+    identifier: String!
+
+    """The unique identifier of an object"""
+    id: ID!
+  ): [DescriptorValue!]!
 
   """
   The k annotations of one collection nearest to a point, by cube distance between the point and each annotation's intrinsic bounding box (GiST-accelerated; 0 inside the box). Scoped to one collection because boxes only compare within one frame; the point is in the collection's nearest-intrinsic space, in its coordinate order
