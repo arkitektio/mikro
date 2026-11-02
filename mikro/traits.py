@@ -81,7 +81,7 @@ OneDArray = NDArray[np.generic]
 
 #: A point or a stack of them: a (N,) vector, a (K, N) array, or anything
 #: `np.asarray` turns into one.
-PointsLike = Union[Sequence[float], Sequence[Sequence[float]], NDArray[np.generic]]
+PointsLike = Sequence[float] | Sequence[Sequence[float]] | NDArray[np.generic]
 
 
 ValueRelationName = Literal["IDENTICAL", "TRANSFORMED", "CATEGORIZED"]

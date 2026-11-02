@@ -25,7 +25,7 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping
 from enum import Enum
-from typing import TypeVar, cast, overload, Final, Literal, NamedTuple, Union
+from typing import TypeVar, cast, overload, Final, Literal, NamedTuple
 
 from kanne.scalars import Unit
 
@@ -146,7 +146,7 @@ TransformKind = Literal[
 #: it can come back from a query but can never be passed to a mutation, and a
 #: single union would let `_transform_member` statically accept a value its own
 #: dispatch rejects at runtime.
-ResolvedTransformKind = Union[TransformKind, Literal["SEQUENCE"]]
+ResolvedTransformKind = TransformKind | Literal["SEQUENCE"]
 
 #: The kinds with a closed-form homogeneous matrix. A SEQUENCE is one of them: it
 #: carries its ordered steps, so it composes from what the edge already holds. Its
@@ -184,12 +184,12 @@ LayerNodeKind = Literal["channel", "blend", "phasor", "projection"]
 #: One axis' worth of a lens selection: an ``int`` pins a single index, a
 #: ``slice`` or a ``(start, stop[, step])`` tuple selects a range. ``None`` in a
 #: tuple position is open-ended, exactly as in a slice.
-AxisSelection = Union[
-    int,
-    slice,
-    tuple[int | None, int | None],
-    tuple[int | None, int | None, int | None],
-]
+AxisSelection = (
+    int
+    | slice
+    | tuple[int | None, int | None]
+    | tuple[int | None, int | None, int | None]
+)
 
 #: The normalized form: ``(start, stop, step)``, any of which may be ``None``.
 SliceBounds = tuple[int | None, int | None, int | None]
@@ -238,7 +238,7 @@ def normalize_selection(axis: str, selection: AxisSelection) -> SliceBounds:
 #: One window along one axis of a container that is not an array, as the ``lens()`` of
 #: a table, a sparse dataset or a collection takes it. A number pins one position
 #: (``min == max``); a ``(min, max)`` pair keeps a range, ``None`` leaving that side open.
-WindowSelection = Union[int, float, tuple[float | None, float | None]]
+WindowSelection = int | float | tuple[float | None, float | None]
 
 #: The normalized form: ``(min, max)``, either of which may be ``None``.
 WindowBounds = tuple[float | None, float | None]

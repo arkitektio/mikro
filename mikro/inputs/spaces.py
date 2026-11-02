@@ -24,7 +24,7 @@ Reach for `create_space` when the shape is not one of them.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING
 
 from kanne.scalars import Unit
 
@@ -41,7 +41,7 @@ if TYPE_CHECKING:
     from mikro.mikro import Mikro
 
 #: How `create_space` will take its axes: name-to-unit, or the inputs themselves.
-AxisSpec = Union[Mapping[str, Unit], Sequence["PhysicalAxisInput"]]
+AxisSpec = Mapping[str, Unit] | Sequence["PhysicalAxisInput"]
 
 
 def _axis_type_rank(axis: PhysicalAxisInput) -> int:

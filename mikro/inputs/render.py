@@ -23,7 +23,6 @@ colormap, a contrast window, a projection mode.
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
-from typing import Union
 
 from pydantic import BaseModel, ConfigDict
 from rath.scalars import ID
@@ -40,7 +39,7 @@ from mikro.vocabulary import LayerNodeKind
 
 #: A colour as the wire wants it. Three components are completed to RGBA with a
 #: full alpha by `RGBAColorInputTrait`; four are passed through.
-RGBAColor = Union[tuple[int, int, int], tuple[int, int, int, int]]
+RGBAColor = tuple[int, int, int] | tuple[int, int, int, int]
 
 
 #: Full alpha. `TransferFunctionInput.color` is a bare ``[Int!]``, so nothing in its

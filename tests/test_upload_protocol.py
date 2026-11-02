@@ -117,9 +117,9 @@ def test_credentials_are_renewed_against_the_same_store_before_they_expire() -> 
     assert provider()["access_key_id"] == "AK1", "a fresh grant is used as it is"
     assert refreshed == []
 
-    provider._expires_at = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=30)
+    provider._expires_at = datetime.datetime.now(datetime.UTC) + datetime.timedelta(seconds=30)
     renewed = provider()
 
     assert renewed["access_key_id"] == "AK2" and renewed["token"] == "T2"
     assert refreshed == ["asked"]
-    assert renewed["expires_at"] is not None and renewed["expires_at"] > datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=30)
+    assert renewed["expires_at"] is not None and renewed["expires_at"] > datetime.datetime.now(datetime.UTC) + datetime.timedelta(minutes=30)

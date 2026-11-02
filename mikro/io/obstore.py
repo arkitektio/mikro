@@ -82,13 +82,13 @@ class RefreshingUploadCredentials:
     def _install(self, grant: "S3UploadGrantLike") -> None:
         self._grant = grant
         expires_in = getattr(grant, "expires_in", None)
-        self._expires_at = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=expires_in) if expires_in else None
+        self._expires_at = datetime.datetime.now(datetime.UTC) + datetime.timedelta(seconds=expires_in) if expires_in else None
 
     def __call__(self) -> "S3Credential":
         """The credentials to sign the next request with."""
         with self._lock:
             if self._expires_at is not None:
-                remaining = (self._expires_at - datetime.datetime.now(datetime.timezone.utc)).total_seconds()
+                remaining = (self._expires_at - datetime.datetime.now(datetime.UTC)).total_seconds()
                 if remaining < UPLOAD_REFRESH_MARGIN_SECONDS:
                     self._install(self._refresh())
             return {
