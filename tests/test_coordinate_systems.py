@@ -428,6 +428,25 @@ def test_lens_reads_back_the_volume(registered_dataset: Placed) -> None:
 
 
 @pytest.mark.integration
+def test_a_lens_is_named_by_the_position_it_pins(mikro: Mikro, registered_dataset: Placed) -> None:
+    """Naming plane 1 names every lens through it, the crop of it too; a lens of ranges has nothing to name."""
+    dataset = registered_dataset.dataset
+    plane = dataset.lens(z=1)
+    crop = dataset.lens(z=1, x=(0, 8))
+
+    named = mikro.set_position_label(lens=plane.id, label="focal plane")
+    assert named.name == "focal plane"
+    assert mikro.get_lens(crop.id).name == "focal plane", "the crop pins plane 1 too"
+    assert dataset.lens(z=1, y=(0, 8)).name == "focal plane", "and a lens cut later is born named"
+
+    with pytest.raises(Exception, match="annotation"):
+        mikro.set_position_label(lens=dataset.lens(x=(0, 8)).id, label="a region")
+
+    cleared = mikro.set_position_label(lens=crop.id, label=None)
+    assert cleared.name is None and mikro.get_lens(plane.id).name is None
+
+
+@pytest.mark.integration
 def test_a_selection_is_one_lens_however_often_it_is_asked_for(mikro: Mikro, registered_dataset: Placed) -> None:
     """A lens is a row per dataset and selection, and the whole one is read, not made."""
     dataset = registered_dataset.dataset

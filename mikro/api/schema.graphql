@@ -747,12 +747,12 @@ type AnnotationLens implements Lens @key(fields: "id", resolvable: true) @identi
   descriptors: JSON!
 
   """
-  What someone called this selection, or null when nobody has. A label only: it is no part of what the lens selects, and a client shows the selection -- or 'the whole container' -- in its place
+  What this selection is called, or null when nothing names it: the labels at the positions it pins (a person's `setPositionLabel` over the channel label ingest recorded) and the name of the annotation it was cut to, e.g. 'GFP · nucleus 3'. Derived and kept by the server, never set: naming channel 1 names every lens through channel 1. No part of the lens' identity, which is its container and its selection. `nameAnchors` says where it comes from
   """
   name: String
 
   """
-  What to call this lens in a list, never empty: its `name` when it has one, else its container's name followed by what it selects of it (`cells.zarr · c[0:1]`); a whole lens is called by its container. What a picker shows for an option
+  What to call this lens in a list, never empty: its container's name, its `name` when something names it, and what it selects (`cells.zarr · GFP · c[1:2], y[0:32]`); a whole lens is called by its container. What a picker shows for an option
   """
   label: String!
 
@@ -781,6 +781,11 @@ type AnnotationLens implements Lens @key(fields: "id", resolvable: true) @identi
   The coordinate system the lens' selection is expressed in. A sliced array lens owns one (the space its slices cut out, with the derived edge recording the shift); every other lens selects within its container's own space and resolves to it
   """
   coordinateSystem: CoordinateSystem
+
+  """
+  The coordinate anchors whose labels make up `name`, in the order they appear in it: those of the container whose every pinned axis this lens holds to the same position, the most specific only. Each carries the person's `positionLabel` and the recorded `channelLabel`; the first that says something is the one used. Empty for a lens no position names, and for a kind whose container carries no anchors
+  """
+  nameAnchors: [CoordinateAnchor!]!
 
   """
   The scene to open for this lens: its own nomination (`setLensDefaultScene`, or `createSceneFromLens`), falling back to its container's whole lens' while it has none. A container's nomination is its whole lens', so a whole lens answers for the container. A nomination, not a derivation
@@ -1290,12 +1295,12 @@ type ArrayLens implements Lens @key(fields: "id", resolvable: true) @identified(
   descriptors: JSON!
 
   """
-  What someone called this selection, or null when nobody has. A label only: it is no part of what the lens selects, and a client shows the selection -- or 'the whole container' -- in its place
+  What this selection is called, or null when nothing names it: the labels at the positions it pins (a person's `setPositionLabel` over the channel label ingest recorded) and the name of the annotation it was cut to, e.g. 'GFP · nucleus 3'. Derived and kept by the server, never set: naming channel 1 names every lens through channel 1. No part of the lens' identity, which is its container and its selection. `nameAnchors` says where it comes from
   """
   name: String
 
   """
-  What to call this lens in a list, never empty: its `name` when it has one, else its container's name followed by what it selects of it (`cells.zarr · c[0:1]`); a whole lens is called by its container. What a picker shows for an option
+  What to call this lens in a list, never empty: its container's name, its `name` when something names it, and what it selects (`cells.zarr · GFP · c[1:2], y[0:32]`); a whole lens is called by its container. What a picker shows for an option
   """
   label: String!
 
@@ -1324,6 +1329,11 @@ type ArrayLens implements Lens @key(fields: "id", resolvable: true) @identified(
   The coordinate system the lens' selection is expressed in. A sliced array lens owns one (the space its slices cut out, with the derived edge recording the shift); every other lens selects within its container's own space and resolves to it
   """
   coordinateSystem: CoordinateSystem
+
+  """
+  The coordinate anchors whose labels make up `name`, in the order they appear in it: those of the container whose every pinned axis this lens holds to the same position, the most specific only. Each carries the person's `positionLabel` and the recorded `channelLabel`; the first that says something is the one used. Empty for a lens no position names, and for a kind whose container carries no anchors
+  """
+  nameAnchors: [CoordinateAnchor!]!
 
   """
   The scene to open for this lens: its own nomination (`setLensDefaultScene`, or `createSceneFromLens`), falling back to its container's whole lens' while it has none. A container's nomination is its whole lens', so a whole lens answers for the container. A nomination, not a derivation
@@ -2634,7 +2644,14 @@ type CoordinateAnchor @key(fields: "id", resolvable: true) @identified(by: "@mik
   """The microscope state recorded at this coordinate"""
   microscope: OptikitState
   valueHistogram: ValueHistogram
+
+  """The channel label ingest recorded at this coordinate"""
   channelLabel: ChannelLabel
+
+  """
+  What a person calls the data at this coordinate (`setPositionLabel`): read before `channelLabel` when a lens is named
+  """
+  positionLabel: PositionLabel
   lightGraph: LightPath
 
   """When the data at these coordinates was acquired"""
@@ -2963,7 +2980,7 @@ input CreateAnnotationCollectionInput {
 }
 
 """
-Input for drawing an annotation. Provide exactly one of `collection` (append to it) or `scene` (draw on the scene: its annotation collection is found, or minted on first use together with its coordinate system, its registration into the world, and its layer)
+Input for drawing an annotation. Provide exactly one of `collection` (append to it) or `scene` (draw on the scene: its annotation collection is found, or minted on first use together with its coordinate system, its registration into the world, and its layer; a layer removed since is added back)
 """
 input CreateAnnotationInput {
   kind: AnnotationKind!
@@ -3202,11 +3219,6 @@ input CreateLensInput {
   In place of `slices`: an annotation, cut to the voxels under its stored box (crop to the ROI). With `dataset`, of the whole dataset; with `lens`, what that lens selects under the box. The cut is recorded: the annotation lists the lens as one of its `derivedLenses`
   """
   annotation: ID = null
-
-  """
-  What to call this selection. Applied when the lens has no name yet; a lens that already makes this selection and is named keeps its name: finding a selection is not a request to rename it, `updateLens` is
-  """
-  name: String = null
 }
 
 """
@@ -5048,12 +5060,12 @@ type FixtureLens implements Lens @key(fields: "id", resolvable: true) @identifie
   descriptors: JSON!
 
   """
-  What someone called this selection, or null when nobody has. A label only: it is no part of what the lens selects, and a client shows the selection -- or 'the whole container' -- in its place
+  What this selection is called, or null when nothing names it: the labels at the positions it pins (a person's `setPositionLabel` over the channel label ingest recorded) and the name of the annotation it was cut to, e.g. 'GFP · nucleus 3'. Derived and kept by the server, never set: naming channel 1 names every lens through channel 1. No part of the lens' identity, which is its container and its selection. `nameAnchors` says where it comes from
   """
   name: String
 
   """
-  What to call this lens in a list, never empty: its `name` when it has one, else its container's name followed by what it selects of it (`cells.zarr · c[0:1]`); a whole lens is called by its container. What a picker shows for an option
+  What to call this lens in a list, never empty: its container's name, its `name` when something names it, and what it selects (`cells.zarr · GFP · c[1:2], y[0:32]`); a whole lens is called by its container. What a picker shows for an option
   """
   label: String!
 
@@ -5082,6 +5094,11 @@ type FixtureLens implements Lens @key(fields: "id", resolvable: true) @identifie
   The coordinate system the lens' selection is expressed in. A sliced array lens owns one (the space its slices cut out, with the derived edge recording the shift); every other lens selects within its container's own space and resolves to it
   """
   coordinateSystem: CoordinateSystem
+
+  """
+  The coordinate anchors whose labels make up `name`, in the order they appear in it: those of the container whose every pinned axis this lens holds to the same position, the most specific only. Each carries the person's `positionLabel` and the recorded `channelLabel`; the first that says something is the one used. Empty for a lens no position names, and for a kind whose container carries no anchors
+  """
+  nameAnchors: [CoordinateAnchor!]!
 
   """
   The scene to open for this lens: its own nomination (`setLensDefaultScene`, or `createSceneFromLens`), falling back to its container's whole lens' while it has none. A container's nomination is its whole lens', so a whole lens answers for the container. A nomination, not a derivation
@@ -6518,12 +6535,12 @@ interface Lens {
   descriptors: JSON!
 
   """
-  What someone called this selection, or null when nobody has. A label only: it is no part of what the lens selects, and a client shows the selection -- or 'the whole container' -- in its place
+  What this selection is called, or null when nothing names it: the labels at the positions it pins (a person's `setPositionLabel` over the channel label ingest recorded) and the name of the annotation it was cut to, e.g. 'GFP · nucleus 3'. Derived and kept by the server, never set: naming channel 1 names every lens through channel 1. No part of the lens' identity, which is its container and its selection. `nameAnchors` says where it comes from
   """
   name: String
 
   """
-  What to call this lens in a list, never empty: its `name` when it has one, else its container's name followed by what it selects of it (`cells.zarr · c[0:1]`); a whole lens is called by its container. What a picker shows for an option
+  What to call this lens in a list, never empty: its container's name, its `name` when something names it, and what it selects (`cells.zarr · GFP · c[1:2], y[0:32]`); a whole lens is called by its container. What a picker shows for an option
   """
   label: String!
 
@@ -6552,6 +6569,11 @@ interface Lens {
   The coordinate system the lens' selection is expressed in. A sliced array lens owns one (the space its slices cut out, with the derived edge recording the shift); every other lens selects within its container's own space and resolves to it
   """
   coordinateSystem: CoordinateSystem
+
+  """
+  The coordinate anchors whose labels make up `name`, in the order they appear in it: those of the container whose every pinned axis this lens holds to the same position, the most specific only. Each carries the person's `positionLabel` and the recorded `channelLabel`; the first that says something is the one used. Empty for a lens no position names, and for a kind whose container carries no anchors
+  """
+  nameAnchors: [CoordinateAnchor!]!
 
   """
   The scene to open for this lens: its own nomination (`setLensDefaultScene`, or `createSceneFromLens`), falling back to its container's whole lens' while it has none. A container's nomination is its whole lens', so a whole lens answers for the container. A nomination, not a derivation
@@ -7672,12 +7694,12 @@ type MeshLens implements Lens @key(fields: "id", resolvable: true) @identified(b
   descriptors: JSON!
 
   """
-  What someone called this selection, or null when nobody has. A label only: it is no part of what the lens selects, and a client shows the selection -- or 'the whole container' -- in its place
+  What this selection is called, or null when nothing names it: the labels at the positions it pins (a person's `setPositionLabel` over the channel label ingest recorded) and the name of the annotation it was cut to, e.g. 'GFP · nucleus 3'. Derived and kept by the server, never set: naming channel 1 names every lens through channel 1. No part of the lens' identity, which is its container and its selection. `nameAnchors` says where it comes from
   """
   name: String
 
   """
-  What to call this lens in a list, never empty: its `name` when it has one, else its container's name followed by what it selects of it (`cells.zarr · c[0:1]`); a whole lens is called by its container. What a picker shows for an option
+  What to call this lens in a list, never empty: its container's name, its `name` when something names it, and what it selects (`cells.zarr · GFP · c[1:2], y[0:32]`); a whole lens is called by its container. What a picker shows for an option
   """
   label: String!
 
@@ -7706,6 +7728,11 @@ type MeshLens implements Lens @key(fields: "id", resolvable: true) @identified(b
   The coordinate system the lens' selection is expressed in. A sliced array lens owns one (the space its slices cut out, with the derived edge recording the shift); every other lens selects within its container's own space and resolves to it
   """
   coordinateSystem: CoordinateSystem
+
+  """
+  The coordinate anchors whose labels make up `name`, in the order they appear in it: those of the container whose every pinned axis this lens holds to the same position, the most specific only. Each carries the person's `positionLabel` and the recorded `channelLabel`; the first that says something is the one used. Empty for a lens no position names, and for a kind whose container carries no anchors
+  """
+  nameAnchors: [CoordinateAnchor!]!
 
   """
   The scene to open for this lens: its own nomination (`setLensDefaultScene`, or `createSceneFromLens`), falling back to its container's whole lens' while it has none. A container's nomination is its whole lens', so a whole lens answers for the container. A nomination, not a derivation
@@ -8298,9 +8325,9 @@ type Mutation {
   createAnnotationLens(input: CreateAnnotationLensInput!): AnnotationLens! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
-  Rename a lens, or clear its name. What it selects cannot change: a different selection is a different lens
+  Name the positions a lens pins (a channel, a frame), or remove the name: how a lens is named. The name sits at the coordinate anchor of those positions, beside what ingest recorded there, and every lens pinning them -- this one, its crops, the sub-lens a scene draws the channel through -- is called by it (`Lens.name`). A crop is named by the annotation it was cut to, a container by its own name
   """
-  updateLens(input: UpdateLensInput!): Lens! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
+  setPositionLabel(input: SetPositionLabelInput!): Lens! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Nominate the scene to open for a lens, and take its thumbnail from. Null clears it. On an unsliced lens this writes its dataset's nomination: the lens is the dataset, looked at whole
@@ -9006,12 +9033,12 @@ type NetworkLens implements Lens @key(fields: "id", resolvable: true) @identifie
   descriptors: JSON!
 
   """
-  What someone called this selection, or null when nobody has. A label only: it is no part of what the lens selects, and a client shows the selection -- or 'the whole container' -- in its place
+  What this selection is called, or null when nothing names it: the labels at the positions it pins (a person's `setPositionLabel` over the channel label ingest recorded) and the name of the annotation it was cut to, e.g. 'GFP · nucleus 3'. Derived and kept by the server, never set: naming channel 1 names every lens through channel 1. No part of the lens' identity, which is its container and its selection. `nameAnchors` says where it comes from
   """
   name: String
 
   """
-  What to call this lens in a list, never empty: its `name` when it has one, else its container's name followed by what it selects of it (`cells.zarr · c[0:1]`); a whole lens is called by its container. What a picker shows for an option
+  What to call this lens in a list, never empty: its container's name, its `name` when something names it, and what it selects (`cells.zarr · GFP · c[1:2], y[0:32]`); a whole lens is called by its container. What a picker shows for an option
   """
   label: String!
 
@@ -9040,6 +9067,11 @@ type NetworkLens implements Lens @key(fields: "id", resolvable: true) @identifie
   The coordinate system the lens' selection is expressed in. A sliced array lens owns one (the space its slices cut out, with the derived edge recording the shift); every other lens selects within its container's own space and resolves to it
   """
   coordinateSystem: CoordinateSystem
+
+  """
+  The coordinate anchors whose labels make up `name`, in the order they appear in it: those of the container whose every pinned axis this lens holds to the same position, the most specific only. Each carries the person's `positionLabel` and the recorded `channelLabel`; the first that says something is the one used. Empty for a lens no position names, and for a kind whose container carries no anchors
+  """
+  nameAnchors: [CoordinateAnchor!]!
 
   """
   The scene to open for this lens: its own nomination (`setLensDefaultScene`, or `createSceneFromLens`), falling back to its container's whole lens' while it has none. A container's nomination is its whole lens', so a whole lens answers for the container. A nomination, not a derivation
@@ -10186,6 +10218,22 @@ input Pose3DInput {
   orientation: EulerInput = null
 }
 
+"""
+What a person calls the data at a coordinate anchor's positions, e.g. 'GFP'. Beside the channel label ingest recorded, and read before it: it is how a lens pinning those positions is named
+"""
+type PositionLabel @key(fields: "id", resolvable: true) {
+  id: ID!
+
+  """The name"""
+  label: String!
+
+  """Who gave the name"""
+  creator: User
+
+  """When the name was last given"""
+  createdAt: DateTime!
+}
+
 """A power (``"5 mW"``, ``"2 W"``)."""
 scalar Power
 
@@ -10273,6 +10321,16 @@ enum PulseKind {
 type Query {
   _entities(representations: [_Any!]!): [_Entity]!
   _service: _Service!
+
+  """
+  The descriptors of one object by its structure's identifier, as a port's `requires` and a runtime formula read them. Empty for an unknown identifier, or an object the organization cannot see.
+  """
+  describe(
+    identifier: String!
+
+    """The unique identifier of an object"""
+    id: ID!
+  ): [DescriptorValue!]! @auth(required_scopes: ["mikro_read"])
 
   """List the Rekuest tasks under which objects were created or changed"""
   tasks(filters: TaskFilter, ordering: [TaskOrder!]! = [], pagination: OffsetPaginationInput): [Task!]! @auth(required_scopes: ["mikro_read"])
@@ -10483,16 +10541,6 @@ type Query {
   Get statistics about charts: counts and time-bucketed series over the charts of the current organization
   """
   chartsStats(filters: ChartFilter = null): ChartStats! @auth(required_scopes: ["mikro_read"])
-
-  """
-  The descriptors of one object by its structure's identifier, as a port's `requires` and a runtime formula read them. Empty for an unknown identifier, or an object the organization cannot see.
-  """
-  describe(
-    identifier: String!
-
-    """The unique identifier of an object"""
-    id: ID!
-  ): [DescriptorValue!]!
 
   """
   The k annotations of one collection nearest to a point, by cube distance between the point and each annotation's intrinsic bounding box (GiST-accelerated; 0 inside the box). Scoped to one collection because boxes only compare within one frame; the point is in the collection's nearest-intrinsic space, in its coordinate order
@@ -11558,6 +11606,15 @@ input SetLensDefaultSceneInput {
   scene: ID = null
 }
 
+"""Input for naming the positions a lens pins -- the way a lens is named"""
+input SetPositionLabelInput {
+  """The lens whose pinned positions to name"""
+  lens: ID!
+
+  """What to call them, or null (or blank) to remove the name"""
+  label: String = null
+}
+
 """One named device setting, exactly one value slot filled"""
 type Setting {
   name: String!
@@ -12037,12 +12094,12 @@ type SparseLens implements Lens @key(fields: "id", resolvable: true) @identified
   descriptors: JSON!
 
   """
-  What someone called this selection, or null when nobody has. A label only: it is no part of what the lens selects, and a client shows the selection -- or 'the whole container' -- in its place
+  What this selection is called, or null when nothing names it: the labels at the positions it pins (a person's `setPositionLabel` over the channel label ingest recorded) and the name of the annotation it was cut to, e.g. 'GFP · nucleus 3'. Derived and kept by the server, never set: naming channel 1 names every lens through channel 1. No part of the lens' identity, which is its container and its selection. `nameAnchors` says where it comes from
   """
   name: String
 
   """
-  What to call this lens in a list, never empty: its `name` when it has one, else its container's name followed by what it selects of it (`cells.zarr · c[0:1]`); a whole lens is called by its container. What a picker shows for an option
+  What to call this lens in a list, never empty: its container's name, its `name` when something names it, and what it selects (`cells.zarr · GFP · c[1:2], y[0:32]`); a whole lens is called by its container. What a picker shows for an option
   """
   label: String!
 
@@ -12071,6 +12128,11 @@ type SparseLens implements Lens @key(fields: "id", resolvable: true) @identified
   The coordinate system the lens' selection is expressed in. A sliced array lens owns one (the space its slices cut out, with the derived edge recording the shift); every other lens selects within its container's own space and resolves to it
   """
   coordinateSystem: CoordinateSystem
+
+  """
+  The coordinate anchors whose labels make up `name`, in the order they appear in it: those of the container whose every pinned axis this lens holds to the same position, the most specific only. Each carries the person's `positionLabel` and the recorded `channelLabel`; the first that says something is the one used. Empty for a lens no position names, and for a kind whose container carries no anchors
+  """
+  nameAnchors: [CoordinateAnchor!]!
 
   """
   The scene to open for this lens: its own nomination (`setLensDefaultScene`, or `createSceneFromLens`), falling back to its container's whole lens' while it has none. A container's nomination is its whole lens', so a whole lens answers for the container. A nomination, not a derivation
@@ -12564,12 +12626,12 @@ type TableLens implements Lens @key(fields: "id", resolvable: true) @identified(
   descriptors: JSON!
 
   """
-  What someone called this selection, or null when nobody has. A label only: it is no part of what the lens selects, and a client shows the selection -- or 'the whole container' -- in its place
+  What this selection is called, or null when nothing names it: the labels at the positions it pins (a person's `setPositionLabel` over the channel label ingest recorded) and the name of the annotation it was cut to, e.g. 'GFP · nucleus 3'. Derived and kept by the server, never set: naming channel 1 names every lens through channel 1. No part of the lens' identity, which is its container and its selection. `nameAnchors` says where it comes from
   """
   name: String
 
   """
-  What to call this lens in a list, never empty: its `name` when it has one, else its container's name followed by what it selects of it (`cells.zarr · c[0:1]`); a whole lens is called by its container. What a picker shows for an option
+  What to call this lens in a list, never empty: its container's name, its `name` when something names it, and what it selects (`cells.zarr · GFP · c[1:2], y[0:32]`); a whole lens is called by its container. What a picker shows for an option
   """
   label: String!
 
@@ -12598,6 +12660,11 @@ type TableLens implements Lens @key(fields: "id", resolvable: true) @identified(
   The coordinate system the lens' selection is expressed in. A sliced array lens owns one (the space its slices cut out, with the derived edge recording the shift); every other lens selects within its container's own space and resolves to it
   """
   coordinateSystem: CoordinateSystem
+
+  """
+  The coordinate anchors whose labels make up `name`, in the order they appear in it: those of the container whose every pinned axis this lens holds to the same position, the most specific only. Each carries the person's `positionLabel` and the recorded `channelLabel`; the first that says something is the one used. Empty for a lens no position names, and for a kind whose container carries no anchors
+  """
+  nameAnchors: [CoordinateAnchor!]!
 
   """
   The scene to open for this lens: its own nomination (`setLensDefaultScene`, or `createSceneFromLens`), falling back to its container's whole lens' while it has none. A container's nomination is its whole lens', so a whole lens answers for the container. A nomination, not a derivation
@@ -13489,15 +13556,6 @@ input UpdateLayerInput {
   renderGraph: LayerRenderGraphInput = null
 }
 
-"""Input for renaming a lens -- the whole of what is editable about one"""
-input UpdateLensInput {
-  """The ID of the lens to update"""
-  id: ID!
-
-  """The new name, or null (or blank) to clear it"""
-  name: String = null
-}
-
 """
 Retune how a mesh layer is drawn. A patch: an OMITTED field keeps its current value, so switching the colouring cannot silently drop the material or the wireframe -- while an explicit `null` CLEARS the fields whose null means something. The collection and the scene are not editable -- a layer renders what it was created to render
 """
@@ -14070,7 +14128,7 @@ type ZarrUploadGrant {
 
 scalar _Any
 
-union _Entity = AcquisitionWindow | AffineTransformation | Animation | AnimationWaypoint | Annotation | AnnotationChartLayer | AnnotationCollection | AnnotationLayer | AnnotationLens | ArrayDataset | ArrayLens | Axis | BigFileStore | ByDimensionTransformation | ChannelLabel | Chart | Client | Column | CoordinateAnchor | CoordinateSystem | DataArray | DerivationConflict | FabriksStore | File | FileLink | Fixture | FixtureLayer | FixtureLens | Folder | IdentityTransformation | ImageLayer | IntensityLayer | KonnektionStore | KulisseStore | LabelLayer | LightPath | MapAxisTransformation | MediaStore | Membership | MeshCollection | MeshLayer | MeshLens | Metric | MetricTarget | NetworkCollection | NetworkLayer | NetworkLens | OmeMetadata | OptikitState | Organization | ParquetStore | PhasorCalibration | PhasorHistogram | PhasorLayer | PointLayer | RgbLayer | RotationTransformation | ScaleTransformation | Scene | SceneSnapshot | SequenceTransformation | SeriesChartLayer | SparseArray | SparseAxisReference | SparseDataset | SparseLens | SparseStore | TableDataset | TableLens | Task | TraceChartLayer | TrackLayer | TranslationTransformation | UnmappableTransformation | User | ValueHistogram | VectorLayer | ZarrStore
+union _Entity = AcquisitionWindow | AffineTransformation | Animation | AnimationWaypoint | Annotation | AnnotationChartLayer | AnnotationCollection | AnnotationLayer | AnnotationLens | ArrayDataset | ArrayLens | Axis | BigFileStore | ByDimensionTransformation | ChannelLabel | Chart | Client | Column | CoordinateAnchor | CoordinateSystem | DataArray | DerivationConflict | FabriksStore | File | FileLink | Fixture | FixtureLayer | FixtureLens | Folder | IdentityTransformation | ImageLayer | IntensityLayer | KonnektionStore | KulisseStore | LabelLayer | LightPath | MapAxisTransformation | MediaStore | Membership | MeshCollection | MeshLayer | MeshLens | Metric | MetricTarget | NetworkCollection | NetworkLayer | NetworkLens | OmeMetadata | OptikitState | Organization | ParquetStore | PhasorCalibration | PhasorHistogram | PhasorLayer | PointLayer | PositionLabel | RgbLayer | RotationTransformation | ScaleTransformation | Scene | SceneSnapshot | SequenceTransformation | SeriesChartLayer | SparseArray | SparseAxisReference | SparseDataset | SparseLens | SparseStore | TableDataset | TableLens | Task | TraceChartLayer | TrackLayer | TranslationTransformation | UnmappableTransformation | User | ValueHistogram | VectorLayer | ZarrStore
 
 type _Service {
   sdl: String!

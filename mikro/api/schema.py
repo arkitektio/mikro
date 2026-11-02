@@ -1634,7 +1634,7 @@ class CreateAnnotationCollectionInput(BaseModel):
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreateAnnotationInput(BaseModel):
-    """Input for drawing an annotation. Provide exactly one of `collection` (append to it) or `scene` (draw on the scene: its annotation collection is found, or minted on first use together with its coordinate system, its registration into the world, and its layer)"""
+    """Input for drawing an annotation. Provide exactly one of `collection` (append to it) or `scene` (draw on the scene: its annotation collection is found, or minted on first use together with its coordinate system, its registration into the world, and its layer; a layer removed since is added back)"""
     kind: AnnotationKind
     vectors: tuple[ThreeDVector, ...]
     stroke_color: tuple[int, ...] | None = Field(validation_alias=AliasChoices('stroke_color', 'strokeColor'), serialization_alias='strokeColor', default=None)
@@ -1780,7 +1780,6 @@ class CreateLensInput(BaseModel):
     slices: tuple['SliceInput', ...] | None = Field(default=None, description="Slices selecting a window of the dataset (or of the lens), one per axis to restrict. Omit, or pass an empty list, for everything: the dataset's whole lens, or the lens cut from. The same selection, however spelled, is the same lens")
     box: 'LensBoxInput | None' = Field(default=None, description='In place of `slices`: a box in any coordinate system the dataset reaches, cut to the voxels whose cells it meets. With `dataset` only: a box names its own frame, it is not relative to a crop')
     annotation: ID | None = Field(default=None, description='In place of `slices`: an annotation, cut to the voxels under its stored box (crop to the ROI). With `dataset`, of the whole dataset; with `lens`, what that lens selects under the box. The cut is recorded: the annotation lists the lens as one of its `derivedLenses`')
-    name: str | None = Field(default=None, description='What to call this selection. Applied when the lens has no name yet; a lens that already makes this selection and is named keeps its name: finding a selection is not a request to rename it, `updateLens` is')
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreateMeshCollectionInput(BaseModel):
@@ -2831,6 +2830,12 @@ class SetLensDefaultSceneInput(BaseModel):
     scene: ID | None = Field(default=None, description='The scene to nominate, or null to clear the nomination')
     model_config = ConfigDict(frozen=True, extra='forbid')
 
+class SetPositionLabelInput(BaseModel):
+    """Input for naming the positions a lens pins -- the way a lens is named"""
+    lens: ID = Field(description='The lens whose pinned positions to name')
+    label: str | None = Field(default=None, description='What to call them, or null (or blank) to remove the name')
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
 class SettingInput(BaseModel):
     """One named device setting with exactly one value slot filled: a quantity when the setting carries a unit, else a number, text or flag. A setting holding two values is two settings"""
     name: str
@@ -3024,12 +3029,6 @@ class UpdateLabelLayerInput(BaseModel):
     opacity: float | None = None
     visible: bool | None = None
     order: int | None = None
-    model_config = ConfigDict(frozen=True, extra='forbid')
-
-class UpdateLensInput(BaseModel):
-    """Input for renaming a lens -- the whole of what is editable about one"""
-    id: ID = Field(description='The ID of the lens to update')
-    name: str | None = Field(default=None, description='The new name, or null (or blank) to clear it')
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class UpdateMeshLayerInput(BaseModel):
@@ -3261,7 +3260,7 @@ class ChartLayerTableLens(BaseModel):
     typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
     id: ID
     name: str | None = Field(default=None)
-    "What someone called this selection, or null when nobody has. A label only: it is no part of what the lens selects, and a client shows the selection -- or 'the whole container' -- in its place"
+    "What this selection is called, or null when nothing names it: the labels at the positions it pins (a person's `setPositionLabel` over the channel label ingest recorded) and the name of the annotation it was cut to, e.g. 'GFP · nucleus 3'. Derived and kept by the server, never set: naming channel 1 names every lens through channel 1. No part of the lens' identity, which is its container and its selection. `nameAnchors` says where it comes from"
     windows: tuple[ChartLayerTableLensWindows, ...]
     'The windows, in the one normalized spelling: container axis order, floats, an open side as null. Empty for the whole lens'
     model_config = ConfigDict(frozen=True)
@@ -3291,7 +3290,7 @@ class ChartLayerAnnotationLens(BaseModel):
     typename: Literal['AnnotationLens'] = Field(alias='__typename', default='AnnotationLens', exclude=True)
     id: ID
     name: str | None = Field(default=None)
-    "What someone called this selection, or null when nobody has. A label only: it is no part of what the lens selects, and a client shows the selection -- or 'the whole container' -- in its place"
+    "What this selection is called, or null when nothing names it: the labels at the positions it pins (a person's `setPositionLabel` over the channel label ingest recorded) and the name of the annotation it was cut to, e.g. 'GFP · nucleus 3'. Derived and kept by the server, never set: naming channel 1 names every lens through channel 1. No part of the lens' identity, which is its container and its selection. `nameAnchors` says where it comes from"
     windows: tuple[ChartLayerAnnotationLensWindows, ...]
     'The windows, in the one normalized spelling: container axis order, floats, an open side as null. Empty for the whole lens'
     model_config = ConfigDict(frozen=True)
@@ -3973,7 +3972,7 @@ class LayerMeshLens(BaseModel):
     typename: Literal['MeshLens'] = Field(alias='__typename', default='MeshLens', exclude=True)
     id: ID
     name: str | None = Field(default=None)
-    "What someone called this selection, or null when nobody has. A label only: it is no part of what the lens selects, and a client shows the selection -- or 'the whole container' -- in its place"
+    "What this selection is called, or null when nothing names it: the labels at the positions it pins (a person's `setPositionLabel` over the channel label ingest recorded) and the name of the annotation it was cut to, e.g. 'GFP · nucleus 3'. Derived and kept by the server, never set: naming channel 1 names every lens through channel 1. No part of the lens' identity, which is its container and its selection. `nameAnchors` says where it comes from"
     windows: tuple[LayerMeshLensWindows, ...]
     'The windows, in the one normalized spelling: container axis order, floats, an open side as null. Empty for the whole lens'
     model_config = ConfigDict(frozen=True)
@@ -4046,7 +4045,7 @@ class LayerTableLens(BaseModel):
     typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
     id: ID
     name: str | None = Field(default=None)
-    "What someone called this selection, or null when nobody has. A label only: it is no part of what the lens selects, and a client shows the selection -- or 'the whole container' -- in its place"
+    "What this selection is called, or null when nothing names it: the labels at the positions it pins (a person's `setPositionLabel` over the channel label ingest recorded) and the name of the annotation it was cut to, e.g. 'GFP · nucleus 3'. Derived and kept by the server, never set: naming channel 1 names every lens through channel 1. No part of the lens' identity, which is its container and its selection. `nameAnchors` says where it comes from"
     windows: tuple[LayerTableLensWindows, ...]
     'The windows, in the one normalized spelling: container axis order, floats, an open side as null. Empty for the whole lens'
     model_config = ConfigDict(frozen=True)
@@ -4076,7 +4075,7 @@ class LayerNetworkLens(BaseModel):
     typename: Literal['NetworkLens'] = Field(alias='__typename', default='NetworkLens', exclude=True)
     id: ID
     name: str | None = Field(default=None)
-    "What someone called this selection, or null when nobody has. A label only: it is no part of what the lens selects, and a client shows the selection -- or 'the whole container' -- in its place"
+    "What this selection is called, or null when nothing names it: the labels at the positions it pins (a person's `setPositionLabel` over the channel label ingest recorded) and the name of the annotation it was cut to, e.g. 'GFP · nucleus 3'. Derived and kept by the server, never set: naming channel 1 names every lens through channel 1. No part of the lens' identity, which is its container and its selection. `nameAnchors` says where it comes from"
     windows: tuple[LayerNetworkLensWindows, ...]
     'The windows, in the one normalized spelling: container axis order, floats, an open side as null. Empty for the whole lens'
     model_config = ConfigDict(frozen=True)
@@ -4152,7 +4151,7 @@ class LayerTableLens(BaseModel):
     typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
     id: ID
     name: str | None = Field(default=None)
-    "What someone called this selection, or null when nobody has. A label only: it is no part of what the lens selects, and a client shows the selection -- or 'the whole container' -- in its place"
+    "What this selection is called, or null when nothing names it: the labels at the positions it pins (a person's `setPositionLabel` over the channel label ingest recorded) and the name of the annotation it was cut to, e.g. 'GFP · nucleus 3'. Derived and kept by the server, never set: naming channel 1 names every lens through channel 1. No part of the lens' identity, which is its container and its selection. `nameAnchors` says where it comes from"
     windows: tuple[LayerTableLensWindows, ...]
     'The windows, in the one normalized spelling: container axis order, floats, an open side as null. Empty for the whole lens'
     model_config = ConfigDict(frozen=True)
@@ -4867,7 +4866,7 @@ class TableLens(MikroFetchable, BaseModel):
     typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
     id: ID
     name: str | None = Field(default=None)
-    "What someone called this selection, or null when nobody has. A label only: it is no part of what the lens selects, and a client shows the selection -- or 'the whole container' -- in its place"
+    "What this selection is called, or null when nothing names it: the labels at the positions it pins (a person's `setPositionLabel` over the channel label ingest recorded) and the name of the annotation it was cut to, e.g. 'GFP · nucleus 3'. Derived and kept by the server, never set: naming channel 1 names every lens through channel 1. No part of the lens' identity, which is its container and its selection. `nameAnchors` says where it comes from"
     kind: LensKind
     'What this lens selects over: an array by slices, or a table, a sparse dataset, a mesh, a network or an annotation collection by windows'
     table_dataset: TableLensTableDataset = Field(alias='tableDataset')
@@ -4895,7 +4894,7 @@ class SparseLens(MikroFetchable, BaseModel):
     typename: Literal['SparseLens'] = Field(alias='__typename', default='SparseLens', exclude=True)
     id: ID
     name: str | None = Field(default=None)
-    "What someone called this selection, or null when nobody has. A label only: it is no part of what the lens selects, and a client shows the selection -- or 'the whole container' -- in its place"
+    "What this selection is called, or null when nothing names it: the labels at the positions it pins (a person's `setPositionLabel` over the channel label ingest recorded) and the name of the annotation it was cut to, e.g. 'GFP · nucleus 3'. Derived and kept by the server, never set: naming channel 1 names every lens through channel 1. No part of the lens' identity, which is its container and its selection. `nameAnchors` says where it comes from"
     kind: LensKind
     'What this lens selects over: an array by slices, or a table, a sparse dataset, a mesh, a network or an annotation collection by windows'
     sparse_dataset: SparseLensSparseDataset = Field(alias='sparseDataset')
@@ -4924,7 +4923,7 @@ class MeshLens(MikroFetchable, BaseModel):
     typename: Literal['MeshLens'] = Field(alias='__typename', default='MeshLens', exclude=True)
     id: ID
     name: str | None = Field(default=None)
-    "What someone called this selection, or null when nobody has. A label only: it is no part of what the lens selects, and a client shows the selection -- or 'the whole container' -- in its place"
+    "What this selection is called, or null when nothing names it: the labels at the positions it pins (a person's `setPositionLabel` over the channel label ingest recorded) and the name of the annotation it was cut to, e.g. 'GFP · nucleus 3'. Derived and kept by the server, never set: naming channel 1 names every lens through channel 1. No part of the lens' identity, which is its container and its selection. `nameAnchors` says where it comes from"
     kind: LensKind
     'What this lens selects over: an array by slices, or a table, a sparse dataset, a mesh, a network or an annotation collection by windows'
     mesh_collection: MeshLensMeshCollection = Field(alias='meshCollection')
@@ -4951,7 +4950,7 @@ class NetworkLens(MikroFetchable, BaseModel):
     typename: Literal['NetworkLens'] = Field(alias='__typename', default='NetworkLens', exclude=True)
     id: ID
     name: str | None = Field(default=None)
-    "What someone called this selection, or null when nobody has. A label only: it is no part of what the lens selects, and a client shows the selection -- or 'the whole container' -- in its place"
+    "What this selection is called, or null when nothing names it: the labels at the positions it pins (a person's `setPositionLabel` over the channel label ingest recorded) and the name of the annotation it was cut to, e.g. 'GFP · nucleus 3'. Derived and kept by the server, never set: naming channel 1 names every lens through channel 1. No part of the lens' identity, which is its container and its selection. `nameAnchors` says where it comes from"
     kind: LensKind
     'What this lens selects over: an array by slices, or a table, a sparse dataset, a mesh, a network or an annotation collection by windows'
     network_collection: NetworkLensNetworkCollection = Field(alias='networkCollection')
@@ -4978,7 +4977,7 @@ class FixtureLens(MikroFetchable, BaseModel):
     typename: Literal['FixtureLens'] = Field(alias='__typename', default='FixtureLens', exclude=True)
     id: ID
     name: str | None = Field(default=None)
-    "What someone called this selection, or null when nobody has. A label only: it is no part of what the lens selects, and a client shows the selection -- or 'the whole container' -- in its place"
+    "What this selection is called, or null when nothing names it: the labels at the positions it pins (a person's `setPositionLabel` over the channel label ingest recorded) and the name of the annotation it was cut to, e.g. 'GFP · nucleus 3'. Derived and kept by the server, never set: naming channel 1 names every lens through channel 1. No part of the lens' identity, which is its container and its selection. `nameAnchors` says where it comes from"
     kind: LensKind
     'What this lens selects over: an array by slices, or a table, a sparse dataset, a mesh, a network or an annotation collection by windows'
     fixture: FixtureLensFixture
@@ -5007,7 +5006,7 @@ class AnnotationLens(MikroFetchable, BaseModel):
     typename: Literal['AnnotationLens'] = Field(alias='__typename', default='AnnotationLens', exclude=True)
     id: ID
     name: str | None = Field(default=None)
-    "What someone called this selection, or null when nobody has. A label only: it is no part of what the lens selects, and a client shows the selection -- or 'the whole container' -- in its place"
+    "What this selection is called, or null when nothing names it: the labels at the positions it pins (a person's `setPositionLabel` over the channel label ingest recorded) and the name of the annotation it was cut to, e.g. 'GFP · nucleus 3'. Derived and kept by the server, never set: naming channel 1 names every lens through channel 1. No part of the lens' identity, which is its container and its selection. `nameAnchors` says where it comes from"
     kind: LensKind
     'What this lens selects over: an array by slices, or a table, a sparse dataset, a mesh, a network or an annotation collection by windows'
     annotation_collection: AnnotationLensAnnotationCollection = Field(alias='annotationCollection')
@@ -5316,9 +5315,9 @@ class ArrayLens(Lensable, MikroFetchable, BaseModel):
     typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
     id: ID
     name: str | None = Field(default=None)
-    "What someone called this selection, or null when nobody has. A label only: it is no part of what the lens selects, and a client shows the selection -- or 'the whole container' -- in its place"
+    "What this selection is called, or null when nothing names it: the labels at the positions it pins (a person's `setPositionLabel` over the channel label ingest recorded) and the name of the annotation it was cut to, e.g. 'GFP · nucleus 3'. Derived and kept by the server, never set: naming channel 1 names every lens through channel 1. No part of the lens' identity, which is its container and its selection. `nameAnchors` says where it comes from"
     label: str
-    "What to call this lens in a list, never empty: its `name` when it has one, else its container's name followed by what it selects of it (`cells.zarr · c[0:1]`); a whole lens is called by its container. What a picker shows for an option"
+    "What to call this lens in a list, never empty: its container's name, its `name` when something names it, and what it selects (`cells.zarr · GFP · c[1:2], y[0:32]`); a whole lens is called by its container. What a picker shows for an option"
     kind: LensKind
     'What this lens selects over: an array by slices, or a table, a sparse dataset, a mesh, a network or an annotation collection by windows'
     dataset: ArrayLensDataset
@@ -7090,66 +7089,70 @@ class CreateAnnotationLensMutation(BaseModel):
         """Meta class for CreateAnnotationLens """
         document = 'fragment Window on Window {\n  axis\n  min\n  max\n  __typename\n}\n\nfragment AnnotationLens on AnnotationLens {\n  id\n  name\n  kind\n  annotationCollection {\n    id\n    name\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nmutation CreateAnnotationLens($input: CreateAnnotationLensInput!) {\n  createAnnotationLens(input: $input) {\n    ...AnnotationLens\n    __typename\n  }\n}'
 
-class UpdateLensMutationUpdateLensBase(BaseModel):
+class SetPositionLabelMutationSetPositionLabelBase(BaseModel):
     """A selection over a container that lives in a coordinate system: one row per (container, selection), so the same selection asked for twice is the same id. An ArrayLens selects over an array dataset by index slices and, when sliced, owns the crop's space and the edge back into the dataset's grid; every other kind selects over its container by value windows in the container's own axes and lives in the container's space. Every container has its whole lens from creation."""
     id: ID
     name: str | None = Field(default=None)
-    "What someone called this selection, or null when nobody has. A label only: it is no part of what the lens selects, and a client shows the selection -- or 'the whole container' -- in its place"
+    "What this selection is called, or null when nothing names it: the labels at the positions it pins (a person's `setPositionLabel` over the channel label ingest recorded) and the name of the annotation it was cut to, e.g. 'GFP · nucleus 3'. Derived and kept by the server, never set: naming channel 1 names every lens through channel 1. No part of the lens' identity, which is its container and its selection. `nameAnchors` says where it comes from"
+    label: str
+    "What to call this lens in a list, never empty: its container's name, its `name` when something names it, and what it selects (`cells.zarr · GFP · c[1:2], y[0:32]`); a whole lens is called by its container. What a picker shows for an option"
     kind: LensKind
     'What this lens selects over: an array by slices, or a table, a sparse dataset, a mesh, a network or an annotation collection by windows'
     model_config = ConfigDict(frozen=True)
 
-class UpdateLensMutationUpdateLensBaseAnnotationLens(UpdateLensMutationUpdateLensBase, BaseModel):
+class SetPositionLabelMutationSetPositionLabelBaseAnnotationLens(SetPositionLabelMutationSetPositionLabelBase, BaseModel):
     """A selection over an annotation collection by windows in its drawing space"""
     __identifier__: ClassVar[Literal['@mikro/annotationlens']] = '@mikro/annotationlens'
     typename: Literal['AnnotationLens'] = Field(alias='__typename', default='AnnotationLens', exclude=True)
 
-class UpdateLensMutationUpdateLensBaseArrayLens(UpdateLensMutationUpdateLensBase, Lensable, BaseModel):
+class SetPositionLabelMutationSetPositionLabelBaseArrayLens(SetPositionLabelMutationSetPositionLabelBase, Lensable, BaseModel):
     """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
     __identifier__: ClassVar[Literal['@mikro/arraylens']] = '@mikro/arraylens'
     typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
 
-class UpdateLensMutationUpdateLensBaseFixtureLens(UpdateLensMutationUpdateLensBase, BaseModel):
+class SetPositionLabelMutationSetPositionLabelBaseFixtureLens(SetPositionLabelMutationSetPositionLabelBase, BaseModel):
     """A selection over a fixture by windows in its own space: a clip box, or the whole model"""
     __identifier__: ClassVar[Literal['@mikro/fixturelens']] = '@mikro/fixturelens'
     typename: Literal['FixtureLens'] = Field(alias='__typename', default='FixtureLens', exclude=True)
 
-class UpdateLensMutationUpdateLensBaseMeshLens(UpdateLensMutationUpdateLensBase, BaseModel):
+class SetPositionLabelMutationSetPositionLabelBaseMeshLens(SetPositionLabelMutationSetPositionLabelBase, BaseModel):
     """A selection over a mesh collection by windows in its own space"""
     __identifier__: ClassVar[Literal['@mikro/meshlens']] = '@mikro/meshlens'
     typename: Literal['MeshLens'] = Field(alias='__typename', default='MeshLens', exclude=True)
 
-class UpdateLensMutationUpdateLensBaseNetworkLens(UpdateLensMutationUpdateLensBase, BaseModel):
+class SetPositionLabelMutationSetPositionLabelBaseNetworkLens(SetPositionLabelMutationSetPositionLabelBase, BaseModel):
     """A selection over a network collection by windows in its own space"""
     __identifier__: ClassVar[Literal['@mikro/networklens']] = '@mikro/networklens'
     typename: Literal['NetworkLens'] = Field(alias='__typename', default='NetworkLens', exclude=True)
 
-class UpdateLensMutationUpdateLensBaseSparseLens(UpdateLensMutationUpdateLensBase, BaseModel):
+class SetPositionLabelMutationSetPositionLabelBaseSparseLens(SetPositionLabelMutationSetPositionLabelBase, BaseModel):
     """A selection over a sparse dataset by windows on its axes: the positions kept, never re-indexed. Lives in the dataset's own space"""
     __identifier__: ClassVar[Literal['@mikro/sparselens']] = '@mikro/sparselens'
     typename: Literal['SparseLens'] = Field(alias='__typename', default='SparseLens', exclude=True)
 
-class UpdateLensMutationUpdateLensBaseTableLens(UpdateLensMutationUpdateLensBase, BaseModel):
+class SetPositionLabelMutationSetPositionLabelBaseTableLens(SetPositionLabelMutationSetPositionLabelBase, BaseModel):
     """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
     __identifier__: ClassVar[Literal['@mikro/tablelens']] = '@mikro/tablelens'
     typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
 
-class UpdateLensMutationUpdateLensBaseCatchAll(UpdateLensMutationUpdateLensBase, BaseModel):
-    """Catch all class for UpdateLensMutationUpdateLensBase"""
+class SetPositionLabelMutationSetPositionLabelBaseCatchAll(SetPositionLabelMutationSetPositionLabelBase, BaseModel):
+    """Catch all class for SetPositionLabelMutationSetPositionLabelBase"""
     typename: str = Field(alias='__typename', exclude=True)
 
-class UpdateLensMutation(BaseModel):
-    """ Renames only: a different selection is a different lens."""
-    update_lens: Annotated[UpdateLensMutationUpdateLensBaseAnnotationLens | UpdateLensMutationUpdateLensBaseArrayLens | UpdateLensMutationUpdateLensBaseFixtureLens | UpdateLensMutationUpdateLensBaseMeshLens | UpdateLensMutationUpdateLensBaseNetworkLens | UpdateLensMutationUpdateLensBaseSparseLens | UpdateLensMutationUpdateLensBaseTableLens, Field(discriminator='typename')] | UpdateLensMutationUpdateLensBaseCatchAll = Field(alias='updateLens')
-    'Rename a lens, or clear its name. What it selects cannot change: a different selection is a different lens'
+class SetPositionLabelMutation(BaseModel):
+    """ A lens has no name of its own: this names the positions it pins (a channel, a frame), and
+ every lens pinning them -- its crops, the sub-lens a scene draws the channel through -- is
+ called by it. Null or blank removes the name, and what ingest recorded names them again."""
+    set_position_label: Annotated[SetPositionLabelMutationSetPositionLabelBaseAnnotationLens | SetPositionLabelMutationSetPositionLabelBaseArrayLens | SetPositionLabelMutationSetPositionLabelBaseFixtureLens | SetPositionLabelMutationSetPositionLabelBaseMeshLens | SetPositionLabelMutationSetPositionLabelBaseNetworkLens | SetPositionLabelMutationSetPositionLabelBaseSparseLens | SetPositionLabelMutationSetPositionLabelBaseTableLens, Field(discriminator='typename')] | SetPositionLabelMutationSetPositionLabelBaseCatchAll = Field(alias='setPositionLabel')
+    'Name the positions a lens pins (a channel, a frame), or remove the name: how a lens is named. The name sits at the coordinate anchor of those positions, beside what ingest recorded there, and every lens pinning them -- this one, its crops, the sub-lens a scene draws the channel through -- is called by it (`Lens.name`). A crop is named by the annotation it was cut to, a container by its own name'
 
     class Arguments(BaseModel):
-        """Arguments for UpdateLens """
-        input: UpdateLensInput
+        """Arguments for SetPositionLabel """
+        input: SetPositionLabelInput
 
     class Meta:
-        """Meta class for UpdateLens """
-        document = 'mutation UpdateLens($input: UpdateLensInput!) {\n  updateLens(input: $input) {\n    id\n    name\n    kind\n    __typename\n  }\n}'
+        """Meta class for SetPositionLabel """
+        document = 'mutation SetPositionLabel($input: SetPositionLabelInput!) {\n  setPositionLabel(input: $input) {\n    id\n    name\n    label\n    kind\n    __typename\n  }\n}'
 
 class SetLensDefaultSceneMutationSetLensDefaultSceneDefaultScene(SceneTrait, BaseModel):
     """A composition of layers over a shared world coordinate system. The scene carries no units of its own -- they are per-axis, on the axes of its world system"""
@@ -9043,7 +9046,7 @@ class GetLensesQueryLensesBase(BaseModel):
     """A selection over a container that lives in a coordinate system: one row per (container, selection), so the same selection asked for twice is the same id. An ArrayLens selects over an array dataset by index slices and, when sliced, owns the crop's space and the edge back into the dataset's grid; every other kind selects over its container by value windows in the container's own axes and lives in the container's space. Every container has its whole lens from creation."""
     id: ID
     name: str | None = Field(default=None)
-    "What someone called this selection, or null when nobody has. A label only: it is no part of what the lens selects, and a client shows the selection -- or 'the whole container' -- in its place"
+    "What this selection is called, or null when nothing names it: the labels at the positions it pins (a person's `setPositionLabel` over the channel label ingest recorded) and the name of the annotation it was cut to, e.g. 'GFP · nucleus 3'. Derived and kept by the server, never set: naming channel 1 names every lens through channel 1. No part of the lens' identity, which is its container and its selection. `nameAnchors` says where it comes from"
     kind: LensKind
     'What this lens selects over: an array by slices, or a table, a sparse dataset, a mesh, a network or an annotation collection by windows'
     model_config = ConfigDict(frozen=True)
@@ -9107,7 +9110,7 @@ class SearchArrayLensesQueryOptionsBase(BaseModel):
     """A selection over a container that lives in a coordinate system: one row per (container, selection), so the same selection asked for twice is the same id. An ArrayLens selects over an array dataset by index slices and, when sliced, owns the crop's space and the edge back into the dataset's grid; every other kind selects over its container by value windows in the container's own axes and lives in the container's space. Every container has its whole lens from creation."""
     value: ID
     label: str
-    "What to call this lens in a list, never empty: its `name` when it has one, else its container's name followed by what it selects of it (`cells.zarr · c[0:1]`); a whole lens is called by its container. What a picker shows for an option"
+    "What to call this lens in a list, never empty: its container's name, its `name` when something names it, and what it selects (`cells.zarr · GFP · c[1:2], y[0:32]`); a whole lens is called by its container. What a picker shows for an option"
     model_config = ConfigDict(frozen=True)
 
 class SearchArrayLensesQueryOptionsBaseAnnotationLens(SearchArrayLensesQueryOptionsBase, BaseModel):
@@ -9175,7 +9178,7 @@ class SearchTableLensesQueryOptionsBase(BaseModel):
     """A selection over a container that lives in a coordinate system: one row per (container, selection), so the same selection asked for twice is the same id. An ArrayLens selects over an array dataset by index slices and, when sliced, owns the crop's space and the edge back into the dataset's grid; every other kind selects over its container by value windows in the container's own axes and lives in the container's space. Every container has its whole lens from creation."""
     value: ID
     label: str
-    "What to call this lens in a list, never empty: its `name` when it has one, else its container's name followed by what it selects of it (`cells.zarr · c[0:1]`); a whole lens is called by its container. What a picker shows for an option"
+    "What to call this lens in a list, never empty: its container's name, its `name` when something names it, and what it selects (`cells.zarr · GFP · c[1:2], y[0:32]`); a whole lens is called by its container. What a picker shows for an option"
     model_config = ConfigDict(frozen=True)
 
 class SearchTableLensesQueryOptionsBaseAnnotationLens(SearchTableLensesQueryOptionsBase, BaseModel):
@@ -9238,7 +9241,7 @@ class SearchSparseLensesQueryOptionsBase(BaseModel):
     """A selection over a container that lives in a coordinate system: one row per (container, selection), so the same selection asked for twice is the same id. An ArrayLens selects over an array dataset by index slices and, when sliced, owns the crop's space and the edge back into the dataset's grid; every other kind selects over its container by value windows in the container's own axes and lives in the container's space. Every container has its whole lens from creation."""
     value: ID
     label: str
-    "What to call this lens in a list, never empty: its `name` when it has one, else its container's name followed by what it selects of it (`cells.zarr · c[0:1]`); a whole lens is called by its container. What a picker shows for an option"
+    "What to call this lens in a list, never empty: its container's name, its `name` when something names it, and what it selects (`cells.zarr · GFP · c[1:2], y[0:32]`); a whole lens is called by its container. What a picker shows for an option"
     model_config = ConfigDict(frozen=True)
 
 class SearchSparseLensesQueryOptionsBaseAnnotationLens(SearchSparseLensesQueryOptionsBase, BaseModel):
@@ -9301,7 +9304,7 @@ class SearchMeshLensesQueryOptionsBase(BaseModel):
     """A selection over a container that lives in a coordinate system: one row per (container, selection), so the same selection asked for twice is the same id. An ArrayLens selects over an array dataset by index slices and, when sliced, owns the crop's space and the edge back into the dataset's grid; every other kind selects over its container by value windows in the container's own axes and lives in the container's space. Every container has its whole lens from creation."""
     value: ID
     label: str
-    "What to call this lens in a list, never empty: its `name` when it has one, else its container's name followed by what it selects of it (`cells.zarr · c[0:1]`); a whole lens is called by its container. What a picker shows for an option"
+    "What to call this lens in a list, never empty: its container's name, its `name` when something names it, and what it selects (`cells.zarr · GFP · c[1:2], y[0:32]`); a whole lens is called by its container. What a picker shows for an option"
     model_config = ConfigDict(frozen=True)
 
 class SearchMeshLensesQueryOptionsBaseAnnotationLens(SearchMeshLensesQueryOptionsBase, BaseModel):
@@ -9364,7 +9367,7 @@ class SearchNetworkLensesQueryOptionsBase(BaseModel):
     """A selection over a container that lives in a coordinate system: one row per (container, selection), so the same selection asked for twice is the same id. An ArrayLens selects over an array dataset by index slices and, when sliced, owns the crop's space and the edge back into the dataset's grid; every other kind selects over its container by value windows in the container's own axes and lives in the container's space. Every container has its whole lens from creation."""
     value: ID
     label: str
-    "What to call this lens in a list, never empty: its `name` when it has one, else its container's name followed by what it selects of it (`cells.zarr · c[0:1]`); a whole lens is called by its container. What a picker shows for an option"
+    "What to call this lens in a list, never empty: its container's name, its `name` when something names it, and what it selects (`cells.zarr · GFP · c[1:2], y[0:32]`); a whole lens is called by its container. What a picker shows for an option"
     model_config = ConfigDict(frozen=True)
 
 class SearchNetworkLensesQueryOptionsBaseAnnotationLens(SearchNetworkLensesQueryOptionsBase, BaseModel):
@@ -9427,7 +9430,7 @@ class SearchAnnotationLensesQueryOptionsBase(BaseModel):
     """A selection over a container that lives in a coordinate system: one row per (container, selection), so the same selection asked for twice is the same id. An ArrayLens selects over an array dataset by index slices and, when sliced, owns the crop's space and the edge back into the dataset's grid; every other kind selects over its container by value windows in the container's own axes and lives in the container's space. Every container has its whole lens from creation."""
     value: ID
     label: str
-    "What to call this lens in a list, never empty: its `name` when it has one, else its container's name followed by what it selects of it (`cells.zarr · c[0:1]`); a whole lens is called by its container. What a picker shows for an option"
+    "What to call this lens in a list, never empty: its container's name, its `name` when something names it, and what it selects (`cells.zarr · GFP · c[1:2], y[0:32]`); a whole lens is called by its container. What a picker shows for an option"
     model_config = ConfigDict(frozen=True)
 
 class SearchAnnotationLensesQueryOptionsBaseAnnotationLens(SearchAnnotationLensesQueryOptionsBase, BaseModel):
@@ -14404,7 +14407,7 @@ Returns:
         variables['input'] = _input
         return self.execute(UpdateTrackLayerMutation, variables, task=task).update_track_layer
 
-    async def acreate_lens(self, dataset: IDCoercible | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, slices: Iterable[SliceInput] | None | UnsetType=UNSET, box: LensBoxInput | None | UnsetType=UNSET, annotation: IDCoercible | None | UnsetType=UNSET, name: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> ArrayLens:
+    async def acreate_lens(self, dataset: IDCoercible | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, slices: Iterable[SliceInput] | None | UnsetType=UNSET, box: LensBoxInput | None | UnsetType=UNSET, annotation: IDCoercible | None | UnsetType=UNSET, task: TaskLike | None=None) -> ArrayLens:
         """CreateLens 
  Every create here is get-or-create: a lens is one row per container and normalized
  selection, so asking for the same selection twice answers with the same id.
@@ -14415,7 +14418,6 @@ Args:
     slices: Slices selecting a window of the dataset (or of the lens), one per axis to restrict. Omit, or pass an empty list, for everything: the dataset's whole lens, or the lens cut from. The same selection, however spelled, is the same lens
     box: In place of `slices`: a box in any coordinate system the dataset reaches, cut to the voxels whose cells it meets. With `dataset` only: a box names its own frame, it is not relative to a crop
     annotation: In place of `slices`: an annotation, cut to the voxels under its stored box (crop to the ROI). With `dataset`, of the whole dataset; with `lens`, what that lens selects under the box. The cut is recorded: the annotation lists the lens as one of its `derivedLenses`
-    name: What to call this selection. Applied when the lens has no name yet; a lens that already makes this selection and is named keeps its name: finding a selection is not a request to rename it, `updateLens` is
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
@@ -14433,12 +14435,10 @@ Returns:
             _input['box'] = box
         if annotation is not UNSET:
             _input['annotation'] = annotation
-        if name is not UNSET:
-            _input['name'] = name
         variables['input'] = _input
         return (await self.aexecute(CreateLensMutation, variables, task=task)).create_lens
 
-    def create_lens(self, dataset: IDCoercible | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, slices: Iterable[SliceInput] | None | UnsetType=UNSET, box: LensBoxInput | None | UnsetType=UNSET, annotation: IDCoercible | None | UnsetType=UNSET, name: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> ArrayLens:
+    def create_lens(self, dataset: IDCoercible | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, slices: Iterable[SliceInput] | None | UnsetType=UNSET, box: LensBoxInput | None | UnsetType=UNSET, annotation: IDCoercible | None | UnsetType=UNSET, task: TaskLike | None=None) -> ArrayLens:
         """CreateLens 
  Every create here is get-or-create: a lens is one row per container and normalized
  selection, so asking for the same selection twice answers with the same id.
@@ -14449,7 +14449,6 @@ Args:
     slices: Slices selecting a window of the dataset (or of the lens), one per axis to restrict. Omit, or pass an empty list, for everything: the dataset's whole lens, or the lens cut from. The same selection, however spelled, is the same lens
     box: In place of `slices`: a box in any coordinate system the dataset reaches, cut to the voxels whose cells it meets. With `dataset` only: a box names its own frame, it is not relative to a crop
     annotation: In place of `slices`: an annotation, cut to the voxels under its stored box (crop to the ROI). With `dataset`, of the whole dataset; with `lens`, what that lens selects under the box. The cut is recorded: the annotation lists the lens as one of its `derivedLenses`
-    name: What to call this selection. Applied when the lens has no name yet; a lens that already makes this selection and is named keeps its name: finding a selection is not a request to rename it, `updateLens` is
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
@@ -14467,8 +14466,6 @@ Returns:
             _input['box'] = box
         if annotation is not UNSET:
             _input['annotation'] = annotation
-        if name is not UNSET:
-            _input['name'] = name
         variables['input'] = _input
         return self.execute(CreateLensMutation, variables, task=task).create_lens
 
@@ -14770,45 +14767,49 @@ Returns:
         variables['input'] = _input
         return self.execute(CreateAnnotationLensMutation, variables, task=task).create_annotation_lens
 
-    async def aupdate_lens(self, id: IDCoercible, name: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotated[UpdateLensMutationUpdateLensBaseAnnotationLens | UpdateLensMutationUpdateLensBaseArrayLens | UpdateLensMutationUpdateLensBaseFixtureLens | UpdateLensMutationUpdateLensBaseMeshLens | UpdateLensMutationUpdateLensBaseNetworkLens | UpdateLensMutationUpdateLensBaseSparseLens | UpdateLensMutationUpdateLensBaseTableLens, Field(discriminator='typename')] | UpdateLensMutationUpdateLensBaseCatchAll:
-        """UpdateLens 
- Renames only: a different selection is a different lens.
+    async def aset_position_label(self, lens: IDCoercible, label: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotated[SetPositionLabelMutationSetPositionLabelBaseAnnotationLens | SetPositionLabelMutationSetPositionLabelBaseArrayLens | SetPositionLabelMutationSetPositionLabelBaseFixtureLens | SetPositionLabelMutationSetPositionLabelBaseMeshLens | SetPositionLabelMutationSetPositionLabelBaseNetworkLens | SetPositionLabelMutationSetPositionLabelBaseSparseLens | SetPositionLabelMutationSetPositionLabelBaseTableLens, Field(discriminator='typename')] | SetPositionLabelMutationSetPositionLabelBaseCatchAll:
+        """SetPositionLabel 
+ A lens has no name of its own: this names the positions it pins (a channel, a frame), and
+ every lens pinning them -- its crops, the sub-lens a scene draws the channel through -- is
+ called by it. Null or blank removes the name, and what ingest recorded names them again.
 
 Args:
-    id: The ID of the lens to update
-    name: The new name, or null (or blank) to clear it
+    lens: The lens whose pinned positions to name
+    label: What to call them, or null (or blank) to remove the name
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
-    UpdateLensMutationUpdateLens
+    SetPositionLabelMutationSetPositionLabel
 """
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
-        _input['id'] = id
-        if name is not UNSET:
-            _input['name'] = name
+        _input['lens'] = lens
+        if label is not UNSET:
+            _input['label'] = label
         variables['input'] = _input
-        return (await self.aexecute(UpdateLensMutation, variables, task=task)).update_lens
+        return (await self.aexecute(SetPositionLabelMutation, variables, task=task)).set_position_label
 
-    def update_lens(self, id: IDCoercible, name: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotated[UpdateLensMutationUpdateLensBaseAnnotationLens | UpdateLensMutationUpdateLensBaseArrayLens | UpdateLensMutationUpdateLensBaseFixtureLens | UpdateLensMutationUpdateLensBaseMeshLens | UpdateLensMutationUpdateLensBaseNetworkLens | UpdateLensMutationUpdateLensBaseSparseLens | UpdateLensMutationUpdateLensBaseTableLens, Field(discriminator='typename')] | UpdateLensMutationUpdateLensBaseCatchAll:
-        """UpdateLens 
- Renames only: a different selection is a different lens.
+    def set_position_label(self, lens: IDCoercible, label: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotated[SetPositionLabelMutationSetPositionLabelBaseAnnotationLens | SetPositionLabelMutationSetPositionLabelBaseArrayLens | SetPositionLabelMutationSetPositionLabelBaseFixtureLens | SetPositionLabelMutationSetPositionLabelBaseMeshLens | SetPositionLabelMutationSetPositionLabelBaseNetworkLens | SetPositionLabelMutationSetPositionLabelBaseSparseLens | SetPositionLabelMutationSetPositionLabelBaseTableLens, Field(discriminator='typename')] | SetPositionLabelMutationSetPositionLabelBaseCatchAll:
+        """SetPositionLabel 
+ A lens has no name of its own: this names the positions it pins (a channel, a frame), and
+ every lens pinning them -- its crops, the sub-lens a scene draws the channel through -- is
+ called by it. Null or blank removes the name, and what ingest recorded names them again.
 
 Args:
-    id: The ID of the lens to update
-    name: The new name, or null (or blank) to clear it
+    lens: The lens whose pinned positions to name
+    label: What to call them, or null (or blank) to remove the name
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
-    UpdateLensMutationUpdateLens
+    SetPositionLabelMutationSetPositionLabel
 """
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
-        _input['id'] = id
-        if name is not UNSET:
-            _input['name'] = name
+        _input['lens'] = lens
+        if label is not UNSET:
+            _input['label'] = label
         variables['input'] = _input
-        return self.execute(UpdateLensMutation, variables, task=task).update_lens
+        return self.execute(SetPositionLabelMutation, variables, task=task).set_position_label
 
     async def aset_lens_default_scene(self, lens: IDCoercible, scene: IDCoercible | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotated[SetLensDefaultSceneMutationSetLensDefaultSceneBaseAnnotationLens | SetLensDefaultSceneMutationSetLensDefaultSceneBaseArrayLens | SetLensDefaultSceneMutationSetLensDefaultSceneBaseFixtureLens | SetLensDefaultSceneMutationSetLensDefaultSceneBaseMeshLens | SetLensDefaultSceneMutationSetLensDefaultSceneBaseNetworkLens | SetLensDefaultSceneMutationSetLensDefaultSceneBaseSparseLens | SetLensDefaultSceneMutationSetLensDefaultSceneBaseTableLens, Field(discriminator='typename')] | SetLensDefaultSceneMutationSetLensDefaultSceneBaseCatchAll:
         """SetLensDefaultScene 

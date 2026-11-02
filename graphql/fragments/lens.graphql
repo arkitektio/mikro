@@ -24,7 +24,8 @@ fragment Window on Window {
 fragment ArrayLens on ArrayLens {
   id
   name
-  # What to call the lens, never empty: its name, else its dataset's and what it selects.
+  # `name` is what its pinned positions are called (setPositionLabel), never set on the lens.
+  # What to call the lens, never empty: its dataset's name, its name if any, what it selects.
   label
   kind
   dataset {

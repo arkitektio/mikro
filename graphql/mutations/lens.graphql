@@ -43,11 +43,14 @@ mutation CreateAnnotationLens($input: CreateAnnotationLensInput!) {
   }
 }
 
-# Renames only: a different selection is a different lens.
-mutation UpdateLens($input: UpdateLensInput!) {
-  updateLens(input: $input) {
+# A lens has no name of its own: this names the positions it pins (a channel, a frame), and
+# every lens pinning them -- its crops, the sub-lens a scene draws the channel through -- is
+# called by it. Null or blank removes the name, and what ingest recorded names them again.
+mutation SetPositionLabel($input: SetPositionLabelInput!) {
+  setPositionLabel(input: $input) {
     id
     name
+    label
     kind
   }
 }
