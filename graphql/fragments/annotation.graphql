@@ -18,6 +18,7 @@ fragment Annotation on Annotation {
   fillColor
   strokeWidth
   filled
+  sourceIds
 }
 
 fragment AnnotationCollection on AnnotationCollection {
@@ -29,5 +30,22 @@ fragment AnnotationCollection on AnnotationCollection {
   }
   annotations {
     ...Annotation
+  }
+}
+
+fragment AnnotationDerivation on AnnotationDerivation {
+  id
+  relation
+  reason
+  createdAt
+  source {
+    id
+    name
+    kind
+  }
+  child {
+    id
+    name
+    kind
   }
 }

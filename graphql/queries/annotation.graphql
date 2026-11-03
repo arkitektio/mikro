@@ -4,6 +4,19 @@ query GetAnnotation($id: ID!) {
   }
 }
 
+# A shape's own lineage: the shapes it was made from (and how), and the shapes made from it.
+query GetAnnotationLineage($id: ID!) {
+  annotation(id: $id) {
+    id
+    derivedFrom {
+      ...AnnotationDerivation
+    }
+    derivedAnnotations {
+      ...Annotation
+    }
+  }
+}
+
 query GetAnnotations($filters: AnnotationFilter, $pagination: OffsetPaginationInput) {
   annotations(filters: $filters, pagination: $pagination) {
     ...Annotation

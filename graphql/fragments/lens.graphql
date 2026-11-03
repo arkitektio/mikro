@@ -41,6 +41,14 @@ fragment ArrayLens on ArrayLens {
   }
   shape
   axisNames
+  # The canonical voxel size, resolved by the server along the edges (never raises).
+  # Empty when the lens reaches no physical space: uncalibrated.
+  voxelSize {
+    axis
+    size
+    unit
+    type
+  }
   coordinateSystem {
     ...CoordinateSystem
   }

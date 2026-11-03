@@ -224,3 +224,25 @@ def test_a_lens_picked_after_an_annotation_is_narrowed_to_what_that_annotation_r
     for bad in ("search", "values", "requires", "my path", "1st", "a/b"):
         with pytest.raises(ValueError, match="reachable_from"):
             reachable_from(bad)
+
+
+def test_a_lens_picked_after_an_annotation_can_be_narrowed_to_lenses_holding_data_where_it_is() -> None:
+    """`overlapping("path")`: the same picker, filtered by `overlapsAnnotation` instead of `reachableFrom`."""
+    from pathlib import Path
+
+    from graphql import build_schema, parse, validate
+
+    from mikro.api.schema import LensKind
+    from mikro.arkitekt.widgets import overlapping, overlapping_lenses_query
+
+    widget = overlapping("path")
+    assert widget.kind == "CUSTOM" and widget.component == "StructurePicker" and widget.dependencies == ("path",)
+    query = {prop.key: prop.static_value for prop in widget.props}["query"]
+    assert "overlapsAnnotation: $path" in query and "reachableFrom" not in query
+
+    schema = build_schema((Path(declared.__file__).parents[1] / "api" / "schema.graphql").read_text(), assume_valid_sdl=True)
+    for kind in LensKind:
+        assert validate(schema, parse(overlapping_lenses_query("shape", kind))) == [], kind
+
+    with pytest.raises(ValueError, match="overlapping"):
+        overlapping("requires")

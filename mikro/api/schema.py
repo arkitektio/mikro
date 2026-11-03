@@ -75,6 +75,18 @@ class AnnotationKindChoices(str, Enum):
     ELLIPSOID = 'ELLIPSOID'
     __str__ = str.__str__
 
+class AnnotationRelation(str, Enum):
+    """How a shape came from the shape it names in `derivedFrom`: the act, not the algorithm (that is the creating task's). A record of where a new shape came from -- editing a shape in place is its history, never a derivation"""
+    REFINED = 'REFINED'
+    'The same kind of shape, its geometry improved: a path smoothed or snapped to an edge, a polygon re-traced. The source must be of the same kind'
+    CONVERTED = 'CONVERTED'
+    "The same thing drawn as another kind: a rectangle as a polygon, a polygon's outline as a path, a path closed into a polygon. The source must be of a different kind"
+    SPLIT = 'SPLIT'
+    'One of several shapes cut out of the source. Its siblings name the same source'
+    MERGED = 'MERGED'
+    'One shape joined from several sources. Every source is named, each as MERGED, and there are at least two'
+    __str__ = str.__str__
+
 class ArrayDatasetSpec(str, Enum):
     """What a dataset structurally is, materialized from the axes of its intrinsic coordinate system at creation; an array lens answers the same vocabulary over the shape its slices cut out, so one plane of a stack is an IMAGE and one row of an image a TRACE. Specs stack: a 3D timelapse is VOLUME, TIMESERIES and MULTICHANNEL at once. Exactly one spatial member (SCALAR/PROFILE/IMAGE/VOLUME/HYPERVOLUME) ever holds; the others are modifiers: one per non-spatial axis type the dataset has more than one position along, and TRACE for a dataset that is a curve along one measured axis."""
     SCALAR = 'SCALAR'
@@ -471,6 +483,19 @@ class LensKind(str, Enum):
     NETWORK = 'NETWORK'
     ANNOTATION = 'ANNOTATION'
     FIXTURE = 'FIXTURE'
+    __str__ = str.__str__
+
+class LineageNodeKind(str, Enum):
+    """What a lineage node is: one of the containers, a file, or a shape. A shape is reached only by walking from one -- rooted at it, or from a shape made from it -- never fanned out to from its collection"""
+    DATASET = 'DATASET'
+    TABLE_DATASET = 'TABLE_DATASET'
+    SPARSE_DATASET = 'SPARSE_DATASET'
+    MESH_COLLECTION = 'MESH_COLLECTION'
+    NETWORK_COLLECTION = 'NETWORK_COLLECTION'
+    ANNOTATION_COLLECTION = 'ANNOTATION_COLLECTION'
+    FIXTURE = 'FIXTURE'
+    FILE = 'FILE'
+    ANNOTATION = 'ANNOTATION'
     __str__ = str.__str__
 
 class MeshShading(str, Enum):
@@ -1397,6 +1422,13 @@ class AnnotationFilter(BaseModel):
     contains_point: tuple[float, ...] | None = Field(validation_alias=AliasChoices('contains_point', 'containsPoint'), serialization_alias='containsPoint', default=None, description='Filter to annotations whose intrinsic bounding box contains this point (GiST-backed). Only meaningful within one frame: pass `collection` or `coordinateSystem` alongside')
     model_config = ConfigDict(frozen=True, extra='forbid')
 
+class AnnotationSourceInput(BaseModel):
+    """One shape a new shape was made from, and how"""
+    annotation: ID
+    relation: AnnotationRelation
+    reason: str | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
 class AnnotationSpecInput(BaseModel):
     """One shape of a bulk draw: the per-annotation subset of CreateAnnotationInput, without the collection/scene target"""
     kind: AnnotationKind
@@ -1408,6 +1440,7 @@ class AnnotationSpecInput(BaseModel):
     coordinates: tuple['CoordinateInput', ...] | None = None
     stroke_width: float | None = Field(validation_alias=AliasChoices('stroke_width', 'strokeWidth'), serialization_alias='strokeWidth', default=None)
     filled: bool | None = None
+    derived_from: tuple[AnnotationSourceInput, ...] | None = Field(validation_alias=AliasChoices('derived_from', 'derivedFrom'), serialization_alias='derivedFrom', default=None)
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class ArrayDatasetFilter(BaseModel):
@@ -1646,6 +1679,7 @@ class CreateAnnotationInput(BaseModel):
     coordinates: tuple[CoordinateInput, ...] | None = None
     stroke_width: float | None = Field(validation_alias=AliasChoices('stroke_width', 'strokeWidth'), serialization_alias='strokeWidth', default=None)
     filled: bool | None = None
+    derived_from: tuple[AnnotationSourceInput, ...] | None = Field(validation_alias=AliasChoices('derived_from', 'derivedFrom'), serialization_alias='derivedFrom', default=None)
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreateAnnotationLensInput(BaseModel):
@@ -2084,16 +2118,22 @@ class DeleteAnimationInput(BaseModel):
 class DeleteAnnotationCollectionInput(BaseModel):
     """Input for deleting an annotation collection by ID"""
     id: ID = Field(description='The ID of the annotation collection to delete')
+    cascade: Annotated[bool | None, GraphQLDefault('False')] = Field(default=None, description='Also delete everything made from it -- the closure `preflightDelete<Model>` lists: derived data, data computed within a shape, shapes refined or converted from it, series converted out of a file, files exported from a dataset. Without it, a delete of something anything was made from is refused, naming what')
+    'Also delete everything made from it -- the closure `preflightDelete<Model>` lists: derived data, data computed within a shape, shapes refined or converted from it, series converted out of a file, files exported from a dataset. Without it, a delete of something anything was made from is refused, naming what\nDefault: False'
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class DeleteAnnotationInput(BaseModel):
     """Input for deleting an annotation by ID"""
     id: ID
+    cascade: Annotated[bool | None, GraphQLDefault('False')] = Field(default=None, description='Also delete everything made from it -- the closure `preflightDelete<Model>` lists: derived data, data computed within a shape, shapes refined or converted from it, series converted out of a file, files exported from a dataset. Without it, a delete of something anything was made from is refused, naming what')
+    'Also delete everything made from it -- the closure `preflightDelete<Model>` lists: derived data, data computed within a shape, shapes refined or converted from it, series converted out of a file, files exported from a dataset. Without it, a delete of something anything was made from is refused, naming what\nDefault: False'
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class DeleteArrayDatasetInput(BaseModel):
     """Input for deleting an array dataset by ID"""
     id: ID = Field(description='The ID of the array dataset to delete')
+    cascade: Annotated[bool | None, GraphQLDefault('False')] = Field(default=None, description='Also delete everything made from it -- the closure `preflightDelete<Model>` lists: derived data, data computed within a shape, shapes refined or converted from it, series converted out of a file, files exported from a dataset. Without it, a delete of something anything was made from is refused, naming what')
+    'Also delete everything made from it -- the closure `preflightDelete<Model>` lists: derived data, data computed within a shape, shapes refined or converted from it, series converted out of a file, files exported from a dataset. Without it, a delete of something anything was made from is refused, naming what\nDefault: False'
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class DeleteChartInput(BaseModel):
@@ -2114,6 +2154,8 @@ class DeleteCoordinateSystemInput(BaseModel):
 class DeleteFixtureInput(BaseModel):
     """Input for deleting a fixture by ID"""
     id: ID = Field(description='The ID of the fixture to delete')
+    cascade: Annotated[bool | None, GraphQLDefault('False')] = Field(default=None, description='Also delete everything made from it -- the closure `preflightDelete<Model>` lists: derived data, data computed within a shape, shapes refined or converted from it, series converted out of a file, files exported from a dataset. Without it, a delete of something anything was made from is refused, naming what')
+    'Also delete everything made from it -- the closure `preflightDelete<Model>` lists: derived data, data computed within a shape, shapes refined or converted from it, series converted out of a file, files exported from a dataset. Without it, a delete of something anything was made from is refused, naming what\nDefault: False'
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class DeleteLayerInput(BaseModel):
@@ -2129,6 +2171,8 @@ class DeleteLensInput(BaseModel):
 class DeleteMeshCollectionInput(BaseModel):
     """Input for deleting a mesh collection by ID"""
     id: ID = Field(description='The ID of the mesh collection to delete')
+    cascade: Annotated[bool | None, GraphQLDefault('False')] = Field(default=None, description='Also delete everything made from it -- the closure `preflightDelete<Model>` lists: derived data, data computed within a shape, shapes refined or converted from it, series converted out of a file, files exported from a dataset. Without it, a delete of something anything was made from is refused, naming what')
+    'Also delete everything made from it -- the closure `preflightDelete<Model>` lists: derived data, data computed within a shape, shapes refined or converted from it, series converted out of a file, files exported from a dataset. Without it, a delete of something anything was made from is refused, naming what\nDefault: False'
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class DeleteMetricInput(BaseModel):
@@ -2139,6 +2183,8 @@ class DeleteMetricInput(BaseModel):
 class DeleteNetworkCollectionInput(BaseModel):
     """Input for deleting a network collection by ID"""
     id: ID = Field(description='The ID of the network collection to delete')
+    cascade: Annotated[bool | None, GraphQLDefault('False')] = Field(default=None, description='Also delete everything made from it -- the closure `preflightDelete<Model>` lists: derived data, data computed within a shape, shapes refined or converted from it, series converted out of a file, files exported from a dataset. Without it, a delete of something anything was made from is refused, naming what')
+    'Also delete everything made from it -- the closure `preflightDelete<Model>` lists: derived data, data computed within a shape, shapes refined or converted from it, series converted out of a file, files exported from a dataset. Without it, a delete of something anything was made from is refused, naming what\nDefault: False'
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class DeleteRegistrationInput(BaseModel):
@@ -2164,11 +2210,15 @@ class DeleteSceneSnapshotInput(BaseModel):
 class DeleteSparseDatasetInput(BaseModel):
     """Input for deleting a sparse dataset by ID"""
     id: ID = Field(description='The ID of the sparse dataset to delete')
+    cascade: Annotated[bool | None, GraphQLDefault('False')] = Field(default=None, description='Also delete everything made from it -- the closure `preflightDelete<Model>` lists: derived data, data computed within a shape, shapes refined or converted from it, series converted out of a file, files exported from a dataset. Without it, a delete of something anything was made from is refused, naming what')
+    'Also delete everything made from it -- the closure `preflightDelete<Model>` lists: derived data, data computed within a shape, shapes refined or converted from it, series converted out of a file, files exported from a dataset. Without it, a delete of something anything was made from is refused, naming what\nDefault: False'
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class DeleteTableDatasetInput(BaseModel):
     """Input for deleting a table dataset by ID"""
     id: ID = Field(description='The ID of the table dataset to delete')
+    cascade: Annotated[bool | None, GraphQLDefault('False')] = Field(default=None, description='Also delete everything made from it -- the closure `preflightDelete<Model>` lists: derived data, data computed within a shape, shapes refined or converted from it, series converted out of a file, files exported from a dataset. Without it, a delete of something anything was made from is refused, naming what')
+    'Also delete everything made from it -- the closure `preflightDelete<Model>` lists: derived data, data computed within a shape, shapes refined or converted from it, series converted out of a file, files exported from a dataset. Without it, a delete of something anything was made from is refused, naming what\nDefault: False'
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class DeleteTransformationInput(BaseModel):
@@ -3172,6 +3222,46 @@ class CameraState(MikroFetchable, BaseModel):
         name = 'CameraState'
         type = 'CameraState'
 
+class AnnotationDerivationSource(BaseModel):
+    """A human-drawn shape in an annotation collection's coordinate system. It belongs to the collection, not to a scene: delete the scene and the annotation survives"""
+    __identifier__: ClassVar[Literal['@mikro/annotation']] = '@mikro/annotation'
+    typename: Literal['Annotation'] = Field(alias='__typename', default='Annotation', exclude=True)
+    id: str
+    name: str
+    kind: AnnotationKind
+    model_config = ConfigDict(frozen=True)
+
+class AnnotationDerivationChild(BaseModel):
+    """A human-drawn shape in an annotation collection's coordinate system. It belongs to the collection, not to a scene: delete the scene and the annotation survives"""
+    __identifier__: ClassVar[Literal['@mikro/annotation']] = '@mikro/annotation'
+    typename: Literal['Annotation'] = Field(alias='__typename', default='Annotation', exclude=True)
+    id: str
+    name: str
+    kind: AnnotationKind
+    model_config = ConfigDict(frozen=True)
+
+class AnnotationDerivation(MikroFetchable, BaseModel):
+    """That a shape was made from another shape, and how: a path refined, a rectangle converted to a polygon, a shape split or merged. A record of the act, never an edge in space -- both shapes are placed by their collections, and editing either afterwards changes nothing here"""
+    typename: Literal['AnnotationDerivation'] = Field(alias='__typename', default='AnnotationDerivation', exclude=True)
+    id: ID
+    relation: AnnotationRelation
+    'How the child came from the source'
+    reason: str | None = Field(default=None)
+    'A free-form note on why or how, if one was given'
+    created_at: datetime = Field(alias='createdAt')
+    'When the child was made from the source'
+    source: AnnotationDerivationSource
+    'The shape it was made from. It cannot be deleted while this shape stands, unless the delete cascades to it'
+    child: AnnotationDerivationChild
+    'The shape that was made'
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for AnnotationDerivation"""
+        document = 'fragment AnnotationDerivation on AnnotationDerivation {\n  id\n  relation\n  reason\n  createdAt\n  source {\n    id\n    name\n    kind\n    __typename\n  }\n  child {\n    id\n    name\n    kind\n    __typename\n  }\n  __typename\n}'
+        name = 'AnnotationDerivation'
+        type = 'AnnotationDerivation'
+
 class ChartLayerChart(ChartTrait, BaseModel):
     """A composition of data laid out along one metric axis, with values read off it. The second kind of composition beside a scene: a scene is a place, a chart is an axis. It names data by id and owns none of it, and it carries no unit of its own -- the unit is its world axis's"""
     __identifier__: ClassVar[Literal['@mikro/chart']] = '@mikro/chart'
@@ -3718,6 +3808,70 @@ class KulisseStore(MikroFetchable, BaseModel):
         document = 'fragment KulisseStore on KulisseStore {\n  id\n  key\n  bucket\n  path\n  sizeBytes\n  ref\n  bounds\n  nodes\n  joints\n  warnings\n  __typename\n}'
         name = 'KulisseStore'
         type = 'KulisseStore'
+
+class DeletePreflightCasualties(BaseModel):
+    """One thing a delete would take along: something made from what is deleted, directly or further down"""
+    typename: Literal['DeleteCasualty'] = Field(alias='__typename', default='DeleteCasualty', exclude=True)
+    key: ID
+    '`<kind>:<id>`, as the lineage walk keys it'
+    kind: LineageNodeKind
+    'What it is'
+    id: ID
+    'Its ID, as its own query takes it'
+    name: str
+    'Its name'
+    depth: int
+    'Hops from what is deleted: 1 for something made from it directly'
+    parent: ID
+    'The key of what it was made from on its nearest path'
+    model_config = ConfigDict(frozen=True)
+
+class DeletePreflightBlockers(BaseModel):
+    """Why a delete cannot go ahead: one row it would delete that may not be deleted"""
+    typename: Literal['DeleteBlocker'] = Field(alias='__typename', default='DeleteBlocker', exclude=True)
+    key: ID
+    '`<kind>:<id>` of the row that blocks'
+    kind: LineageNodeKind
+    'What it is'
+    id: ID
+    'Its ID'
+    reason: str
+    'Why: not yours to delete, a guard (a layer draws through it, a picker names it) or a reference that must not be deleted with it'
+    model_config = ConfigDict(frozen=True)
+
+class DeletePreflightCascadeCounts(BaseModel):
+    """Rows of one kind that go with a delete without being lineage: layers, lenses, axes"""
+    typename: Literal['CascadeCount'] = Field(alias='__typename', default='CascadeCount', exclude=True)
+    label: str
+    "What they are, singular -- e.g. 'layer', 'annotation lens'"
+    count: int
+    'How many'
+    model_config = ConfigDict(frozen=True)
+
+class DeletePreflight(MikroFetchable, BaseModel):
+    """What deleting one object would cost, without deleting it: everything made from it (which a plain delete refuses over, and `cascade: true` takes along), what would stop the delete, and what else cascades with it"""
+    typename: Literal['DeletePreflight'] = Field(alias='__typename', default='DeletePreflight', exclude=True)
+    target: ID
+    '`<kind>:<id>` of what would be deleted'
+    casualties: tuple[DeletePreflightCasualties, ...]
+    'Everything made from it, transitively, nearest first. Non-empty means the delete needs `cascade: true`'
+    blockers: tuple[DeletePreflightBlockers, ...]
+    'What stops the delete, with or without `cascade`. Empty when it may go ahead'
+    cascade_counts: tuple[DeletePreflightCascadeCounts, ...] = Field(alias='cascadeCounts')
+    'Other rows that would go with it, by kind, e.g. the layers drawing it and its lenses'
+    truncated: bool
+    'Whether more was made from it than one delete may take along: refused even with `cascade`; delete from the leaves'
+    needs_cascade: bool = Field(alias='needsCascade')
+    'Whether a plain delete would be refused because something was made from it'
+    deletable: bool
+    'Whether the delete can go ahead -- with `cascade: true` when `needsCascade`'
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for DeletePreflight"""
+        document = 'fragment DeletePreflight on DeletePreflight {\n  target\n  casualties {\n    key\n    kind\n    id\n    name\n    depth\n    parent\n    __typename\n  }\n  blockers {\n    key\n    kind\n    id\n    reason\n    __typename\n  }\n  cascadeCounts {\n    label\n    count\n    __typename\n  }\n  truncated\n  needsCascade\n  deletable\n  __typename\n}'
+        name = 'DeletePreflight'
+        type = 'DeletePreflight'
 
 class FolderParent(BaseModel):
     """A folder is a collection of the things mikro stores. It mimics a folder in a file system and is the top-level container for organising data."""
@@ -5203,11 +5357,13 @@ class Annotation(MikroFetchable, BaseModel):
     "The stroke width of the geometry, in the drawing space's units. One number for every direction, so it is a well-defined length only where that space's axes share a scale"
     filled: bool
     'Whether the geometry is filled with fill_color'
+    source_ids: tuple[ID, ...] = Field(alias='sourceIds')
+    "The ids of the shapes this one was made from, in declared order: `derivedFrom` without the links, cheap enough for every shape of a scene's list. Empty for a shape drawn from nothing. What a viewer reads to tell a refinement from the shape it refines"
     model_config = ConfigDict(frozen=True)
 
     class Meta:
         """Meta class for Annotation"""
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  __typename\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}'
         name = 'Annotation'
         type = 'Annotation'
 
@@ -5309,6 +5465,19 @@ class ArrayLensDataset(DatasetTrait, BaseModel):
     'The multiscale data arrays belonging to this dataset'
     model_config = ConfigDict(frozen=True)
 
+class ArrayLensVoxelSize(BaseModel):
+    """How far one step along a lens axis reaches in a physical space: the voxel size along that axis"""
+    typename: Literal['AxisVoxelSize'] = Field(alias='__typename', default='AxisVoxelSize', exclude=True)
+    axis: str
+    'The lens axis'
+    size: float
+    "How far one step along it reaches, in `unit`. A stepped lens' step is its own: `step: 2` reaches twice its dataset's voxel"
+    unit: str
+    'The unit of `size`: the unit of the physical axis it mostly lands on'
+    type: AxisType
+    "That physical axis' kind. A calibration scales a time step or a spectral bin as well; a voxel's spatial size is the SPACE entries"
+    model_config = ConfigDict(frozen=True)
+
 class ArrayLens(Lensable, MikroFetchable, BaseModel):
     """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
     __identifier__: ClassVar[Literal['@mikro/arraylens']] = '@mikro/arraylens'
@@ -5325,6 +5494,8 @@ class ArrayLens(Lensable, MikroFetchable, BaseModel):
     "The shape this lens' slices cut out of its dataset"
     axis_names: tuple[str, ...] = Field(alias='axisNames')
     "The lens' axis names, in array order. A selection never drops or reorders an axis"
+    voxel_size: tuple[ArrayLensVoxelSize, ...] = Field(alias='voxelSize')
+    "This lens' voxel size: how far one step along each of its axes reaches, read along the edges to the first space with units. The `canonical` one of `voxelSizes` -- decided by the edges' validity, so a person's calibration outranks the pixel size a converter read from the file. Empty when the lens reaches no physical space, or none by a sane route. Every axis the route scales is listed (a time step too); a voxel's spatial size is the SPACE entries. Never raises, so it is the form to put in a fragment"
     coordinate_system: CoordinateSystem | None = Field(default=None, alias='coordinateSystem')
     "The coordinate system the lens' selection is expressed in. A sliced array lens owns one (the space its slices cut out, with the derived edge recording the shift); every other lens selects within its container's own space and resolves to it"
     slices: tuple[Slice, ...]
@@ -5333,7 +5504,7 @@ class ArrayLens(Lensable, MikroFetchable, BaseModel):
 
     class Meta:
         """Meta class for ArrayLens"""
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Slice on Slice {\n  axis\n  start\n  stop\n  step\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ArrayLens on ArrayLens {\n  id\n  name\n  label\n  kind\n  dataset {\n    id\n    axisNames\n    dataArrays {\n      id\n      level\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  shape\n  axisNames\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  slices {\n    ...Slice\n    __typename\n  }\n  __typename\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Slice on Slice {\n  axis\n  start\n  stop\n  step\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ArrayLens on ArrayLens {\n  id\n  name\n  label\n  kind\n  dataset {\n    id\n    axisNames\n    dataArrays {\n      id\n      level\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  shape\n  axisNames\n  voxelSize {\n    axis\n    size\n    unit\n    type\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  slices {\n    ...Slice\n    __typename\n  }\n  __typename\n}'
         name = 'ArrayLens'
         type = 'ArrayLens'
 
@@ -5505,7 +5676,7 @@ class AnnotationCollection(MikroFetchable, BaseModel):
 
     class Meta:
         """Meta class for AnnotationCollection"""
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnnotationCollection on AnnotationCollection {\n  id\n  name\n  description\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  annotations {\n    ...Annotation\n    __typename\n  }\n  __typename\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnnotationCollection on AnnotationCollection {\n  id\n  name\n  description\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  annotations {\n    ...Annotation\n    __typename\n  }\n  __typename\n}'
         name = 'AnnotationCollection'
         type = 'AnnotationCollection'
 
@@ -5950,7 +6121,7 @@ class CreateAnnotationMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateAnnotation """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  __typename\n}\n\nmutation CreateAnnotation($input: CreateAnnotationInput!) {\n  createAnnotation(input: $input) {\n    ...Annotation\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nmutation CreateAnnotation($input: CreateAnnotationInput!) {\n  createAnnotation(input: $input) {\n    ...Annotation\n    __typename\n  }\n}'
 
 class CreateAnnotationsMutation(BaseModel):
     """No documentation found for this operation."""
@@ -5963,7 +6134,7 @@ class CreateAnnotationsMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateAnnotations """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  __typename\n}\n\nmutation CreateAnnotations($input: CreateAnnotationsInput!) {\n  createAnnotations(input: $input) {\n    ...Annotation\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nmutation CreateAnnotations($input: CreateAnnotationsInput!) {\n  createAnnotations(input: $input) {\n    ...Annotation\n    __typename\n  }\n}'
 
 class UpdateAnnotationMutation(BaseModel):
     """No documentation found for this operation."""
@@ -5976,7 +6147,7 @@ class UpdateAnnotationMutation(BaseModel):
 
     class Meta:
         """Meta class for UpdateAnnotation """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  __typename\n}\n\nmutation UpdateAnnotation($input: UpdateAnnotationInput!) {\n  updateAnnotation(input: $input) {\n    ...Annotation\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nmutation UpdateAnnotation($input: UpdateAnnotationInput!) {\n  updateAnnotation(input: $input) {\n    ...Annotation\n    __typename\n  }\n}'
 
 class DeleteAnnotationMutation(BaseModel):
     """No documentation found for this operation."""
@@ -6002,7 +6173,7 @@ class CreateAnnotationCollectionMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateAnnotationCollection """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnnotationCollection on AnnotationCollection {\n  id\n  name\n  description\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  annotations {\n    ...Annotation\n    __typename\n  }\n  __typename\n}\n\nmutation CreateAnnotationCollection($input: CreateAnnotationCollectionInput!) {\n  createAnnotationCollection(input: $input) {\n    ...AnnotationCollection\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnnotationCollection on AnnotationCollection {\n  id\n  name\n  description\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  annotations {\n    ...Annotation\n    __typename\n  }\n  __typename\n}\n\nmutation CreateAnnotationCollection($input: CreateAnnotationCollectionInput!) {\n  createAnnotationCollection(input: $input) {\n    ...AnnotationCollection\n    __typename\n  }\n}'
 
 class DeleteAnnotationCollectionMutation(BaseModel):
     """No documentation found for this operation."""
@@ -7009,7 +7180,7 @@ class CreateLensMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateLens """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Slice on Slice {\n  axis\n  start\n  stop\n  step\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ArrayLens on ArrayLens {\n  id\n  name\n  label\n  kind\n  dataset {\n    id\n    axisNames\n    dataArrays {\n      id\n      level\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  shape\n  axisNames\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  slices {\n    ...Slice\n    __typename\n  }\n  __typename\n}\n\nmutation CreateLens($input: CreateLensInput!) {\n  createLens(input: $input) {\n    ...ArrayLens\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Slice on Slice {\n  axis\n  start\n  stop\n  step\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ArrayLens on ArrayLens {\n  id\n  name\n  label\n  kind\n  dataset {\n    id\n    axisNames\n    dataArrays {\n      id\n      level\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  shape\n  axisNames\n  voxelSize {\n    axis\n    size\n    unit\n    type\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  slices {\n    ...Slice\n    __typename\n  }\n  __typename\n}\n\nmutation CreateLens($input: CreateLensInput!) {\n  createLens(input: $input) {\n    ...ArrayLens\n    __typename\n  }\n}'
 
 class CreateTableLensMutation(BaseModel):
     """No documentation found for this operation."""
@@ -7805,7 +7976,31 @@ class GetAnnotationQuery(BaseModel):
 
     class Meta:
         """Meta class for GetAnnotation """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  __typename\n}\n\nquery GetAnnotation($id: ID!) {\n  annotation(id: $id) {\n    ...Annotation\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nquery GetAnnotation($id: ID!) {\n  annotation(id: $id) {\n    ...Annotation\n    __typename\n  }\n}'
+
+class GetAnnotationLineageQueryAnnotation(BaseModel):
+    """A human-drawn shape in an annotation collection's coordinate system. It belongs to the collection, not to a scene: delete the scene and the annotation survives"""
+    __identifier__: ClassVar[Literal['@mikro/annotation']] = '@mikro/annotation'
+    typename: Literal['Annotation'] = Field(alias='__typename', default='Annotation', exclude=True)
+    id: str
+    derived_from: tuple[AnnotationDerivation, ...] = Field(alias='derivedFrom')
+    "The shapes this one was made from, and how, in the order its creator named them: the other end of `derivedAnnotations`. Empty for a shape drawn from nothing. Shape to shape only -- what *data* a shape was computed from is its collection's `derivedFrom`, and what was computed from it is `derivedResidents`"
+    derived_annotations: tuple[Annotation, ...] = Field(alias='derivedAnnotations')
+    'The shapes made from this one -- refined, converted, split out of it or merged from it -- oldest first, in any collection. How each was made is on its own `derivedFrom`. Shapes, never containers: data computed from this shape is `derivedResidents`'
+    model_config = ConfigDict(frozen=True)
+
+class GetAnnotationLineageQuery(BaseModel):
+    """ A shape's own lineage: the shapes it was made from (and how), and the shapes made from it."""
+    annotation: GetAnnotationLineageQueryAnnotation
+    'Get a single annotation by ID'
+
+    class Arguments(BaseModel):
+        """Arguments for GetAnnotationLineage """
+        id: ID
+
+    class Meta:
+        """Meta class for GetAnnotationLineage """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nfragment AnnotationDerivation on AnnotationDerivation {\n  id\n  relation\n  reason\n  createdAt\n  source {\n    id\n    name\n    kind\n    __typename\n  }\n  child {\n    id\n    name\n    kind\n    __typename\n  }\n  __typename\n}\n\nquery GetAnnotationLineage($id: ID!) {\n  annotation(id: $id) {\n    id\n    derivedFrom {\n      ...AnnotationDerivation\n      __typename\n    }\n    derivedAnnotations {\n      ...Annotation\n      __typename\n    }\n    __typename\n  }\n}'
 
 class GetAnnotationsQuery(BaseModel):
     """No documentation found for this operation."""
@@ -7819,7 +8014,7 @@ class GetAnnotationsQuery(BaseModel):
 
     class Meta:
         """Meta class for GetAnnotations """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  __typename\n}\n\nquery GetAnnotations($filters: AnnotationFilter, $pagination: OffsetPaginationInput) {\n  annotations(filters: $filters, pagination: $pagination) {\n    ...Annotation\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nquery GetAnnotations($filters: AnnotationFilter, $pagination: OffsetPaginationInput) {\n  annotations(filters: $filters, pagination: $pagination) {\n    ...Annotation\n    __typename\n  }\n}'
 
 class GetAnnotationCollectionQuery(BaseModel):
     """No documentation found for this operation."""
@@ -7832,7 +8027,7 @@ class GetAnnotationCollectionQuery(BaseModel):
 
     class Meta:
         """Meta class for GetAnnotationCollection """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnnotationCollection on AnnotationCollection {\n  id\n  name\n  description\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  annotations {\n    ...Annotation\n    __typename\n  }\n  __typename\n}\n\nquery GetAnnotationCollection($id: ID!) {\n  annotationCollection(id: $id) {\n    ...AnnotationCollection\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnnotationCollection on AnnotationCollection {\n  id\n  name\n  description\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  annotations {\n    ...Annotation\n    __typename\n  }\n  __typename\n}\n\nquery GetAnnotationCollection($id: ID!) {\n  annotationCollection(id: $id) {\n    ...AnnotationCollection\n    __typename\n  }\n}'
 
 class GetAnnotationCollectionsQuery(BaseModel):
     """No documentation found for this operation."""
@@ -7846,7 +8041,7 @@ class GetAnnotationCollectionsQuery(BaseModel):
 
     class Meta:
         """Meta class for GetAnnotationCollections """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnnotationCollection on AnnotationCollection {\n  id\n  name\n  description\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  annotations {\n    ...Annotation\n    __typename\n  }\n  __typename\n}\n\nquery GetAnnotationCollections($filters: AnnotationCollectionFilter, $pagination: OffsetPaginationInput) {\n  annotationCollections(filters: $filters, pagination: $pagination) {\n    ...AnnotationCollection\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnnotationCollection on AnnotationCollection {\n  id\n  name\n  description\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  annotations {\n    ...Annotation\n    __typename\n  }\n  __typename\n}\n\nquery GetAnnotationCollections($filters: AnnotationCollectionFilter, $pagination: OffsetPaginationInput) {\n  annotationCollections(filters: $filters, pagination: $pagination) {\n    ...AnnotationCollection\n    __typename\n  }\n}'
 
 class SearchAnnotationCollectionsQueryOptions(BaseModel):
     """A named set of human-drawn annotations, owning the coordinate system they are drawn in. The CRUD counterpart of a table dataset's machine-produced rows: shapes a person draws and edits, sharing one drawing space and one registration story"""
@@ -8669,6 +8864,123 @@ class SearchCoordinateSystemsQuery(BaseModel):
         """Meta class for SearchCoordinateSystems """
         document = 'query SearchCoordinateSystems($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: coordinateSystems(\n    filters: { search: $search, ids: $values }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
 
+class PreflightDeleteArrayDatasetQuery(BaseModel):
+    """ One preflight per deletable model, the same answer for each (see the DeletePreflight fragment)."""
+    preflight_delete_array_dataset: DeletePreflight = Field(alias='preflightDeleteArrayDataset')
+    'What deleting this array dataset would cost, without deleting it: everything made from it (a plain delete is refused over it; `cascade: true` takes it along), what stops the delete, and what else goes with it'
+
+    class Arguments(BaseModel):
+        """Arguments for PreflightDeleteArrayDataset """
+        id: ID
+
+    class Meta:
+        """Meta class for PreflightDeleteArrayDataset """
+        document = 'fragment DeletePreflight on DeletePreflight {\n  target\n  casualties {\n    key\n    kind\n    id\n    name\n    depth\n    parent\n    __typename\n  }\n  blockers {\n    key\n    kind\n    id\n    reason\n    __typename\n  }\n  cascadeCounts {\n    label\n    count\n    __typename\n  }\n  truncated\n  needsCascade\n  deletable\n  __typename\n}\n\nquery PreflightDeleteArrayDataset($id: ID!) {\n  preflightDeleteArrayDataset(id: $id) {\n    ...DeletePreflight\n    __typename\n  }\n}'
+
+class PreflightDeleteTableDatasetQuery(BaseModel):
+    """No documentation found for this operation."""
+    preflight_delete_table_dataset: DeletePreflight = Field(alias='preflightDeleteTableDataset')
+    'What deleting this table dataset would cost, without deleting it: everything made from it (a plain delete is refused over it; `cascade: true` takes it along), what stops the delete, and what else goes with it'
+
+    class Arguments(BaseModel):
+        """Arguments for PreflightDeleteTableDataset """
+        id: ID
+
+    class Meta:
+        """Meta class for PreflightDeleteTableDataset """
+        document = 'fragment DeletePreflight on DeletePreflight {\n  target\n  casualties {\n    key\n    kind\n    id\n    name\n    depth\n    parent\n    __typename\n  }\n  blockers {\n    key\n    kind\n    id\n    reason\n    __typename\n  }\n  cascadeCounts {\n    label\n    count\n    __typename\n  }\n  truncated\n  needsCascade\n  deletable\n  __typename\n}\n\nquery PreflightDeleteTableDataset($id: ID!) {\n  preflightDeleteTableDataset(id: $id) {\n    ...DeletePreflight\n    __typename\n  }\n}'
+
+class PreflightDeleteSparseDatasetQuery(BaseModel):
+    """No documentation found for this operation."""
+    preflight_delete_sparse_dataset: DeletePreflight = Field(alias='preflightDeleteSparseDataset')
+    'What deleting this sparse dataset would cost, without deleting it: everything made from it (a plain delete is refused over it; `cascade: true` takes it along), what stops the delete, and what else goes with it'
+
+    class Arguments(BaseModel):
+        """Arguments for PreflightDeleteSparseDataset """
+        id: ID
+
+    class Meta:
+        """Meta class for PreflightDeleteSparseDataset """
+        document = 'fragment DeletePreflight on DeletePreflight {\n  target\n  casualties {\n    key\n    kind\n    id\n    name\n    depth\n    parent\n    __typename\n  }\n  blockers {\n    key\n    kind\n    id\n    reason\n    __typename\n  }\n  cascadeCounts {\n    label\n    count\n    __typename\n  }\n  truncated\n  needsCascade\n  deletable\n  __typename\n}\n\nquery PreflightDeleteSparseDataset($id: ID!) {\n  preflightDeleteSparseDataset(id: $id) {\n    ...DeletePreflight\n    __typename\n  }\n}'
+
+class PreflightDeleteMeshCollectionQuery(BaseModel):
+    """No documentation found for this operation."""
+    preflight_delete_mesh_collection: DeletePreflight = Field(alias='preflightDeleteMeshCollection')
+    'What deleting this mesh collection would cost, without deleting it: everything made from it (a plain delete is refused over it; `cascade: true` takes it along), what stops the delete, and what else goes with it'
+
+    class Arguments(BaseModel):
+        """Arguments for PreflightDeleteMeshCollection """
+        id: ID
+
+    class Meta:
+        """Meta class for PreflightDeleteMeshCollection """
+        document = 'fragment DeletePreflight on DeletePreflight {\n  target\n  casualties {\n    key\n    kind\n    id\n    name\n    depth\n    parent\n    __typename\n  }\n  blockers {\n    key\n    kind\n    id\n    reason\n    __typename\n  }\n  cascadeCounts {\n    label\n    count\n    __typename\n  }\n  truncated\n  needsCascade\n  deletable\n  __typename\n}\n\nquery PreflightDeleteMeshCollection($id: ID!) {\n  preflightDeleteMeshCollection(id: $id) {\n    ...DeletePreflight\n    __typename\n  }\n}'
+
+class PreflightDeleteNetworkCollectionQuery(BaseModel):
+    """No documentation found for this operation."""
+    preflight_delete_network_collection: DeletePreflight = Field(alias='preflightDeleteNetworkCollection')
+    'What deleting this network collection would cost, without deleting it: everything made from it (a plain delete is refused over it; `cascade: true` takes it along), what stops the delete, and what else goes with it'
+
+    class Arguments(BaseModel):
+        """Arguments for PreflightDeleteNetworkCollection """
+        id: ID
+
+    class Meta:
+        """Meta class for PreflightDeleteNetworkCollection """
+        document = 'fragment DeletePreflight on DeletePreflight {\n  target\n  casualties {\n    key\n    kind\n    id\n    name\n    depth\n    parent\n    __typename\n  }\n  blockers {\n    key\n    kind\n    id\n    reason\n    __typename\n  }\n  cascadeCounts {\n    label\n    count\n    __typename\n  }\n  truncated\n  needsCascade\n  deletable\n  __typename\n}\n\nquery PreflightDeleteNetworkCollection($id: ID!) {\n  preflightDeleteNetworkCollection(id: $id) {\n    ...DeletePreflight\n    __typename\n  }\n}'
+
+class PreflightDeleteAnnotationCollectionQuery(BaseModel):
+    """No documentation found for this operation."""
+    preflight_delete_annotation_collection: DeletePreflight = Field(alias='preflightDeleteAnnotationCollection')
+    'What deleting this annotation collection (its shapes, and whatever was made from them elsewhere, count) would cost, without deleting it: everything made from it (a plain delete is refused over it; `cascade: true` takes it along), what stops the delete, and what else goes with it'
+
+    class Arguments(BaseModel):
+        """Arguments for PreflightDeleteAnnotationCollection """
+        id: ID
+
+    class Meta:
+        """Meta class for PreflightDeleteAnnotationCollection """
+        document = 'fragment DeletePreflight on DeletePreflight {\n  target\n  casualties {\n    key\n    kind\n    id\n    name\n    depth\n    parent\n    __typename\n  }\n  blockers {\n    key\n    kind\n    id\n    reason\n    __typename\n  }\n  cascadeCounts {\n    label\n    count\n    __typename\n  }\n  truncated\n  needsCascade\n  deletable\n  __typename\n}\n\nquery PreflightDeleteAnnotationCollection($id: ID!) {\n  preflightDeleteAnnotationCollection(id: $id) {\n    ...DeletePreflight\n    __typename\n  }\n}'
+
+class PreflightDeleteFixtureQuery(BaseModel):
+    """No documentation found for this operation."""
+    preflight_delete_fixture: DeletePreflight = Field(alias='preflightDeleteFixture')
+    'What deleting this fixture would cost, without deleting it: everything made from it (a plain delete is refused over it; `cascade: true` takes it along), what stops the delete, and what else goes with it'
+
+    class Arguments(BaseModel):
+        """Arguments for PreflightDeleteFixture """
+        id: ID
+
+    class Meta:
+        """Meta class for PreflightDeleteFixture """
+        document = 'fragment DeletePreflight on DeletePreflight {\n  target\n  casualties {\n    key\n    kind\n    id\n    name\n    depth\n    parent\n    __typename\n  }\n  blockers {\n    key\n    kind\n    id\n    reason\n    __typename\n  }\n  cascadeCounts {\n    label\n    count\n    __typename\n  }\n  truncated\n  needsCascade\n  deletable\n  __typename\n}\n\nquery PreflightDeleteFixture($id: ID!) {\n  preflightDeleteFixture(id: $id) {\n    ...DeletePreflight\n    __typename\n  }\n}'
+
+class PreflightDeleteFileQuery(BaseModel):
+    """No documentation found for this operation."""
+    preflight_delete_file: DeletePreflight = Field(alias='preflightDeleteFile')
+    'What deleting this file (the series converted out of it count) would cost, without deleting it: everything made from it (a plain delete is refused over it; `cascade: true` takes it along), what stops the delete, and what else goes with it'
+
+    class Arguments(BaseModel):
+        """Arguments for PreflightDeleteFile """
+        id: ID
+
+    class Meta:
+        """Meta class for PreflightDeleteFile """
+        document = 'fragment DeletePreflight on DeletePreflight {\n  target\n  casualties {\n    key\n    kind\n    id\n    name\n    depth\n    parent\n    __typename\n  }\n  blockers {\n    key\n    kind\n    id\n    reason\n    __typename\n  }\n  cascadeCounts {\n    label\n    count\n    __typename\n  }\n  truncated\n  needsCascade\n  deletable\n  __typename\n}\n\nquery PreflightDeleteFile($id: ID!) {\n  preflightDeleteFile(id: $id) {\n    ...DeletePreflight\n    __typename\n  }\n}'
+
+class PreflightDeleteAnnotationQuery(BaseModel):
+    """No documentation found for this operation."""
+    preflight_delete_annotation: DeletePreflight = Field(alias='preflightDeleteAnnotation')
+    'What deleting this annotation (the shapes refined, converted, split or merged from it count) would cost, without deleting it: everything made from it (a plain delete is refused over it; `cascade: true` takes it along), what stops the delete, and what else goes with it'
+
+    class Arguments(BaseModel):
+        """Arguments for PreflightDeleteAnnotation """
+        id: ID
+
+    class Meta:
+        """Meta class for PreflightDeleteAnnotation """
+        document = 'fragment DeletePreflight on DeletePreflight {\n  target\n  casualties {\n    key\n    kind\n    id\n    name\n    depth\n    parent\n    __typename\n  }\n  blockers {\n    key\n    kind\n    id\n    reason\n    __typename\n  }\n  cascadeCounts {\n    label\n    count\n    __typename\n  }\n  truncated\n  needsCascade\n  deletable\n  __typename\n}\n\nquery PreflightDeleteAnnotation($id: ID!) {\n  preflightDeleteAnnotation(id: $id) {\n    ...DeletePreflight\n    __typename\n  }\n}'
+
 class GetFileQuery(BaseModel):
     """No documentation found for this operation."""
     file: File
@@ -8993,7 +9305,7 @@ class GetLensQuery(BaseModel):
 
     class Meta:
         """Meta class for GetLens """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Slice on Slice {\n  axis\n  start\n  stop\n  step\n  __typename\n}\n\nfragment Window on Window {\n  axis\n  min\n  max\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment AnnotationLens on AnnotationLens {\n  id\n  name\n  kind\n  annotationCollection {\n    id\n    name\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nfragment ArrayLens on ArrayLens {\n  id\n  name\n  label\n  kind\n  dataset {\n    id\n    axisNames\n    dataArrays {\n      id\n      level\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  shape\n  axisNames\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  slices {\n    ...Slice\n    __typename\n  }\n  __typename\n}\n\nfragment MeshLens on MeshLens {\n  id\n  name\n  kind\n  meshCollection {\n    id\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nfragment NetworkLens on NetworkLens {\n  id\n  name\n  kind\n  networkCollection {\n    id\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nfragment SparseLens on SparseLens {\n  id\n  name\n  kind\n  sparseDataset {\n    id\n    name\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  spec\n  __typename\n}\n\nfragment TableLens on TableLens {\n  id\n  name\n  kind\n  tableDataset {\n    id\n    name\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nquery GetLens($id: ID!) {\n  lens(id: $id) {\n    ... on ArrayLens {\n      ...ArrayLens\n    }\n    ... on TableLens {\n      ...TableLens\n    }\n    ... on SparseLens {\n      ...SparseLens\n    }\n    ... on MeshLens {\n      ...MeshLens\n    }\n    ... on NetworkLens {\n      ...NetworkLens\n    }\n    ... on AnnotationLens {\n      ...AnnotationLens\n    }\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Slice on Slice {\n  axis\n  start\n  stop\n  step\n  __typename\n}\n\nfragment Window on Window {\n  axis\n  min\n  max\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment AnnotationLens on AnnotationLens {\n  id\n  name\n  kind\n  annotationCollection {\n    id\n    name\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nfragment ArrayLens on ArrayLens {\n  id\n  name\n  label\n  kind\n  dataset {\n    id\n    axisNames\n    dataArrays {\n      id\n      level\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  shape\n  axisNames\n  voxelSize {\n    axis\n    size\n    unit\n    type\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  slices {\n    ...Slice\n    __typename\n  }\n  __typename\n}\n\nfragment MeshLens on MeshLens {\n  id\n  name\n  kind\n  meshCollection {\n    id\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nfragment NetworkLens on NetworkLens {\n  id\n  name\n  kind\n  networkCollection {\n    id\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nfragment SparseLens on SparseLens {\n  id\n  name\n  kind\n  sparseDataset {\n    id\n    name\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  spec\n  __typename\n}\n\nfragment TableLens on TableLens {\n  id\n  name\n  kind\n  tableDataset {\n    id\n    name\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nquery GetLens($id: ID!) {\n  lens(id: $id) {\n    ... on ArrayLens {\n      ...ArrayLens\n    }\n    ... on TableLens {\n      ...TableLens\n    }\n    ... on SparseLens {\n      ...SparseLens\n    }\n    ... on MeshLens {\n      ...MeshLens\n    }\n    ... on NetworkLens {\n      ...NetworkLens\n    }\n    ... on AnnotationLens {\n      ...AnnotationLens\n    }\n    __typename\n  }\n}'
 
 class GetFullLensQueryArrayDataset(DatasetTrait, BaseModel):
     """A multi-dimensional array dataset. Its dimensions and their types live on the axes of its INTRINSIC (pixel grid) coordinate system; physical units live on the physical spaces it has edges into; its pyramid levels are DataArrays, each mapping into its grid"""
@@ -9016,7 +9328,7 @@ class GetFullLensQuery(BaseModel):
 
     class Meta:
         """Meta class for GetFullLens """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Slice on Slice {\n  axis\n  start\n  stop\n  step\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ArrayLens on ArrayLens {\n  id\n  name\n  label\n  kind\n  dataset {\n    id\n    axisNames\n    dataArrays {\n      id\n      level\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  shape\n  axisNames\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  slices {\n    ...Slice\n    __typename\n  }\n  __typename\n}\n\nquery GetFullLens($dataset: ID!) {\n  arrayDataset(id: $dataset) {\n    id\n    fullLens {\n      ...ArrayLens\n      __typename\n    }\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Slice on Slice {\n  axis\n  start\n  stop\n  step\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ArrayLens on ArrayLens {\n  id\n  name\n  label\n  kind\n  dataset {\n    id\n    axisNames\n    dataArrays {\n      id\n      level\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  shape\n  axisNames\n  voxelSize {\n    axis\n    size\n    unit\n    type\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  slices {\n    ...Slice\n    __typename\n  }\n  __typename\n}\n\nquery GetFullLens($dataset: ID!) {\n  arrayDataset(id: $dataset) {\n    id\n    fullLens {\n      ...ArrayLens\n      __typename\n    }\n    __typename\n  }\n}'
 
 class GetDatasetLensesQueryArrayDataset(DatasetTrait, BaseModel):
     """A multi-dimensional array dataset. Its dimensions and their types live on the axes of its INTRINSIC (pixel grid) coordinate system; physical units live on the physical spaces it has edges into; its pyramid levels are DataArrays, each mapping into its grid"""
@@ -9040,7 +9352,7 @@ class GetDatasetLensesQuery(BaseModel):
 
     class Meta:
         """Meta class for GetDatasetLenses """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Slice on Slice {\n  axis\n  start\n  stop\n  step\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ArrayLens on ArrayLens {\n  id\n  name\n  label\n  kind\n  dataset {\n    id\n    axisNames\n    dataArrays {\n      id\n      level\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  shape\n  axisNames\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  slices {\n    ...Slice\n    __typename\n  }\n  __typename\n}\n\nquery GetDatasetLenses($dataset: ID!, $sliced: Boolean) {\n  arrayDataset(id: $dataset) {\n    id\n    lenses(sliced: $sliced) {\n      ...ArrayLens\n      __typename\n    }\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Slice on Slice {\n  axis\n  start\n  stop\n  step\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ArrayLens on ArrayLens {\n  id\n  name\n  label\n  kind\n  dataset {\n    id\n    axisNames\n    dataArrays {\n      id\n      level\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  shape\n  axisNames\n  voxelSize {\n    axis\n    size\n    unit\n    type\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  slices {\n    ...Slice\n    __typename\n  }\n  __typename\n}\n\nquery GetDatasetLenses($dataset: ID!, $sliced: Boolean) {\n  arrayDataset(id: $dataset) {\n    id\n    lenses(sliced: $sliced) {\n      ...ArrayLens\n      __typename\n    }\n    __typename\n  }\n}'
 
 class GetLensesQueryLensesBase(BaseModel):
     """A selection over a container that lives in a coordinate system: one row per (container, selection), so the same selection asked for twice is the same id. An ArrayLens selects over an array dataset by index slices and, when sliced, owns the crop's space and the edge back into the dataset's grid; every other kind selects over its container by value windows in the container's own axes and lives in the container's space. Every container has its whole lens from creation."""
@@ -10097,7 +10409,7 @@ Returns:
         variables['input'] = _input
         return self.execute(DeleteAnimationMutation, variables, task=task).delete_animation
 
-    async def acreate_annotation(self, kind: AnnotationKind, vectors: Iterable[ThreeDVector], stroke_color: Iterable[int] | None | UnsetType=UNSET, fill_color: Iterable[int] | None | UnsetType=UNSET, collection: IDCoercible | None | UnsetType=UNSET, scene: IDCoercible | None | UnsetType=UNSET, name: str | None | UnsetType=UNSET, description: str | None | UnsetType=UNSET, coordinates: Iterable[CoordinateInput] | None | UnsetType=UNSET, stroke_width: float | None | UnsetType=UNSET, filled: bool | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotation:
+    async def acreate_annotation(self, kind: AnnotationKind, vectors: Iterable[ThreeDVector], stroke_color: Iterable[int] | None | UnsetType=UNSET, fill_color: Iterable[int] | None | UnsetType=UNSET, collection: IDCoercible | None | UnsetType=UNSET, scene: IDCoercible | None | UnsetType=UNSET, name: str | None | UnsetType=UNSET, description: str | None | UnsetType=UNSET, coordinates: Iterable[CoordinateInput] | None | UnsetType=UNSET, stroke_width: float | None | UnsetType=UNSET, filled: bool | None | UnsetType=UNSET, derived_from: Iterable[AnnotationSourceInput] | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotation:
         """CreateAnnotation 
 
 Draw an annotation into a collection, or onto a scene (exactly one of the two). Drawing on a scene finds its annotation collection or mints it on first use: a coordinate system copying the world's axes, an identity registration into the world, and one annotation layer
@@ -10114,6 +10426,7 @@ Args:
     coordinates: A discrete coordinate an annotation is pinned to, e.g. a timepoint or a channel (required) (list)
     stroke_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     filled: The `Boolean` scalar type represents `true` or `false`.
+    derived_from: One shape a new shape was made from, and how (required) (list)
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
@@ -10141,10 +10454,12 @@ Returns:
             _input['strokeWidth'] = stroke_width
         if filled is not UNSET:
             _input['filled'] = filled
+        if derived_from is not UNSET:
+            _input['derivedFrom'] = derived_from
         variables['input'] = _input
         return (await self.aexecute(CreateAnnotationMutation, variables, task=task)).create_annotation
 
-    def create_annotation(self, kind: AnnotationKind, vectors: Iterable[ThreeDVector], stroke_color: Iterable[int] | None | UnsetType=UNSET, fill_color: Iterable[int] | None | UnsetType=UNSET, collection: IDCoercible | None | UnsetType=UNSET, scene: IDCoercible | None | UnsetType=UNSET, name: str | None | UnsetType=UNSET, description: str | None | UnsetType=UNSET, coordinates: Iterable[CoordinateInput] | None | UnsetType=UNSET, stroke_width: float | None | UnsetType=UNSET, filled: bool | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotation:
+    def create_annotation(self, kind: AnnotationKind, vectors: Iterable[ThreeDVector], stroke_color: Iterable[int] | None | UnsetType=UNSET, fill_color: Iterable[int] | None | UnsetType=UNSET, collection: IDCoercible | None | UnsetType=UNSET, scene: IDCoercible | None | UnsetType=UNSET, name: str | None | UnsetType=UNSET, description: str | None | UnsetType=UNSET, coordinates: Iterable[CoordinateInput] | None | UnsetType=UNSET, stroke_width: float | None | UnsetType=UNSET, filled: bool | None | UnsetType=UNSET, derived_from: Iterable[AnnotationSourceInput] | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotation:
         """CreateAnnotation 
 
 Draw an annotation into a collection, or onto a scene (exactly one of the two). Drawing on a scene finds its annotation collection or mints it on first use: a coordinate system copying the world's axes, an identity registration into the world, and one annotation layer
@@ -10161,6 +10476,7 @@ Args:
     coordinates: A discrete coordinate an annotation is pinned to, e.g. a timepoint or a channel (required) (list)
     stroke_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     filled: The `Boolean` scalar type represents `true` or `false`.
+    derived_from: One shape a new shape was made from, and how (required) (list)
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
@@ -10188,6 +10504,8 @@ Returns:
             _input['strokeWidth'] = stroke_width
         if filled is not UNSET:
             _input['filled'] = filled
+        if derived_from is not UNSET:
+            _input['derivedFrom'] = derived_from
         variables['input'] = _input
         return self.execute(CreateAnnotationMutation, variables, task=task).create_annotation
 
@@ -10329,13 +10647,14 @@ Returns:
         variables['input'] = _input
         return self.execute(UpdateAnnotationMutation, variables, task=task).update_annotation
 
-    async def adelete_annotation(self, id: IDCoercible, task: TaskLike | None=None) -> ID:
+    async def adelete_annotation(self, id: IDCoercible, cascade: bool | UnsetType=UNSET, task: TaskLike | None=None) -> ID:
         """DeleteAnnotation 
 
 Delete an existing annotation
 
 Args:
     id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    cascade: Also delete everything made from it -- the closure `preflightDelete<Model>` lists: derived data, data computed within a shape, shapes refined or converted from it, series converted out of a file, files exported from a dataset. Without it, a delete of something anything was made from is refused, naming what
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
@@ -10344,16 +10663,19 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['id'] = id
+        if cascade is not UNSET:
+            _input['cascade'] = cascade
         variables['input'] = _input
         return (await self.aexecute(DeleteAnnotationMutation, variables, task=task)).delete_annotation
 
-    def delete_annotation(self, id: IDCoercible, task: TaskLike | None=None) -> ID:
+    def delete_annotation(self, id: IDCoercible, cascade: bool | UnsetType=UNSET, task: TaskLike | None=None) -> ID:
         """DeleteAnnotation 
 
 Delete an existing annotation
 
 Args:
     id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    cascade: Also delete everything made from it -- the closure `preflightDelete<Model>` lists: derived data, data computed within a shape, shapes refined or converted from it, series converted out of a file, files exported from a dataset. Without it, a delete of something anything was made from is refused, naming what
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
@@ -10362,6 +10684,8 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['id'] = id
+        if cascade is not UNSET:
+            _input['cascade'] = cascade
         variables['input'] = _input
         return self.execute(DeleteAnnotationMutation, variables, task=task).delete_annotation
 
@@ -10429,13 +10753,14 @@ Returns:
         variables['input'] = _input
         return self.execute(CreateAnnotationCollectionMutation, variables, task=task).create_annotation_collection
 
-    async def adelete_annotation_collection(self, id: IDCoercible, task: TaskLike | None=None) -> ID:
+    async def adelete_annotation_collection(self, id: IDCoercible, cascade: bool | UnsetType=UNSET, task: TaskLike | None=None) -> ID:
         """DeleteAnnotationCollection 
 
 Delete an annotation collection. Its coordinate system, its annotations and its layers cascade with it
 
 Args:
     id: The ID of the annotation collection to delete
+    cascade: Also delete everything made from it -- the closure `preflightDelete<Model>` lists: derived data, data computed within a shape, shapes refined or converted from it, series converted out of a file, files exported from a dataset. Without it, a delete of something anything was made from is refused, naming what
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
@@ -10444,16 +10769,19 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['id'] = id
+        if cascade is not UNSET:
+            _input['cascade'] = cascade
         variables['input'] = _input
         return (await self.aexecute(DeleteAnnotationCollectionMutation, variables, task=task)).delete_annotation_collection
 
-    def delete_annotation_collection(self, id: IDCoercible, task: TaskLike | None=None) -> ID:
+    def delete_annotation_collection(self, id: IDCoercible, cascade: bool | UnsetType=UNSET, task: TaskLike | None=None) -> ID:
         """DeleteAnnotationCollection 
 
 Delete an annotation collection. Its coordinate system, its annotations and its layers cascade with it
 
 Args:
     id: The ID of the annotation collection to delete
+    cascade: Also delete everything made from it -- the closure `preflightDelete<Model>` lists: derived data, data computed within a shape, shapes refined or converted from it, series converted out of a file, files exported from a dataset. Without it, a delete of something anything was made from is refused, naming what
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
@@ -10462,6 +10790,8 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['id'] = id
+        if cascade is not UNSET:
+            _input['cascade'] = cascade
         variables['input'] = _input
         return self.execute(DeleteAnnotationCollectionMutation, variables, task=task).delete_annotation_collection
 
@@ -10539,13 +10869,14 @@ Returns:
         variables['input'] = _input
         return self.execute(CreateArrayDatasetMutation, variables, task=task).create_array_dataset
 
-    async def adelete_array_dataset(self, id: IDCoercible, task: TaskLike | None=None) -> ID:
+    async def adelete_array_dataset(self, id: IDCoercible, cascade: bool | UnsetType=UNSET, task: TaskLike | None=None) -> ID:
         """DeleteArrayDataset 
 
 Delete an existing array dataset
 
 Args:
     id: The ID of the array dataset to delete
+    cascade: Also delete everything made from it -- the closure `preflightDelete<Model>` lists: derived data, data computed within a shape, shapes refined or converted from it, series converted out of a file, files exported from a dataset. Without it, a delete of something anything was made from is refused, naming what
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
@@ -10554,16 +10885,19 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['id'] = id
+        if cascade is not UNSET:
+            _input['cascade'] = cascade
         variables['input'] = _input
         return (await self.aexecute(DeleteArrayDatasetMutation, variables, task=task)).delete_array_dataset
 
-    def delete_array_dataset(self, id: IDCoercible, task: TaskLike | None=None) -> ID:
+    def delete_array_dataset(self, id: IDCoercible, cascade: bool | UnsetType=UNSET, task: TaskLike | None=None) -> ID:
         """DeleteArrayDataset 
 
 Delete an existing array dataset
 
 Args:
     id: The ID of the array dataset to delete
+    cascade: Also delete everything made from it -- the closure `preflightDelete<Model>` lists: derived data, data computed within a shape, shapes refined or converted from it, series converted out of a file, files exported from a dataset. Without it, a delete of something anything was made from is refused, naming what
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
@@ -10572,6 +10906,8 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['id'] = id
+        if cascade is not UNSET:
+            _input['cascade'] = cascade
         variables['input'] = _input
         return self.execute(DeleteArrayDatasetMutation, variables, task=task).delete_array_dataset
 
@@ -12681,13 +13017,14 @@ Returns:
         variables['input'] = _input
         return self.execute(CreateFixtureMutation, variables, task=task).create_fixture
 
-    async def adelete_fixture(self, id: IDCoercible, task: TaskLike | None=None) -> ID:
+    async def adelete_fixture(self, id: IDCoercible, cascade: bool | UnsetType=UNSET, task: TaskLike | None=None) -> ID:
         """DeleteFixture 
 
 Delete an existing fixture
 
 Args:
     id: The ID of the fixture to delete
+    cascade: Also delete everything made from it -- the closure `preflightDelete<Model>` lists: derived data, data computed within a shape, shapes refined or converted from it, series converted out of a file, files exported from a dataset. Without it, a delete of something anything was made from is refused, naming what
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
@@ -12696,16 +13033,19 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['id'] = id
+        if cascade is not UNSET:
+            _input['cascade'] = cascade
         variables['input'] = _input
         return (await self.aexecute(DeleteFixtureMutation, variables, task=task)).delete_fixture
 
-    def delete_fixture(self, id: IDCoercible, task: TaskLike | None=None) -> ID:
+    def delete_fixture(self, id: IDCoercible, cascade: bool | UnsetType=UNSET, task: TaskLike | None=None) -> ID:
         """DeleteFixture 
 
 Delete an existing fixture
 
 Args:
     id: The ID of the fixture to delete
+    cascade: Also delete everything made from it -- the closure `preflightDelete<Model>` lists: derived data, data computed within a shape, shapes refined or converted from it, series converted out of a file, files exported from a dataset. Without it, a delete of something anything was made from is refused, naming what
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
@@ -12714,6 +13054,8 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['id'] = id
+        if cascade is not UNSET:
+            _input['cascade'] = cascade
         variables['input'] = _input
         return self.execute(DeleteFixtureMutation, variables, task=task).delete_fixture
 
@@ -14957,13 +15299,14 @@ Returns:
         variables['input'] = _input
         return self.execute(CreateMeshCollectionMutation, variables, task=task).create_mesh_collection
 
-    async def adelete_mesh_collection(self, id: IDCoercible, task: TaskLike | None=None) -> ID:
+    async def adelete_mesh_collection(self, id: IDCoercible, cascade: bool | UnsetType=UNSET, task: TaskLike | None=None) -> ID:
         """DeleteMeshCollection 
 
 Delete an existing mesh collection
 
 Args:
     id: The ID of the mesh collection to delete
+    cascade: Also delete everything made from it -- the closure `preflightDelete<Model>` lists: derived data, data computed within a shape, shapes refined or converted from it, series converted out of a file, files exported from a dataset. Without it, a delete of something anything was made from is refused, naming what
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
@@ -14972,16 +15315,19 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['id'] = id
+        if cascade is not UNSET:
+            _input['cascade'] = cascade
         variables['input'] = _input
         return (await self.aexecute(DeleteMeshCollectionMutation, variables, task=task)).delete_mesh_collection
 
-    def delete_mesh_collection(self, id: IDCoercible, task: TaskLike | None=None) -> ID:
+    def delete_mesh_collection(self, id: IDCoercible, cascade: bool | UnsetType=UNSET, task: TaskLike | None=None) -> ID:
         """DeleteMeshCollection 
 
 Delete an existing mesh collection
 
 Args:
     id: The ID of the mesh collection to delete
+    cascade: Also delete everything made from it -- the closure `preflightDelete<Model>` lists: derived data, data computed within a shape, shapes refined or converted from it, series converted out of a file, files exported from a dataset. Without it, a delete of something anything was made from is refused, naming what
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
@@ -14990,6 +15336,8 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['id'] = id
+        if cascade is not UNSET:
+            _input['cascade'] = cascade
         variables['input'] = _input
         return self.execute(DeleteMeshCollectionMutation, variables, task=task).delete_mesh_collection
 
@@ -15203,13 +15551,14 @@ Returns:
         variables['input'] = _input
         return self.execute(CreateNetworkCollectionMutation, variables, task=task).create_network_collection
 
-    async def adelete_network_collection(self, id: IDCoercible, task: TaskLike | None=None) -> ID:
+    async def adelete_network_collection(self, id: IDCoercible, cascade: bool | UnsetType=UNSET, task: TaskLike | None=None) -> ID:
         """DeleteNetworkCollection 
 
 Delete an existing network collection
 
 Args:
     id: The ID of the network collection to delete
+    cascade: Also delete everything made from it -- the closure `preflightDelete<Model>` lists: derived data, data computed within a shape, shapes refined or converted from it, series converted out of a file, files exported from a dataset. Without it, a delete of something anything was made from is refused, naming what
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
@@ -15218,16 +15567,19 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['id'] = id
+        if cascade is not UNSET:
+            _input['cascade'] = cascade
         variables['input'] = _input
         return (await self.aexecute(DeleteNetworkCollectionMutation, variables, task=task)).delete_network_collection
 
-    def delete_network_collection(self, id: IDCoercible, task: TaskLike | None=None) -> ID:
+    def delete_network_collection(self, id: IDCoercible, cascade: bool | UnsetType=UNSET, task: TaskLike | None=None) -> ID:
         """DeleteNetworkCollection 
 
 Delete an existing network collection
 
 Args:
     id: The ID of the network collection to delete
+    cascade: Also delete everything made from it -- the closure `preflightDelete<Model>` lists: derived data, data computed within a shape, shapes refined or converted from it, series converted out of a file, files exported from a dataset. Without it, a delete of something anything was made from is refused, naming what
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
@@ -15236,6 +15588,8 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['id'] = id
+        if cascade is not UNSET:
+            _input['cascade'] = cascade
         variables['input'] = _input
         return self.execute(DeleteNetworkCollectionMutation, variables, task=task).delete_network_collection
 
@@ -16109,13 +16463,14 @@ Returns:
         variables['input'] = _input
         return self.execute(UpdateSparseDatasetMutation, variables, task=task).update_sparse_dataset
 
-    async def adelete_sparse_dataset(self, id: IDCoercible, task: TaskLike | None=None) -> ID:
+    async def adelete_sparse_dataset(self, id: IDCoercible, cascade: bool | UnsetType=UNSET, task: TaskLike | None=None) -> ID:
         """DeleteSparseDataset 
 
 Delete an existing sparse dataset
 
 Args:
     id: The ID of the sparse dataset to delete
+    cascade: Also delete everything made from it -- the closure `preflightDelete<Model>` lists: derived data, data computed within a shape, shapes refined or converted from it, series converted out of a file, files exported from a dataset. Without it, a delete of something anything was made from is refused, naming what
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
@@ -16124,16 +16479,19 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['id'] = id
+        if cascade is not UNSET:
+            _input['cascade'] = cascade
         variables['input'] = _input
         return (await self.aexecute(DeleteSparseDatasetMutation, variables, task=task)).delete_sparse_dataset
 
-    def delete_sparse_dataset(self, id: IDCoercible, task: TaskLike | None=None) -> ID:
+    def delete_sparse_dataset(self, id: IDCoercible, cascade: bool | UnsetType=UNSET, task: TaskLike | None=None) -> ID:
         """DeleteSparseDataset 
 
 Delete an existing sparse dataset
 
 Args:
     id: The ID of the sparse dataset to delete
+    cascade: Also delete everything made from it -- the closure `preflightDelete<Model>` lists: derived data, data computed within a shape, shapes refined or converted from it, series converted out of a file, files exported from a dataset. Without it, a delete of something anything was made from is refused, naming what
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
@@ -16142,6 +16500,8 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['id'] = id
+        if cascade is not UNSET:
+            _input['cascade'] = cascade
         variables['input'] = _input
         return self.execute(DeleteSparseDatasetMutation, variables, task=task).delete_sparse_dataset
 
@@ -16269,13 +16629,14 @@ Returns:
         variables['input'] = _input
         return self.execute(UpdateTableDatasetMutation, variables, task=task).update_table_dataset
 
-    async def adelete_table_dataset(self, id: IDCoercible, task: TaskLike | None=None) -> ID:
+    async def adelete_table_dataset(self, id: IDCoercible, cascade: bool | UnsetType=UNSET, task: TaskLike | None=None) -> ID:
         """DeleteTableDataset 
 
 Delete an existing table dataset
 
 Args:
     id: The ID of the table dataset to delete
+    cascade: Also delete everything made from it -- the closure `preflightDelete<Model>` lists: derived data, data computed within a shape, shapes refined or converted from it, series converted out of a file, files exported from a dataset. Without it, a delete of something anything was made from is refused, naming what
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
@@ -16284,16 +16645,19 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['id'] = id
+        if cascade is not UNSET:
+            _input['cascade'] = cascade
         variables['input'] = _input
         return (await self.aexecute(DeleteTableDatasetMutation, variables, task=task)).delete_table_dataset
 
-    def delete_table_dataset(self, id: IDCoercible, task: TaskLike | None=None) -> ID:
+    def delete_table_dataset(self, id: IDCoercible, cascade: bool | UnsetType=UNSET, task: TaskLike | None=None) -> ID:
         """DeleteTableDataset 
 
 Delete an existing table dataset
 
 Args:
     id: The ID of the table dataset to delete
+    cascade: Also delete everything made from it -- the closure `preflightDelete<Model>` lists: derived data, data computed within a shape, shapes refined or converted from it, series converted out of a file, files exported from a dataset. Without it, a delete of something anything was made from is refused, naming what
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
@@ -16302,6 +16666,8 @@ Returns:
         variables: dict[str, builtins.object] = {}
         _input: dict[str, builtins.object] = {}
         _input['id'] = id
+        if cascade is not UNSET:
+            _input['cascade'] = cascade
         variables['input'] = _input
         return self.execute(DeleteTableDatasetMutation, variables, task=task).delete_table_dataset
 
@@ -16636,6 +17002,36 @@ Returns:
         variables: dict[str, builtins.object] = {}
         variables['id'] = id
         return self.execute(GetAnnotationQuery, variables, task=task).annotation
+
+    async def aget_annotation_lineage(self, id: IDCoercible, task: TaskLike | None=None) -> GetAnnotationLineageQueryAnnotation:
+        """GetAnnotationLineage 
+ A shape's own lineage: the shapes it was made from (and how), and the shapes made from it.
+
+Args:
+    id (ID): No description
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    GetAnnotationLineageQueryAnnotation
+"""
+        variables: dict[str, builtins.object] = {}
+        variables['id'] = id
+        return (await self.aexecute(GetAnnotationLineageQuery, variables, task=task)).annotation
+
+    def get_annotation_lineage(self, id: IDCoercible, task: TaskLike | None=None) -> GetAnnotationLineageQueryAnnotation:
+        """GetAnnotationLineage 
+ A shape's own lineage: the shapes it was made from (and how), and the shapes made from it.
+
+Args:
+    id (ID): No description
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    GetAnnotationLineageQueryAnnotation
+"""
+        variables: dict[str, builtins.object] = {}
+        variables['id'] = id
+        return self.execute(GetAnnotationLineageQuery, variables, task=task).annotation
 
     async def aget_annotations(self, filters: AnnotationFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[Annotation, ...]:
         """GetAnnotations 
@@ -17712,6 +18108,292 @@ Returns:
         if offset is not UNSET:
             variables['offset'] = offset
         return self.execute(SearchCoordinateSystemsQuery, variables, task=task).options
+
+    async def apreflight_delete_array_dataset(self, id: IDCoercible, task: TaskLike | None=None) -> DeletePreflight:
+        """PreflightDeleteArrayDataset 
+ One preflight per deletable model, the same answer for each (see the DeletePreflight fragment).
+
+Args:
+    id (ID): No description
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    DeletePreflight
+"""
+        variables: dict[str, builtins.object] = {}
+        variables['id'] = id
+        return (await self.aexecute(PreflightDeleteArrayDatasetQuery, variables, task=task)).preflight_delete_array_dataset
+
+    def preflight_delete_array_dataset(self, id: IDCoercible, task: TaskLike | None=None) -> DeletePreflight:
+        """PreflightDeleteArrayDataset 
+ One preflight per deletable model, the same answer for each (see the DeletePreflight fragment).
+
+Args:
+    id (ID): No description
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    DeletePreflight
+"""
+        variables: dict[str, builtins.object] = {}
+        variables['id'] = id
+        return self.execute(PreflightDeleteArrayDatasetQuery, variables, task=task).preflight_delete_array_dataset
+
+    async def apreflight_delete_table_dataset(self, id: IDCoercible, task: TaskLike | None=None) -> DeletePreflight:
+        """PreflightDeleteTableDataset 
+
+What deleting this table dataset would cost, without deleting it: everything made from it (a plain delete is refused over it; `cascade: true` takes it along), what stops the delete, and what else goes with it
+
+Args:
+    id (ID): No description
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    DeletePreflight
+"""
+        variables: dict[str, builtins.object] = {}
+        variables['id'] = id
+        return (await self.aexecute(PreflightDeleteTableDatasetQuery, variables, task=task)).preflight_delete_table_dataset
+
+    def preflight_delete_table_dataset(self, id: IDCoercible, task: TaskLike | None=None) -> DeletePreflight:
+        """PreflightDeleteTableDataset 
+
+What deleting this table dataset would cost, without deleting it: everything made from it (a plain delete is refused over it; `cascade: true` takes it along), what stops the delete, and what else goes with it
+
+Args:
+    id (ID): No description
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    DeletePreflight
+"""
+        variables: dict[str, builtins.object] = {}
+        variables['id'] = id
+        return self.execute(PreflightDeleteTableDatasetQuery, variables, task=task).preflight_delete_table_dataset
+
+    async def apreflight_delete_sparse_dataset(self, id: IDCoercible, task: TaskLike | None=None) -> DeletePreflight:
+        """PreflightDeleteSparseDataset 
+
+What deleting this sparse dataset would cost, without deleting it: everything made from it (a plain delete is refused over it; `cascade: true` takes it along), what stops the delete, and what else goes with it
+
+Args:
+    id (ID): No description
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    DeletePreflight
+"""
+        variables: dict[str, builtins.object] = {}
+        variables['id'] = id
+        return (await self.aexecute(PreflightDeleteSparseDatasetQuery, variables, task=task)).preflight_delete_sparse_dataset
+
+    def preflight_delete_sparse_dataset(self, id: IDCoercible, task: TaskLike | None=None) -> DeletePreflight:
+        """PreflightDeleteSparseDataset 
+
+What deleting this sparse dataset would cost, without deleting it: everything made from it (a plain delete is refused over it; `cascade: true` takes it along), what stops the delete, and what else goes with it
+
+Args:
+    id (ID): No description
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    DeletePreflight
+"""
+        variables: dict[str, builtins.object] = {}
+        variables['id'] = id
+        return self.execute(PreflightDeleteSparseDatasetQuery, variables, task=task).preflight_delete_sparse_dataset
+
+    async def apreflight_delete_mesh_collection(self, id: IDCoercible, task: TaskLike | None=None) -> DeletePreflight:
+        """PreflightDeleteMeshCollection 
+
+What deleting this mesh collection would cost, without deleting it: everything made from it (a plain delete is refused over it; `cascade: true` takes it along), what stops the delete, and what else goes with it
+
+Args:
+    id (ID): No description
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    DeletePreflight
+"""
+        variables: dict[str, builtins.object] = {}
+        variables['id'] = id
+        return (await self.aexecute(PreflightDeleteMeshCollectionQuery, variables, task=task)).preflight_delete_mesh_collection
+
+    def preflight_delete_mesh_collection(self, id: IDCoercible, task: TaskLike | None=None) -> DeletePreflight:
+        """PreflightDeleteMeshCollection 
+
+What deleting this mesh collection would cost, without deleting it: everything made from it (a plain delete is refused over it; `cascade: true` takes it along), what stops the delete, and what else goes with it
+
+Args:
+    id (ID): No description
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    DeletePreflight
+"""
+        variables: dict[str, builtins.object] = {}
+        variables['id'] = id
+        return self.execute(PreflightDeleteMeshCollectionQuery, variables, task=task).preflight_delete_mesh_collection
+
+    async def apreflight_delete_network_collection(self, id: IDCoercible, task: TaskLike | None=None) -> DeletePreflight:
+        """PreflightDeleteNetworkCollection 
+
+What deleting this network collection would cost, without deleting it: everything made from it (a plain delete is refused over it; `cascade: true` takes it along), what stops the delete, and what else goes with it
+
+Args:
+    id (ID): No description
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    DeletePreflight
+"""
+        variables: dict[str, builtins.object] = {}
+        variables['id'] = id
+        return (await self.aexecute(PreflightDeleteNetworkCollectionQuery, variables, task=task)).preflight_delete_network_collection
+
+    def preflight_delete_network_collection(self, id: IDCoercible, task: TaskLike | None=None) -> DeletePreflight:
+        """PreflightDeleteNetworkCollection 
+
+What deleting this network collection would cost, without deleting it: everything made from it (a plain delete is refused over it; `cascade: true` takes it along), what stops the delete, and what else goes with it
+
+Args:
+    id (ID): No description
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    DeletePreflight
+"""
+        variables: dict[str, builtins.object] = {}
+        variables['id'] = id
+        return self.execute(PreflightDeleteNetworkCollectionQuery, variables, task=task).preflight_delete_network_collection
+
+    async def apreflight_delete_annotation_collection(self, id: IDCoercible, task: TaskLike | None=None) -> DeletePreflight:
+        """PreflightDeleteAnnotationCollection 
+
+What deleting this annotation collection (its shapes, and whatever was made from them elsewhere, count) would cost, without deleting it: everything made from it (a plain delete is refused over it; `cascade: true` takes it along), what stops the delete, and what else goes with it
+
+Args:
+    id (ID): No description
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    DeletePreflight
+"""
+        variables: dict[str, builtins.object] = {}
+        variables['id'] = id
+        return (await self.aexecute(PreflightDeleteAnnotationCollectionQuery, variables, task=task)).preflight_delete_annotation_collection
+
+    def preflight_delete_annotation_collection(self, id: IDCoercible, task: TaskLike | None=None) -> DeletePreflight:
+        """PreflightDeleteAnnotationCollection 
+
+What deleting this annotation collection (its shapes, and whatever was made from them elsewhere, count) would cost, without deleting it: everything made from it (a plain delete is refused over it; `cascade: true` takes it along), what stops the delete, and what else goes with it
+
+Args:
+    id (ID): No description
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    DeletePreflight
+"""
+        variables: dict[str, builtins.object] = {}
+        variables['id'] = id
+        return self.execute(PreflightDeleteAnnotationCollectionQuery, variables, task=task).preflight_delete_annotation_collection
+
+    async def apreflight_delete_fixture(self, id: IDCoercible, task: TaskLike | None=None) -> DeletePreflight:
+        """PreflightDeleteFixture 
+
+What deleting this fixture would cost, without deleting it: everything made from it (a plain delete is refused over it; `cascade: true` takes it along), what stops the delete, and what else goes with it
+
+Args:
+    id (ID): No description
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    DeletePreflight
+"""
+        variables: dict[str, builtins.object] = {}
+        variables['id'] = id
+        return (await self.aexecute(PreflightDeleteFixtureQuery, variables, task=task)).preflight_delete_fixture
+
+    def preflight_delete_fixture(self, id: IDCoercible, task: TaskLike | None=None) -> DeletePreflight:
+        """PreflightDeleteFixture 
+
+What deleting this fixture would cost, without deleting it: everything made from it (a plain delete is refused over it; `cascade: true` takes it along), what stops the delete, and what else goes with it
+
+Args:
+    id (ID): No description
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    DeletePreflight
+"""
+        variables: dict[str, builtins.object] = {}
+        variables['id'] = id
+        return self.execute(PreflightDeleteFixtureQuery, variables, task=task).preflight_delete_fixture
+
+    async def apreflight_delete_file(self, id: IDCoercible, task: TaskLike | None=None) -> DeletePreflight:
+        """PreflightDeleteFile 
+
+What deleting this file (the series converted out of it count) would cost, without deleting it: everything made from it (a plain delete is refused over it; `cascade: true` takes it along), what stops the delete, and what else goes with it
+
+Args:
+    id (ID): No description
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    DeletePreflight
+"""
+        variables: dict[str, builtins.object] = {}
+        variables['id'] = id
+        return (await self.aexecute(PreflightDeleteFileQuery, variables, task=task)).preflight_delete_file
+
+    def preflight_delete_file(self, id: IDCoercible, task: TaskLike | None=None) -> DeletePreflight:
+        """PreflightDeleteFile 
+
+What deleting this file (the series converted out of it count) would cost, without deleting it: everything made from it (a plain delete is refused over it; `cascade: true` takes it along), what stops the delete, and what else goes with it
+
+Args:
+    id (ID): No description
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    DeletePreflight
+"""
+        variables: dict[str, builtins.object] = {}
+        variables['id'] = id
+        return self.execute(PreflightDeleteFileQuery, variables, task=task).preflight_delete_file
+
+    async def apreflight_delete_annotation(self, id: IDCoercible, task: TaskLike | None=None) -> DeletePreflight:
+        """PreflightDeleteAnnotation 
+
+What deleting this annotation (the shapes refined, converted, split or merged from it count) would cost, without deleting it: everything made from it (a plain delete is refused over it; `cascade: true` takes it along), what stops the delete, and what else goes with it
+
+Args:
+    id (ID): No description
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    DeletePreflight
+"""
+        variables: dict[str, builtins.object] = {}
+        variables['id'] = id
+        return (await self.aexecute(PreflightDeleteAnnotationQuery, variables, task=task)).preflight_delete_annotation
+
+    def preflight_delete_annotation(self, id: IDCoercible, task: TaskLike | None=None) -> DeletePreflight:
+        """PreflightDeleteAnnotation 
+
+What deleting this annotation (the shapes refined, converted, split or merged from it count) would cost, without deleting it: everything made from it (a plain delete is refused over it; `cascade: true` takes it along), what stops the delete, and what else goes with it
+
+Args:
+    id (ID): No description
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    DeletePreflight
+"""
+        variables: dict[str, builtins.object] = {}
+        variables['id'] = id
+        return self.execute(PreflightDeleteAnnotationQuery, variables, task=task).preflight_delete_annotation
 
     async def aget_file(self, id: IDCoercible, task: TaskLike | None=None) -> File:
         """GetFile 

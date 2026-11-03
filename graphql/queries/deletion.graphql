@@ -1,0 +1,55 @@
+# One preflight per deletable model, the same answer for each (see the DeletePreflight fragment).
+
+query PreflightDeleteArrayDataset($id: ID!) {
+  preflightDeleteArrayDataset(id: $id) {
+    ...DeletePreflight
+  }
+}
+
+query PreflightDeleteTableDataset($id: ID!) {
+  preflightDeleteTableDataset(id: $id) {
+    ...DeletePreflight
+  }
+}
+
+query PreflightDeleteSparseDataset($id: ID!) {
+  preflightDeleteSparseDataset(id: $id) {
+    ...DeletePreflight
+  }
+}
+
+query PreflightDeleteMeshCollection($id: ID!) {
+  preflightDeleteMeshCollection(id: $id) {
+    ...DeletePreflight
+  }
+}
+
+query PreflightDeleteNetworkCollection($id: ID!) {
+  preflightDeleteNetworkCollection(id: $id) {
+    ...DeletePreflight
+  }
+}
+
+query PreflightDeleteAnnotationCollection($id: ID!) {
+  preflightDeleteAnnotationCollection(id: $id) {
+    ...DeletePreflight
+  }
+}
+
+query PreflightDeleteFixture($id: ID!) {
+  preflightDeleteFixture(id: $id) {
+    ...DeletePreflight
+  }
+}
+
+query PreflightDeleteFile($id: ID!) {
+  preflightDeleteFile(id: $id) {
+    ...DeletePreflight
+  }
+}
+
+query PreflightDeleteAnnotation($id: ID!) {
+  preflightDeleteAnnotation(id: $id) {
+    ...DeletePreflight
+  }
+}

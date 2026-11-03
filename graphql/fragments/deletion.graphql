@@ -1,0 +1,26 @@
+# What a delete would cost: everything made from it (a plain delete refuses over it;
+# `cascade: true` takes it along), what stops it, and what else cascades.
+fragment DeletePreflight on DeletePreflight {
+  target
+  casualties {
+    key
+    kind
+    id
+    name
+    depth
+    parent
+  }
+  blockers {
+    key
+    kind
+    id
+    reason
+  }
+  cascadeCounts {
+    label
+    count
+  }
+  truncated
+  needsCascade
+  deletable
+}
