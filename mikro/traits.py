@@ -50,6 +50,7 @@ from .scalars import ArrayCoercible
 from mikro.checks.arrays import check_dims_match_axes
 from mikro.checks.arrays import check_layouts_agree
 from mikro.io.chunking import lay_out_pyramid
+from mikro.io.scheduling import compute_numpy
 from mikro.checks.sparse import check_against_store
 from mikro.checks.sparse import check_axes
 from mikro.checks.tables import TableDeclarationError
@@ -1333,7 +1334,7 @@ class ValueHistogramInputTrait(BaseModel):
         """
         from mikro.api.schema import ValueHistogramInput
 
-        clean = np.asarray(array)
+        clean = compute_numpy(array)
         clean = clean[np.isfinite(clean)]
         if clean.size == 0:
             raise ValueError(
@@ -2095,7 +2096,7 @@ def _field_parts(
         if axis not in source_axes or axis not in space_axes:
             raise ValueError(f"field names '{axis}', which {getattr(source, 'name', 'the source')} {list(source_axes)} and the space {list(space_axes)} do not both have")
 
-        values = np.asarray(dataset.data.values, dtype=float)
+        values = compute_numpy(dataset.data, dtype=float)
         if values.ndim != 1:
             raise ValueError(f"A field is one value per position, so it is rank one, but '{getattr(dataset, 'name', '?')}' has shape {values.shape}")
         if values.size < 2 or not bool(np.all(np.diff(values) > 0)):

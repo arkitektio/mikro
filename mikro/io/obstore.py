@@ -21,6 +21,7 @@ from zarr.storage import StorePath
 
 from mikro.scalars import is_dask_array
 from mikro.io.chunking import ChunkLayout, chunk_layout, roles_for
+from mikro.io.scheduling import dask_scheduler
 
 if TYPE_CHECKING:
     from obstore.store import ClientConfig, RetryConfig, S3Credential
@@ -245,8 +246,9 @@ def write_dataarray_to_zarr(
             data,
             zarr_array,
             lock=False,
-            scheduler="threads",
-            num_workers=_write_workers(layout, array.dtype.itemsize),
+            # The shared pool, capped at the shard budget: dask's own "threads" scheduler
+            # would keep a pool per calling thread and per worker count, forever.
+            scheduler=dask_scheduler(_write_workers(layout, array.dtype.itemsize)),
         )
     else:
         zarr_array[...] = np.asarray(data)

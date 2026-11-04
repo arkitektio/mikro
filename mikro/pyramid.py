@@ -212,13 +212,18 @@ def _materialize(array: xr.DataArray) -> xr.DataArray:
     The scratch directory is removed at interpreter exit rather than here: the
     levels read from it lazily, all the way through the upload.
     """
+    import dask
     import dask.array as da
+
+    from mikro.io.scheduling import dask_scheduler
 
     scratch = tempfile.mkdtemp(prefix="mikro_pyramid_")
     atexit.register(shutil.rmtree, scratch, ignore_errors=True)
 
     path = f"{scratch}/level0.zarr"
-    array.data.to_zarr(path, overwrite=True)  # one streamed pass, chunk by chunk
+    # One streamed pass, chunk by chunk, on the shared pool (see mikro.io.scheduling).
+    stored = array.data.to_zarr(path, overwrite=True, compute=False)
+    dask.compute(stored, scheduler=dask_scheduler())
     on_disk = xr.DataArray(da.from_zarr(path), dims=array.dims, name=array.name)
     on_disk.attrs.update(array.attrs)
     return on_disk
