@@ -12763,6 +12763,11 @@ type TableDataset @key(fields: "id", resolvable: true) @identified(by: "@mikro/t
   fullLens: TableLens
 
   """
+  What this table describes: the containers whose contents ARE its row ids -- a label mask whose pixel values are the ids, a mesh collection whose objects are -- each with the table axis its ids land on (`produces`, the id column) and the axes that pass through by name. The other end of `keyedBy` at creation, and of `attributePlans` from the source's side. Empty for a table nothing keys: localizations placed by their own coordinates, or a table of per-dataset values
+  """
+  keyedBy: [TableKey!]!
+
+  """
   This table's stored vector, as `<model id>:<floats>`. Null until it has been indexed.
   """
   embedding: Embedding
@@ -13001,6 +13006,24 @@ The fields a TABLE identification reads. Published for codegen; the wire type is
 input TableIdentifiesInput @unionElementOf(union: "IdentificationInput", discriminator: "kind", key: "TABLE") {
   kind: IdentificationKind! = TABLE
   table: ID!
+}
+
+"""
+One container keying a table: its contents are the table's row ids (`TableDataset.keyedBy`)
+"""
+type TableKey {
+  """
+  The container whose contents are the ids: a label mask's dataset, a mesh collection
+  """
+  source: Resident!
+
+  """The table axes its ids land on: the id column(s) a row is found by"""
+  produces: [String!]!
+
+  """
+  Table axes the source shares by name (a per-frame mask's `t`), which select alongside the id
+  """
+  passesThrough: [String!]!
 }
 
 """
