@@ -326,6 +326,8 @@ class DerivationSourceKind(str, Enum):
     'An annotation collection, through the space its shapes are drawn in.'
     ANNOTATION = 'ANNOTATION'
     "One shape of an annotation collection: the data was computed along it or within it -- a crop to an ROI, an image straightened along a path. The ANNOTATION_COLLECTION arm on the shape's collection, and which shape: the edge lands in the collection's drawing space and carries the annotation, so two shapes of one collection are two sources. Usually named second, behind the lens the pixels came from, and usually without a transform: the shape is why the data is what it is, not where it sits."
+    MESH_OBJECT = 'MESH_OBJECT'
+    "One object of a mesh collection: the data was computed from that one surface -- a crop to a cell's mesh, measurements over one organelle. The MESH_COLLECTION arm on the collection, and which object: the edge lands in the collection's vertex space and carries the object's id (the catalog's `object_id`), so two objects of one collection are two sources. What `meshObject(...).derivedResidents` reads back."
     COORDINATE_SYSTEM = 'COORDINATE_SYSTEM'
     'A coordinate system directly, when the source is a space rather than a container -- a physical space, or a world.'
     __str__ = str.__str__
@@ -1075,6 +1077,18 @@ class MeshCollectionIdentifiesInput(BaseModel):
     name: str | None = None
     validity: PlacementValidity | None = None
     mesh_collection: ID = Field(validation_alias=AliasChoices('mesh_collection', 'meshCollection'), serialization_alias='meshCollection')
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class MeshObjectDerivedFromInput(BaseModel):
+    """The fields a MESH_OBJECT derivation reads. Published for codegen; the wire type is the flat DerivedFromInput"""
+    kind: Literal['MESH_OBJECT'] = Field(default='MESH_OBJECT')
+    transform: 'TransformInput | None' = None
+    value_relation: ValueRelation | None = Field(validation_alias=AliasChoices('value_relation', 'valueRelation'), serialization_alias='valueRelation', default=None)
+    mesh_collection: ID = Field(validation_alias=AliasChoices('mesh_collection', 'meshCollection'), serialization_alias='meshCollection')
+    mesh_object: int = Field(validation_alias=AliasChoices('mesh_object', 'meshObject'), serialization_alias='meshObject')
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
@@ -2225,7 +2239,7 @@ class DeleteTransformationInput(BaseModel):
     """Input for deleting a transformation by ID"""
     id: ID = Field(description='The ID of the transformation to delete')
     model_config = ConfigDict(frozen=True, extra='forbid')
-DerivedFromInput = Annotated[AnnotationCollectionDerivedFromInput | AnnotationDerivedFromInput | CoordinateSystemDerivedFromInput | DatasetDerivedFromInput | LensDerivedFromInput | MeshCollectionDerivedFromInput | TableDatasetDerivedFromInput, Field(discriminator='kind')]
+DerivedFromInput = Annotated[AnnotationCollectionDerivedFromInput | AnnotationDerivedFromInput | CoordinateSystemDerivedFromInput | DatasetDerivedFromInput | LensDerivedFromInput | MeshCollectionDerivedFromInput | MeshObjectDerivedFromInput | TableDatasetDerivedFromInput, Field(discriminator='kind')]
 
 class DescriptorConstraintInput(BaseModel):
     """One constraint on an object's descriptors, in the shape a rekuest port states its `requires` in -- so a picker hands a port's constraints on unchanged. `key` is one of the keys the structure declares (e.g. `@mikro/n_space_axes`); a key it does not declare is refused."""
@@ -20167,6 +20181,7 @@ LightPortInput.model_rebuild()
 LightpathGraphInput.model_rebuild()
 MeshCollectionDerivedFromInput.model_rebuild()
 MeshCollectionFilter.model_rebuild()
+MeshObjectDerivedFromInput.model_rebuild()
 MetricFilter.model_rebuild()
 MetricInput.model_rebuild()
 MirrorElementInput.model_rebuild()

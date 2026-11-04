@@ -3935,6 +3935,17 @@ input DeleteCoordinateSystemInput {
   id: ID!
 }
 
+"""
+What to delete the derived data of: one object the lineage walk can stand on, by kind and id
+"""
+input DeleteDerivedInput {
+  """What it is"""
+  kind: LineageNodeKind!
+
+  """Its ID, as its own query takes it"""
+  id: ID!
+}
+
 """Input for deleting a file by ID"""
 input DeleteFileInput {
   """The ID of the file to delete"""
@@ -4141,6 +4152,11 @@ enum DerivationSourceKind {
   ANNOTATION
 
   """
+  One object of a mesh collection: the data was computed from that one surface -- a crop to a cell's mesh, measurements over one organelle. The MESH_COLLECTION arm on the collection, and which object: the edge lands in the collection's vertex space and carries the object's id (the catalog's `object_id`), so two objects of one collection are two sources. What `meshObject(...).derivedResidents` reads back.
+  """
+  MESH_OBJECT
+
+  """
   A coordinate system directly, when the source is a space rather than a container -- a physical space, or a world.
   """
   COORDINATE_SYSTEM
@@ -4170,8 +4186,15 @@ input DerivedFromInput {
   """
   tableDataset: ID = null
 
-  """(MESH_COLLECTION) The mesh collection this data was computed from"""
+  """
+  (MESH_COLLECTION, MESH_OBJECT) The mesh collection this data was computed from, or whose object it was
+  """
   meshCollection: ID = null
+
+  """
+  (MESH_OBJECT) Which object of `meshCollection` this data was computed from: its id in the collection's object catalog. The edge lands in the collection's vertex space and names the object
+  """
+  meshObject: Int = null
 
   """
   (ANNOTATION_COLLECTION) The annotation collection this data was computed from
@@ -8012,6 +8035,38 @@ type MeshLens implements Lens @key(fields: "id", resolvable: true) @identified(b
 }
 
 """
+One object of a mesh collection: a row of its object catalog, not a row here -- the meshes live in the collection's Parquet store. What the data computed from that one surface hangs off (a MESH_OBJECT derivation). Asked for with `meshObject(collection:, object:)`
+"""
+type MeshObject {
+  """
+  The object's id in the collection's object catalog: what a picked mesh reports
+  """
+  objectId: Int!
+
+  """`<collection>:<object>`: a stable handle, unique across collections"""
+  id: ID!
+
+  """The mesh collection the object belongs to"""
+  collection: MeshCollection!
+
+  """
+  Everything computed from this one object: the data whose `derivedFrom` named it as a MESH_OBJECT source. The object-level twin of `Annotation.derivedResidents`, kind-blind like it. These are listed on the collection's own lineage too: an object is part of its collection
+  """
+  derivedResidents: [Resident!]!
+}
+
+"""
+The fields a MESH_OBJECT derivation reads. Published for codegen; the wire type is the flat DerivedFromInput
+"""
+input MeshObjectDerivedFromInput @unionElementOf(union: "DerivedFromInput", discriminator: "kind", key: "MESH_OBJECT") {
+  kind: DerivationSourceKind! = MESH_OBJECT
+  transform: TransformInput = null
+  valueRelation: ValueRelation = null
+  meshCollection: ID!
+  meshObject: Int!
+}
+
+"""
 A mesh collection whose geometry carries the ids. **Nothing is sampled at a coordinate here**: an id rides on the geometry row, so a client that picked a surface is already holding one and goes straight to the lookup -- the mesh case of the rule that makes a plan worth caching, that it never costs a round-trip. `consumes` names the axes that pick resolved rather than axes to index anything with. The store is named for a headless worker that did not do the picking and must read the object catalog itself
 """
 type MeshSample implements SampleStep {
@@ -8533,6 +8588,11 @@ type Mutation {
 
   """Delete an existing annotation"""
   deleteAnnotation(input: DeleteAnnotationInput!): ID! @auth(required_scopes: ["mikro_annotate"], any_role_of: ["mikro_editor", "mikro_annotator"])
+
+  """
+  Delete everything made from one object -- derived data, data computed within a shape, shapes refined or converted from it, series converted out of a file, files exported from a dataset, transitively -- and keep the object. Every row is held to its own owner and delete guards before anything goes; one refusal deletes nothing. Answers the `<kind>:<id>` keys deleted; nothing made from it deletes nothing (`preflightDeleteDerived` lists what it takes)
+  """
+  deleteDerived(input: DeleteDerivedInput!): [ID!]! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
   Create an annotation collection explicitly, in a coordinate system of its own, optionally derived from the system the shapes are drawn over. The common path -- drawing on a scene -- goes through createAnnotation instead, which mints the scene's collection on first use
@@ -10507,6 +10567,20 @@ enum PreferredView {
 }
 
 """
+Which layer to preview, as the input of the create mutation that would make it: exactly one member. Keeping the preview is that same input sent to that mutation (`intensity` to `createIntensityLayer`, `mesh` to `createMeshLayer`, ...), which makes the identical layer
+"""
+input PreviewLayerInput @oneOf {
+  image: CreateLayerInput
+  intensity: CreateIntensityLayerInput
+  volume: CreateVolumeLayerInput
+  rgb: CreateRgbLayerInput
+  label: CreateLabelLayerInput
+  phasor: CreatePhasorLayerInput
+  vector: CreateVectorLayerInput
+  mesh: CreateMeshLayerInput
+}
+
+"""
 The 3D projection / rendering mode applied to a volumetric (z-stacked) render, whether that is an IMAGE layer's projection node or an INTENSITY layer's `projectionMode`.
 """
 enum ProjectionMode {
@@ -10607,6 +10681,16 @@ type Query {
 
   """Get a single layer by ID"""
   layer(id: ID!): Layer! @auth(required_scopes: ["mikro_read"])
+
+  """
+  One object of a mesh collection, by its id in the collection's object catalog: what was computed from that one surface (`derivedResidents`)
+  """
+  meshObject(collection: ID!, object: Int!): MeshObject! @auth(required_scopes: ["mikro_read"])
+
+  """
+  The layer a create mutation would make, built and not saved: every field resolves as it would on the saved layer -- `asAffine`, `pathToWorld`, the kind's render columns -- and nothing is written. Refused for exactly the reasons the create would refuse it. Its `id` is negative and names no row; keep it by sending the same input to the create. What a viewer draws while it stages a layer it has not decided to keep
+  """
+  previewLayer(input: PreviewLayerInput!): Layer! @auth(required_scopes: ["mikro_read"])
 
   """
   List the organization's collaborations: what a guest granted one sees of it (a guest: the collaborations granted to them)
@@ -10871,6 +10955,11 @@ type Query {
   What deleting this annotation (the shapes refined, converted, split or merged from it count) would cost, without deleting it: everything made from it (a plain delete is refused over it; `cascade: true` takes it along), what stops the delete, and what else goes with it
   """
   preflightDeleteAnnotation(id: ID!): DeletePreflight! @auth(required_scopes: ["mikro_read"])
+
+  """
+  What `deleteDerived` would delete: everything made from this object, transitively, nearest first, with what would stop it and what else cascades. The object itself stays, so it is neither listed nor checked; `needsCascade` says whether anything was made from it at all
+  """
+  preflightDeleteDerived(kind: LineageNodeKind!, id: ID!): DeletePreflight! @auth(required_scopes: ["mikro_read"])
 
   """
   Every attribute plan reachable from one system: one per FIELD edge landing on a table, discovered across the fact component -- probe a source image and the plans of the instance mask derived from it come back, each carrying the `path` of steps from the probed system to its root. Registrations are never crossed (no scene, no world). A plan is instructions, never attributes -- map along the path, sample this array, look the value up in this parquet -- and takes no coordinate, so a client fetches it once and executes it per hover against the chunks it is already rendering. Cache it against the FIELD edge plus every path step (ids and versions); `maxDepth` bounds the discovery. Each plan is a chain of `hops`: the landing, then every declared reference reachable from it -- `Column.references` into another table, a matrix axis a table identifies, or the same axis walked into the matrix -- up to `maxJoinDepth` (default 1, at most 4; 0 is the landing alone), each bound from the hop before and executed by the client in order. The server reads no store and composes nothing
