@@ -9229,8 +9229,30 @@ type Mutation {
   """
   createDistributionChartLayer(input: CreateDistributionChartLayerInput!): DistributionChartLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
-  """Restyle a chart layer. View state only"""
+  """
+  Restyle a chart layer of any kind: name, visibility, order, opacity, colour and its look
+  """
   updateChartLayer(input: UpdateChartLayerInput!): ChartLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
+
+  """
+  Retune a trace: draw another array lens along the chart's axis, or restyle it
+  """
+  updateTraceChartLayer(input: UpdateTraceChartLayerInput!): TraceChartLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
+
+  """
+  Retune a series: read another value column or table lens against the chart's axis, or restyle it
+  """
+  updateSeriesChartLayer(input: UpdateSeriesChartLayerInput!): SeriesChartLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
+
+  """
+  Retune a points layer: plot other columns or another table lens' rows, or restyle it
+  """
+  updatePointsChartLayer(input: UpdatePointsChartLayerInput!): PointsChartLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
+
+  """
+  Retune a distribution: summarise another column, regroup or rebin it, switch between histogram and box, or restyle it
+  """
+  updateDistributionChartLayer(input: UpdateDistributionChartLayerInput!): DistributionChartLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Delete a chart layer. Deletes nothing it drew"""
   deleteChartLayer(input: DeleteChartLayerInput!): ID! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
@@ -14540,7 +14562,7 @@ input UpdateChartInput {
 }
 
 """
-Input for restyling a chart layer. View state only: what the layer reads, and where its data sits along the chart's axis, are not settings -- the first is fixed at creation and the second is the graph's, changed by editing the registration
+Input for restyling a chart layer of any kind: view state only. What a layer reads -- its lens and its columns -- is changed by its kind's own update (updateTraceChartLayer, updateSeriesChartLayer, updatePointsChartLayer, updateDistributionChartLayer); where its data sits along the chart's axis is the graph's, changed by editing the registration
 """
 input UpdateChartLayerInput {
   name: String = null
@@ -14562,6 +14584,26 @@ input UpdateCoordinateSystemInput {
   name: String = null
   epoch: DateTime = null
   reference: String = null
+}
+
+"""
+Retune a distribution: summarise another column, group it otherwise, bin it otherwise, or draw it as a histogram or a box
+"""
+input UpdateDistributionChartLayerInput {
+  name: String = null
+  visible: Boolean = null
+  order: Int = null
+  opacity: Float = null
+  color: [Float!] = null
+  mark: ChartMark = null
+  lineWidth: Float = null
+  id: ID!
+  lens: ID = null
+  valueColumn: String = null
+  groupColumn: String = null
+  bins: Int = null
+  clearGroupColumn: Boolean! = false
+  clearBins: Boolean! = false
 }
 
 """
@@ -14818,6 +14860,26 @@ input UpdatePointLayerInput {
 }
 
 """
+Retune a points layer: plot other columns, or another table lens' rows, or change how they are drawn
+"""
+input UpdatePointsChartLayerInput {
+  name: String = null
+  visible: Boolean = null
+  order: Int = null
+  opacity: Float = null
+  color: [Float!] = null
+  mark: ChartMark = null
+  lineWidth: Float = null
+  markerSize: Float = null
+  id: ID!
+  lens: ID = null
+  xColumn: String = null
+  yColumn: String = null
+  zColumn: String = null
+  clearZColumn: Boolean! = false
+}
+
+"""
 Update an RGB layer's render settings. Every field is a patch: what is not sent keeps its current value
 """
 input UpdateRgbLayerInput {
@@ -14844,6 +14906,23 @@ input UpdateSceneInput {
   backgroundColor: [Float!] = null
 }
 
+"""
+Retune a series: read another value column, or another table lens, against the chart's axis
+"""
+input UpdateSeriesChartLayerInput {
+  name: String = null
+  visible: Boolean = null
+  order: Int = null
+  opacity: Float = null
+  color: [Float!] = null
+  mark: ChartMark = null
+  lineWidth: Float = null
+  markerSize: Float = null
+  id: ID!
+  lens: ID = null
+  valueColumn: String = null
+}
+
 """Input for renaming or redescribing a sparse dataset"""
 input UpdateSparseDatasetInput {
   id: ID!
@@ -14858,6 +14937,22 @@ input UpdateTableDatasetInput {
   id: ID!
   name: String = null
   description: String = null
+}
+
+"""
+Retune a trace: draw another array lens along the chart's axis, or change how it is drawn
+"""
+input UpdateTraceChartLayerInput {
+  name: String = null
+  visible: Boolean = null
+  order: Int = null
+  opacity: Float = null
+  color: [Float!] = null
+  mark: ChartMark = null
+  lineWidth: Float = null
+  markerSize: Float = null
+  id: ID!
+  lens: ID = null
 }
 
 """

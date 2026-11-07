@@ -3200,7 +3200,7 @@ class UpdateChartInput(BaseModel):
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class UpdateChartLayerInput(BaseModel):
-    """Input for restyling a chart layer. View state only: what the layer reads, and where its data sits along the chart's axis, are not settings -- the first is fixed at creation and the second is the graph's, changed by editing the registration"""
+    """Input for restyling a chart layer of any kind: view state only. What a layer reads -- its lens and its columns -- is changed by its kind's own update (updateTraceChartLayer, updateSeriesChartLayer, updatePointsChartLayer, updateDistributionChartLayer); where its data sits along the chart's axis is the graph's, changed by editing the registration"""
     name: str | None = None
     visible: bool | None = None
     order: int | None = None
@@ -3218,6 +3218,26 @@ class UpdateCoordinateSystemInput(BaseModel):
     name: str | None = None
     epoch: datetime | None = None
     reference: str | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class UpdateDistributionChartLayerInput(BaseModel):
+    """Retune a distribution: summarise another column, group it otherwise, bin it otherwise, or draw it as a histogram or a box"""
+    name: str | None = None
+    visible: bool | None = None
+    order: int | None = None
+    opacity: float | None = None
+    color: tuple[float, ...] | None = None
+    mark: ChartMark | None = None
+    line_width: float | None = Field(validation_alias=AliasChoices('line_width', 'lineWidth'), serialization_alias='lineWidth', default=None)
+    id: ID
+    lens: ID | None = None
+    value_column: str | None = Field(validation_alias=AliasChoices('value_column', 'valueColumn'), serialization_alias='valueColumn', default=None)
+    group_column: str | None = Field(validation_alias=AliasChoices('group_column', 'groupColumn'), serialization_alias='groupColumn', default=None)
+    bins: int | None = None
+    clear_group_column: Annotated[bool | None, GraphQLDefault('False')] = Field(validation_alias=AliasChoices('clear_group_column', 'clearGroupColumn'), serialization_alias='clearGroupColumn', default=None)
+    'Default: False'
+    clear_bins: Annotated[bool | None, GraphQLDefault('False')] = Field(validation_alias=AliasChoices('clear_bins', 'clearBins'), serialization_alias='clearBins', default=None)
+    'Default: False'
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class UpdateFixtureLayerInput(BaseModel):
@@ -3311,11 +3331,45 @@ class UpdatePointLayerInput(BaseModel):
     order: int | None = None
     model_config = ConfigDict(frozen=True, extra='forbid')
 
+class UpdatePointsChartLayerInput(BaseModel):
+    """Retune a points layer: plot other columns, or another table lens' rows, or change how they are drawn"""
+    name: str | None = None
+    visible: bool | None = None
+    order: int | None = None
+    opacity: float | None = None
+    color: tuple[float, ...] | None = None
+    mark: ChartMark | None = None
+    line_width: float | None = Field(validation_alias=AliasChoices('line_width', 'lineWidth'), serialization_alias='lineWidth', default=None)
+    marker_size: float | None = Field(validation_alias=AliasChoices('marker_size', 'markerSize'), serialization_alias='markerSize', default=None)
+    id: ID
+    lens: ID | None = None
+    x_column: str | None = Field(validation_alias=AliasChoices('x_column', 'xColumn'), serialization_alias='xColumn', default=None)
+    y_column: str | None = Field(validation_alias=AliasChoices('y_column', 'yColumn'), serialization_alias='yColumn', default=None)
+    z_column: str | None = Field(validation_alias=AliasChoices('z_column', 'zColumn'), serialization_alias='zColumn', default=None)
+    clear_z_column: Annotated[bool | None, GraphQLDefault('False')] = Field(validation_alias=AliasChoices('clear_z_column', 'clearZColumn'), serialization_alias='clearZColumn', default=None)
+    'Default: False'
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
 class UpdateSceneInput(BaseModel):
     """Input for setting a scene's viewer preferences. Every field is optional and an omitted one is left alone, so a client may set one preference without restating the others"""
     id: ID = Field(description='The ID of the scene to update')
     preferred_view: PreferredView | None = Field(validation_alias=AliasChoices('preferred_view', 'preferredView'), serialization_alias='preferredView', default=None)
     background_color: tuple[float, ...] | None = Field(validation_alias=AliasChoices('background_color', 'backgroundColor'), serialization_alias='backgroundColor', default=None)
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class UpdateSeriesChartLayerInput(BaseModel):
+    """Retune a series: read another value column, or another table lens, against the chart's axis"""
+    name: str | None = None
+    visible: bool | None = None
+    order: int | None = None
+    opacity: float | None = None
+    color: tuple[float, ...] | None = None
+    mark: ChartMark | None = None
+    line_width: float | None = Field(validation_alias=AliasChoices('line_width', 'lineWidth'), serialization_alias='lineWidth', default=None)
+    marker_size: float | None = Field(validation_alias=AliasChoices('marker_size', 'markerSize'), serialization_alias='markerSize', default=None)
+    id: ID
+    lens: ID | None = None
+    value_column: str | None = Field(validation_alias=AliasChoices('value_column', 'valueColumn'), serialization_alias='valueColumn', default=None)
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class UpdateSparseDatasetInput(BaseModel):
@@ -3330,6 +3384,20 @@ class UpdateTableDatasetInput(BaseModel):
     id: ID
     name: str | None = None
     description: str | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class UpdateTraceChartLayerInput(BaseModel):
+    """Retune a trace: draw another array lens along the chart's axis, or change how it is drawn"""
+    name: str | None = None
+    visible: bool | None = None
+    order: int | None = None
+    opacity: float | None = None
+    color: tuple[float, ...] | None = None
+    mark: ChartMark | None = None
+    line_width: float | None = Field(validation_alias=AliasChoices('line_width', 'lineWidth'), serialization_alias='lineWidth', default=None)
+    marker_size: float | None = Field(validation_alias=AliasChoices('marker_size', 'markerSize'), serialization_alias='markerSize', default=None)
+    id: ID
+    lens: ID | None = None
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class UpdateTrackLayerInput(BaseModel):
@@ -6815,7 +6883,7 @@ class CreateSeriesChartLayerMutation(BaseModel):
         document = 'fragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    fields {\n      outputAxis\n      inner\n      base\n      component\n      scale\n      offset\n      inputAxis\n      innerScale\n      innerOffset\n      dataset {\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on PointsChartLayer {\n    pointsLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    pointsTable: tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    xUnit\n    yUnit\n    zUnit\n    pointsMark: mark\n    pointsLineWidth: lineWidth\n    pointsMarkerSize: markerSize\n  }\n  ... on DistributionChartLayer {\n    distributionLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    distributionTable: tableDataset {\n      id\n      name\n    }\n    distributionValueColumn: valueColumn\n    groupColumn\n    bins\n    distributionValueUnit: valueUnit\n    distributionMark: mark\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nmutation CreateSeriesChartLayer($input: CreateSeriesChartLayerInput!) {\n  createSeriesChartLayer(input: $input) {\n    ...ChartLayer\n    __typename\n  }\n}'
 
 class CreatePointsChartLayerMutation(BaseModel):
-    """ A chart of values (created with neither `coordinateSystem` nor `axis`): a table lens' rows at
+    """ A chart of values (`createChart(kind: VALUES)`): a table lens' rows, placed in its world, at
  the values of two or three columns -- a scatter."""
     create_points_chart_layer: ChartLayerPointsChartLayer = Field(alias='createPointsChartLayer')
     "Draw a table lens' rows as points in a VALUES chart: placed in its world (whose rows), each drawn at the values of two columns (a scatter), or three for depth"
@@ -6900,7 +6968,7 @@ class UpdateChartLayerMutationUpdateChartLayerBaseCatchAll(UpdateChartLayerMutat
 class UpdateChartLayerMutation(BaseModel):
     """ View state only: a layer's kind and its source are fixed at creation."""
     update_chart_layer: Annotated[UpdateChartLayerMutationUpdateChartLayerBaseAnnotationChartLayer | UpdateChartLayerMutationUpdateChartLayerBaseDistributionChartLayer | UpdateChartLayerMutationUpdateChartLayerBasePointsChartLayer | UpdateChartLayerMutationUpdateChartLayerBaseSeriesChartLayer | UpdateChartLayerMutationUpdateChartLayerBaseTraceChartLayer, Field(discriminator='typename')] | UpdateChartLayerMutationUpdateChartLayerBaseCatchAll = Field(alias='updateChartLayer')
-    'Restyle a chart layer. View state only'
+    'Restyle a chart layer of any kind: name, visibility, order, opacity, colour and its look'
 
     class Arguments(BaseModel):
         """Arguments for UpdateChartLayer """
@@ -6909,6 +6977,59 @@ class UpdateChartLayerMutation(BaseModel):
     class Meta:
         """Meta class for UpdateChartLayer """
         document = 'fragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    fields {\n      outputAxis\n      inner\n      base\n      component\n      scale\n      offset\n      inputAxis\n      innerScale\n      innerOffset\n      dataset {\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on PointsChartLayer {\n    pointsLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    pointsTable: tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    xUnit\n    yUnit\n    zUnit\n    pointsMark: mark\n    pointsLineWidth: lineWidth\n    pointsMarkerSize: markerSize\n  }\n  ... on DistributionChartLayer {\n    distributionLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    distributionTable: tableDataset {\n      id\n      name\n    }\n    distributionValueColumn: valueColumn\n    groupColumn\n    bins\n    distributionValueUnit: valueUnit\n    distributionMark: mark\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nmutation UpdateChartLayer($input: UpdateChartLayerInput!) {\n  updateChartLayer(input: $input) {\n    ...ChartLayer\n    __typename\n  }\n}'
+
+class UpdateTraceChartLayerMutation(BaseModel):
+    """ What a layer reads is its kind's own update, as for a scene's layers: another lens, other
+ columns, another grouping or bin count. Each also takes the look."""
+    update_trace_chart_layer: ChartLayerTraceChartLayer = Field(alias='updateTraceChartLayer')
+    "Retune a trace: draw another array lens along the chart's axis, or restyle it"
+
+    class Arguments(BaseModel):
+        """Arguments for UpdateTraceChartLayer """
+        input: UpdateTraceChartLayerInput
+
+    class Meta:
+        """Meta class for UpdateTraceChartLayer """
+        document = 'fragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    fields {\n      outputAxis\n      inner\n      base\n      component\n      scale\n      offset\n      inputAxis\n      innerScale\n      innerOffset\n      dataset {\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on PointsChartLayer {\n    pointsLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    pointsTable: tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    xUnit\n    yUnit\n    zUnit\n    pointsMark: mark\n    pointsLineWidth: lineWidth\n    pointsMarkerSize: markerSize\n  }\n  ... on DistributionChartLayer {\n    distributionLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    distributionTable: tableDataset {\n      id\n      name\n    }\n    distributionValueColumn: valueColumn\n    groupColumn\n    bins\n    distributionValueUnit: valueUnit\n    distributionMark: mark\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nmutation UpdateTraceChartLayer($input: UpdateTraceChartLayerInput!) {\n  updateTraceChartLayer(input: $input) {\n    ...ChartLayer\n    __typename\n  }\n}'
+
+class UpdateSeriesChartLayerMutation(BaseModel):
+    """No documentation found for this operation."""
+    update_series_chart_layer: ChartLayerSeriesChartLayer = Field(alias='updateSeriesChartLayer')
+    "Retune a series: read another value column or table lens against the chart's axis, or restyle it"
+
+    class Arguments(BaseModel):
+        """Arguments for UpdateSeriesChartLayer """
+        input: UpdateSeriesChartLayerInput
+
+    class Meta:
+        """Meta class for UpdateSeriesChartLayer """
+        document = 'fragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    fields {\n      outputAxis\n      inner\n      base\n      component\n      scale\n      offset\n      inputAxis\n      innerScale\n      innerOffset\n      dataset {\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on PointsChartLayer {\n    pointsLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    pointsTable: tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    xUnit\n    yUnit\n    zUnit\n    pointsMark: mark\n    pointsLineWidth: lineWidth\n    pointsMarkerSize: markerSize\n  }\n  ... on DistributionChartLayer {\n    distributionLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    distributionTable: tableDataset {\n      id\n      name\n    }\n    distributionValueColumn: valueColumn\n    groupColumn\n    bins\n    distributionValueUnit: valueUnit\n    distributionMark: mark\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nmutation UpdateSeriesChartLayer($input: UpdateSeriesChartLayerInput!) {\n  updateSeriesChartLayer(input: $input) {\n    ...ChartLayer\n    __typename\n  }\n}'
+
+class UpdatePointsChartLayerMutation(BaseModel):
+    """No documentation found for this operation."""
+    update_points_chart_layer: ChartLayerPointsChartLayer = Field(alias='updatePointsChartLayer')
+    "Retune a points layer: plot other columns or another table lens' rows, or restyle it"
+
+    class Arguments(BaseModel):
+        """Arguments for UpdatePointsChartLayer """
+        input: UpdatePointsChartLayerInput
+
+    class Meta:
+        """Meta class for UpdatePointsChartLayer """
+        document = 'fragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    fields {\n      outputAxis\n      inner\n      base\n      component\n      scale\n      offset\n      inputAxis\n      innerScale\n      innerOffset\n      dataset {\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on PointsChartLayer {\n    pointsLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    pointsTable: tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    xUnit\n    yUnit\n    zUnit\n    pointsMark: mark\n    pointsLineWidth: lineWidth\n    pointsMarkerSize: markerSize\n  }\n  ... on DistributionChartLayer {\n    distributionLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    distributionTable: tableDataset {\n      id\n      name\n    }\n    distributionValueColumn: valueColumn\n    groupColumn\n    bins\n    distributionValueUnit: valueUnit\n    distributionMark: mark\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nmutation UpdatePointsChartLayer($input: UpdatePointsChartLayerInput!) {\n  updatePointsChartLayer(input: $input) {\n    ...ChartLayer\n    __typename\n  }\n}'
+
+class UpdateDistributionChartLayerMutation(BaseModel):
+    """No documentation found for this operation."""
+    update_distribution_chart_layer: ChartLayerDistributionChartLayer = Field(alias='updateDistributionChartLayer')
+    'Retune a distribution: summarise another column, regroup or rebin it, switch between histogram and box, or restyle it'
+
+    class Arguments(BaseModel):
+        """Arguments for UpdateDistributionChartLayer """
+        input: UpdateDistributionChartLayerInput
+
+    class Meta:
+        """Meta class for UpdateDistributionChartLayer """
+        document = 'fragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    fields {\n      outputAxis\n      inner\n      base\n      component\n      scale\n      offset\n      inputAxis\n      innerScale\n      innerOffset\n      dataset {\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on PointsChartLayer {\n    pointsLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    pointsTable: tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    xUnit\n    yUnit\n    zUnit\n    pointsMark: mark\n    pointsLineWidth: lineWidth\n    pointsMarkerSize: markerSize\n  }\n  ... on DistributionChartLayer {\n    distributionLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    distributionTable: tableDataset {\n      id\n      name\n    }\n    distributionValueColumn: valueColumn\n    groupColumn\n    bins\n    distributionValueUnit: valueUnit\n    distributionMark: mark\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nmutation UpdateDistributionChartLayer($input: UpdateDistributionChartLayerInput!) {\n  updateDistributionChartLayer(input: $input) {\n    ...ChartLayer\n    __typename\n  }\n}'
 
 class DeleteChartLayerMutation(BaseModel):
     """No documentation found for this operation."""
@@ -12051,7 +12172,7 @@ Returns:
 
     async def acreate_points_chart_layer(self, chart: IDCoercible, lens: IDCoercible, x_column: str, y_column: str, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, z_column: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerPointsChartLayer:
         """CreatePointsChartLayer 
- A chart of values (created with neither `coordinateSystem` nor `axis`): a table lens' rows at
+ A chart of values (`createChart(kind: VALUES)`): a table lens' rows, placed in its world, at
  the values of two or three columns -- a scatter.
 
 Args:
@@ -12102,7 +12223,7 @@ Returns:
 
     def create_points_chart_layer(self, chart: IDCoercible, lens: IDCoercible, x_column: str, y_column: str, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, z_column: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerPointsChartLayer:
         """CreatePointsChartLayer 
- A chart of values (created with neither `coordinateSystem` nor `axis`): a table lens' rows at
+ A chart of values (`createChart(kind: VALUES)`): a table lens' rows, placed in its world, at
  the values of two or three columns -- a scatter.
 
 Args:
@@ -12474,6 +12595,420 @@ Returns:
         _input['id'] = id
         variables['input'] = _input
         return self.execute(UpdateChartLayerMutation, variables, task=task).update_chart_layer
+
+    async def aupdate_trace_chart_layer(self, id: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerTraceChartLayer:
+        """UpdateTraceChartLayer 
+ What a layer reads is its kind's own update, as for a scene's layers: another lens, other
+ columns, another grouping or bin count. Each also takes the look.
+
+Args:
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    color: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list)
+    mark: ChartMark
+    line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    marker_size: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ChartLayerTraceChartLayer
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        if name is not UNSET:
+            _input['name'] = name
+        if visible is not UNSET:
+            _input['visible'] = visible
+        if order is not UNSET:
+            _input['order'] = order
+        if opacity is not UNSET:
+            _input['opacity'] = opacity
+        if color is not UNSET:
+            _input['color'] = color
+        if mark is not UNSET:
+            _input['mark'] = mark
+        if line_width is not UNSET:
+            _input['lineWidth'] = line_width
+        if marker_size is not UNSET:
+            _input['markerSize'] = marker_size
+        _input['id'] = id
+        if lens is not UNSET:
+            _input['lens'] = lens
+        variables['input'] = _input
+        return (await self.aexecute(UpdateTraceChartLayerMutation, variables, task=task)).update_trace_chart_layer
+
+    def update_trace_chart_layer(self, id: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerTraceChartLayer:
+        """UpdateTraceChartLayer 
+ What a layer reads is its kind's own update, as for a scene's layers: another lens, other
+ columns, another grouping or bin count. Each also takes the look.
+
+Args:
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    color: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list)
+    mark: ChartMark
+    line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    marker_size: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ChartLayerTraceChartLayer
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        if name is not UNSET:
+            _input['name'] = name
+        if visible is not UNSET:
+            _input['visible'] = visible
+        if order is not UNSET:
+            _input['order'] = order
+        if opacity is not UNSET:
+            _input['opacity'] = opacity
+        if color is not UNSET:
+            _input['color'] = color
+        if mark is not UNSET:
+            _input['mark'] = mark
+        if line_width is not UNSET:
+            _input['lineWidth'] = line_width
+        if marker_size is not UNSET:
+            _input['markerSize'] = marker_size
+        _input['id'] = id
+        if lens is not UNSET:
+            _input['lens'] = lens
+        variables['input'] = _input
+        return self.execute(UpdateTraceChartLayerMutation, variables, task=task).update_trace_chart_layer
+
+    async def aupdate_series_chart_layer(self, id: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, value_column: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerSeriesChartLayer:
+        """UpdateSeriesChartLayer 
+
+Retune a series: read another value column or table lens against the chart's axis, or restyle it
+
+Args:
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    color: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list)
+    mark: ChartMark
+    line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    marker_size: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    value_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ChartLayerSeriesChartLayer
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        if name is not UNSET:
+            _input['name'] = name
+        if visible is not UNSET:
+            _input['visible'] = visible
+        if order is not UNSET:
+            _input['order'] = order
+        if opacity is not UNSET:
+            _input['opacity'] = opacity
+        if color is not UNSET:
+            _input['color'] = color
+        if mark is not UNSET:
+            _input['mark'] = mark
+        if line_width is not UNSET:
+            _input['lineWidth'] = line_width
+        if marker_size is not UNSET:
+            _input['markerSize'] = marker_size
+        _input['id'] = id
+        if lens is not UNSET:
+            _input['lens'] = lens
+        if value_column is not UNSET:
+            _input['valueColumn'] = value_column
+        variables['input'] = _input
+        return (await self.aexecute(UpdateSeriesChartLayerMutation, variables, task=task)).update_series_chart_layer
+
+    def update_series_chart_layer(self, id: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, value_column: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerSeriesChartLayer:
+        """UpdateSeriesChartLayer 
+
+Retune a series: read another value column or table lens against the chart's axis, or restyle it
+
+Args:
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    color: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list)
+    mark: ChartMark
+    line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    marker_size: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    value_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ChartLayerSeriesChartLayer
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        if name is not UNSET:
+            _input['name'] = name
+        if visible is not UNSET:
+            _input['visible'] = visible
+        if order is not UNSET:
+            _input['order'] = order
+        if opacity is not UNSET:
+            _input['opacity'] = opacity
+        if color is not UNSET:
+            _input['color'] = color
+        if mark is not UNSET:
+            _input['mark'] = mark
+        if line_width is not UNSET:
+            _input['lineWidth'] = line_width
+        if marker_size is not UNSET:
+            _input['markerSize'] = marker_size
+        _input['id'] = id
+        if lens is not UNSET:
+            _input['lens'] = lens
+        if value_column is not UNSET:
+            _input['valueColumn'] = value_column
+        variables['input'] = _input
+        return self.execute(UpdateSeriesChartLayerMutation, variables, task=task).update_series_chart_layer
+
+    async def aupdate_points_chart_layer(self, id: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, x_column: str | None | UnsetType=UNSET, y_column: str | None | UnsetType=UNSET, z_column: str | None | UnsetType=UNSET, clear_z_column: bool | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerPointsChartLayer:
+        """UpdatePointsChartLayer 
+
+Retune a points layer: plot other columns or another table lens' rows, or restyle it
+
+Args:
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    color: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list)
+    mark: ChartMark
+    line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    marker_size: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    x_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    y_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    z_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    clear_z_column: The `Boolean` scalar type represents `true` or `false`. (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ChartLayerPointsChartLayer
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        if name is not UNSET:
+            _input['name'] = name
+        if visible is not UNSET:
+            _input['visible'] = visible
+        if order is not UNSET:
+            _input['order'] = order
+        if opacity is not UNSET:
+            _input['opacity'] = opacity
+        if color is not UNSET:
+            _input['color'] = color
+        if mark is not UNSET:
+            _input['mark'] = mark
+        if line_width is not UNSET:
+            _input['lineWidth'] = line_width
+        if marker_size is not UNSET:
+            _input['markerSize'] = marker_size
+        _input['id'] = id
+        if lens is not UNSET:
+            _input['lens'] = lens
+        if x_column is not UNSET:
+            _input['xColumn'] = x_column
+        if y_column is not UNSET:
+            _input['yColumn'] = y_column
+        if z_column is not UNSET:
+            _input['zColumn'] = z_column
+        if clear_z_column is not UNSET:
+            _input['clearZColumn'] = clear_z_column
+        variables['input'] = _input
+        return (await self.aexecute(UpdatePointsChartLayerMutation, variables, task=task)).update_points_chart_layer
+
+    def update_points_chart_layer(self, id: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, x_column: str | None | UnsetType=UNSET, y_column: str | None | UnsetType=UNSET, z_column: str | None | UnsetType=UNSET, clear_z_column: bool | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerPointsChartLayer:
+        """UpdatePointsChartLayer 
+
+Retune a points layer: plot other columns or another table lens' rows, or restyle it
+
+Args:
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    color: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list)
+    mark: ChartMark
+    line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    marker_size: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    x_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    y_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    z_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    clear_z_column: The `Boolean` scalar type represents `true` or `false`. (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ChartLayerPointsChartLayer
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        if name is not UNSET:
+            _input['name'] = name
+        if visible is not UNSET:
+            _input['visible'] = visible
+        if order is not UNSET:
+            _input['order'] = order
+        if opacity is not UNSET:
+            _input['opacity'] = opacity
+        if color is not UNSET:
+            _input['color'] = color
+        if mark is not UNSET:
+            _input['mark'] = mark
+        if line_width is not UNSET:
+            _input['lineWidth'] = line_width
+        if marker_size is not UNSET:
+            _input['markerSize'] = marker_size
+        _input['id'] = id
+        if lens is not UNSET:
+            _input['lens'] = lens
+        if x_column is not UNSET:
+            _input['xColumn'] = x_column
+        if y_column is not UNSET:
+            _input['yColumn'] = y_column
+        if z_column is not UNSET:
+            _input['zColumn'] = z_column
+        if clear_z_column is not UNSET:
+            _input['clearZColumn'] = clear_z_column
+        variables['input'] = _input
+        return self.execute(UpdatePointsChartLayerMutation, variables, task=task).update_points_chart_layer
+
+    async def aupdate_distribution_chart_layer(self, id: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, value_column: str | None | UnsetType=UNSET, group_column: str | None | UnsetType=UNSET, bins: int | None | UnsetType=UNSET, clear_group_column: bool | UnsetType=UNSET, clear_bins: bool | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerDistributionChartLayer:
+        """UpdateDistributionChartLayer 
+
+Retune a distribution: summarise another column, regroup or rebin it, switch between histogram and box, or restyle it
+
+Args:
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    color: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list)
+    mark: ChartMark
+    line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    value_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    group_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    bins: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    clear_group_column: The `Boolean` scalar type represents `true` or `false`. (required)
+    clear_bins: The `Boolean` scalar type represents `true` or `false`. (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ChartLayerDistributionChartLayer
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        if name is not UNSET:
+            _input['name'] = name
+        if visible is not UNSET:
+            _input['visible'] = visible
+        if order is not UNSET:
+            _input['order'] = order
+        if opacity is not UNSET:
+            _input['opacity'] = opacity
+        if color is not UNSET:
+            _input['color'] = color
+        if mark is not UNSET:
+            _input['mark'] = mark
+        if line_width is not UNSET:
+            _input['lineWidth'] = line_width
+        _input['id'] = id
+        if lens is not UNSET:
+            _input['lens'] = lens
+        if value_column is not UNSET:
+            _input['valueColumn'] = value_column
+        if group_column is not UNSET:
+            _input['groupColumn'] = group_column
+        if bins is not UNSET:
+            _input['bins'] = bins
+        if clear_group_column is not UNSET:
+            _input['clearGroupColumn'] = clear_group_column
+        if clear_bins is not UNSET:
+            _input['clearBins'] = clear_bins
+        variables['input'] = _input
+        return (await self.aexecute(UpdateDistributionChartLayerMutation, variables, task=task)).update_distribution_chart_layer
+
+    def update_distribution_chart_layer(self, id: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, value_column: str | None | UnsetType=UNSET, group_column: str | None | UnsetType=UNSET, bins: int | None | UnsetType=UNSET, clear_group_column: bool | UnsetType=UNSET, clear_bins: bool | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerDistributionChartLayer:
+        """UpdateDistributionChartLayer 
+
+Retune a distribution: summarise another column, regroup or rebin it, switch between histogram and box, or restyle it
+
+Args:
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    color: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list)
+    mark: ChartMark
+    line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    value_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    group_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    bins: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    clear_group_column: The `Boolean` scalar type represents `true` or `false`. (required)
+    clear_bins: The `Boolean` scalar type represents `true` or `false`. (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ChartLayerDistributionChartLayer
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        if name is not UNSET:
+            _input['name'] = name
+        if visible is not UNSET:
+            _input['visible'] = visible
+        if order is not UNSET:
+            _input['order'] = order
+        if opacity is not UNSET:
+            _input['opacity'] = opacity
+        if color is not UNSET:
+            _input['color'] = color
+        if mark is not UNSET:
+            _input['mark'] = mark
+        if line_width is not UNSET:
+            _input['lineWidth'] = line_width
+        _input['id'] = id
+        if lens is not UNSET:
+            _input['lens'] = lens
+        if value_column is not UNSET:
+            _input['valueColumn'] = value_column
+        if group_column is not UNSET:
+            _input['groupColumn'] = group_column
+        if bins is not UNSET:
+            _input['bins'] = bins
+        if clear_group_column is not UNSET:
+            _input['clearGroupColumn'] = clear_group_column
+        if clear_bins is not UNSET:
+            _input['clearBins'] = clear_bins
+        variables['input'] = _input
+        return self.execute(UpdateDistributionChartLayerMutation, variables, task=task).update_distribution_chart_layer
 
     async def adelete_chart_layer(self, id: IDCoercible, task: TaskLike | None=None) -> ID:
         """DeleteChartLayer 

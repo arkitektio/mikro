@@ -38,7 +38,7 @@ mutation CreateSeriesChartLayer($input: CreateSeriesChartLayerInput!) {
   }
 }
 
-# A chart of values (created with neither `coordinateSystem` nor `axis`): a table lens' rows at
+# A chart of values (`createChart(kind: VALUES)`): a table lens' rows, placed in its world, at
 # the values of two or three columns -- a scatter.
 mutation CreatePointsChartLayer($input: CreatePointsChartLayerInput!) {
   createPointsChartLayer(input: $input) {
@@ -72,6 +72,32 @@ mutation CreateAnnotationChartLayer($input: CreateAnnotationChartLayerInput!) {
 # View state only: a layer's kind and its source are fixed at creation.
 mutation UpdateChartLayer($input: UpdateChartLayerInput!) {
   updateChartLayer(input: $input) {
+    ...ChartLayer
+  }
+}
+
+# What a layer reads is its kind's own update, as for a scene's layers: another lens, other
+# columns, another grouping or bin count. Each also takes the look.
+mutation UpdateTraceChartLayer($input: UpdateTraceChartLayerInput!) {
+  updateTraceChartLayer(input: $input) {
+    ...ChartLayer
+  }
+}
+
+mutation UpdateSeriesChartLayer($input: UpdateSeriesChartLayerInput!) {
+  updateSeriesChartLayer(input: $input) {
+    ...ChartLayer
+  }
+}
+
+mutation UpdatePointsChartLayer($input: UpdatePointsChartLayerInput!) {
+  updatePointsChartLayer(input: $input) {
+    ...ChartLayer
+  }
+}
+
+mutation UpdateDistributionChartLayer($input: UpdateDistributionChartLayerInput!) {
+  updateDistributionChartLayer(input: $input) {
     ...ChartLayer
   }
 }

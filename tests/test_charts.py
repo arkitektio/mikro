@@ -26,6 +26,7 @@ from mikro.api.schema import (
     CreateChartFromCoordinateSystemMutation,
     CreateChartMutation,
     CreateTraceChartLayerMutation,
+    UpdateDistributionChartLayerMutation,
     PhysicalAxisInput,
     PlacementState,
     Scene,
@@ -52,6 +53,12 @@ def test_a_trace_layer_sends_the_style_it_was_given_and_nothing_else() -> None:
     """An omitted setting stays off the wire, so the server's default is the default."""
     variables = CreateTraceChartLayerMutation.Arguments(input={"chart": "1", "lens": "2", "mark": ChartMark.STEPS})
     assert variables.model_dump(by_alias=True, exclude_unset=True)["input"] == {"chart": "1", "lens": "2", "mark": "STEPS"}
+
+
+def test_a_layer_update_sends_only_what_it_changes() -> None:
+    """A retune names the bindings it changes; the rest stay as they are on the server."""
+    variables = UpdateDistributionChartLayerMutation.Arguments(input={"id": "5", "group_column": "condition", "clear_bins": True})
+    assert variables.model_dump(by_alias=True, exclude_unset=True)["input"] == {"id": "5", "groupColumn": "condition", "clearBins": True}
 
 
 def test_bootstrapping_a_chart_from_a_space_sends_a_policy() -> None:
@@ -225,6 +232,12 @@ def test_a_table_is_plotted_as_a_chart_of_its_values(mikro: Mikro) -> None:
 
     shown = {visualization.id for visualization in mikro.get_table_dataset(table.id).visualizations}
     assert {scatter.id, gated.id, histogram.id} <= shown
+
+    # Retuned as a scene's layers are: each kind by its own update.
+    flipped = mikro.update_points_chart_layer(layer.id, x_column="volume", y_column="area", marker_size=6)
+    assert (flipped.x_column, flipped.y_column, flipped.marker_size) == ("volume", "area", 6)
+    boxed = mikro.update_distribution_chart_layer(histogram.layers[0].id, mark=ChartMark.BOX)
+    assert (boxed.mark, boxed.bins) == (ChartMark.BOX, None), "a box has no bins"
 
 
 @pytest.mark.integration
