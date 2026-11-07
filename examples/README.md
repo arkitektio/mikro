@@ -1,6 +1,6 @@
 # Examples — synthetic modality generators
 
-Ten self-contained scripts, each simulating one microscopy/imaging modality and
+Eleven self-contained scripts, each simulating one microscopy/imaging modality and
 composing it into a mikro scene. Every script is deterministic (fixed seed), checks
 its own ground truth locally, and supports `--dry-run` (generate + self-check,
 upload nothing). Together they exercise every layer kind the API offers.
@@ -16,6 +16,7 @@ upload nothing). Together they exercise every layer kind the API offers.
 | `generator_dti_tractography.py` | Diffusion MRI tractography | FA volume, DISPLACEMENT-axis field → bootstrap-inferred **VectorLayer**, streamlines as a **3D TrackLayer**, glass-brain **MeshLayer** |
 | `generator_mri_multicontrast.py` | Structural MRI | T1/T2/FLAIR as one channel-axis dataset (`stage(kind=VOLUME)` = one MIP per contrast) + tissue LabelLayer |
 | `generator_fmri.py` | BOLD fMRI | 4D series, GLM z-map thresholded by its contrast window, ROI picker with sparse percent-signal-change slices |
+| `generator_cell_morphology.py` | Phenotypic profiling | cells drawn in a field, a measurement table **keyed to the mask**, a **PCA table derived row for row** (IDENTITY over the frame) with k-means clusters beside the truth; label layer coloured by cluster, charts of values side by side (`ChartLayout.STACKED`), a box per phenotype, a gate |
 | `generator_tractography_network.py` | Tractography, graph-encoded | the SAME streamlines as the DTI script (which it imports), shipped through konnektion as a **NetworkLayer** with per-node vocabulary and taper |
 
 ## Conventions the scripts share

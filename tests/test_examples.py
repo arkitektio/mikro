@@ -60,6 +60,7 @@ SCRIPTS = [
     "generator_fmri.py",
     "generator_dti_tractography.py",
     "generator_tractography_network.py",
+    "generator_cell_morphology.py",
 ]
 
 
