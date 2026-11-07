@@ -44,6 +44,9 @@ AxisTypeName = Literal[
     # The height a mark is drawn at, in a chart's drawing space only: the server
     # refuses it on anything that holds data, so no bare-name convention names it.
     "VALUE",
+    # Positions that are values -- a condition, a genotype -- with no unit and no
+    # arithmetic; never on an array's grid, so no bare-name convention names it either.
+    "CATEGORY",
 ]
 
 #: The bare-name convention. Every name the convention actually knows is listed;
@@ -103,6 +106,7 @@ AXIS_TYPE_ORDER: Final[Mapping[AxisTypeName, int]] = {
     "COORDINATE": 1,
     "DISPLACEMENT": 1,
     "INDEX": 1,
+    "CATEGORY": 1,
     "SPACE": 2,
     # Last: a drawing space is (the chart's axis, value), whatever the axis measures.
     "VALUE": 3,

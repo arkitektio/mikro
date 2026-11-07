@@ -38,6 +38,29 @@ mutation CreateSeriesChartLayer($input: CreateSeriesChartLayerInput!) {
   }
 }
 
+# A chart of values (created with neither `coordinateSystem` nor `axis`): a table lens' rows at
+# the values of two or three columns -- a scatter.
+mutation CreatePointsChartLayer($input: CreatePointsChartLayerInput!) {
+  createPointsChartLayer(input: $input) {
+    ...ChartLayer
+  }
+}
+
+# A chart of values: the values of one column summarised as a histogram or a box, once per
+# value of a grouping column.
+mutation CreateDistributionChartLayer($input: CreateDistributionChartLayerInput!) {
+  createDistributionChartLayer(input: $input) {
+    ...ChartLayer
+  }
+}
+
+# The "Create plot" button: a chart of values and its one layer, in one transaction.
+mutation CreateTablePlot($input: CreateTablePlotInput!) {
+  createTablePlot(input: $input) {
+    ...Chart
+  }
+}
+
 # With no `annotationCollection` this makes the drawing surface: a collection whose space
 # is the chart's axis plus a VALUE axis. Marks then go in with `createAnnotation`.
 mutation CreateAnnotationChartLayer($input: CreateAnnotationChartLayerInput!) {

@@ -137,6 +137,8 @@ class AxisType(str, Enum):
     'An enumerating axis with no metric: an object id, a row number. It has no unit because there is nothing to measure — the distance between object 3 and object 4 means nothing.'
     VALUE = 'VALUE'
     "The direction values are drawn along. It exists only in a drawing space -- an annotation collection's -- so that a mark can sit at a height as well as a position: no dataset's grid, no table and no unit-carrying space has one, because what data *holds* is its values, not an axis of them. Always unitless: what a height measures is whatever the thing drawn beside it measures."
+    CATEGORY = 'CATEGORY'
+    "An enumerating axis whose positions are the values a column holds -- a condition, a genotype, a cluster id. It has no unit and no metric, exactly as an INDEX axis has none: nothing scales or offsets it, and a BY_DIMENSION passes it through with an IDENTITY part. The positions are not stored: they are whatever the values are. Never on an array's grid; declared on a coordinate system that enumerates by value."
     __str__ = str.__str__
 
 class Blending(str, Enum):
@@ -178,11 +180,19 @@ class ChannelKind(str, Enum):
     WAVEGUIDE = 'WAVEGUIDE'
     __str__ = str.__str__
 
+class ChartKind(str, Enum):
+    """What a chart's world is to it. Every chart has a world -- the domain its layers' rows live in -- and every layer is placed into it by the graph. An AXIS chart draws its world: one measured axis with a unit, which TRACE, SERIES and ANNOTATION layers are laid along (intensity against `t`). A VALUES chart does not draw it: its world says *whose rows* -- a table's space, usually its INDEX axis (`cell_id`) -- and its POINTS and DISTRIBUTION layers draw those rows at the values of the columns they name (`area` against `volume`). Two layers placed in one VALUES world are about the same rows."""
+    AXIS = 'AXIS'
+    VALUES = 'VALUES'
+    __str__ = str.__str__
+
 class ChartLayerKind(str, Enum):
-    """The kind of a chart layer, which says what it reads -- never how it looks. TRACE reads an array along one axis; SERIES reads one column of a table against another; ANNOTATION reads drawn marks. A line, markers, both or steps is `ChartMark`, a setting on the layer."""
+    """The kind of a chart layer, which says what it reads -- never how it looks. Three are drawn in an AXIS chart, laid along its one world axis by the graph: TRACE reads an array along one axis, SERIES one value column of a table along its coordinate, ANNOTATION drawn marks. Two are drawn in a VALUES chart, their rows placed in its world and drawn at their values: POINTS at two or three columns (a scatter), DISTRIBUTION summarising one column (a histogram, a box), once per value of a grouping column. A line, markers, a histogram or a box is `ChartMark`, a setting on the layer."""
     TRACE = 'TRACE'
     SERIES = 'SERIES'
     ANNOTATION = 'ANNOTATION'
+    POINTS = 'POINTS'
+    DISTRIBUTION = 'DISTRIBUTION'
     __str__ = str.__str__
 
 class ChartLayerKindChoices(str, Enum):
@@ -190,14 +200,18 @@ class ChartLayerKindChoices(str, Enum):
     TRACE = 'TRACE'
     SERIES = 'SERIES'
     ANNOTATION = 'ANNOTATION'
+    POINTS = 'POINTS'
+    DISTRIBUTION = 'DISTRIBUTION'
     __str__ = str.__str__
 
 class ChartMark(str, Enum):
-    """How a trace or a series is drawn. A look, not a kind: changing it changes nothing about what the layer reads."""
+    """How a layer is drawn. A look, not a kind: changing it changes nothing about what the layer reads. A trace or a series is a LINE, MARKERS, both or STEPS; points are MARKERS or a LINE through them in row order sorted along x; a distribution is a HISTOGRAM or a BOX."""
     LINE = 'LINE'
     MARKERS = 'MARKERS'
     LINE_MARKERS = 'LINE_MARKERS'
     STEPS = 'STEPS'
+    HISTOGRAM = 'HISTOGRAM'
+    BOX = 'BOX'
     __str__ = str.__str__
 
 class ColorMap(str, Enum):
@@ -1513,6 +1527,7 @@ class AxisInput(AxisInputTrait, BaseModel):
     """Input type for one structural axis of a dataset's pixel grid: its name and its semantic kind. Units and spacings do not belong here -- they belong to a physical space, a separate coordinate system plus one edge"""
     name: str
     type: AxisType
+    metric_group: str | None = Field(validation_alias=AliasChoices('metric_group', 'metricGroup'), serialization_alias='metricGroup', default=None)
     long_name: str | None = Field(validation_alias=AliasChoices('long_name', 'longName'), serialization_alias='longName', default=None)
     description: str | None = None
     model_config = ConfigDict(frozen=True, extra='forbid')
@@ -1602,6 +1617,7 @@ class ColumnInput(BaseModel):
     description: str | None = None
     identified_by: Annotated[tuple['IdentificationInput', ...] | None, GraphQLDefault('[]')] = Field(validation_alias=AliasChoices('identified_by', 'identifiedBy'), serialization_alias='identifiedBy', default=None)
     'Default: []'
+    varies_over: tuple[str, ...] | None = Field(validation_alias=AliasChoices('varies_over', 'variesOver'), serialization_alias='variesOver', default=None)
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class ColumnOptionFilter(BaseModel):
@@ -1732,11 +1748,13 @@ class CreateChartFromCoordinateSystemInput(BaseModel):
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreateChartInput(BaseModel):
-    """Input type for creating a chart: a composition of data laid out along one metric axis. The chart is created over a world -- an existing coordinate system adopted as it is, or one created from a single axis -- and starts with no layers"""
+    """Input type for creating a chart over a world: an existing coordinate system adopted as it is, or one created from `axis`. An AXIS chart (the default) draws its world -- one metric axis with a unit -- and lays TRACE, SERIES and ANNOTATION layers along it by the graph: intensity against `t`. A VALUES chart does not draw its world: the world says whose rows -- a table's space, usually its INDEX axis -- and its POINTS and DISTRIBUTION layers, placed into it, draw those rows at the values of the columns they name: `area` against `volume`. It starts with no layers"""
     name: str
     description: str | None = None
     coordinate_system: ID | None = Field(validation_alias=AliasChoices('coordinate_system', 'coordinateSystem'), serialization_alias='coordinateSystem', default=None)
     axis: 'PhysicalAxisInput | None' = None
+    kind: Annotated[ChartKind | None, GraphQLDefault('AXIS')] = None
+    'Default: AXIS'
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreateCoordinateSystemInput(BaseModel):
@@ -1747,6 +1765,21 @@ class CreateCoordinateSystemInput(BaseModel):
     reference: str | None = None
     registrations: Annotated[tuple['RegistrationPathInput', ...] | None, GraphQLDefault('[]')] = None
     'Default: []'
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class CreateDistributionChartLayerInput(BaseModel):
+    """Input for summarising the values of one column of a table's rows in a VALUES chart: a HISTOGRAM or a BOX, over every row or once per value of `groupColumn` -- the `area` of nuclei, one histogram per `condition`. The rows are placed in the chart's world (whose rows). Writes no edge"""
+    name: str | None = None
+    visible: bool | None = None
+    order: int | None = None
+    opacity: float | None = None
+    color: tuple[float, ...] | None = None
+    mark: ChartMark | None = None
+    chart: ID
+    lens: ID
+    value_column: str = Field(validation_alias=AliasChoices('value_column', 'valueColumn'), serialization_alias='valueColumn')
+    group_column: str | None = Field(validation_alias=AliasChoices('group_column', 'groupColumn'), serialization_alias='groupColumn', default=None)
+    bins: int | None = None
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreateFixtureInput(BaseModel):
@@ -1968,6 +2001,23 @@ class CreatePointLayerInput(BaseModel):
     order: int | None = None
     model_config = ConfigDict(frozen=True, extra='forbid')
 
+class CreatePointsChartLayerInput(BaseModel):
+    """Input for drawing a table's rows as points in a VALUES chart: each row at the values of `xColumn` and `yColumn` (and `zColumn` for depth) -- nuclei at their `area` and `volume`. The rows are placed in the chart's world (whose rows); the columns' units are its drawn axes, and a second layer's must convert to them. Writes no edge"""
+    name: str | None = None
+    visible: bool | None = None
+    order: int | None = None
+    opacity: float | None = None
+    color: tuple[float, ...] | None = None
+    mark: ChartMark | None = None
+    line_width: float | None = Field(validation_alias=AliasChoices('line_width', 'lineWidth'), serialization_alias='lineWidth', default=None)
+    marker_size: float | None = Field(validation_alias=AliasChoices('marker_size', 'markerSize'), serialization_alias='markerSize', default=None)
+    chart: ID
+    lens: ID
+    x_column: str = Field(validation_alias=AliasChoices('x_column', 'xColumn'), serialization_alias='xColumn')
+    y_column: str = Field(validation_alias=AliasChoices('y_column', 'yColumn'), serialization_alias='yColumn')
+    z_column: str | None = Field(validation_alias=AliasChoices('z_column', 'zColumn'), serialization_alias='zColumn', default=None)
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
 class CreateRgbLayerInput(BaseModel):
     """Create a layer that composites three single-channel lenses, each a crop of `lens`, as the red, green and blue components of one picture"""
     lens: ID
@@ -2064,10 +2114,24 @@ class CreateTableDatasetInput(CreateTableDatasetTrait, BaseModel):
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreateTableLensInput(BaseModel):
-    """Input for the lens making a selection over a table dataset, by windows on its coordinate columns"""
+    """Input for the lens making a selection over a table dataset, by windows on its columns: a coordinate column bounds a region of space, a numeric measurement column is a gate (`area >= 50`) -- the rows whose value lies in the window"""
     table_dataset: ID | None = Field(validation_alias=AliasChoices('table_dataset', 'tableDataset'), serialization_alias='tableDataset', default=None, description='The table dataset to select over. Exactly one of this and `lens`')
     lens: ID | None = Field(default=None, description="A lens over the table dataset to select within, in place of the container: the windows then intersect with its own, and the result is the table dataset's lens for what that keeps")
     windows: tuple['WindowInput', ...] | None = Field(default=None, description="Windows, one per axis to restrict, each keeping the positions whose value lies between its min and its max (an omitted side is open). Omit for everything: the table dataset's whole lens, or the lens cut from")
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class CreateTablePlotInput(BaseModel):
+    """Input for plotting a table's columns in one call: a VALUES chart over the table's space (whose rows, not drawn) and one POINTS or DISTRIBUTION layer through the table's whole lens or a window of it, in one transaction, so a refused layer makes nothing. `area` against `volume` is `{kind: POINTS, xColumn: "area", yColumn: "volume"}`; a histogram of `area` per `condition` is `{kind: DISTRIBUTION, xColumn: "area", groupColumn: "condition"}`"""
+    table: ID
+    lens: ID | None = None
+    kind: ChartLayerKind
+    x_column: str = Field(validation_alias=AliasChoices('x_column', 'xColumn'), serialization_alias='xColumn')
+    y_column: str | None = Field(validation_alias=AliasChoices('y_column', 'yColumn'), serialization_alias='yColumn', default=None)
+    z_column: str | None = Field(validation_alias=AliasChoices('z_column', 'zColumn'), serialization_alias='zColumn', default=None)
+    mark: ChartMark | None = None
+    group_column: str | None = Field(validation_alias=AliasChoices('group_column', 'groupColumn'), serialization_alias='groupColumn', default=None)
+    bins: int | None = None
+    name: str | None = None
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreateTraceChartLayerInput(BaseModel):
@@ -2724,7 +2788,8 @@ class PhysicalAxisInput(BaseModel):
     """Input type for one axis of a unit-carrying coordinate system: its name, its semantic kind and its physical unit"""
     name: str
     type: AxisType
-    unit: Unit
+    unit: Unit | None = None
+    metric_group: str | None = Field(validation_alias=AliasChoices('metric_group', 'metricGroup'), serialization_alias='metricGroup', default=None)
     long_name: str | None = Field(validation_alias=AliasChoices('long_name', 'longName'), serialization_alias='longName', default=None)
     description: str | None = None
     model_config = ConfigDict(frozen=True, extra='forbid')
@@ -3277,7 +3342,7 @@ class AnnotationDerivation(MikroFetchable, BaseModel):
         type = 'AnnotationDerivation'
 
 class ChartLayerChart(ChartTrait, BaseModel):
-    """A composition of data laid out along one metric axis, with values read off it. The second kind of composition beside a scene: a scene is a place, a chart is an axis. It names data by id and owns none of it, and it carries no unit of its own -- the unit is its world axis's"""
+    """A composition that shows **how much**: values drawn as position. The counterpart of a scene, which shows **where**: in a scene every screen axis is a world axis, data is placed by the graph's edges and values are drawn as appearance (a colour, a size); in a chart at most one axis is drawn from the world and every other position is a value. Every chart has a world -- the domain its layers' rows live in -- and every layer is placed into it. An **AXIS** chart draws its world, one metric axis with a unit, and lays TRACE, SERIES and ANNOTATION layers along it: a timelapse's intensity against `t`. A **VALUES** chart does not draw its world, which says whose rows -- a table's space, usually its INDEX axis -- and its POINTS and DISTRIBUTION layers draw those rows at the values of the columns they name: nuclei at `area` against `volume`, a histogram of `area` per `condition`. Two layers in one VALUES world are about the same rows (a table and the PCA derived from it). The same table lens may be drawn as a scene, at its `(y, x)` coloured by `area`, and as a VALUES chart at `(area, volume)`. A chart names data through lenses and owns none of it; if rotating its view would mix units, it is a chart, and if it would not, a scene"""
     __identifier__: ClassVar[Literal['@mikro/chart']] = '@mikro/chart'
     typename: Literal['Chart'] = Field(alias='__typename', default='Chart', exclude=True)
     id: ID
@@ -3359,7 +3424,7 @@ class ChartLayerTableLensWindows(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 class ChartLayerTableLens(BaseModel):
-    """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    """A selection over a table dataset by value windows on its columns: the rows kept. A window on a coordinate column bounds a region of space; one on a numeric measurement column is a gate (`area >= 50`), which bounds nothing in space. Lives in the table's own space"""
     __identifier__: ClassVar[Literal['@mikro/tablelens']] = '@mikro/tablelens'
     typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
     id: ID
@@ -3370,6 +3435,66 @@ class ChartLayerTableLens(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 class ChartLayerTableDataset(HasParquestStoreTrait, TableDatasetLensTrait, BaseModel):
+    """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
+    __identifier__: ClassVar[Literal['@mikro/tabledataset']] = '@mikro/tabledataset'
+    typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
+    id: ID
+    name: str
+    model_config = ConfigDict(frozen=True)
+
+class ChartLayerPointsLensWindows(BaseModel):
+    """A value window along a named axis of a container that is not an array: the positions kept, by value, with an open side as null"""
+    typename: Literal['Window'] = Field(alias='__typename', default='Window', exclude=True)
+    axis: str
+    "The name of the axis the window constrains, e.g. 't' for a table's time column"
+    min: float | None = Field(default=None)
+    'The smallest position kept, inclusive, or None for no lower bound'
+    max: float | None = Field(default=None)
+    'The largest position kept, inclusive, or None for no upper bound'
+    model_config = ConfigDict(frozen=True)
+
+class ChartLayerPointsLens(BaseModel):
+    """A selection over a table dataset by value windows on its columns: the rows kept. A window on a coordinate column bounds a region of space; one on a numeric measurement column is a gate (`area >= 50`), which bounds nothing in space. Lives in the table's own space"""
+    __identifier__: ClassVar[Literal['@mikro/tablelens']] = '@mikro/tablelens'
+    typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
+    id: ID
+    name: str | None = Field(default=None)
+    "What this selection is called, or null when nothing names it: the labels at the positions it pins (a person's `setPositionLabel` over the channel label ingest recorded) and the name of the annotation it was cut to, e.g. 'GFP · nucleus 3'. Derived and kept by the server, never set: naming channel 1 names every lens through channel 1. No part of the lens' identity, which is its container and its selection. `nameAnchors` says where it comes from"
+    windows: tuple[ChartLayerPointsLensWindows, ...]
+    'The windows, in the one normalized spelling: container axis order, floats, an open side as null. Empty for the whole lens'
+    model_config = ConfigDict(frozen=True)
+
+class ChartLayerPointsTable(HasParquestStoreTrait, TableDatasetLensTrait, BaseModel):
+    """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
+    __identifier__: ClassVar[Literal['@mikro/tabledataset']] = '@mikro/tabledataset'
+    typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
+    id: ID
+    name: str
+    model_config = ConfigDict(frozen=True)
+
+class ChartLayerDistributionLensWindows(BaseModel):
+    """A value window along a named axis of a container that is not an array: the positions kept, by value, with an open side as null"""
+    typename: Literal['Window'] = Field(alias='__typename', default='Window', exclude=True)
+    axis: str
+    "The name of the axis the window constrains, e.g. 't' for a table's time column"
+    min: float | None = Field(default=None)
+    'The smallest position kept, inclusive, or None for no lower bound'
+    max: float | None = Field(default=None)
+    'The largest position kept, inclusive, or None for no upper bound'
+    model_config = ConfigDict(frozen=True)
+
+class ChartLayerDistributionLens(BaseModel):
+    """A selection over a table dataset by value windows on its columns: the rows kept. A window on a coordinate column bounds a region of space; one on a numeric measurement column is a gate (`area >= 50`), which bounds nothing in space. Lives in the table's own space"""
+    __identifier__: ClassVar[Literal['@mikro/tablelens']] = '@mikro/tablelens'
+    typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
+    id: ID
+    name: str | None = Field(default=None)
+    "What this selection is called, or null when nothing names it: the labels at the positions it pins (a person's `setPositionLabel` over the channel label ingest recorded) and the name of the annotation it was cut to, e.g. 'GFP · nucleus 3'. Derived and kept by the server, never set: naming channel 1 names every lens through channel 1. No part of the lens' identity, which is its container and its selection. `nameAnchors` says where it comes from"
+    windows: tuple[ChartLayerDistributionLensWindows, ...]
+    'The windows, in the one normalized spelling: container axis order, floats, an open side as null. Empty for the whole lens'
+    model_config = ConfigDict(frozen=True)
+
+class ChartLayerDistributionTable(HasParquestStoreTrait, TableDatasetLensTrait, BaseModel):
     """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
     __identifier__: ClassVar[Literal['@mikro/tabledataset']] = '@mikro/tabledataset'
     typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
@@ -3408,7 +3533,7 @@ class ChartLayerAnnotationCollection(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 class ChartLayerBase(BaseModel):
-    """A layer drawn in a chart. It carries view state only. Where its data sits along the chart's axis -- `pathToWorld`, `asAffine`, `alongAxis`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one registration moves every layer that looks through it. The concrete kind says what the layer reads: TraceChartLayer an array, SeriesChartLayer a table, AnnotationChartLayer drawn marks"""
+    """A layer drawn in a chart. It carries view state only. A placed layer's position along the chart's axis -- `pathToWorld`, `asAffine`, `alongAxis`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one registration moves every layer that looks through it. A value layer is placed the same way -- its rows into the VALUES chart's world, which says they are the same rows as the others' -- and drawn at the values of the columns it names. The concrete kind says what the layer reads: TraceChartLayer an array, SeriesChartLayer a table's value column, AnnotationChartLayer drawn marks -- along an AXIS chart's axis -- and PointsChartLayer and DistributionChartLayer a table's columns, in a VALUES chart"""
     id: ID
     kind: ChartLayerKind
     name: str | None = Field(default=None)
@@ -3430,7 +3555,7 @@ class ChartLayerBase(BaseModel):
 class ChartLayerCatch(ChartLayerBase):
     """Catch all class for ChartLayerBase"""
     typename: str = Field(alias='__typename', exclude=True)
-    "A layer drawn in a chart. It carries view state only. Where its data sits along the chart's axis -- `pathToWorld`, `asAffine`, `alongAxis`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one registration moves every layer that looks through it. The concrete kind says what the layer reads: TraceChartLayer an array, SeriesChartLayer a table, AnnotationChartLayer drawn marks"
+    "A layer drawn in a chart. It carries view state only. A placed layer's position along the chart's axis -- `pathToWorld`, `asAffine`, `alongAxis`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one registration moves every layer that looks through it. A value layer is placed the same way -- its rows into the VALUES chart's world, which says they are the same rows as the others' -- and drawn at the values of the columns it names. The concrete kind says what the layer reads: TraceChartLayer an array, SeriesChartLayer a table's value column, AnnotationChartLayer drawn marks -- along an AXIS chart's axis -- and PointsChartLayer and DistributionChartLayer a table's columns, in a VALUES chart"
     id: ID
     kind: ChartLayerKind
     name: str | None = Field(default=None)
@@ -3456,6 +3581,50 @@ class ChartLayerAnnotationChartLayer(ChartLayerBase, BaseModel):
     'The annotation lens this layer draws through'
     annotation_collection: ChartLayerAnnotationCollection = Field(alias='annotationCollection')
     "The annotation collection whose marks this layer draws: the container of the lens. Its own coordinate system is the layer's space"
+
+class ChartLayerDistributionChartLayer(ChartLayerBase, BaseModel):
+    """A layer that summarises the values of one column of a table lens' rows: a HISTOGRAM (`bins`) or a BOX, over every row or once per value of `groupColumn` -- a condition, a cluster, a long-form channel. The rows are placed in the VALUES chart's world; their values are the horizontal axis. Example: the `area` of nuclei, one histogram per `condition`"""
+    typename: Literal['DistributionChartLayer'] = Field(alias='__typename', default='DistributionChartLayer', exclude=True)
+    distribution_lens: ChartLayerDistributionLens = Field(alias='distributionLens')
+    'The table lens whose rows are summarised: the rows its selection keeps'
+    distribution_table: ChartLayerDistributionTable = Field(alias='distributionTable')
+    'The table dataset whose columns are read: the container of the lens'
+    distribution_value_column: str = Field(alias='distributionValueColumn')
+    "The numeric column whose values are summarised: the chart's horizontal axis"
+    group_column: str | None = Field(default=None, alias='groupColumn')
+    'The column whose values split the rows into one summary each: a text or boolean attribute, a label, a group id, or a long-form CHANNEL coordinate. Null for one summary over every row'
+    bins: int | None = Field(default=None)
+    'How many bins a HISTOGRAM is cut into. Null lets the viewer choose'
+    distribution_value_unit: Unit | None = Field(default=None, alias='distributionValueUnit')
+    "The unit of `valueColumn`, as the table declares it: the chart's horizontal axis. Null when the column declares none"
+    distribution_mark: ChartMark = Field(alias='distributionMark')
+    'How the values are summarised: a HISTOGRAM or a BOX'
+
+class ChartLayerPointsChartLayer(ChartLayerBase, BaseModel):
+    """A layer that draws a table lens' rows at the values of its columns: each row a point at (`xColumn`, `yColumn`), and at `zColumn` too for depth -- a scatter. The rows are placed in the VALUES chart's world -- whose rows -- and drawn at their values: the position is the measurement, read from the row. A row with a null in a named column is not drawn. MARKERS, or a LINE through the rows sorted along x. Example: nuclei at (`area`, `volume`), through a lens that keeps `area >= 50`"""
+    typename: Literal['PointsChartLayer'] = Field(alias='__typename', default='PointsChartLayer', exclude=True)
+    points_lens: ChartLayerPointsLens = Field(alias='pointsLens')
+    'The table lens whose rows are drawn: the rows its selection keeps'
+    points_table: ChartLayerPointsTable = Field(alias='pointsTable')
+    'The table dataset whose columns are read: the container of the lens'
+    x_column: str = Field(alias='xColumn')
+    "The numeric column whose value is a row's horizontal position"
+    y_column: str = Field(alias='yColumn')
+    "The numeric column whose value is a row's vertical position"
+    z_column: str | None = Field(default=None, alias='zColumn')
+    "The numeric column whose value is a row's depth, for a three-dimensional scatter. Null for a flat one"
+    x_unit: Unit | None = Field(default=None, alias='xUnit')
+    "The unit of `xColumn`, as the table declares it: the chart's horizontal axis. Null when the column declares none"
+    y_unit: Unit | None = Field(default=None, alias='yUnit')
+    "The unit of `yColumn`, as the table declares it: the chart's vertical axis. Null when the column declares none"
+    z_unit: Unit | None = Field(default=None, alias='zUnit')
+    'The unit of `zColumn`, as the table declares it. Null for a flat scatter or a column that declares none'
+    points_mark: ChartMark = Field(alias='pointsMark')
+    'How the rows are drawn: MARKERS, or a LINE through them sorted along x'
+    points_line_width: float | None = Field(default=None, alias='pointsLineWidth')
+    'Line width in screen pixels. Null lets the viewer choose'
+    points_marker_size: float | None = Field(default=None, alias='pointsMarkerSize')
+    'Marker size in screen pixels. Null lets the viewer choose'
 
 class ChartLayerSeriesChartLayer(ChartLayerBase, BaseModel):
     """A layer that reads one numeric column of a table against a coordinate column. The value column is the layer's; the coordinate column is the graph's -- whichever of the table's coordinate columns its registration lays along the chart's axis"""
@@ -3500,11 +3669,13 @@ class Axis(MikroFetchable, BaseModel):
     type: AxisType
     unit: Unit | None = Field(default=None)
     long_name: str | None = Field(default=None, alias='longName')
+    metric_group: str | None = Field(default=None, alias='metricGroup')
+    "The metric group this axis is in: the axes that share one distance with it. What it declared, else 'space' for a SPACE axis, else null -- an axis that shares a distance with nothing. A rotation, a distance and a scene's render axes need one group; a per-axis scale, an offset and an affine map do not"
     model_config = ConfigDict(frozen=True)
 
     class Meta:
         """Meta class for Axis"""
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}'
         name = 'Axis'
         type = 'Axis'
 
@@ -3912,7 +4083,7 @@ class Folder(MikroFetchable, BaseModel):
         type = 'Folder'
 
 class LayerScene(SceneTrait, BaseModel):
-    """A composition of layers over a shared world coordinate system. The scene carries no units of its own -- they are per-axis, on the axes of its world system"""
+    """A composition that shows **where**: every screen axis is an axis of its world -- a place, with a time or space axis -- and each layer is placed there by the graph's edges, so refining a registration moves what is drawn. Values are drawn as appearance: an image's intensity as colour, a table's `area` as the colour or size of its points. The counterpart of a chart, which shows *how much*: there values are drawn as position. The same table lens may be drawn both ways -- nuclei at their `(y, x)` on the image here, at `(area, volume)` in a VALUES chart. If rotating the view makes sense, it is a scene. The scene carries no units of its own -- they are per-axis, on the axes of its world system"""
     __identifier__: ClassVar[Literal['@mikro/scene']] = '@mikro/scene'
     typename: Literal['Scene'] = Field(alias='__typename', default='Scene', exclude=True)
     id: ID
@@ -4208,7 +4379,7 @@ class LayerTableLensWindows(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 class LayerTableLens(BaseModel):
-    """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    """A selection over a table dataset by value windows on its columns: the rows kept. A window on a coordinate column bounds a region of space; one on a numeric measurement column is a gate (`area >= 50`), which bounds nothing in space. Lives in the table's own space"""
     __identifier__: ClassVar[Literal['@mikro/tablelens']] = '@mikro/tablelens'
     typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
     id: ID
@@ -4314,7 +4485,7 @@ class LayerTableLensWindows(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 class LayerTableLens(BaseModel):
-    """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    """A selection over a table dataset by value windows on its columns: the rows kept. A window on a coordinate column bounds a region of space; one on a numeric measurement column is a gate (`area >= 50`), which bounds nothing in space. Lives in the table's own space"""
     __identifier__: ClassVar[Literal['@mikro/tablelens']] = '@mikro/tablelens'
     typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
     id: ID
@@ -5016,7 +5187,7 @@ class CoordinateSystem(CoordinateSystemTrait, MikroFetchable, BaseModel):
 
     class Meta:
         """Meta class for CoordinateSystem"""
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}'
         name = 'CoordinateSystem'
         type = 'CoordinateSystem'
 
@@ -5029,7 +5200,7 @@ class TableLensTableDataset(HasParquestStoreTrait, TableDatasetLensTrait, BaseMo
     model_config = ConfigDict(frozen=True)
 
 class TableLens(MikroFetchable, BaseModel):
-    """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    """A selection over a table dataset by value windows on its columns: the rows kept. A window on a coordinate column bounds a region of space; one on a numeric measurement column is a gate (`area >= 50`), which bounds nothing in space. Lives in the table's own space"""
     __identifier__: ClassVar[Literal['@mikro/tablelens']] = '@mikro/tablelens'
     typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
     id: ID
@@ -5377,7 +5548,7 @@ class Annotation(MikroFetchable, BaseModel):
 
     class Meta:
         """Meta class for Annotation"""
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}'
         name = 'Annotation'
         type = 'Annotation'
 
@@ -5415,17 +5586,25 @@ class ArrayDataset(DatasetTrait, MikroFetchable, BaseModel):
 
     class Meta:
         """Meta class for ArrayDataset"""
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ArrayDataset on ArrayDataset {\n  id\n  name\n  axisNames\n  shape\n  multiscale\n  acquisitionStart\n  acquisitionEnd\n  intrinsicSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  dataArrays {\n    id\n    level\n    shape\n    chunkShape\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  __typename\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ArrayDataset on ArrayDataset {\n  id\n  name\n  axisNames\n  shape\n  multiscale\n  acquisitionStart\n  acquisitionEnd\n  intrinsicSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  dataArrays {\n    id\n    level\n    shape\n    chunkShape\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  __typename\n}'
         name = 'ArrayDataset'
         type = 'ArrayDataset'
 
 class ChartLayersBase(BaseModel):
-    """A layer drawn in a chart. It carries view state only. Where its data sits along the chart's axis -- `pathToWorld`, `asAffine`, `alongAxis`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one registration moves every layer that looks through it. The concrete kind says what the layer reads: TraceChartLayer an array, SeriesChartLayer a table, AnnotationChartLayer drawn marks"""
+    """A layer drawn in a chart. It carries view state only. A placed layer's position along the chart's axis -- `pathToWorld`, `asAffine`, `alongAxis`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one registration moves every layer that looks through it. A value layer is placed the same way -- its rows into the VALUES chart's world, which says they are the same rows as the others' -- and drawn at the values of the columns it names. The concrete kind says what the layer reads: TraceChartLayer an array, SeriesChartLayer a table's value column, AnnotationChartLayer drawn marks -- along an AXIS chart's axis -- and PointsChartLayer and DistributionChartLayer a table's columns, in a VALUES chart"""
     model_config = ConfigDict(frozen=True)
 
 class ChartLayersBaseAnnotationChartLayer(ChartLayerAnnotationChartLayer, ChartLayersBase, BaseModel):
     """A layer that draws an annotation collection's marks in a chart. One layer per collection: per-mark styling lives on the annotations themselves"""
     typename: Literal['AnnotationChartLayer'] = Field(alias='__typename', default='AnnotationChartLayer', exclude=True)
+
+class ChartLayersBaseDistributionChartLayer(ChartLayerDistributionChartLayer, ChartLayersBase, BaseModel):
+    """A layer that summarises the values of one column of a table lens' rows: a HISTOGRAM (`bins`) or a BOX, over every row or once per value of `groupColumn` -- a condition, a cluster, a long-form channel. The rows are placed in the VALUES chart's world; their values are the horizontal axis. Example: the `area` of nuclei, one histogram per `condition`"""
+    typename: Literal['DistributionChartLayer'] = Field(alias='__typename', default='DistributionChartLayer', exclude=True)
+
+class ChartLayersBasePointsChartLayer(ChartLayerPointsChartLayer, ChartLayersBase, BaseModel):
+    """A layer that draws a table lens' rows at the values of its columns: each row a point at (`xColumn`, `yColumn`), and at `zColumn` too for depth -- a scatter. The rows are placed in the VALUES chart's world -- whose rows -- and drawn at their values: the position is the measurement, read from the row. A row with a null in a named column is not drawn. MARKERS, or a LINE through the rows sorted along x. Example: nuclei at (`area`, `volume`), through a lens that keeps `area >= 50`"""
+    typename: Literal['PointsChartLayer'] = Field(alias='__typename', default='PointsChartLayer', exclude=True)
 
 class ChartLayersBaseSeriesChartLayer(ChartLayerSeriesChartLayer, ChartLayersBase, BaseModel):
     """A layer that reads one numeric column of a table against a coordinate column. The value column is the layer's; the coordinate column is the graph's -- whichever of the table's coordinate columns its registration lays along the chart's axis"""
@@ -5440,23 +5619,25 @@ class ChartLayersBaseCatchAll(ChartLayersBase, BaseModel):
     typename: str = Field(alias='__typename', exclude=True)
 
 class Chart(ChartTrait, MikroFetchable, BaseModel):
-    """A composition of data laid out along one metric axis, with values read off it. The second kind of composition beside a scene: a scene is a place, a chart is an axis. It names data by id and owns none of it, and it carries no unit of its own -- the unit is its world axis's"""
+    """A composition that shows **how much**: values drawn as position. The counterpart of a scene, which shows **where**: in a scene every screen axis is a world axis, data is placed by the graph's edges and values are drawn as appearance (a colour, a size); in a chart at most one axis is drawn from the world and every other position is a value. Every chart has a world -- the domain its layers' rows live in -- and every layer is placed into it. An **AXIS** chart draws its world, one metric axis with a unit, and lays TRACE, SERIES and ANNOTATION layers along it: a timelapse's intensity against `t`. A **VALUES** chart does not draw its world, which says whose rows -- a table's space, usually its INDEX axis -- and its POINTS and DISTRIBUTION layers draw those rows at the values of the columns they name: nuclei at `area` against `volume`, a histogram of `area` per `condition`. Two layers in one VALUES world are about the same rows (a table and the PCA derived from it). The same table lens may be drawn as a scene, at its `(y, x)` coloured by `area`, and as a VALUES chart at `(area, volume)`. A chart names data through lenses and owns none of it; if rotating its view would mix units, it is a chart, and if it would not, a scene"""
     __identifier__: ClassVar[Literal['@mikro/chart']] = '@mikro/chart'
     typename: Literal['Chart'] = Field(alias='__typename', default='Chart', exclude=True)
     id: ID
     name: str
     description: str | None = Field(default=None)
-    axis: Axis
-    "The one axis this chart is laid out along: its name, its metric type and its unit. The world's only axis, repeated here so a client drawing the chart need not unwrap a list of one"
+    kind: ChartKind
+    'What the world is to this chart: AXIS, the one axis it draws and lays its layers along; VALUES, whose rows it draws at the values of their columns'
+    axis: Axis | None = Field(default=None)
+    "The one axis an AXIS chart is laid out along: its name, its metric type and its unit -- the world's only axis, repeated so a client need not unwrap a list of one. Null for a VALUES chart, whose drawn axes are the columns its layers name"
     world_coordinate_system: CoordinateSystem = Field(alias='worldCoordinateSystem')
-    'The space this chart is laid out along. Never owned by the chart: several charts can share it, it outlives each of them, and deleting a chart never deletes it. Ask it for `placedSystems` to learn what could be drawn here'
-    layers: tuple[Annotated[ChartLayersBaseAnnotationChartLayer | ChartLayersBaseSeriesChartLayer | ChartLayersBaseTraceChartLayer, Field(discriminator='typename')] | ChartLayersBaseCatchAll, ...]
+    "The domain this chart's layers live in: an AXIS chart's one metric axis, which it draws; a VALUES chart's space whose rows it draws -- a table's -- which it does not. Never owned by the chart: several charts can share it, it outlives each of them, and deleting a chart never deletes it. Ask it for `placedSystems` to learn what could be drawn here"
+    layers: tuple[Annotated[ChartLayersBaseAnnotationChartLayer | ChartLayersBaseDistributionChartLayer | ChartLayersBasePointsChartLayer | ChartLayersBaseSeriesChartLayer | ChartLayersBaseTraceChartLayer, Field(discriminator='typename')] | ChartLayersBaseCatchAll, ...]
     'The layers drawn in this chart, back to front (a heterogeneous list of layer kinds)'
     model_config = ConfigDict(frozen=True)
 
     class Meta:
         """Meta class for Chart"""
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    fields {\n      outputAxis\n      inner\n      base\n      component\n      scale\n      offset\n      inputAxis\n      innerScale\n      innerOffset\n      dataset {\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Chart on Chart {\n  id\n  name\n  description\n  axis {\n    ...Axis\n    __typename\n  }\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  layers {\n    ...ChartLayer\n    __typename\n  }\n  __typename\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    fields {\n      outputAxis\n      inner\n      base\n      component\n      scale\n      offset\n      inputAxis\n      innerScale\n      innerOffset\n      dataset {\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on PointsChartLayer {\n    pointsLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    pointsTable: tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    xUnit\n    yUnit\n    zUnit\n    pointsMark: mark\n    pointsLineWidth: lineWidth\n    pointsMarkerSize: markerSize\n  }\n  ... on DistributionChartLayer {\n    distributionLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    distributionTable: tableDataset {\n      id\n      name\n    }\n    distributionValueColumn: valueColumn\n    groupColumn\n    bins\n    distributionValueUnit: valueUnit\n    distributionMark: mark\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Chart on Chart {\n  id\n  name\n  description\n  kind\n  axis {\n    ...Axis\n    __typename\n  }\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  layers {\n    ...ChartLayer\n    __typename\n  }\n  __typename\n}'
         name = 'Chart'
         type = 'Chart'
 
@@ -5518,12 +5699,12 @@ class ArrayLens(Lensable, MikroFetchable, BaseModel):
 
     class Meta:
         """Meta class for ArrayLens"""
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Slice on Slice {\n  axis\n  start\n  stop\n  step\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ArrayLens on ArrayLens {\n  id\n  name\n  label\n  kind\n  dataset {\n    id\n    axisNames\n    dataArrays {\n      id\n      level\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  shape\n  axisNames\n  voxelSize {\n    axis\n    size\n    unit\n    type\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  slices {\n    ...Slice\n    __typename\n  }\n  __typename\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Slice on Slice {\n  axis\n  start\n  stop\n  step\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ArrayLens on ArrayLens {\n  id\n  name\n  label\n  kind\n  dataset {\n    id\n    axisNames\n    dataArrays {\n      id\n      level\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  shape\n  axisNames\n  voxelSize {\n    axis\n    size\n    unit\n    type\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  slices {\n    ...Slice\n    __typename\n  }\n  __typename\n}'
         name = 'ArrayLens'
         type = 'ArrayLens'
 
 class Scene(SceneTrait, MikroFetchable, BaseModel):
-    """A composition of layers over a shared world coordinate system. The scene carries no units of its own -- they are per-axis, on the axes of its world system"""
+    """A composition that shows **where**: every screen axis is an axis of its world -- a place, with a time or space axis -- and each layer is placed there by the graph's edges, so refining a registration moves what is drawn. Values are drawn as appearance: an image's intensity as colour, a table's `area` as the colour or size of its points. The counterpart of a chart, which shows *how much*: there values are drawn as position. The same table lens may be drawn both ways -- nuclei at their `(y, x)` on the image here, at `(area, volume)` in a VALUES chart. If rotating the view makes sense, it is a scene. The scene carries no units of its own -- they are per-axis, on the axes of its world system"""
     __identifier__: ClassVar[Literal['@mikro/scene']] = '@mikro/scene'
     typename: Literal['Scene'] = Field(alias='__typename', default='Scene', exclude=True)
     name: str
@@ -5538,7 +5719,7 @@ class Scene(SceneTrait, MikroFetchable, BaseModel):
 
     class Meta:
         """Meta class for Scene"""
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}'
         name = 'Scene'
         type = 'Scene'
 
@@ -5671,7 +5852,7 @@ class SparseDataset(SparseDatasetTrait, MikroFetchable, BaseModel):
 
     class Meta:
         """Meta class for SparseDataset"""
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment SparseStore on SparseStore {\n  id\n  key\n  bucket\n  path\n  spec\n  shape\n  layouts {\n    path\n    encoding\n    encodingVersion\n    indexedAxis\n    indexOrder\n    nnz\n    dtype\n    chunks\n    rangeReadable\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment SparseArray on SparseArray {\n  id\n  indexedAxis\n  indexedAxisName\n  path\n  store {\n    ...SparseStore\n    __typename\n  }\n  __typename\n}\n\nfragment SparseAxisReference on SparseAxisReference {\n  id\n  axis\n  references {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment SparseDataset on SparseDataset {\n  id\n  name\n  description\n  axisNames\n  shape\n  indexableAxes\n  arrays {\n    ...SparseArray\n    __typename\n  }\n  axisReferences {\n    ...SparseAxisReference\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment SparseStore on SparseStore {\n  id\n  key\n  bucket\n  path\n  spec\n  shape\n  layouts {\n    path\n    encoding\n    encodingVersion\n    indexedAxis\n    indexOrder\n    nnz\n    dtype\n    chunks\n    rangeReadable\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment SparseArray on SparseArray {\n  id\n  indexedAxis\n  indexedAxisName\n  path\n  store {\n    ...SparseStore\n    __typename\n  }\n  __typename\n}\n\nfragment SparseAxisReference on SparseAxisReference {\n  id\n  axis\n  references {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment SparseDataset on SparseDataset {\n  id\n  name\n  description\n  axisNames\n  shape\n  indexableAxes\n  arrays {\n    ...SparseArray\n    __typename\n  }\n  axisReferences {\n    ...SparseAxisReference\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}'
         name = 'SparseDataset'
         type = 'SparseDataset'
 
@@ -5690,7 +5871,7 @@ class AnnotationCollection(MikroFetchable, BaseModel):
 
     class Meta:
         """Meta class for AnnotationCollection"""
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnnotationCollection on AnnotationCollection {\n  id\n  name\n  description\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  annotations {\n    ...Annotation\n    __typename\n  }\n  __typename\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnnotationCollection on AnnotationCollection {\n  id\n  name\n  description\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  annotations {\n    ...Annotation\n    __typename\n  }\n  __typename\n}'
         name = 'AnnotationCollection'
         type = 'AnnotationCollection'
 
@@ -5709,7 +5890,7 @@ class Animation(MikroFetchable, BaseModel):
 
     class Meta:
         """Meta class for Animation"""
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CameraState on CameraState {\n  position\n  crossSectionOrientation\n  crossSectionScale\n  projectionOrientation\n  projectionScale\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnimationWaypoint on AnimationWaypoint {\n  id\n  order\n  name\n  durationMs\n  easing\n  camera {\n    ...CameraState\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment Animation on Animation {\n  id\n  name\n  description\n  scene {\n    ...Scene\n    __typename\n  }\n  waypoints {\n    ...AnimationWaypoint\n    __typename\n  }\n  __typename\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CameraState on CameraState {\n  position\n  crossSectionOrientation\n  crossSectionScale\n  projectionOrientation\n  projectionScale\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnimationWaypoint on AnimationWaypoint {\n  id\n  order\n  name\n  durationMs\n  easing\n  camera {\n    ...CameraState\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment Animation on Animation {\n  id\n  name\n  description\n  scene {\n    ...Scene\n    __typename\n  }\n  waypoints {\n    ...AnimationWaypoint\n    __typename\n  }\n  __typename\n}'
         name = 'Animation'
         type = 'Animation'
 
@@ -5727,7 +5908,7 @@ class SceneSnapshot(MikroFetchable, BaseModel):
 
     class Meta:
         """Meta class for SceneSnapshot"""
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment MediaStore on MediaStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment SceneSnapshot on SceneSnapshot {\n  id\n  name\n  scene {\n    ...Scene\n    __typename\n  }\n  store {\n    ...MediaStore\n    __typename\n  }\n  __typename\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment MediaStore on MediaStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment SceneSnapshot on SceneSnapshot {\n  id\n  name\n  scene {\n    ...Scene\n    __typename\n  }\n  store {\n    ...MediaStore\n    __typename\n  }\n  __typename\n}'
         name = 'SceneSnapshot'
         type = 'SceneSnapshot'
 
@@ -5808,7 +5989,7 @@ class Fixture(MikroFetchable, BaseModel):
 
     class Meta:
         """Meta class for Fixture"""
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment Window on Window {\n  axis\n  min\n  max\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FixtureLens on FixtureLens {\n  id\n  name\n  kind\n  fixture {\n    id\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nfragment KulisseStore on KulisseStore {\n  id\n  key\n  bucket\n  path\n  sizeBytes\n  ref\n  bounds\n  nodes\n  joints\n  warnings\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment Fixture on Fixture {\n  id\n  name\n  label\n  bounds\n  createdAt\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...KulisseStore\n    __typename\n  }\n  fullLens {\n    ...FixtureLens\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment Window on Window {\n  axis\n  min\n  max\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FixtureLens on FixtureLens {\n  id\n  name\n  kind\n  fixture {\n    id\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nfragment KulisseStore on KulisseStore {\n  id\n  key\n  bucket\n  path\n  sizeBytes\n  ref\n  bounds\n  nodes\n  joints\n  warnings\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment Fixture on Fixture {\n  id\n  name\n  label\n  bounds\n  createdAt\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...KulisseStore\n    __typename\n  }\n  fullLens {\n    ...FixtureLens\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}'
         name = 'Fixture'
         type = 'Fixture'
 
@@ -5889,7 +6070,7 @@ class MeshCollection(MeshCollectionTrait, MikroFetchable, BaseModel):
 
     class Meta:
         """Meta class for MeshCollection"""
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FabriksStore on FabriksStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment MeshCollection on MeshCollection {\n  id\n  name\n  label\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...FabriksStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FabriksStore on FabriksStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment MeshCollection on MeshCollection {\n  id\n  name\n  label\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...FabriksStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}'
         name = 'MeshCollection'
         type = 'MeshCollection'
 
@@ -5970,7 +6151,7 @@ class NetworkCollection(NetworkCollectionTrait, MikroFetchable, BaseModel):
 
     class Meta:
         """Meta class for NetworkCollection"""
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment KonnektionStore on KonnektionStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  attributes\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment NetworkCollection on NetworkCollection {\n  id\n  name\n  label\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...KonnektionStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment KonnektionStore on KonnektionStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  attributes\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment NetworkCollection on NetworkCollection {\n  id\n  name\n  label\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...KonnektionStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}'
         name = 'NetworkCollection'
         type = 'NetworkCollection'
 
@@ -6003,6 +6184,8 @@ class TableDatasetColumns(BaseModel):
     "The table whose rows this column's values identify -- a declared foreign key, e.g. an `instance_id` column referencing a table of tracks. The target is keyed by its single INDEX coordinate column; look a value up there. Null for a column that identifies nothing"
     node_references: TableDatasetColumnsNodeReferences | None = Field(default=None, alias='nodeReferences')
     "The network collection whose NODE ids this INDEX coordinate column's values are, scoped by the sibling INDEX axis keyed by the same collection's object ids. One such column makes the table per-node, two make it per-edge -- (source, target), in axis declaration order -- which is what a client resolving a per-node picker entry reads the key columns from. Null for every column of every other table"
+    varies_over: tuple[str, ...] | None = Field(default=None, alias='variesOver')
+    "For a long-form table, the CHANNEL coordinate columns this column's value changes along, as declared. In a `(cell, c, volume, mean)` table a per-cell `volume` varies over nothing and is read once per cell; a per-channel `mean` varies over `c`. Null when undeclared: read as varying over every CHANNEL coordinate, which counts nothing twice that should not be"
     model_config = ConfigDict(frozen=True)
 
 class TableDatasetDerivedFromBase(BaseModel):
@@ -6058,6 +6241,26 @@ class TableDatasetDerivedFromBaseCatchAll(TableDatasetDerivedFromBase, BaseModel
     """Catch all class for TableDatasetDerivedFromBase"""
     typename: str = Field(alias='__typename', exclude=True)
 
+class TableDatasetVisualizationsBase(BaseModel):
+    """A composition: something that draws data through lenses, names it by id and owns none of it. A **scene** shows *where* -- every screen axis is an axis of its world, data is placed there by the graph's edges, and values are drawn as appearance (colour, size). A **chart** shows *how much* -- values are drawn as position, and at most one axis is drawn from its world: an AXIS chart draws its one axis (intensity against `t`), a VALUES chart draws its rows at the values of their columns (nuclei at `area` against `volume`), its world saying whose rows. Only what every kind has is here -- the layers differ per kind, so select them on the concrete type"""
+    id: ID
+    name: str
+    model_config = ConfigDict(frozen=True)
+
+class TableDatasetVisualizationsBaseChart(TableDatasetVisualizationsBase, ChartTrait, BaseModel):
+    """A composition that shows **how much**: values drawn as position. The counterpart of a scene, which shows **where**: in a scene every screen axis is a world axis, data is placed by the graph's edges and values are drawn as appearance (a colour, a size); in a chart at most one axis is drawn from the world and every other position is a value. Every chart has a world -- the domain its layers' rows live in -- and every layer is placed into it. An **AXIS** chart draws its world, one metric axis with a unit, and lays TRACE, SERIES and ANNOTATION layers along it: a timelapse's intensity against `t`. A **VALUES** chart does not draw its world, which says whose rows -- a table's space, usually its INDEX axis -- and its POINTS and DISTRIBUTION layers draw those rows at the values of the columns they name: nuclei at `area` against `volume`, a histogram of `area` per `condition`. Two layers in one VALUES world are about the same rows (a table and the PCA derived from it). The same table lens may be drawn as a scene, at its `(y, x)` coloured by `area`, and as a VALUES chart at `(area, volume)`. A chart names data through lenses and owns none of it; if rotating its view would mix units, it is a chart, and if it would not, a scene"""
+    __identifier__: ClassVar[Literal['@mikro/chart']] = '@mikro/chart'
+    typename: Literal['Chart'] = Field(alias='__typename', default='Chart', exclude=True)
+
+class TableDatasetVisualizationsBaseScene(TableDatasetVisualizationsBase, SceneTrait, BaseModel):
+    """A composition that shows **where**: every screen axis is an axis of its world -- a place, with a time or space axis -- and each layer is placed there by the graph's edges, so refining a registration moves what is drawn. Values are drawn as appearance: an image's intensity as colour, a table's `area` as the colour or size of its points. The counterpart of a chart, which shows *how much*: there values are drawn as position. The same table lens may be drawn both ways -- nuclei at their `(y, x)` on the image here, at `(area, volume)` in a VALUES chart. If rotating the view makes sense, it is a scene. The scene carries no units of its own -- they are per-axis, on the axes of its world system"""
+    __identifier__: ClassVar[Literal['@mikro/scene']] = '@mikro/scene'
+    typename: Literal['Scene'] = Field(alias='__typename', default='Scene', exclude=True)
+
+class TableDatasetVisualizationsBaseCatchAll(TableDatasetVisualizationsBase, BaseModel):
+    """Catch all class for TableDatasetVisualizationsBase"""
+    typename: str = Field(alias='__typename', exclude=True)
+
 class TableDataset(HasParquestStoreTrait, TableDatasetLensTrait, MikroFetchable, BaseModel):
     """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
     __identifier__: ClassVar[Literal['@mikro/tabledataset']] = '@mikro/tabledataset'
@@ -6077,11 +6280,13 @@ class TableDataset(HasParquestStoreTrait, TableDatasetLensTrait, MikroFetchable,
     "The table's axis names, in order. Derived from the coordinate columns"
     provenance_metadata: Any = Field(alias='provenanceMetadata')
     'How this table was produced: the run, its parameters and its inputs'
+    visualizations: tuple[Annotated[TableDatasetVisualizationsBaseChart | TableDatasetVisualizationsBaseScene, Field(discriminator='typename')] | TableDatasetVisualizationsBaseCatchAll, ...]
+    'The compositions that draw this table: every scene and chart with a layer through any lens of it -- its whole lens or a window of it. Derived, never stored, kind by kind in registration order and oldest first within a kind'
     model_config = ConfigDict(frozen=True)
 
     class Meta:
         """Meta class for TableDataset"""
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    references {\n      id\n      __typename\n    }\n    nodeReferences {\n      id\n      __typename\n    }\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    references {\n      id\n      __typename\n    }\n    nodeReferences {\n      id\n      __typename\n    }\n    variesOver\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  visualizations {\n    __typename\n    id\n    name\n  }\n  __typename\n}'
         name = 'TableDataset'
         type = 'TableDataset'
 
@@ -6096,7 +6301,7 @@ class CreateAnimationMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateAnimation """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CameraState on CameraState {\n  position\n  crossSectionOrientation\n  crossSectionScale\n  projectionOrientation\n  projectionScale\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnimationWaypoint on AnimationWaypoint {\n  id\n  order\n  name\n  durationMs\n  easing\n  camera {\n    ...CameraState\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment Animation on Animation {\n  id\n  name\n  description\n  scene {\n    ...Scene\n    __typename\n  }\n  waypoints {\n    ...AnimationWaypoint\n    __typename\n  }\n  __typename\n}\n\nmutation CreateAnimation($input: CreateAnimationInput!) {\n  createAnimation(input: $input) {\n    ...Animation\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CameraState on CameraState {\n  position\n  crossSectionOrientation\n  crossSectionScale\n  projectionOrientation\n  projectionScale\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnimationWaypoint on AnimationWaypoint {\n  id\n  order\n  name\n  durationMs\n  easing\n  camera {\n    ...CameraState\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment Animation on Animation {\n  id\n  name\n  description\n  scene {\n    ...Scene\n    __typename\n  }\n  waypoints {\n    ...AnimationWaypoint\n    __typename\n  }\n  __typename\n}\n\nmutation CreateAnimation($input: CreateAnimationInput!) {\n  createAnimation(input: $input) {\n    ...Animation\n    __typename\n  }\n}'
 
 class UpdateAnimationMutation(BaseModel):
     """No documentation found for this operation."""
@@ -6109,7 +6314,7 @@ class UpdateAnimationMutation(BaseModel):
 
     class Meta:
         """Meta class for UpdateAnimation """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CameraState on CameraState {\n  position\n  crossSectionOrientation\n  crossSectionScale\n  projectionOrientation\n  projectionScale\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnimationWaypoint on AnimationWaypoint {\n  id\n  order\n  name\n  durationMs\n  easing\n  camera {\n    ...CameraState\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment Animation on Animation {\n  id\n  name\n  description\n  scene {\n    ...Scene\n    __typename\n  }\n  waypoints {\n    ...AnimationWaypoint\n    __typename\n  }\n  __typename\n}\n\nmutation UpdateAnimation($input: UpdateAnimationInput!) {\n  updateAnimation(input: $input) {\n    ...Animation\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CameraState on CameraState {\n  position\n  crossSectionOrientation\n  crossSectionScale\n  projectionOrientation\n  projectionScale\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnimationWaypoint on AnimationWaypoint {\n  id\n  order\n  name\n  durationMs\n  easing\n  camera {\n    ...CameraState\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment Animation on Animation {\n  id\n  name\n  description\n  scene {\n    ...Scene\n    __typename\n  }\n  waypoints {\n    ...AnimationWaypoint\n    __typename\n  }\n  __typename\n}\n\nmutation UpdateAnimation($input: UpdateAnimationInput!) {\n  updateAnimation(input: $input) {\n    ...Animation\n    __typename\n  }\n}'
 
 class DeleteAnimationMutation(BaseModel):
     """No documentation found for this operation."""
@@ -6135,7 +6340,7 @@ class CreateAnnotationMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateAnnotation """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nmutation CreateAnnotation($input: CreateAnnotationInput!) {\n  createAnnotation(input: $input) {\n    ...Annotation\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nmutation CreateAnnotation($input: CreateAnnotationInput!) {\n  createAnnotation(input: $input) {\n    ...Annotation\n    __typename\n  }\n}'
 
 class CreateAnnotationsMutation(BaseModel):
     """No documentation found for this operation."""
@@ -6148,7 +6353,7 @@ class CreateAnnotationsMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateAnnotations """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nmutation CreateAnnotations($input: CreateAnnotationsInput!) {\n  createAnnotations(input: $input) {\n    ...Annotation\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nmutation CreateAnnotations($input: CreateAnnotationsInput!) {\n  createAnnotations(input: $input) {\n    ...Annotation\n    __typename\n  }\n}'
 
 class UpdateAnnotationMutation(BaseModel):
     """No documentation found for this operation."""
@@ -6161,7 +6366,7 @@ class UpdateAnnotationMutation(BaseModel):
 
     class Meta:
         """Meta class for UpdateAnnotation """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nmutation UpdateAnnotation($input: UpdateAnnotationInput!) {\n  updateAnnotation(input: $input) {\n    ...Annotation\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nmutation UpdateAnnotation($input: UpdateAnnotationInput!) {\n  updateAnnotation(input: $input) {\n    ...Annotation\n    __typename\n  }\n}'
 
 class DeleteAnnotationMutation(BaseModel):
     """No documentation found for this operation."""
@@ -6187,7 +6392,7 @@ class CreateAnnotationCollectionMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateAnnotationCollection """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnnotationCollection on AnnotationCollection {\n  id\n  name\n  description\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  annotations {\n    ...Annotation\n    __typename\n  }\n  __typename\n}\n\nmutation CreateAnnotationCollection($input: CreateAnnotationCollectionInput!) {\n  createAnnotationCollection(input: $input) {\n    ...AnnotationCollection\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnnotationCollection on AnnotationCollection {\n  id\n  name\n  description\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  annotations {\n    ...Annotation\n    __typename\n  }\n  __typename\n}\n\nmutation CreateAnnotationCollection($input: CreateAnnotationCollectionInput!) {\n  createAnnotationCollection(input: $input) {\n    ...AnnotationCollection\n    __typename\n  }\n}'
 
 class DeleteAnnotationCollectionMutation(BaseModel):
     """No documentation found for this operation."""
@@ -6213,7 +6418,7 @@ class CreateArrayDatasetMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateArrayDataset """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ArrayDataset on ArrayDataset {\n  id\n  name\n  axisNames\n  shape\n  multiscale\n  acquisitionStart\n  acquisitionEnd\n  intrinsicSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  dataArrays {\n    id\n    level\n    shape\n    chunkShape\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nmutation CreateArrayDataset($input: CreateArrayDatasetInput!) {\n  createArrayDataset(input: $input) {\n    ...ArrayDataset\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ArrayDataset on ArrayDataset {\n  id\n  name\n  axisNames\n  shape\n  multiscale\n  acquisitionStart\n  acquisitionEnd\n  intrinsicSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  dataArrays {\n    id\n    level\n    shape\n    chunkShape\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nmutation CreateArrayDataset($input: CreateArrayDatasetInput!) {\n  createArrayDataset(input: $input) {\n    ...ArrayDataset\n    __typename\n  }\n}'
 
 class DeleteArrayDatasetMutation(BaseModel):
     """No documentation found for this operation."""
@@ -6234,7 +6439,7 @@ class CreateChartMutation(BaseModel):
  one mutation per kind, or all at once with `createChartFromCoordinateSystem`. None of
  them writes an edge: the data must already be registered into the chart's world."""
     create_chart: Chart = Field(alias='createChart')
-    'Create a chart: a composition of data laid out along one metric axis. Over an existing coordinate system with exactly one metric, unit-carrying axis, or over one created from a single axis'
+    "Create a chart over a world: values drawn as position. An AXIS chart draws its world's one metric, unit-carrying axis (an existing space, or one created from `axis`); a VALUES chart's world is a table's space -- whose rows -- and its layers draw those rows at the values of columns, for scatters and histograms"
 
     class Arguments(BaseModel):
         """Arguments for CreateChart """
@@ -6242,7 +6447,7 @@ class CreateChartMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateChart """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    fields {\n      outputAxis\n      inner\n      base\n      component\n      scale\n      offset\n      inputAxis\n      innerScale\n      innerOffset\n      dataset {\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Chart on Chart {\n  id\n  name\n  description\n  axis {\n    ...Axis\n    __typename\n  }\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  layers {\n    ...ChartLayer\n    __typename\n  }\n  __typename\n}\n\nmutation CreateChart($input: CreateChartInput!) {\n  createChart(input: $input) {\n    ...Chart\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    fields {\n      outputAxis\n      inner\n      base\n      component\n      scale\n      offset\n      inputAxis\n      innerScale\n      innerOffset\n      dataset {\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on PointsChartLayer {\n    pointsLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    pointsTable: tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    xUnit\n    yUnit\n    zUnit\n    pointsMark: mark\n    pointsLineWidth: lineWidth\n    pointsMarkerSize: markerSize\n  }\n  ... on DistributionChartLayer {\n    distributionLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    distributionTable: tableDataset {\n      id\n      name\n    }\n    distributionValueColumn: valueColumn\n    groupColumn\n    bins\n    distributionValueUnit: valueUnit\n    distributionMark: mark\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Chart on Chart {\n  id\n  name\n  description\n  kind\n  axis {\n    ...Axis\n    __typename\n  }\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  layers {\n    ...ChartLayer\n    __typename\n  }\n  __typename\n}\n\nmutation CreateChart($input: CreateChartInput!) {\n  createChart(input: $input) {\n    ...Chart\n    __typename\n  }\n}'
 
 class CreateChartFromCoordinateSystemMutation(BaseModel):
     """No documentation found for this operation."""
@@ -6255,7 +6460,7 @@ class CreateChartFromCoordinateSystemMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateChartFromCoordinateSystem """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    fields {\n      outputAxis\n      inner\n      base\n      component\n      scale\n      offset\n      inputAxis\n      innerScale\n      innerOffset\n      dataset {\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Chart on Chart {\n  id\n  name\n  description\n  axis {\n    ...Axis\n    __typename\n  }\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  layers {\n    ...ChartLayer\n    __typename\n  }\n  __typename\n}\n\nmutation CreateChartFromCoordinateSystem($input: CreateChartFromCoordinateSystemInput!) {\n  createChartFromCoordinateSystem(input: $input) {\n    ...Chart\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    fields {\n      outputAxis\n      inner\n      base\n      component\n      scale\n      offset\n      inputAxis\n      innerScale\n      innerOffset\n      dataset {\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on PointsChartLayer {\n    pointsLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    pointsTable: tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    xUnit\n    yUnit\n    zUnit\n    pointsMark: mark\n    pointsLineWidth: lineWidth\n    pointsMarkerSize: markerSize\n  }\n  ... on DistributionChartLayer {\n    distributionLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    distributionTable: tableDataset {\n      id\n      name\n    }\n    distributionValueColumn: valueColumn\n    groupColumn\n    bins\n    distributionValueUnit: valueUnit\n    distributionMark: mark\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Chart on Chart {\n  id\n  name\n  description\n  kind\n  axis {\n    ...Axis\n    __typename\n  }\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  layers {\n    ...ChartLayer\n    __typename\n  }\n  __typename\n}\n\nmutation CreateChartFromCoordinateSystem($input: CreateChartFromCoordinateSystemInput!) {\n  createChartFromCoordinateSystem(input: $input) {\n    ...Chart\n    __typename\n  }\n}'
 
 class UpdateChartMutation(BaseModel):
     """No documentation found for this operation."""
@@ -6268,7 +6473,7 @@ class UpdateChartMutation(BaseModel):
 
     class Meta:
         """Meta class for UpdateChart """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    fields {\n      outputAxis\n      inner\n      base\n      component\n      scale\n      offset\n      inputAxis\n      innerScale\n      innerOffset\n      dataset {\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Chart on Chart {\n  id\n  name\n  description\n  axis {\n    ...Axis\n    __typename\n  }\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  layers {\n    ...ChartLayer\n    __typename\n  }\n  __typename\n}\n\nmutation UpdateChart($input: UpdateChartInput!) {\n  updateChart(input: $input) {\n    ...Chart\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    fields {\n      outputAxis\n      inner\n      base\n      component\n      scale\n      offset\n      inputAxis\n      innerScale\n      innerOffset\n      dataset {\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on PointsChartLayer {\n    pointsLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    pointsTable: tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    xUnit\n    yUnit\n    zUnit\n    pointsMark: mark\n    pointsLineWidth: lineWidth\n    pointsMarkerSize: markerSize\n  }\n  ... on DistributionChartLayer {\n    distributionLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    distributionTable: tableDataset {\n      id\n      name\n    }\n    distributionValueColumn: valueColumn\n    groupColumn\n    bins\n    distributionValueUnit: valueUnit\n    distributionMark: mark\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Chart on Chart {\n  id\n  name\n  description\n  kind\n  axis {\n    ...Axis\n    __typename\n  }\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  layers {\n    ...ChartLayer\n    __typename\n  }\n  __typename\n}\n\nmutation UpdateChart($input: UpdateChartInput!) {\n  updateChart(input: $input) {\n    ...Chart\n    __typename\n  }\n}'
 
 class DeleteChartMutation(BaseModel):
     """No documentation found for this operation."""
@@ -6294,7 +6499,7 @@ class CreateTraceChartLayerMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateTraceChartLayer """
-        document = 'fragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    fields {\n      outputAxis\n      inner\n      base\n      component\n      scale\n      offset\n      inputAxis\n      innerScale\n      innerOffset\n      dataset {\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nmutation CreateTraceChartLayer($input: CreateTraceChartLayerInput!) {\n  createTraceChartLayer(input: $input) {\n    ...ChartLayer\n    __typename\n  }\n}'
+        document = 'fragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    fields {\n      outputAxis\n      inner\n      base\n      component\n      scale\n      offset\n      inputAxis\n      innerScale\n      innerOffset\n      dataset {\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on PointsChartLayer {\n    pointsLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    pointsTable: tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    xUnit\n    yUnit\n    zUnit\n    pointsMark: mark\n    pointsLineWidth: lineWidth\n    pointsMarkerSize: markerSize\n  }\n  ... on DistributionChartLayer {\n    distributionLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    distributionTable: tableDataset {\n      id\n      name\n    }\n    distributionValueColumn: valueColumn\n    groupColumn\n    bins\n    distributionValueUnit: valueUnit\n    distributionMark: mark\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nmutation CreateTraceChartLayer($input: CreateTraceChartLayerInput!) {\n  createTraceChartLayer(input: $input) {\n    ...ChartLayer\n    __typename\n  }\n}'
 
 class CreateSeriesChartLayerMutation(BaseModel):
     """No documentation found for this operation."""
@@ -6307,7 +6512,48 @@ class CreateSeriesChartLayerMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateSeriesChartLayer """
-        document = 'fragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    fields {\n      outputAxis\n      inner\n      base\n      component\n      scale\n      offset\n      inputAxis\n      innerScale\n      innerOffset\n      dataset {\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nmutation CreateSeriesChartLayer($input: CreateSeriesChartLayerInput!) {\n  createSeriesChartLayer(input: $input) {\n    ...ChartLayer\n    __typename\n  }\n}'
+        document = 'fragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    fields {\n      outputAxis\n      inner\n      base\n      component\n      scale\n      offset\n      inputAxis\n      innerScale\n      innerOffset\n      dataset {\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on PointsChartLayer {\n    pointsLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    pointsTable: tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    xUnit\n    yUnit\n    zUnit\n    pointsMark: mark\n    pointsLineWidth: lineWidth\n    pointsMarkerSize: markerSize\n  }\n  ... on DistributionChartLayer {\n    distributionLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    distributionTable: tableDataset {\n      id\n      name\n    }\n    distributionValueColumn: valueColumn\n    groupColumn\n    bins\n    distributionValueUnit: valueUnit\n    distributionMark: mark\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nmutation CreateSeriesChartLayer($input: CreateSeriesChartLayerInput!) {\n  createSeriesChartLayer(input: $input) {\n    ...ChartLayer\n    __typename\n  }\n}'
+
+class CreatePointsChartLayerMutation(BaseModel):
+    """ A chart of values (created with neither `coordinateSystem` nor `axis`): a table lens' rows at
+ the values of two or three columns -- a scatter."""
+    create_points_chart_layer: ChartLayerPointsChartLayer = Field(alias='createPointsChartLayer')
+    "Draw a table lens' rows as points in a VALUES chart: placed in its world (whose rows), each drawn at the values of two columns (a scatter), or three for depth"
+
+    class Arguments(BaseModel):
+        """Arguments for CreatePointsChartLayer """
+        input: CreatePointsChartLayerInput
+
+    class Meta:
+        """Meta class for CreatePointsChartLayer """
+        document = 'fragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    fields {\n      outputAxis\n      inner\n      base\n      component\n      scale\n      offset\n      inputAxis\n      innerScale\n      innerOffset\n      dataset {\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on PointsChartLayer {\n    pointsLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    pointsTable: tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    xUnit\n    yUnit\n    zUnit\n    pointsMark: mark\n    pointsLineWidth: lineWidth\n    pointsMarkerSize: markerSize\n  }\n  ... on DistributionChartLayer {\n    distributionLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    distributionTable: tableDataset {\n      id\n      name\n    }\n    distributionValueColumn: valueColumn\n    groupColumn\n    bins\n    distributionValueUnit: valueUnit\n    distributionMark: mark\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nmutation CreatePointsChartLayer($input: CreatePointsChartLayerInput!) {\n  createPointsChartLayer(input: $input) {\n    ...ChartLayer\n    __typename\n  }\n}'
+
+class CreateDistributionChartLayerMutation(BaseModel):
+    """ A chart of values: the values of one column summarised as a histogram or a box, once per
+ value of a grouping column."""
+    create_distribution_chart_layer: ChartLayerDistributionChartLayer = Field(alias='createDistributionChartLayer')
+    "Summarise the values of one column of a table lens' rows in a VALUES chart: a histogram or a box, over every row or once per value of a grouping column such as a condition"
+
+    class Arguments(BaseModel):
+        """Arguments for CreateDistributionChartLayer """
+        input: CreateDistributionChartLayerInput
+
+    class Meta:
+        """Meta class for CreateDistributionChartLayer """
+        document = 'fragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    fields {\n      outputAxis\n      inner\n      base\n      component\n      scale\n      offset\n      inputAxis\n      innerScale\n      innerOffset\n      dataset {\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on PointsChartLayer {\n    pointsLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    pointsTable: tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    xUnit\n    yUnit\n    zUnit\n    pointsMark: mark\n    pointsLineWidth: lineWidth\n    pointsMarkerSize: markerSize\n  }\n  ... on DistributionChartLayer {\n    distributionLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    distributionTable: tableDataset {\n      id\n      name\n    }\n    distributionValueColumn: valueColumn\n    groupColumn\n    bins\n    distributionValueUnit: valueUnit\n    distributionMark: mark\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nmutation CreateDistributionChartLayer($input: CreateDistributionChartLayerInput!) {\n  createDistributionChartLayer(input: $input) {\n    ...ChartLayer\n    __typename\n  }\n}'
+
+class CreateTablePlotMutation(BaseModel):
+    """ The "Create plot" button: a chart of values and its one layer, in one transaction."""
+    create_table_plot: Chart = Field(alias='createTablePlot')
+    "Plot a table's columns in one call: a VALUES chart over the table's space and one POINTS or DISTRIBUTION layer drawing its rows at the values of the named columns. One transaction"
+
+    class Arguments(BaseModel):
+        """Arguments for CreateTablePlot """
+        input: CreateTablePlotInput
+
+    class Meta:
+        """Meta class for CreateTablePlot """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    fields {\n      outputAxis\n      inner\n      base\n      component\n      scale\n      offset\n      inputAxis\n      innerScale\n      innerOffset\n      dataset {\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on PointsChartLayer {\n    pointsLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    pointsTable: tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    xUnit\n    yUnit\n    zUnit\n    pointsMark: mark\n    pointsLineWidth: lineWidth\n    pointsMarkerSize: markerSize\n  }\n  ... on DistributionChartLayer {\n    distributionLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    distributionTable: tableDataset {\n      id\n      name\n    }\n    distributionValueColumn: valueColumn\n    groupColumn\n    bins\n    distributionValueUnit: valueUnit\n    distributionMark: mark\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Chart on Chart {\n  id\n  name\n  description\n  kind\n  axis {\n    ...Axis\n    __typename\n  }\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  layers {\n    ...ChartLayer\n    __typename\n  }\n  __typename\n}\n\nmutation CreateTablePlot($input: CreateTablePlotInput!) {\n  createTablePlot(input: $input) {\n    ...Chart\n    __typename\n  }\n}'
 
 class CreateAnnotationChartLayerMutation(BaseModel):
     """ With no `annotationCollection` this makes the drawing surface: a collection whose space
@@ -6321,15 +6567,23 @@ class CreateAnnotationChartLayerMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateAnnotationChartLayer """
-        document = 'fragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    fields {\n      outputAxis\n      inner\n      base\n      component\n      scale\n      offset\n      inputAxis\n      innerScale\n      innerOffset\n      dataset {\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nmutation CreateAnnotationChartLayer($input: CreateAnnotationChartLayerInput!) {\n  createAnnotationChartLayer(input: $input) {\n    ...ChartLayer\n    __typename\n  }\n}'
+        document = 'fragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    fields {\n      outputAxis\n      inner\n      base\n      component\n      scale\n      offset\n      inputAxis\n      innerScale\n      innerOffset\n      dataset {\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on PointsChartLayer {\n    pointsLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    pointsTable: tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    xUnit\n    yUnit\n    zUnit\n    pointsMark: mark\n    pointsLineWidth: lineWidth\n    pointsMarkerSize: markerSize\n  }\n  ... on DistributionChartLayer {\n    distributionLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    distributionTable: tableDataset {\n      id\n      name\n    }\n    distributionValueColumn: valueColumn\n    groupColumn\n    bins\n    distributionValueUnit: valueUnit\n    distributionMark: mark\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nmutation CreateAnnotationChartLayer($input: CreateAnnotationChartLayerInput!) {\n  createAnnotationChartLayer(input: $input) {\n    ...ChartLayer\n    __typename\n  }\n}'
 
 class UpdateChartLayerMutationUpdateChartLayerBase(BaseModel):
-    """A layer drawn in a chart. It carries view state only. Where its data sits along the chart's axis -- `pathToWorld`, `asAffine`, `alongAxis`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one registration moves every layer that looks through it. The concrete kind says what the layer reads: TraceChartLayer an array, SeriesChartLayer a table, AnnotationChartLayer drawn marks"""
+    """A layer drawn in a chart. It carries view state only. A placed layer's position along the chart's axis -- `pathToWorld`, `asAffine`, `alongAxis`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one registration moves every layer that looks through it. A value layer is placed the same way -- its rows into the VALUES chart's world, which says they are the same rows as the others' -- and drawn at the values of the columns it names. The concrete kind says what the layer reads: TraceChartLayer an array, SeriesChartLayer a table's value column, AnnotationChartLayer drawn marks -- along an AXIS chart's axis -- and PointsChartLayer and DistributionChartLayer a table's columns, in a VALUES chart"""
     model_config = ConfigDict(frozen=True)
 
 class UpdateChartLayerMutationUpdateChartLayerBaseAnnotationChartLayer(ChartLayerAnnotationChartLayer, UpdateChartLayerMutationUpdateChartLayerBase, BaseModel):
     """A layer that draws an annotation collection's marks in a chart. One layer per collection: per-mark styling lives on the annotations themselves"""
     typename: Literal['AnnotationChartLayer'] = Field(alias='__typename', default='AnnotationChartLayer', exclude=True)
+
+class UpdateChartLayerMutationUpdateChartLayerBaseDistributionChartLayer(ChartLayerDistributionChartLayer, UpdateChartLayerMutationUpdateChartLayerBase, BaseModel):
+    """A layer that summarises the values of one column of a table lens' rows: a HISTOGRAM (`bins`) or a BOX, over every row or once per value of `groupColumn` -- a condition, a cluster, a long-form channel. The rows are placed in the VALUES chart's world; their values are the horizontal axis. Example: the `area` of nuclei, one histogram per `condition`"""
+    typename: Literal['DistributionChartLayer'] = Field(alias='__typename', default='DistributionChartLayer', exclude=True)
+
+class UpdateChartLayerMutationUpdateChartLayerBasePointsChartLayer(ChartLayerPointsChartLayer, UpdateChartLayerMutationUpdateChartLayerBase, BaseModel):
+    """A layer that draws a table lens' rows at the values of its columns: each row a point at (`xColumn`, `yColumn`), and at `zColumn` too for depth -- a scatter. The rows are placed in the VALUES chart's world -- whose rows -- and drawn at their values: the position is the measurement, read from the row. A row with a null in a named column is not drawn. MARKERS, or a LINE through the rows sorted along x. Example: nuclei at (`area`, `volume`), through a lens that keeps `area >= 50`"""
+    typename: Literal['PointsChartLayer'] = Field(alias='__typename', default='PointsChartLayer', exclude=True)
 
 class UpdateChartLayerMutationUpdateChartLayerBaseSeriesChartLayer(ChartLayerSeriesChartLayer, UpdateChartLayerMutationUpdateChartLayerBase, BaseModel):
     """A layer that reads one numeric column of a table against a coordinate column. The value column is the layer's; the coordinate column is the graph's -- whichever of the table's coordinate columns its registration lays along the chart's axis"""
@@ -6345,7 +6599,7 @@ class UpdateChartLayerMutationUpdateChartLayerBaseCatchAll(UpdateChartLayerMutat
 
 class UpdateChartLayerMutation(BaseModel):
     """ View state only: a layer's kind and its source are fixed at creation."""
-    update_chart_layer: Annotated[UpdateChartLayerMutationUpdateChartLayerBaseAnnotationChartLayer | UpdateChartLayerMutationUpdateChartLayerBaseSeriesChartLayer | UpdateChartLayerMutationUpdateChartLayerBaseTraceChartLayer, Field(discriminator='typename')] | UpdateChartLayerMutationUpdateChartLayerBaseCatchAll = Field(alias='updateChartLayer')
+    update_chart_layer: Annotated[UpdateChartLayerMutationUpdateChartLayerBaseAnnotationChartLayer | UpdateChartLayerMutationUpdateChartLayerBaseDistributionChartLayer | UpdateChartLayerMutationUpdateChartLayerBasePointsChartLayer | UpdateChartLayerMutationUpdateChartLayerBaseSeriesChartLayer | UpdateChartLayerMutationUpdateChartLayerBaseTraceChartLayer, Field(discriminator='typename')] | UpdateChartLayerMutationUpdateChartLayerBaseCatchAll = Field(alias='updateChartLayer')
     'Restyle a chart layer. View state only'
 
     class Arguments(BaseModel):
@@ -6354,7 +6608,7 @@ class UpdateChartLayerMutation(BaseModel):
 
     class Meta:
         """Meta class for UpdateChartLayer """
-        document = 'fragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    fields {\n      outputAxis\n      inner\n      base\n      component\n      scale\n      offset\n      inputAxis\n      innerScale\n      innerOffset\n      dataset {\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nmutation UpdateChartLayer($input: UpdateChartLayerInput!) {\n  updateChartLayer(input: $input) {\n    ...ChartLayer\n    __typename\n  }\n}'
+        document = 'fragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    fields {\n      outputAxis\n      inner\n      base\n      component\n      scale\n      offset\n      inputAxis\n      innerScale\n      innerOffset\n      dataset {\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on PointsChartLayer {\n    pointsLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    pointsTable: tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    xUnit\n    yUnit\n    zUnit\n    pointsMark: mark\n    pointsLineWidth: lineWidth\n    pointsMarkerSize: markerSize\n  }\n  ... on DistributionChartLayer {\n    distributionLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    distributionTable: tableDataset {\n      id\n      name\n    }\n    distributionValueColumn: valueColumn\n    groupColumn\n    bins\n    distributionValueUnit: valueUnit\n    distributionMark: mark\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nmutation UpdateChartLayer($input: UpdateChartLayerInput!) {\n  updateChartLayer(input: $input) {\n    ...ChartLayer\n    __typename\n  }\n}'
 
 class DeleteChartLayerMutation(BaseModel):
     """No documentation found for this operation."""
@@ -6380,7 +6634,7 @@ class CreateCoordinateSystemMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateCoordinateSystem """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nmutation CreateCoordinateSystem($input: CreateCoordinateSystemInput!) {\n  createCoordinateSystem(input: $input) {\n    ...CoordinateSystem\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nmutation CreateCoordinateSystem($input: CreateCoordinateSystemInput!) {\n  createCoordinateSystem(input: $input) {\n    ...CoordinateSystem\n    __typename\n  }\n}'
 
 class UpdateCoordinateSystemMutation(BaseModel):
     """No documentation found for this operation."""
@@ -6393,7 +6647,7 @@ class UpdateCoordinateSystemMutation(BaseModel):
 
     class Meta:
         """Meta class for UpdateCoordinateSystem """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nmutation UpdateCoordinateSystem($input: UpdateCoordinateSystemInput!) {\n  updateCoordinateSystem(input: $input) {\n    ...CoordinateSystem\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nmutation UpdateCoordinateSystem($input: UpdateCoordinateSystemInput!) {\n  updateCoordinateSystem(input: $input) {\n    ...CoordinateSystem\n    __typename\n  }\n}'
 
 class DeleteCoordinateSystemMutation(BaseModel):
     """No documentation found for this operation."""
@@ -6875,7 +7129,7 @@ class CreateFixtureMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateFixture """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment Window on Window {\n  axis\n  min\n  max\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FixtureLens on FixtureLens {\n  id\n  name\n  kind\n  fixture {\n    id\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nfragment KulisseStore on KulisseStore {\n  id\n  key\n  bucket\n  path\n  sizeBytes\n  ref\n  bounds\n  nodes\n  joints\n  warnings\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment Fixture on Fixture {\n  id\n  name\n  label\n  bounds\n  createdAt\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...KulisseStore\n    __typename\n  }\n  fullLens {\n    ...FixtureLens\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nmutation CreateFixture($input: CreateFixtureInput!) {\n  createFixture(input: $input) {\n    ...Fixture\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment Window on Window {\n  axis\n  min\n  max\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FixtureLens on FixtureLens {\n  id\n  name\n  kind\n  fixture {\n    id\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nfragment KulisseStore on KulisseStore {\n  id\n  key\n  bucket\n  path\n  sizeBytes\n  ref\n  bounds\n  nodes\n  joints\n  warnings\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment Fixture on Fixture {\n  id\n  name\n  label\n  bounds\n  createdAt\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...KulisseStore\n    __typename\n  }\n  fullLens {\n    ...FixtureLens\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nmutation CreateFixture($input: CreateFixtureInput!) {\n  createFixture(input: $input) {\n    ...Fixture\n    __typename\n  }\n}'
 
 class DeleteFixtureMutation(BaseModel):
     """No documentation found for this operation."""
@@ -7194,12 +7448,12 @@ class CreateLensMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateLens """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Slice on Slice {\n  axis\n  start\n  stop\n  step\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ArrayLens on ArrayLens {\n  id\n  name\n  label\n  kind\n  dataset {\n    id\n    axisNames\n    dataArrays {\n      id\n      level\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  shape\n  axisNames\n  voxelSize {\n    axis\n    size\n    unit\n    type\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  slices {\n    ...Slice\n    __typename\n  }\n  __typename\n}\n\nmutation CreateLens($input: CreateLensInput!) {\n  createLens(input: $input) {\n    ...ArrayLens\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Slice on Slice {\n  axis\n  start\n  stop\n  step\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ArrayLens on ArrayLens {\n  id\n  name\n  label\n  kind\n  dataset {\n    id\n    axisNames\n    dataArrays {\n      id\n      level\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  shape\n  axisNames\n  voxelSize {\n    axis\n    size\n    unit\n    type\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  slices {\n    ...Slice\n    __typename\n  }\n  __typename\n}\n\nmutation CreateLens($input: CreateLensInput!) {\n  createLens(input: $input) {\n    ...ArrayLens\n    __typename\n  }\n}'
 
 class CreateTableLensMutation(BaseModel):
     """No documentation found for this operation."""
     create_table_lens: TableLens = Field(alias='createTableLens')
-    "The lens keeping these windows of a table dataset's coordinate columns: the one that exists, or a new one. It lives in the table's own space"
+    "The lens keeping these windows of a table dataset's columns -- a coordinate (a region of space) or a numeric measurement (a gate, `area >= 50`): the one that exists, or a new one. It lives in the table's own space"
 
     class Arguments(BaseModel):
         """Arguments for CreateTableLens """
@@ -7316,7 +7570,7 @@ class SetPositionLabelMutationSetPositionLabelBaseSparseLens(SetPositionLabelMut
     typename: Literal['SparseLens'] = Field(alias='__typename', default='SparseLens', exclude=True)
 
 class SetPositionLabelMutationSetPositionLabelBaseTableLens(SetPositionLabelMutationSetPositionLabelBase, BaseModel):
-    """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    """A selection over a table dataset by value windows on its columns: the rows kept. A window on a coordinate column bounds a region of space; one on a numeric measurement column is a gate (`area >= 50`), which bounds nothing in space. Lives in the table's own space"""
     __identifier__: ClassVar[Literal['@mikro/tablelens']] = '@mikro/tablelens'
     typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
 
@@ -7340,7 +7594,7 @@ class SetPositionLabelMutation(BaseModel):
         document = 'mutation SetPositionLabel($input: SetPositionLabelInput!) {\n  setPositionLabel(input: $input) {\n    id\n    name\n    label\n    kind\n    __typename\n  }\n}'
 
 class SetLensDefaultSceneMutationSetLensDefaultSceneDefaultScene(SceneTrait, BaseModel):
-    """A composition of layers over a shared world coordinate system. The scene carries no units of its own -- they are per-axis, on the axes of its world system"""
+    """A composition that shows **where**: every screen axis is an axis of its world -- a place, with a time or space axis -- and each layer is placed there by the graph's edges, so refining a registration moves what is drawn. Values are drawn as appearance: an image's intensity as colour, a table's `area` as the colour or size of its points. The counterpart of a chart, which shows *how much*: there values are drawn as position. The same table lens may be drawn both ways -- nuclei at their `(y, x)` on the image here, at `(area, volume)` in a VALUES chart. If rotating the view makes sense, it is a scene. The scene carries no units of its own -- they are per-axis, on the axes of its world system"""
     __identifier__: ClassVar[Literal['@mikro/scene']] = '@mikro/scene'
     typename: Literal['Scene'] = Field(alias='__typename', default='Scene', exclude=True)
     id: ID
@@ -7387,7 +7641,7 @@ class SetLensDefaultSceneMutationSetLensDefaultSceneBaseSparseLens(SetLensDefaul
     typename: Literal['SparseLens'] = Field(alias='__typename', default='SparseLens', exclude=True)
 
 class SetLensDefaultSceneMutationSetLensDefaultSceneBaseTableLens(SetLensDefaultSceneMutationSetLensDefaultSceneBase, BaseModel):
-    """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    """A selection over a table dataset by value windows on its columns: the rows kept. A window on a coordinate column bounds a region of space; one on a numeric measurement column is a gate (`area >= 50`), which bounds nothing in space. Lives in the table's own space"""
     __identifier__: ClassVar[Literal['@mikro/tablelens']] = '@mikro/tablelens'
     typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
 
@@ -7432,7 +7686,7 @@ class CreateMeshCollectionMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateMeshCollection """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FabriksStore on FabriksStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment MeshCollection on MeshCollection {\n  id\n  name\n  label\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...FabriksStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nmutation CreateMeshCollection($input: CreateMeshCollectionInput!) {\n  createMeshCollection(input: $input) {\n    ...MeshCollection\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FabriksStore on FabriksStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment MeshCollection on MeshCollection {\n  id\n  name\n  label\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...FabriksStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nmutation CreateMeshCollection($input: CreateMeshCollectionInput!) {\n  createMeshCollection(input: $input) {\n    ...MeshCollection\n    __typename\n  }\n}'
 
 class DeleteMeshCollectionMutation(BaseModel):
     """No documentation found for this operation."""
@@ -7501,7 +7755,7 @@ class CreateNetworkCollectionMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateNetworkCollection """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment KonnektionStore on KonnektionStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  attributes\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment NetworkCollection on NetworkCollection {\n  id\n  name\n  label\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...KonnektionStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nmutation CreateNetworkCollection($input: CreateNetworkCollectionInput!) {\n  createNetworkCollection(input: $input) {\n    ...NetworkCollection\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment KonnektionStore on KonnektionStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  attributes\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment NetworkCollection on NetworkCollection {\n  id\n  name\n  label\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...KonnektionStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nmutation CreateNetworkCollection($input: CreateNetworkCollectionInput!) {\n  createNetworkCollection(input: $input) {\n    ...NetworkCollection\n    __typename\n  }\n}'
 
 class DeleteNetworkCollectionMutation(BaseModel):
     """No documentation found for this operation."""
@@ -7566,7 +7820,7 @@ class CreateSceneMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateScene """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nmutation CreateScene($input: CreateSceneInput!) {\n  createScene(input: $input) {\n    ...Scene\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nmutation CreateScene($input: CreateSceneInput!) {\n  createScene(input: $input) {\n    ...Scene\n    __typename\n  }\n}'
 
 class CreateSceneFromCoordinateSystemMutation(BaseModel):
     """No documentation found for this operation."""
@@ -7579,7 +7833,7 @@ class CreateSceneFromCoordinateSystemMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateSceneFromCoordinateSystem """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nmutation CreateSceneFromCoordinateSystem($input: CreateSceneFromCoordinateSystemInput!) {\n  createSceneFromCoordinateSystem(input: $input) {\n    ...Scene\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nmutation CreateSceneFromCoordinateSystem($input: CreateSceneFromCoordinateSystemInput!) {\n  createSceneFromCoordinateSystem(input: $input) {\n    ...Scene\n    __typename\n  }\n}'
 
 class UpdateSceneMutation(BaseModel):
     """No documentation found for this operation."""
@@ -7592,7 +7846,7 @@ class UpdateSceneMutation(BaseModel):
 
     class Meta:
         """Meta class for UpdateScene """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nmutation UpdateScene($input: UpdateSceneInput!) {\n  updateScene(input: $input) {\n    ...Scene\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nmutation UpdateScene($input: UpdateSceneInput!) {\n  updateScene(input: $input) {\n    ...Scene\n    __typename\n  }\n}'
 
 class ClearSceneMutation(BaseModel):
     """No documentation found for this operation."""
@@ -7605,7 +7859,7 @@ class ClearSceneMutation(BaseModel):
 
     class Meta:
         """Meta class for ClearScene """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nmutation ClearScene($input: ClearSceneInput!) {\n  clearScene(input: $input) {\n    ...Scene\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nmutation ClearScene($input: ClearSceneInput!) {\n  clearScene(input: $input) {\n    ...Scene\n    __typename\n  }\n}'
 
 class DeleteSceneMutation(BaseModel):
     """No documentation found for this operation."""
@@ -7632,19 +7886,19 @@ class CreateSceneFromLensMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateSceneFromLens """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nmutation CreateSceneFromLens($input: CreateSceneFromLensInput!) {\n  createSceneFromLens(input: $input) {\n    ...Scene\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nmutation CreateSceneFromLens($input: CreateSceneFromLensInput!) {\n  createSceneFromLens(input: $input) {\n    ...Scene\n    __typename\n  }\n}'
 
 class AutoVisualizeMutationAutoVisualizeBase(BaseModel):
-    """A composition laid out over a coordinate system: a scene (a place) or a chart (one metric axis). It adopts the space as its world, names data by id and owns none of it. Only what every kind has is here -- the layers differ per kind, so select them on the concrete type"""
+    """A composition: something that draws data through lenses, names it by id and owns none of it. A **scene** shows *where* -- every screen axis is an axis of its world, data is placed there by the graph's edges, and values are drawn as appearance (colour, size). A **chart** shows *how much* -- values are drawn as position, and at most one axis is drawn from its world: an AXIS chart draws its one axis (intensity against `t`), a VALUES chart draws its rows at the values of their columns (nuclei at `area` against `volume`), its world saying whose rows. Only what every kind has is here -- the layers differ per kind, so select them on the concrete type"""
     model_config = ConfigDict(frozen=True)
 
 class AutoVisualizeMutationAutoVisualizeBaseChart(Chart, AutoVisualizeMutationAutoVisualizeBase, ChartTrait, BaseModel):
-    """A composition of data laid out along one metric axis, with values read off it. The second kind of composition beside a scene: a scene is a place, a chart is an axis. It names data by id and owns none of it, and it carries no unit of its own -- the unit is its world axis's"""
+    """A composition that shows **how much**: values drawn as position. The counterpart of a scene, which shows **where**: in a scene every screen axis is a world axis, data is placed by the graph's edges and values are drawn as appearance (a colour, a size); in a chart at most one axis is drawn from the world and every other position is a value. Every chart has a world -- the domain its layers' rows live in -- and every layer is placed into it. An **AXIS** chart draws its world, one metric axis with a unit, and lays TRACE, SERIES and ANNOTATION layers along it: a timelapse's intensity against `t`. A **VALUES** chart does not draw its world, which says whose rows -- a table's space, usually its INDEX axis -- and its POINTS and DISTRIBUTION layers draw those rows at the values of the columns they name: nuclei at `area` against `volume`, a histogram of `area` per `condition`. Two layers in one VALUES world are about the same rows (a table and the PCA derived from it). The same table lens may be drawn as a scene, at its `(y, x)` coloured by `area`, and as a VALUES chart at `(area, volume)`. A chart names data through lenses and owns none of it; if rotating its view would mix units, it is a chart, and if it would not, a scene"""
     __identifier__: ClassVar[Literal['@mikro/chart']] = '@mikro/chart'
     typename: Literal['Chart'] = Field(alias='__typename', default='Chart', exclude=True)
 
 class AutoVisualizeMutationAutoVisualizeBaseScene(Scene, AutoVisualizeMutationAutoVisualizeBase, SceneTrait, BaseModel):
-    """A composition of layers over a shared world coordinate system. The scene carries no units of its own -- they are per-axis, on the axes of its world system"""
+    """A composition that shows **where**: every screen axis is an axis of its world -- a place, with a time or space axis -- and each layer is placed there by the graph's edges, so refining a registration moves what is drawn. Values are drawn as appearance: an image's intensity as colour, a table's `area` as the colour or size of its points. The counterpart of a chart, which shows *how much*: there values are drawn as position. The same table lens may be drawn both ways -- nuclei at their `(y, x)` on the image here, at `(area, volume)` in a VALUES chart. If rotating the view makes sense, it is a scene. The scene carries no units of its own -- they are per-axis, on the axes of its world system"""
     __identifier__: ClassVar[Literal['@mikro/scene']] = '@mikro/scene'
     typename: Literal['Scene'] = Field(alias='__typename', default='Scene', exclude=True)
 
@@ -7664,7 +7918,7 @@ class AutoVisualizeMutation(BaseModel):
 
     class Meta:
         """Meta class for AutoVisualize """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    fields {\n      outputAxis\n      inner\n      base\n      component\n      scale\n      offset\n      inputAxis\n      innerScale\n      innerOffset\n      dataset {\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Chart on Chart {\n  id\n  name\n  description\n  axis {\n    ...Axis\n    __typename\n  }\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  layers {\n    ...ChartLayer\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nmutation AutoVisualize($input: AutoVisualizeInput!) {\n  autoVisualize(input: $input) {\n    ... on Scene {\n      ...Scene\n    }\n    ... on Chart {\n      ...Chart\n    }\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    fields {\n      outputAxis\n      inner\n      base\n      component\n      scale\n      offset\n      inputAxis\n      innerScale\n      innerOffset\n      dataset {\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on PointsChartLayer {\n    pointsLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    pointsTable: tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    xUnit\n    yUnit\n    zUnit\n    pointsMark: mark\n    pointsLineWidth: lineWidth\n    pointsMarkerSize: markerSize\n  }\n  ... on DistributionChartLayer {\n    distributionLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    distributionTable: tableDataset {\n      id\n      name\n    }\n    distributionValueColumn: valueColumn\n    groupColumn\n    bins\n    distributionValueUnit: valueUnit\n    distributionMark: mark\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Chart on Chart {\n  id\n  name\n  description\n  kind\n  axis {\n    ...Axis\n    __typename\n  }\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  layers {\n    ...ChartLayer\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nmutation AutoVisualize($input: AutoVisualizeInput!) {\n  autoVisualize(input: $input) {\n    ... on Scene {\n      ...Scene\n    }\n    ... on Chart {\n      ...Chart\n    }\n    __typename\n  }\n}'
 
 class CreateSceneSnapshotMutation(BaseModel):
     """No documentation found for this operation."""
@@ -7677,7 +7931,7 @@ class CreateSceneSnapshotMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateSceneSnapshot """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment MediaStore on MediaStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment SceneSnapshot on SceneSnapshot {\n  id\n  name\n  scene {\n    ...Scene\n    __typename\n  }\n  store {\n    ...MediaStore\n    __typename\n  }\n  __typename\n}\n\nmutation CreateSceneSnapshot($input: SceneSnapshotInput!) {\n  createSceneSnapshot(input: $input) {\n    ...SceneSnapshot\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment MediaStore on MediaStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment SceneSnapshot on SceneSnapshot {\n  id\n  name\n  scene {\n    ...Scene\n    __typename\n  }\n  store {\n    ...MediaStore\n    __typename\n  }\n  __typename\n}\n\nmutation CreateSceneSnapshot($input: SceneSnapshotInput!) {\n  createSceneSnapshot(input: $input) {\n    ...SceneSnapshot\n    __typename\n  }\n}'
 
 class DeleteSceneSnapshotMutation(BaseModel):
     """No documentation found for this operation."""
@@ -7703,7 +7957,7 @@ class PinSceneSnapshotMutation(BaseModel):
 
     class Meta:
         """Meta class for PinSceneSnapshot """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment MediaStore on MediaStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment SceneSnapshot on SceneSnapshot {\n  id\n  name\n  scene {\n    ...Scene\n    __typename\n  }\n  store {\n    ...MediaStore\n    __typename\n  }\n  __typename\n}\n\nmutation PinSceneSnapshot($input: PinSceneSnapshotInput!) {\n  pinSceneSnapshot(input: $input) {\n    ...SceneSnapshot\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment MediaStore on MediaStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment SceneSnapshot on SceneSnapshot {\n  id\n  name\n  scene {\n    ...Scene\n    __typename\n  }\n  store {\n    ...MediaStore\n    __typename\n  }\n  __typename\n}\n\nmutation PinSceneSnapshot($input: PinSceneSnapshotInput!) {\n  pinSceneSnapshot(input: $input) {\n    ...SceneSnapshot\n    __typename\n  }\n}'
 
 class CreateSparseDatasetMutation(BaseModel):
     """No documentation found for this operation."""
@@ -7716,7 +7970,7 @@ class CreateSparseDatasetMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateSparseDataset """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment SparseStore on SparseStore {\n  id\n  key\n  bucket\n  path\n  spec\n  shape\n  layouts {\n    path\n    encoding\n    encodingVersion\n    indexedAxis\n    indexOrder\n    nnz\n    dtype\n    chunks\n    rangeReadable\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment SparseArray on SparseArray {\n  id\n  indexedAxis\n  indexedAxisName\n  path\n  store {\n    ...SparseStore\n    __typename\n  }\n  __typename\n}\n\nfragment SparseAxisReference on SparseAxisReference {\n  id\n  axis\n  references {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment SparseDataset on SparseDataset {\n  id\n  name\n  description\n  axisNames\n  shape\n  indexableAxes\n  arrays {\n    ...SparseArray\n    __typename\n  }\n  axisReferences {\n    ...SparseAxisReference\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nmutation CreateSparseDataset($input: CreateSparseDatasetInput!) {\n  createSparseDataset(input: $input) {\n    ...SparseDataset\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment SparseStore on SparseStore {\n  id\n  key\n  bucket\n  path\n  spec\n  shape\n  layouts {\n    path\n    encoding\n    encodingVersion\n    indexedAxis\n    indexOrder\n    nnz\n    dtype\n    chunks\n    rangeReadable\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment SparseArray on SparseArray {\n  id\n  indexedAxis\n  indexedAxisName\n  path\n  store {\n    ...SparseStore\n    __typename\n  }\n  __typename\n}\n\nfragment SparseAxisReference on SparseAxisReference {\n  id\n  axis\n  references {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment SparseDataset on SparseDataset {\n  id\n  name\n  description\n  axisNames\n  shape\n  indexableAxes\n  arrays {\n    ...SparseArray\n    __typename\n  }\n  axisReferences {\n    ...SparseAxisReference\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nmutation CreateSparseDataset($input: CreateSparseDatasetInput!) {\n  createSparseDataset(input: $input) {\n    ...SparseDataset\n    __typename\n  }\n}'
 
 class UpdateSparseDatasetMutation(BaseModel):
     """No documentation found for this operation."""
@@ -7729,7 +7983,7 @@ class UpdateSparseDatasetMutation(BaseModel):
 
     class Meta:
         """Meta class for UpdateSparseDataset """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment SparseStore on SparseStore {\n  id\n  key\n  bucket\n  path\n  spec\n  shape\n  layouts {\n    path\n    encoding\n    encodingVersion\n    indexedAxis\n    indexOrder\n    nnz\n    dtype\n    chunks\n    rangeReadable\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment SparseArray on SparseArray {\n  id\n  indexedAxis\n  indexedAxisName\n  path\n  store {\n    ...SparseStore\n    __typename\n  }\n  __typename\n}\n\nfragment SparseAxisReference on SparseAxisReference {\n  id\n  axis\n  references {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment SparseDataset on SparseDataset {\n  id\n  name\n  description\n  axisNames\n  shape\n  indexableAxes\n  arrays {\n    ...SparseArray\n    __typename\n  }\n  axisReferences {\n    ...SparseAxisReference\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nmutation UpdateSparseDataset($input: UpdateSparseDatasetInput!) {\n  updateSparseDataset(input: $input) {\n    ...SparseDataset\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment SparseStore on SparseStore {\n  id\n  key\n  bucket\n  path\n  spec\n  shape\n  layouts {\n    path\n    encoding\n    encodingVersion\n    indexedAxis\n    indexOrder\n    nnz\n    dtype\n    chunks\n    rangeReadable\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment SparseArray on SparseArray {\n  id\n  indexedAxis\n  indexedAxisName\n  path\n  store {\n    ...SparseStore\n    __typename\n  }\n  __typename\n}\n\nfragment SparseAxisReference on SparseAxisReference {\n  id\n  axis\n  references {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment SparseDataset on SparseDataset {\n  id\n  name\n  description\n  axisNames\n  shape\n  indexableAxes\n  arrays {\n    ...SparseArray\n    __typename\n  }\n  axisReferences {\n    ...SparseAxisReference\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nmutation UpdateSparseDataset($input: UpdateSparseDatasetInput!) {\n  updateSparseDataset(input: $input) {\n    ...SparseDataset\n    __typename\n  }\n}'
 
 class DeleteSparseDatasetMutation(BaseModel):
     """No documentation found for this operation."""
@@ -7755,7 +8009,7 @@ class CreateTableDatasetMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateTableDataset """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    references {\n      id\n      __typename\n    }\n    nodeReferences {\n      id\n      __typename\n    }\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}\n\nmutation CreateTableDataset($input: CreateTableDatasetInput!) {\n  createTableDataset(input: $input) {\n    ...TableDataset\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    references {\n      id\n      __typename\n    }\n    nodeReferences {\n      id\n      __typename\n    }\n    variesOver\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  visualizations {\n    __typename\n    id\n    name\n  }\n  __typename\n}\n\nmutation CreateTableDataset($input: CreateTableDatasetInput!) {\n  createTableDataset(input: $input) {\n    ...TableDataset\n    __typename\n  }\n}'
 
 class UpdateTableDatasetMutation(BaseModel):
     """No documentation found for this operation."""
@@ -7768,7 +8022,7 @@ class UpdateTableDatasetMutation(BaseModel):
 
     class Meta:
         """Meta class for UpdateTableDataset """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    references {\n      id\n      __typename\n    }\n    nodeReferences {\n      id\n      __typename\n    }\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}\n\nmutation UpdateTableDataset($input: UpdateTableDatasetInput!) {\n  updateTableDataset(input: $input) {\n    ...TableDataset\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    references {\n      id\n      __typename\n    }\n    nodeReferences {\n      id\n      __typename\n    }\n    variesOver\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  visualizations {\n    __typename\n    id\n    name\n  }\n  __typename\n}\n\nmutation UpdateTableDataset($input: UpdateTableDatasetInput!) {\n  updateTableDataset(input: $input) {\n    ...TableDataset\n    __typename\n  }\n}'
 
 class DeleteTableDatasetMutation(BaseModel):
     """No documentation found for this operation."""
@@ -7847,7 +8101,7 @@ class CreateTransformationMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateTransformation """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nmutation CreateTransformation($input: CreateTransformationInput!) {\n  createTransformation(input: $input) {\n    ...Transformation\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nmutation CreateTransformation($input: CreateTransformationInput!) {\n  createTransformation(input: $input) {\n    ...Transformation\n    __typename\n  }\n}'
 
 class UpdateTransformationMutationUpdateTransformationBase(BaseModel):
     """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
@@ -7913,7 +8167,7 @@ class UpdateTransformationMutation(BaseModel):
 
     class Meta:
         """Meta class for UpdateTransformation """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nmutation UpdateTransformation($input: UpdateTransformationInput!) {\n  updateTransformation(input: $input) {\n    ...Transformation\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nmutation UpdateTransformation($input: UpdateTransformationInput!) {\n  updateTransformation(input: $input) {\n    ...Transformation\n    __typename\n  }\n}'
 
 class DeleteTransformationMutation(BaseModel):
     """No documentation found for this operation."""
@@ -7939,7 +8193,7 @@ class GetAnimationQuery(BaseModel):
 
     class Meta:
         """Meta class for GetAnimation """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CameraState on CameraState {\n  position\n  crossSectionOrientation\n  crossSectionScale\n  projectionOrientation\n  projectionScale\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnimationWaypoint on AnimationWaypoint {\n  id\n  order\n  name\n  durationMs\n  easing\n  camera {\n    ...CameraState\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment Animation on Animation {\n  id\n  name\n  description\n  scene {\n    ...Scene\n    __typename\n  }\n  waypoints {\n    ...AnimationWaypoint\n    __typename\n  }\n  __typename\n}\n\nquery GetAnimation($id: ID!) {\n  animation(id: $id) {\n    ...Animation\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CameraState on CameraState {\n  position\n  crossSectionOrientation\n  crossSectionScale\n  projectionOrientation\n  projectionScale\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnimationWaypoint on AnimationWaypoint {\n  id\n  order\n  name\n  durationMs\n  easing\n  camera {\n    ...CameraState\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment Animation on Animation {\n  id\n  name\n  description\n  scene {\n    ...Scene\n    __typename\n  }\n  waypoints {\n    ...AnimationWaypoint\n    __typename\n  }\n  __typename\n}\n\nquery GetAnimation($id: ID!) {\n  animation(id: $id) {\n    ...Animation\n    __typename\n  }\n}'
 
 class GetAnimationsQuery(BaseModel):
     """No documentation found for this operation."""
@@ -7953,7 +8207,7 @@ class GetAnimationsQuery(BaseModel):
 
     class Meta:
         """Meta class for GetAnimations """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CameraState on CameraState {\n  position\n  crossSectionOrientation\n  crossSectionScale\n  projectionOrientation\n  projectionScale\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnimationWaypoint on AnimationWaypoint {\n  id\n  order\n  name\n  durationMs\n  easing\n  camera {\n    ...CameraState\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment Animation on Animation {\n  id\n  name\n  description\n  scene {\n    ...Scene\n    __typename\n  }\n  waypoints {\n    ...AnimationWaypoint\n    __typename\n  }\n  __typename\n}\n\nquery GetAnimations($filters: AnimationFilter, $pagination: OffsetPaginationInput) {\n  animations(filters: $filters, pagination: $pagination) {\n    ...Animation\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CameraState on CameraState {\n  position\n  crossSectionOrientation\n  crossSectionScale\n  projectionOrientation\n  projectionScale\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnimationWaypoint on AnimationWaypoint {\n  id\n  order\n  name\n  durationMs\n  easing\n  camera {\n    ...CameraState\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment Animation on Animation {\n  id\n  name\n  description\n  scene {\n    ...Scene\n    __typename\n  }\n  waypoints {\n    ...AnimationWaypoint\n    __typename\n  }\n  __typename\n}\n\nquery GetAnimations($filters: AnimationFilter, $pagination: OffsetPaginationInput) {\n  animations(filters: $filters, pagination: $pagination) {\n    ...Animation\n    __typename\n  }\n}'
 
 class SearchAnimationsQueryOptions(BaseModel):
     """A named camera tour of a scene: the poses a viewer pans through, in order. A view artifact -- it cascades with the scene, no placement walk crosses it, and refining a registration moves the data but never the camera"""
@@ -7990,7 +8244,7 @@ class GetAnnotationQuery(BaseModel):
 
     class Meta:
         """Meta class for GetAnnotation """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nquery GetAnnotation($id: ID!) {\n  annotation(id: $id) {\n    ...Annotation\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nquery GetAnnotation($id: ID!) {\n  annotation(id: $id) {\n    ...Annotation\n    __typename\n  }\n}'
 
 class GetAnnotationLineageQueryAnnotation(BaseModel):
     """A human-drawn shape in an annotation collection's coordinate system. It belongs to the collection, not to a scene: delete the scene and the annotation survives"""
@@ -8014,7 +8268,7 @@ class GetAnnotationLineageQuery(BaseModel):
 
     class Meta:
         """Meta class for GetAnnotationLineage """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nfragment AnnotationDerivation on AnnotationDerivation {\n  id\n  relation\n  reason\n  createdAt\n  source {\n    id\n    name\n    kind\n    __typename\n  }\n  child {\n    id\n    name\n    kind\n    __typename\n  }\n  __typename\n}\n\nquery GetAnnotationLineage($id: ID!) {\n  annotation(id: $id) {\n    id\n    derivedFrom {\n      ...AnnotationDerivation\n      __typename\n    }\n    derivedAnnotations {\n      ...Annotation\n      __typename\n    }\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nfragment AnnotationDerivation on AnnotationDerivation {\n  id\n  relation\n  reason\n  createdAt\n  source {\n    id\n    name\n    kind\n    __typename\n  }\n  child {\n    id\n    name\n    kind\n    __typename\n  }\n  __typename\n}\n\nquery GetAnnotationLineage($id: ID!) {\n  annotation(id: $id) {\n    id\n    derivedFrom {\n      ...AnnotationDerivation\n      __typename\n    }\n    derivedAnnotations {\n      ...Annotation\n      __typename\n    }\n    __typename\n  }\n}'
 
 class GetAnnotationsQuery(BaseModel):
     """No documentation found for this operation."""
@@ -8028,7 +8282,7 @@ class GetAnnotationsQuery(BaseModel):
 
     class Meta:
         """Meta class for GetAnnotations """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nquery GetAnnotations($filters: AnnotationFilter, $pagination: OffsetPaginationInput) {\n  annotations(filters: $filters, pagination: $pagination) {\n    ...Annotation\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nquery GetAnnotations($filters: AnnotationFilter, $pagination: OffsetPaginationInput) {\n  annotations(filters: $filters, pagination: $pagination) {\n    ...Annotation\n    __typename\n  }\n}'
 
 class GetAnnotationCollectionQuery(BaseModel):
     """No documentation found for this operation."""
@@ -8041,7 +8295,7 @@ class GetAnnotationCollectionQuery(BaseModel):
 
     class Meta:
         """Meta class for GetAnnotationCollection """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnnotationCollection on AnnotationCollection {\n  id\n  name\n  description\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  annotations {\n    ...Annotation\n    __typename\n  }\n  __typename\n}\n\nquery GetAnnotationCollection($id: ID!) {\n  annotationCollection(id: $id) {\n    ...AnnotationCollection\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnnotationCollection on AnnotationCollection {\n  id\n  name\n  description\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  annotations {\n    ...Annotation\n    __typename\n  }\n  __typename\n}\n\nquery GetAnnotationCollection($id: ID!) {\n  annotationCollection(id: $id) {\n    ...AnnotationCollection\n    __typename\n  }\n}'
 
 class GetAnnotationCollectionsQuery(BaseModel):
     """No documentation found for this operation."""
@@ -8055,7 +8309,7 @@ class GetAnnotationCollectionsQuery(BaseModel):
 
     class Meta:
         """Meta class for GetAnnotationCollections """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnnotationCollection on AnnotationCollection {\n  id\n  name\n  description\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  annotations {\n    ...Annotation\n    __typename\n  }\n  __typename\n}\n\nquery GetAnnotationCollections($filters: AnnotationCollectionFilter, $pagination: OffsetPaginationInput) {\n  annotationCollections(filters: $filters, pagination: $pagination) {\n    ...AnnotationCollection\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnnotationCollection on AnnotationCollection {\n  id\n  name\n  description\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  annotations {\n    ...Annotation\n    __typename\n  }\n  __typename\n}\n\nquery GetAnnotationCollections($filters: AnnotationCollectionFilter, $pagination: OffsetPaginationInput) {\n  annotationCollections(filters: $filters, pagination: $pagination) {\n    ...AnnotationCollection\n    __typename\n  }\n}'
 
 class SearchAnnotationCollectionsQueryOptions(BaseModel):
     """A named set of human-drawn annotations, owning the coordinate system they are drawn in. The CRUD counterpart of a table dataset's machine-produced rows: shapes a person draws and edits, sharing one drawing space and one registration story"""
@@ -8118,7 +8372,7 @@ class GetArrayDatasetQuery(BaseModel):
 
     class Meta:
         """Meta class for GetArrayDataset """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ArrayDataset on ArrayDataset {\n  id\n  name\n  axisNames\n  shape\n  multiscale\n  acquisitionStart\n  acquisitionEnd\n  intrinsicSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  dataArrays {\n    id\n    level\n    shape\n    chunkShape\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery GetArrayDataset($id: ID!) {\n  arrayDataset(id: $id) {\n    ...ArrayDataset\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ArrayDataset on ArrayDataset {\n  id\n  name\n  axisNames\n  shape\n  multiscale\n  acquisitionStart\n  acquisitionEnd\n  intrinsicSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  dataArrays {\n    id\n    level\n    shape\n    chunkShape\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery GetArrayDataset($id: ID!) {\n  arrayDataset(id: $id) {\n    ...ArrayDataset\n    __typename\n  }\n}'
 
 class GetArrayDatasetsQuery(BaseModel):
     """No documentation found for this operation."""
@@ -8132,7 +8386,7 @@ class GetArrayDatasetsQuery(BaseModel):
 
     class Meta:
         """Meta class for GetArrayDatasets """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ArrayDataset on ArrayDataset {\n  id\n  name\n  axisNames\n  shape\n  multiscale\n  acquisitionStart\n  acquisitionEnd\n  intrinsicSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  dataArrays {\n    id\n    level\n    shape\n    chunkShape\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery GetArrayDatasets($filters: ArrayDatasetFilter, $pagination: OffsetPaginationInput) {\n  arrayDatasets(filters: $filters, pagination: $pagination) {\n    ...ArrayDataset\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ArrayDataset on ArrayDataset {\n  id\n  name\n  axisNames\n  shape\n  multiscale\n  acquisitionStart\n  acquisitionEnd\n  intrinsicSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  dataArrays {\n    id\n    level\n    shape\n    chunkShape\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery GetArrayDatasets($filters: ArrayDatasetFilter, $pagination: OffsetPaginationInput) {\n  arrayDatasets(filters: $filters, pagination: $pagination) {\n    ...ArrayDataset\n    __typename\n  }\n}'
 
 class SearchArrayDatasetsQueryOptions(DatasetTrait, BaseModel):
     """A multi-dimensional array dataset. Its dimensions and their types live on the axes of its INTRINSIC (pixel grid) coordinate system; physical units live on the physical spaces it has edges into; its pyramid levels are DataArrays, each mapping into its grid"""
@@ -8541,10 +8795,10 @@ class GetChartQuery(BaseModel):
 
     class Meta:
         """Meta class for GetChart """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    fields {\n      outputAxis\n      inner\n      base\n      component\n      scale\n      offset\n      inputAxis\n      innerScale\n      innerOffset\n      dataset {\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Chart on Chart {\n  id\n  name\n  description\n  axis {\n    ...Axis\n    __typename\n  }\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  layers {\n    ...ChartLayer\n    __typename\n  }\n  __typename\n}\n\nquery GetChart($id: ID!) {\n  chart(id: $id) {\n    ...Chart\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    fields {\n      outputAxis\n      inner\n      base\n      component\n      scale\n      offset\n      inputAxis\n      innerScale\n      innerOffset\n      dataset {\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on PointsChartLayer {\n    pointsLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    pointsTable: tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    xUnit\n    yUnit\n    zUnit\n    pointsMark: mark\n    pointsLineWidth: lineWidth\n    pointsMarkerSize: markerSize\n  }\n  ... on DistributionChartLayer {\n    distributionLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    distributionTable: tableDataset {\n      id\n      name\n    }\n    distributionValueColumn: valueColumn\n    groupColumn\n    bins\n    distributionValueUnit: valueUnit\n    distributionMark: mark\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Chart on Chart {\n  id\n  name\n  description\n  kind\n  axis {\n    ...Axis\n    __typename\n  }\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  layers {\n    ...ChartLayer\n    __typename\n  }\n  __typename\n}\n\nquery GetChart($id: ID!) {\n  chart(id: $id) {\n    ...Chart\n    __typename\n  }\n}'
 
 class SearchChartsQueryOptions(ChartTrait, BaseModel):
-    """A composition of data laid out along one metric axis, with values read off it. The second kind of composition beside a scene: a scene is a place, a chart is an axis. It names data by id and owns none of it, and it carries no unit of its own -- the unit is its world axis's"""
+    """A composition that shows **how much**: values drawn as position. The counterpart of a scene, which shows **where**: in a scene every screen axis is a world axis, data is placed by the graph's edges and values are drawn as appearance (a colour, a size); in a chart at most one axis is drawn from the world and every other position is a value. Every chart has a world -- the domain its layers' rows live in -- and every layer is placed into it. An **AXIS** chart draws its world, one metric axis with a unit, and lays TRACE, SERIES and ANNOTATION layers along it: a timelapse's intensity against `t`. A **VALUES** chart does not draw its world, which says whose rows -- a table's space, usually its INDEX axis -- and its POINTS and DISTRIBUTION layers draw those rows at the values of the columns they name: nuclei at `area` against `volume`, a histogram of `area` per `condition`. Two layers in one VALUES world are about the same rows (a table and the PCA derived from it). The same table lens may be drawn as a scene, at its `(y, x)` coloured by `area`, and as a VALUES chart at `(area, volume)`. A chart names data through lenses and owns none of it; if rotating its view would mix units, it is a chart, and if it would not, a scene"""
     __identifier__: ClassVar[Literal['@mikro/chart']] = '@mikro/chart'
     typename: Literal['Chart'] = Field(alias='__typename', default='Chart', exclude=True)
     value: ID
@@ -8579,15 +8833,23 @@ class ListChartsQuery(BaseModel):
 
     class Meta:
         """Meta class for ListCharts """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    fields {\n      outputAxis\n      inner\n      base\n      component\n      scale\n      offset\n      inputAxis\n      innerScale\n      innerOffset\n      dataset {\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Chart on Chart {\n  id\n  name\n  description\n  axis {\n    ...Axis\n    __typename\n  }\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  layers {\n    ...ChartLayer\n    __typename\n  }\n  __typename\n}\n\nquery ListCharts($filters: ChartFilter, $pagination: OffsetPaginationInput) {\n  charts(filters: $filters, pagination: $pagination) {\n    ...Chart\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    fields {\n      outputAxis\n      inner\n      base\n      component\n      scale\n      offset\n      inputAxis\n      innerScale\n      innerOffset\n      dataset {\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on PointsChartLayer {\n    pointsLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    pointsTable: tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    xUnit\n    yUnit\n    zUnit\n    pointsMark: mark\n    pointsLineWidth: lineWidth\n    pointsMarkerSize: markerSize\n  }\n  ... on DistributionChartLayer {\n    distributionLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    distributionTable: tableDataset {\n      id\n      name\n    }\n    distributionValueColumn: valueColumn\n    groupColumn\n    bins\n    distributionValueUnit: valueUnit\n    distributionMark: mark\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Chart on Chart {\n  id\n  name\n  description\n  kind\n  axis {\n    ...Axis\n    __typename\n  }\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  layers {\n    ...ChartLayer\n    __typename\n  }\n  __typename\n}\n\nquery ListCharts($filters: ChartFilter, $pagination: OffsetPaginationInput) {\n  charts(filters: $filters, pagination: $pagination) {\n    ...Chart\n    __typename\n  }\n}'
 
 class GetChartLayerQueryChartLayerBase(BaseModel):
-    """A layer drawn in a chart. It carries view state only. Where its data sits along the chart's axis -- `pathToWorld`, `asAffine`, `alongAxis`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one registration moves every layer that looks through it. The concrete kind says what the layer reads: TraceChartLayer an array, SeriesChartLayer a table, AnnotationChartLayer drawn marks"""
+    """A layer drawn in a chart. It carries view state only. A placed layer's position along the chart's axis -- `pathToWorld`, `asAffine`, `alongAxis`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one registration moves every layer that looks through it. A value layer is placed the same way -- its rows into the VALUES chart's world, which says they are the same rows as the others' -- and drawn at the values of the columns it names. The concrete kind says what the layer reads: TraceChartLayer an array, SeriesChartLayer a table's value column, AnnotationChartLayer drawn marks -- along an AXIS chart's axis -- and PointsChartLayer and DistributionChartLayer a table's columns, in a VALUES chart"""
     model_config = ConfigDict(frozen=True)
 
 class GetChartLayerQueryChartLayerBaseAnnotationChartLayer(ChartLayerAnnotationChartLayer, GetChartLayerQueryChartLayerBase, BaseModel):
     """A layer that draws an annotation collection's marks in a chart. One layer per collection: per-mark styling lives on the annotations themselves"""
     typename: Literal['AnnotationChartLayer'] = Field(alias='__typename', default='AnnotationChartLayer', exclude=True)
+
+class GetChartLayerQueryChartLayerBaseDistributionChartLayer(ChartLayerDistributionChartLayer, GetChartLayerQueryChartLayerBase, BaseModel):
+    """A layer that summarises the values of one column of a table lens' rows: a HISTOGRAM (`bins`) or a BOX, over every row or once per value of `groupColumn` -- a condition, a cluster, a long-form channel. The rows are placed in the VALUES chart's world; their values are the horizontal axis. Example: the `area` of nuclei, one histogram per `condition`"""
+    typename: Literal['DistributionChartLayer'] = Field(alias='__typename', default='DistributionChartLayer', exclude=True)
+
+class GetChartLayerQueryChartLayerBasePointsChartLayer(ChartLayerPointsChartLayer, GetChartLayerQueryChartLayerBase, BaseModel):
+    """A layer that draws a table lens' rows at the values of its columns: each row a point at (`xColumn`, `yColumn`), and at `zColumn` too for depth -- a scatter. The rows are placed in the VALUES chart's world -- whose rows -- and drawn at their values: the position is the measurement, read from the row. A row with a null in a named column is not drawn. MARKERS, or a LINE through the rows sorted along x. Example: nuclei at (`area`, `volume`), through a lens that keeps `area >= 50`"""
+    typename: Literal['PointsChartLayer'] = Field(alias='__typename', default='PointsChartLayer', exclude=True)
 
 class GetChartLayerQueryChartLayerBaseSeriesChartLayer(ChartLayerSeriesChartLayer, GetChartLayerQueryChartLayerBase, BaseModel):
     """A layer that reads one numeric column of a table against a coordinate column. The value column is the layer's; the coordinate column is the graph's -- whichever of the table's coordinate columns its registration lays along the chart's axis"""
@@ -8603,7 +8865,7 @@ class GetChartLayerQueryChartLayerBaseCatchAll(GetChartLayerQueryChartLayerBase,
 
 class GetChartLayerQuery(BaseModel):
     """No documentation found for this operation."""
-    chart_layer: Annotated[GetChartLayerQueryChartLayerBaseAnnotationChartLayer | GetChartLayerQueryChartLayerBaseSeriesChartLayer | GetChartLayerQueryChartLayerBaseTraceChartLayer, Field(discriminator='typename')] | GetChartLayerQueryChartLayerBaseCatchAll = Field(alias='chartLayer')
+    chart_layer: Annotated[GetChartLayerQueryChartLayerBaseAnnotationChartLayer | GetChartLayerQueryChartLayerBaseDistributionChartLayer | GetChartLayerQueryChartLayerBasePointsChartLayer | GetChartLayerQueryChartLayerBaseSeriesChartLayer | GetChartLayerQueryChartLayerBaseTraceChartLayer, Field(discriminator='typename')] | GetChartLayerQueryChartLayerBaseCatchAll = Field(alias='chartLayer')
     'Get a single chart layer by ID'
 
     class Arguments(BaseModel):
@@ -8612,15 +8874,23 @@ class GetChartLayerQuery(BaseModel):
 
     class Meta:
         """Meta class for GetChartLayer """
-        document = 'fragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    fields {\n      outputAxis\n      inner\n      base\n      component\n      scale\n      offset\n      inputAxis\n      innerScale\n      innerOffset\n      dataset {\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nquery GetChartLayer($id: ID!) {\n  chartLayer(id: $id) {\n    ...ChartLayer\n    __typename\n  }\n}'
+        document = 'fragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    fields {\n      outputAxis\n      inner\n      base\n      component\n      scale\n      offset\n      inputAxis\n      innerScale\n      innerOffset\n      dataset {\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on PointsChartLayer {\n    pointsLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    pointsTable: tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    xUnit\n    yUnit\n    zUnit\n    pointsMark: mark\n    pointsLineWidth: lineWidth\n    pointsMarkerSize: markerSize\n  }\n  ... on DistributionChartLayer {\n    distributionLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    distributionTable: tableDataset {\n      id\n      name\n    }\n    distributionValueColumn: valueColumn\n    groupColumn\n    bins\n    distributionValueUnit: valueUnit\n    distributionMark: mark\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nquery GetChartLayer($id: ID!) {\n  chartLayer(id: $id) {\n    ...ChartLayer\n    __typename\n  }\n}'
 
 class ChartLayersQueryChartLayersBase(BaseModel):
-    """A layer drawn in a chart. It carries view state only. Where its data sits along the chart's axis -- `pathToWorld`, `asAffine`, `alongAxis`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one registration moves every layer that looks through it. The concrete kind says what the layer reads: TraceChartLayer an array, SeriesChartLayer a table, AnnotationChartLayer drawn marks"""
+    """A layer drawn in a chart. It carries view state only. A placed layer's position along the chart's axis -- `pathToWorld`, `asAffine`, `alongAxis`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one registration moves every layer that looks through it. A value layer is placed the same way -- its rows into the VALUES chart's world, which says they are the same rows as the others' -- and drawn at the values of the columns it names. The concrete kind says what the layer reads: TraceChartLayer an array, SeriesChartLayer a table's value column, AnnotationChartLayer drawn marks -- along an AXIS chart's axis -- and PointsChartLayer and DistributionChartLayer a table's columns, in a VALUES chart"""
     model_config = ConfigDict(frozen=True)
 
 class ChartLayersQueryChartLayersBaseAnnotationChartLayer(ChartLayerAnnotationChartLayer, ChartLayersQueryChartLayersBase, BaseModel):
     """A layer that draws an annotation collection's marks in a chart. One layer per collection: per-mark styling lives on the annotations themselves"""
     typename: Literal['AnnotationChartLayer'] = Field(alias='__typename', default='AnnotationChartLayer', exclude=True)
+
+class ChartLayersQueryChartLayersBaseDistributionChartLayer(ChartLayerDistributionChartLayer, ChartLayersQueryChartLayersBase, BaseModel):
+    """A layer that summarises the values of one column of a table lens' rows: a HISTOGRAM (`bins`) or a BOX, over every row or once per value of `groupColumn` -- a condition, a cluster, a long-form channel. The rows are placed in the VALUES chart's world; their values are the horizontal axis. Example: the `area` of nuclei, one histogram per `condition`"""
+    typename: Literal['DistributionChartLayer'] = Field(alias='__typename', default='DistributionChartLayer', exclude=True)
+
+class ChartLayersQueryChartLayersBasePointsChartLayer(ChartLayerPointsChartLayer, ChartLayersQueryChartLayersBase, BaseModel):
+    """A layer that draws a table lens' rows at the values of its columns: each row a point at (`xColumn`, `yColumn`), and at `zColumn` too for depth -- a scatter. The rows are placed in the VALUES chart's world -- whose rows -- and drawn at their values: the position is the measurement, read from the row. A row with a null in a named column is not drawn. MARKERS, or a LINE through the rows sorted along x. Example: nuclei at (`area`, `volume`), through a lens that keeps `area >= 50`"""
+    typename: Literal['PointsChartLayer'] = Field(alias='__typename', default='PointsChartLayer', exclude=True)
 
 class ChartLayersQueryChartLayersBaseSeriesChartLayer(ChartLayerSeriesChartLayer, ChartLayersQueryChartLayersBase, BaseModel):
     """A layer that reads one numeric column of a table against a coordinate column. The value column is the layer's; the coordinate column is the graph's -- whichever of the table's coordinate columns its registration lays along the chart's axis"""
@@ -8636,7 +8906,7 @@ class ChartLayersQueryChartLayersBaseCatchAll(ChartLayersQueryChartLayersBase, B
 
 class ChartLayersQuery(BaseModel):
     """No documentation found for this operation."""
-    chart_layers: tuple[Annotated[ChartLayersQueryChartLayersBaseAnnotationChartLayer | ChartLayersQueryChartLayersBaseSeriesChartLayer | ChartLayersQueryChartLayersBaseTraceChartLayer, Field(discriminator='typename')] | ChartLayersQueryChartLayersBaseCatchAll, ...] = Field(alias='chartLayers')
+    chart_layers: tuple[Annotated[ChartLayersQueryChartLayersBaseAnnotationChartLayer | ChartLayersQueryChartLayersBaseDistributionChartLayer | ChartLayersQueryChartLayersBasePointsChartLayer | ChartLayersQueryChartLayersBaseSeriesChartLayer | ChartLayersQueryChartLayersBaseTraceChartLayer, Field(discriminator='typename')] | ChartLayersQueryChartLayersBaseCatchAll, ...] = Field(alias='chartLayers')
     'List layers drawn in charts (a heterogeneous list of layer kinds)'
 
     class Arguments(BaseModel):
@@ -8646,7 +8916,7 @@ class ChartLayersQuery(BaseModel):
 
     class Meta:
         """Meta class for ChartLayers """
-        document = 'fragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    fields {\n      outputAxis\n      inner\n      base\n      component\n      scale\n      offset\n      inputAxis\n      innerScale\n      innerOffset\n      dataset {\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nquery ChartLayers($filters: ChartLayerFilter, $pagination: OffsetPaginationInput) {\n  chartLayers(filters: $filters, pagination: $pagination) {\n    ...ChartLayer\n    __typename\n  }\n}'
+        document = 'fragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    fields {\n      outputAxis\n      inner\n      base\n      component\n      scale\n      offset\n      inputAxis\n      innerScale\n      innerOffset\n      dataset {\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on PointsChartLayer {\n    pointsLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    pointsTable: tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    xUnit\n    yUnit\n    zUnit\n    pointsMark: mark\n    pointsLineWidth: lineWidth\n    pointsMarkerSize: markerSize\n  }\n  ... on DistributionChartLayer {\n    distributionLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    distributionTable: tableDataset {\n      id\n      name\n    }\n    distributionValueColumn: valueColumn\n    groupColumn\n    bins\n    distributionValueUnit: valueUnit\n    distributionMark: mark\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nquery ChartLayers($filters: ChartLayerFilter, $pagination: OffsetPaginationInput) {\n  chartLayers(filters: $filters, pagination: $pagination) {\n    ...ChartLayer\n    __typename\n  }\n}'
 
 class LabelColorByOptionsQuery(BaseModel):
     """ Rooted on a lens -- what a label layer over that lens can be coloured by."""
@@ -8825,7 +9095,7 @@ class GetCoordinateGraphQuery(BaseModel):
 
     class Meta:
         """Meta class for GetCoordinateGraph """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nquery GetCoordinateGraph($coordinateSystem: ID!, $maxDepth: Int) {\n  coordinateGraph(coordinateSystem: $coordinateSystem, maxDepth: $maxDepth) {\n    root {\n      ...CoordinateSystem\n      __typename\n    }\n    systems {\n      ...CoordinateSystem\n      __typename\n    }\n    transformations {\n      ...Transformation\n      __typename\n    }\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nquery GetCoordinateGraph($coordinateSystem: ID!, $maxDepth: Int) {\n  coordinateGraph(coordinateSystem: $coordinateSystem, maxDepth: $maxDepth) {\n    root {\n      ...CoordinateSystem\n      __typename\n    }\n    systems {\n      ...CoordinateSystem\n      __typename\n    }\n    transformations {\n      ...Transformation\n      __typename\n    }\n    __typename\n  }\n}'
 
 class GetCoordinateSystemQuery(BaseModel):
     """No documentation found for this operation."""
@@ -8838,7 +9108,7 @@ class GetCoordinateSystemQuery(BaseModel):
 
     class Meta:
         """Meta class for GetCoordinateSystem """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nquery GetCoordinateSystem($id: ID!) {\n  coordinateSystem(id: $id) {\n    ...CoordinateSystem\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nquery GetCoordinateSystem($id: ID!) {\n  coordinateSystem(id: $id) {\n    ...CoordinateSystem\n    __typename\n  }\n}'
 
 class GetCoordinateSystemsQuery(BaseModel):
     """No documentation found for this operation."""
@@ -8852,7 +9122,7 @@ class GetCoordinateSystemsQuery(BaseModel):
 
     class Meta:
         """Meta class for GetCoordinateSystems """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nquery GetCoordinateSystems($filters: CoordinateSystemFilter, $pagination: OffsetPaginationInput) {\n  coordinateSystems(filters: $filters, pagination: $pagination) {\n    ...CoordinateSystem\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nquery GetCoordinateSystems($filters: CoordinateSystemFilter, $pagination: OffsetPaginationInput) {\n  coordinateSystems(filters: $filters, pagination: $pagination) {\n    ...CoordinateSystem\n    __typename\n  }\n}'
 
 class SearchCoordinateSystemsQueryOptions(CoordinateSystemTrait, BaseModel):
     """A named coordinate space: a node in the transformation graph. Its axes are ordered, and that order is the order of the array's dimensions"""
@@ -9043,7 +9313,7 @@ class GetFixtureQuery(BaseModel):
 
     class Meta:
         """Meta class for GetFixture """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment Window on Window {\n  axis\n  min\n  max\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FixtureLens on FixtureLens {\n  id\n  name\n  kind\n  fixture {\n    id\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nfragment KulisseStore on KulisseStore {\n  id\n  key\n  bucket\n  path\n  sizeBytes\n  ref\n  bounds\n  nodes\n  joints\n  warnings\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment Fixture on Fixture {\n  id\n  name\n  label\n  bounds\n  createdAt\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...KulisseStore\n    __typename\n  }\n  fullLens {\n    ...FixtureLens\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nquery GetFixture($id: ID!) {\n  fixture(id: $id) {\n    ...Fixture\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment Window on Window {\n  axis\n  min\n  max\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FixtureLens on FixtureLens {\n  id\n  name\n  kind\n  fixture {\n    id\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nfragment KulisseStore on KulisseStore {\n  id\n  key\n  bucket\n  path\n  sizeBytes\n  ref\n  bounds\n  nodes\n  joints\n  warnings\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment Fixture on Fixture {\n  id\n  name\n  label\n  bounds\n  createdAt\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...KulisseStore\n    __typename\n  }\n  fullLens {\n    ...FixtureLens\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nquery GetFixture($id: ID!) {\n  fixture(id: $id) {\n    ...Fixture\n    __typename\n  }\n}'
 
 class GetFixturesQuery(BaseModel):
     """No documentation found for this operation."""
@@ -9057,7 +9327,7 @@ class GetFixturesQuery(BaseModel):
 
     class Meta:
         """Meta class for GetFixtures """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment Window on Window {\n  axis\n  min\n  max\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FixtureLens on FixtureLens {\n  id\n  name\n  kind\n  fixture {\n    id\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nfragment KulisseStore on KulisseStore {\n  id\n  key\n  bucket\n  path\n  sizeBytes\n  ref\n  bounds\n  nodes\n  joints\n  warnings\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment Fixture on Fixture {\n  id\n  name\n  label\n  bounds\n  createdAt\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...KulisseStore\n    __typename\n  }\n  fullLens {\n    ...FixtureLens\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nquery GetFixtures($filters: FixtureFilter, $pagination: OffsetPaginationInput) {\n  fixtures(filters: $filters, pagination: $pagination) {\n    ...Fixture\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment Window on Window {\n  axis\n  min\n  max\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FixtureLens on FixtureLens {\n  id\n  name\n  kind\n  fixture {\n    id\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nfragment KulisseStore on KulisseStore {\n  id\n  key\n  bucket\n  path\n  sizeBytes\n  ref\n  bounds\n  nodes\n  joints\n  warnings\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment Fixture on Fixture {\n  id\n  name\n  label\n  bounds\n  createdAt\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...KulisseStore\n    __typename\n  }\n  fullLens {\n    ...FixtureLens\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nquery GetFixtures($filters: FixtureFilter, $pagination: OffsetPaginationInput) {\n  fixtures(filters: $filters, pagination: $pagination) {\n    ...Fixture\n    __typename\n  }\n}'
 
 class SearchFixturesQueryOptions(BaseModel):
     """A piece of hardware around the sample -- a coverslip, a dish, a holder -- stored as one binary glTF. Ask its `store` for an `accessGrant` and load the file whole; its space's axes carry the units its vertices are in"""
@@ -9299,7 +9569,7 @@ class GetLensQueryLensBaseSparseLens(SparseLens, GetLensQueryLensBase, BaseModel
     typename: Literal['SparseLens'] = Field(alias='__typename', default='SparseLens', exclude=True)
 
 class GetLensQueryLensBaseTableLens(TableLens, GetLensQueryLensBase, BaseModel):
-    """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    """A selection over a table dataset by value windows on its columns: the rows kept. A window on a coordinate column bounds a region of space; one on a numeric measurement column is a gate (`area >= 50`), which bounds nothing in space. Lives in the table's own space"""
     __identifier__: ClassVar[Literal['@mikro/tablelens']] = '@mikro/tablelens'
     typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
 
@@ -9319,7 +9589,7 @@ class GetLensQuery(BaseModel):
 
     class Meta:
         """Meta class for GetLens """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Slice on Slice {\n  axis\n  start\n  stop\n  step\n  __typename\n}\n\nfragment Window on Window {\n  axis\n  min\n  max\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment AnnotationLens on AnnotationLens {\n  id\n  name\n  kind\n  annotationCollection {\n    id\n    name\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nfragment ArrayLens on ArrayLens {\n  id\n  name\n  label\n  kind\n  dataset {\n    id\n    axisNames\n    dataArrays {\n      id\n      level\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  shape\n  axisNames\n  voxelSize {\n    axis\n    size\n    unit\n    type\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  slices {\n    ...Slice\n    __typename\n  }\n  __typename\n}\n\nfragment MeshLens on MeshLens {\n  id\n  name\n  kind\n  meshCollection {\n    id\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nfragment NetworkLens on NetworkLens {\n  id\n  name\n  kind\n  networkCollection {\n    id\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nfragment SparseLens on SparseLens {\n  id\n  name\n  kind\n  sparseDataset {\n    id\n    name\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  spec\n  __typename\n}\n\nfragment TableLens on TableLens {\n  id\n  name\n  kind\n  tableDataset {\n    id\n    name\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nquery GetLens($id: ID!) {\n  lens(id: $id) {\n    ... on ArrayLens {\n      ...ArrayLens\n    }\n    ... on TableLens {\n      ...TableLens\n    }\n    ... on SparseLens {\n      ...SparseLens\n    }\n    ... on MeshLens {\n      ...MeshLens\n    }\n    ... on NetworkLens {\n      ...NetworkLens\n    }\n    ... on AnnotationLens {\n      ...AnnotationLens\n    }\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Slice on Slice {\n  axis\n  start\n  stop\n  step\n  __typename\n}\n\nfragment Window on Window {\n  axis\n  min\n  max\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment AnnotationLens on AnnotationLens {\n  id\n  name\n  kind\n  annotationCollection {\n    id\n    name\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nfragment ArrayLens on ArrayLens {\n  id\n  name\n  label\n  kind\n  dataset {\n    id\n    axisNames\n    dataArrays {\n      id\n      level\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  shape\n  axisNames\n  voxelSize {\n    axis\n    size\n    unit\n    type\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  slices {\n    ...Slice\n    __typename\n  }\n  __typename\n}\n\nfragment MeshLens on MeshLens {\n  id\n  name\n  kind\n  meshCollection {\n    id\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nfragment NetworkLens on NetworkLens {\n  id\n  name\n  kind\n  networkCollection {\n    id\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nfragment SparseLens on SparseLens {\n  id\n  name\n  kind\n  sparseDataset {\n    id\n    name\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  spec\n  __typename\n}\n\nfragment TableLens on TableLens {\n  id\n  name\n  kind\n  tableDataset {\n    id\n    name\n    __typename\n  }\n  windows {\n    ...Window\n    __typename\n  }\n  __typename\n}\n\nquery GetLens($id: ID!) {\n  lens(id: $id) {\n    ... on ArrayLens {\n      ...ArrayLens\n    }\n    ... on TableLens {\n      ...TableLens\n    }\n    ... on SparseLens {\n      ...SparseLens\n    }\n    ... on MeshLens {\n      ...MeshLens\n    }\n    ... on NetworkLens {\n      ...NetworkLens\n    }\n    ... on AnnotationLens {\n      ...AnnotationLens\n    }\n    __typename\n  }\n}'
 
 class GetFullLensQueryArrayDataset(DatasetTrait, BaseModel):
     """A multi-dimensional array dataset. Its dimensions and their types live on the axes of its INTRINSIC (pixel grid) coordinate system; physical units live on the physical spaces it has edges into; its pyramid levels are DataArrays, each mapping into its grid"""
@@ -9342,7 +9612,7 @@ class GetFullLensQuery(BaseModel):
 
     class Meta:
         """Meta class for GetFullLens """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Slice on Slice {\n  axis\n  start\n  stop\n  step\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ArrayLens on ArrayLens {\n  id\n  name\n  label\n  kind\n  dataset {\n    id\n    axisNames\n    dataArrays {\n      id\n      level\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  shape\n  axisNames\n  voxelSize {\n    axis\n    size\n    unit\n    type\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  slices {\n    ...Slice\n    __typename\n  }\n  __typename\n}\n\nquery GetFullLens($dataset: ID!) {\n  arrayDataset(id: $dataset) {\n    id\n    fullLens {\n      ...ArrayLens\n      __typename\n    }\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Slice on Slice {\n  axis\n  start\n  stop\n  step\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ArrayLens on ArrayLens {\n  id\n  name\n  label\n  kind\n  dataset {\n    id\n    axisNames\n    dataArrays {\n      id\n      level\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  shape\n  axisNames\n  voxelSize {\n    axis\n    size\n    unit\n    type\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  slices {\n    ...Slice\n    __typename\n  }\n  __typename\n}\n\nquery GetFullLens($dataset: ID!) {\n  arrayDataset(id: $dataset) {\n    id\n    fullLens {\n      ...ArrayLens\n      __typename\n    }\n    __typename\n  }\n}'
 
 class GetDatasetLensesQueryArrayDataset(DatasetTrait, BaseModel):
     """A multi-dimensional array dataset. Its dimensions and their types live on the axes of its INTRINSIC (pixel grid) coordinate system; physical units live on the physical spaces it has edges into; its pyramid levels are DataArrays, each mapping into its grid"""
@@ -9366,7 +9636,7 @@ class GetDatasetLensesQuery(BaseModel):
 
     class Meta:
         """Meta class for GetDatasetLenses """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Slice on Slice {\n  axis\n  start\n  stop\n  step\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ArrayLens on ArrayLens {\n  id\n  name\n  label\n  kind\n  dataset {\n    id\n    axisNames\n    dataArrays {\n      id\n      level\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  shape\n  axisNames\n  voxelSize {\n    axis\n    size\n    unit\n    type\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  slices {\n    ...Slice\n    __typename\n  }\n  __typename\n}\n\nquery GetDatasetLenses($dataset: ID!, $sliced: Boolean) {\n  arrayDataset(id: $dataset) {\n    id\n    lenses(sliced: $sliced) {\n      ...ArrayLens\n      __typename\n    }\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Slice on Slice {\n  axis\n  start\n  stop\n  step\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ArrayLens on ArrayLens {\n  id\n  name\n  label\n  kind\n  dataset {\n    id\n    axisNames\n    dataArrays {\n      id\n      level\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  shape\n  axisNames\n  voxelSize {\n    axis\n    size\n    unit\n    type\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  slices {\n    ...Slice\n    __typename\n  }\n  __typename\n}\n\nquery GetDatasetLenses($dataset: ID!, $sliced: Boolean) {\n  arrayDataset(id: $dataset) {\n    id\n    lenses(sliced: $sliced) {\n      ...ArrayLens\n      __typename\n    }\n    __typename\n  }\n}'
 
 class GetLensesQueryLensesBase(BaseModel):
     """A selection over a container that lives in a coordinate system: one row per (container, selection), so the same selection asked for twice is the same id. An ArrayLens selects over an array dataset by index slices and, when sliced, owns the crop's space and the edge back into the dataset's grid; every other kind selects over its container by value windows in the container's own axes and lives in the container's space. Every container has its whole lens from creation."""
@@ -9408,7 +9678,7 @@ class GetLensesQueryLensesBaseSparseLens(GetLensesQueryLensesBase, BaseModel):
     typename: Literal['SparseLens'] = Field(alias='__typename', default='SparseLens', exclude=True)
 
 class GetLensesQueryLensesBaseTableLens(GetLensesQueryLensesBase, BaseModel):
-    """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    """A selection over a table dataset by value windows on its columns: the rows kept. A window on a coordinate column bounds a region of space; one on a numeric measurement column is a gate (`area >= 50`), which bounds nothing in space. Lives in the table's own space"""
     __identifier__: ClassVar[Literal['@mikro/tablelens']] = '@mikro/tablelens'
     typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
 
@@ -9470,7 +9740,7 @@ class SearchArrayLensesQueryOptionsBaseSparseLens(SearchArrayLensesQueryOptionsB
     typename: Literal['SparseLens'] = Field(alias='__typename', default='SparseLens', exclude=True)
 
 class SearchArrayLensesQueryOptionsBaseTableLens(SearchArrayLensesQueryOptionsBase, BaseModel):
-    """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    """A selection over a table dataset by value windows on its columns: the rows kept. A window on a coordinate column bounds a region of space; one on a numeric measurement column is a gate (`area >= 50`), which bounds nothing in space. Lives in the table's own space"""
     __identifier__: ClassVar[Literal['@mikro/tablelens']] = '@mikro/tablelens'
     typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
 
@@ -9538,7 +9808,7 @@ class SearchTableLensesQueryOptionsBaseSparseLens(SearchTableLensesQueryOptionsB
     typename: Literal['SparseLens'] = Field(alias='__typename', default='SparseLens', exclude=True)
 
 class SearchTableLensesQueryOptionsBaseTableLens(SearchTableLensesQueryOptionsBase, BaseModel):
-    """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    """A selection over a table dataset by value windows on its columns: the rows kept. A window on a coordinate column bounds a region of space; one on a numeric measurement column is a gate (`area >= 50`), which bounds nothing in space. Lives in the table's own space"""
     __identifier__: ClassVar[Literal['@mikro/tablelens']] = '@mikro/tablelens'
     typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
 
@@ -9601,7 +9871,7 @@ class SearchSparseLensesQueryOptionsBaseSparseLens(SearchSparseLensesQueryOption
     typename: Literal['SparseLens'] = Field(alias='__typename', default='SparseLens', exclude=True)
 
 class SearchSparseLensesQueryOptionsBaseTableLens(SearchSparseLensesQueryOptionsBase, BaseModel):
-    """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    """A selection over a table dataset by value windows on its columns: the rows kept. A window on a coordinate column bounds a region of space; one on a numeric measurement column is a gate (`area >= 50`), which bounds nothing in space. Lives in the table's own space"""
     __identifier__: ClassVar[Literal['@mikro/tablelens']] = '@mikro/tablelens'
     typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
 
@@ -9664,7 +9934,7 @@ class SearchMeshLensesQueryOptionsBaseSparseLens(SearchMeshLensesQueryOptionsBas
     typename: Literal['SparseLens'] = Field(alias='__typename', default='SparseLens', exclude=True)
 
 class SearchMeshLensesQueryOptionsBaseTableLens(SearchMeshLensesQueryOptionsBase, BaseModel):
-    """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    """A selection over a table dataset by value windows on its columns: the rows kept. A window on a coordinate column bounds a region of space; one on a numeric measurement column is a gate (`area >= 50`), which bounds nothing in space. Lives in the table's own space"""
     __identifier__: ClassVar[Literal['@mikro/tablelens']] = '@mikro/tablelens'
     typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
 
@@ -9727,7 +9997,7 @@ class SearchNetworkLensesQueryOptionsBaseSparseLens(SearchNetworkLensesQueryOpti
     typename: Literal['SparseLens'] = Field(alias='__typename', default='SparseLens', exclude=True)
 
 class SearchNetworkLensesQueryOptionsBaseTableLens(SearchNetworkLensesQueryOptionsBase, BaseModel):
-    """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    """A selection over a table dataset by value windows on its columns: the rows kept. A window on a coordinate column bounds a region of space; one on a numeric measurement column is a gate (`area >= 50`), which bounds nothing in space. Lives in the table's own space"""
     __identifier__: ClassVar[Literal['@mikro/tablelens']] = '@mikro/tablelens'
     typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
 
@@ -9790,7 +10060,7 @@ class SearchAnnotationLensesQueryOptionsBaseSparseLens(SearchAnnotationLensesQue
     typename: Literal['SparseLens'] = Field(alias='__typename', default='SparseLens', exclude=True)
 
 class SearchAnnotationLensesQueryOptionsBaseTableLens(SearchAnnotationLensesQueryOptionsBase, BaseModel):
-    """A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space"""
+    """A selection over a table dataset by value windows on its columns: the rows kept. A window on a coordinate column bounds a region of space; one on a numeric measurement column is a gate (`area >= 50`), which bounds nothing in space. Lives in the table's own space"""
     __identifier__: ClassVar[Literal['@mikro/tablelens']] = '@mikro/tablelens'
     typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
 
@@ -9826,7 +10096,7 @@ class GetMeshCollectionQuery(BaseModel):
 
     class Meta:
         """Meta class for GetMeshCollection """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FabriksStore on FabriksStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment MeshCollection on MeshCollection {\n  id\n  name\n  label\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...FabriksStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nquery GetMeshCollection($id: ID!) {\n  meshCollection(id: $id) {\n    ...MeshCollection\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FabriksStore on FabriksStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment MeshCollection on MeshCollection {\n  id\n  name\n  label\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...FabriksStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nquery GetMeshCollection($id: ID!) {\n  meshCollection(id: $id) {\n    ...MeshCollection\n    __typename\n  }\n}'
 
 class GetMeshCollectionsQuery(BaseModel):
     """No documentation found for this operation."""
@@ -9840,7 +10110,7 @@ class GetMeshCollectionsQuery(BaseModel):
 
     class Meta:
         """Meta class for GetMeshCollections """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FabriksStore on FabriksStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment MeshCollection on MeshCollection {\n  id\n  name\n  label\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...FabriksStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nquery GetMeshCollections($filters: MeshCollectionFilter, $pagination: OffsetPaginationInput) {\n  meshCollections(filters: $filters, pagination: $pagination) {\n    ...MeshCollection\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FabriksStore on FabriksStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment MeshCollection on MeshCollection {\n  id\n  name\n  label\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...FabriksStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nquery GetMeshCollections($filters: MeshCollectionFilter, $pagination: OffsetPaginationInput) {\n  meshCollections(filters: $filters, pagination: $pagination) {\n    ...MeshCollection\n    __typename\n  }\n}'
 
 class SearchMeshCollectionsQueryOptions(MeshCollectionTrait, BaseModel):
     """An immutable collection of meshes, stored as one fabriks prefix. Ask its `store` for an access grant and query the Parquet directly (e.g. with DuckDB) rather than paginating meshes through GraphQL"""
@@ -9932,7 +10202,7 @@ class GetNetworkCollectionQuery(BaseModel):
 
     class Meta:
         """Meta class for GetNetworkCollection """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment KonnektionStore on KonnektionStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  attributes\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment NetworkCollection on NetworkCollection {\n  id\n  name\n  label\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...KonnektionStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nquery GetNetworkCollection($id: ID!) {\n  networkCollection(id: $id) {\n    ...NetworkCollection\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment KonnektionStore on KonnektionStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  attributes\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment NetworkCollection on NetworkCollection {\n  id\n  name\n  label\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...KonnektionStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nquery GetNetworkCollection($id: ID!) {\n  networkCollection(id: $id) {\n    ...NetworkCollection\n    __typename\n  }\n}'
 
 class GetNetworkCollectionsQuery(BaseModel):
     """No documentation found for this operation."""
@@ -9946,7 +10216,7 @@ class GetNetworkCollectionsQuery(BaseModel):
 
     class Meta:
         """Meta class for GetNetworkCollections """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment KonnektionStore on KonnektionStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  attributes\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment NetworkCollection on NetworkCollection {\n  id\n  name\n  label\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...KonnektionStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nquery GetNetworkCollections($filters: NetworkCollectionFilter, $pagination: OffsetPaginationInput) {\n  networkCollections(filters: $filters, pagination: $pagination) {\n    ...NetworkCollection\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment KonnektionStore on KonnektionStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  attributes\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment NetworkCollection on NetworkCollection {\n  id\n  name\n  label\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...KonnektionStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nquery GetNetworkCollections($filters: NetworkCollectionFilter, $pagination: OffsetPaginationInput) {\n  networkCollections(filters: $filters, pagination: $pagination) {\n    ...NetworkCollection\n    __typename\n  }\n}'
 
 class SearchNetworkCollectionsQueryOptions(NetworkCollectionTrait, BaseModel):
     """An immutable collection of networks, stored as one konnektion prefix. Ask its `store` for an access grant and query the Parquet directly (e.g. with DuckDB) rather than paginating nodes through GraphQL"""
@@ -9984,10 +10254,10 @@ class GetSceneQuery(BaseModel):
 
     class Meta:
         """Meta class for GetScene """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nquery GetScene($id: ID!) {\n  scene(id: $id) {\n    ...Scene\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nquery GetScene($id: ID!) {\n  scene(id: $id) {\n    ...Scene\n    __typename\n  }\n}'
 
 class SearchScenesQueryOptions(SceneTrait, BaseModel):
-    """A composition of layers over a shared world coordinate system. The scene carries no units of its own -- they are per-axis, on the axes of its world system"""
+    """A composition that shows **where**: every screen axis is an axis of its world -- a place, with a time or space axis -- and each layer is placed there by the graph's edges, so refining a registration moves what is drawn. Values are drawn as appearance: an image's intensity as colour, a table's `area` as the colour or size of its points. The counterpart of a chart, which shows *how much*: there values are drawn as position. The same table lens may be drawn both ways -- nuclei at their `(y, x)` on the image here, at `(area, volume)` in a VALUES chart. If rotating the view makes sense, it is a scene. The scene carries no units of its own -- they are per-axis, on the axes of its world system"""
     __identifier__: ClassVar[Literal['@mikro/scene']] = '@mikro/scene'
     typename: Literal['Scene'] = Field(alias='__typename', default='Scene', exclude=True)
     value: ID
@@ -10021,7 +10291,7 @@ class GetSceneSnapshotQuery(BaseModel):
 
     class Meta:
         """Meta class for GetSceneSnapshot """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment MediaStore on MediaStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment SceneSnapshot on SceneSnapshot {\n  id\n  name\n  scene {\n    ...Scene\n    __typename\n  }\n  store {\n    ...MediaStore\n    __typename\n  }\n  __typename\n}\n\nquery GetSceneSnapshot($id: ID!) {\n  sceneSnapshot(id: $id) {\n    ...SceneSnapshot\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment MediaStore on MediaStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment SceneSnapshot on SceneSnapshot {\n  id\n  name\n  scene {\n    ...Scene\n    __typename\n  }\n  store {\n    ...MediaStore\n    __typename\n  }\n  __typename\n}\n\nquery GetSceneSnapshot($id: ID!) {\n  sceneSnapshot(id: $id) {\n    ...SceneSnapshot\n    __typename\n  }\n}'
 
 class GetSceneSnapshotsQuery(BaseModel):
     """No documentation found for this operation."""
@@ -10035,7 +10305,7 @@ class GetSceneSnapshotsQuery(BaseModel):
 
     class Meta:
         """Meta class for GetSceneSnapshots """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment MediaStore on MediaStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment SceneSnapshot on SceneSnapshot {\n  id\n  name\n  scene {\n    ...Scene\n    __typename\n  }\n  store {\n    ...MediaStore\n    __typename\n  }\n  __typename\n}\n\nquery GetSceneSnapshots($filters: SceneSnapshotFilter, $pagination: OffsetPaginationInput) {\n  sceneSnapshots(filters: $filters, pagination: $pagination) {\n    ...SceneSnapshot\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment MediaStore on MediaStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment SceneSnapshot on SceneSnapshot {\n  id\n  name\n  scene {\n    ...Scene\n    __typename\n  }\n  store {\n    ...MediaStore\n    __typename\n  }\n  __typename\n}\n\nquery GetSceneSnapshots($filters: SceneSnapshotFilter, $pagination: OffsetPaginationInput) {\n  sceneSnapshots(filters: $filters, pagination: $pagination) {\n    ...SceneSnapshot\n    __typename\n  }\n}'
 
 class SearchSceneSnapshotsQueryOptions(BaseModel):
     """A pre-rendered picture of a composition: every layer of the scene, blended. Clients use snapshots to preview without compositing the layers themselves. A picture of the scene, not of any one lens in it -- `Lens.latestSnapshot` and `ArrayDataset.latestSnapshot` offer the newest picture of the scene the lens nominates, which may stage other data too"""
@@ -10072,7 +10342,7 @@ class GetSparseDatasetQuery(BaseModel):
 
     class Meta:
         """Meta class for GetSparseDataset """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment SparseStore on SparseStore {\n  id\n  key\n  bucket\n  path\n  spec\n  shape\n  layouts {\n    path\n    encoding\n    encodingVersion\n    indexedAxis\n    indexOrder\n    nnz\n    dtype\n    chunks\n    rangeReadable\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment SparseArray on SparseArray {\n  id\n  indexedAxis\n  indexedAxisName\n  path\n  store {\n    ...SparseStore\n    __typename\n  }\n  __typename\n}\n\nfragment SparseAxisReference on SparseAxisReference {\n  id\n  axis\n  references {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment SparseDataset on SparseDataset {\n  id\n  name\n  description\n  axisNames\n  shape\n  indexableAxes\n  arrays {\n    ...SparseArray\n    __typename\n  }\n  axisReferences {\n    ...SparseAxisReference\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nquery GetSparseDataset($id: ID!) {\n  sparseDataset(id: $id) {\n    ...SparseDataset\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment SparseStore on SparseStore {\n  id\n  key\n  bucket\n  path\n  spec\n  shape\n  layouts {\n    path\n    encoding\n    encodingVersion\n    indexedAxis\n    indexOrder\n    nnz\n    dtype\n    chunks\n    rangeReadable\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment SparseArray on SparseArray {\n  id\n  indexedAxis\n  indexedAxisName\n  path\n  store {\n    ...SparseStore\n    __typename\n  }\n  __typename\n}\n\nfragment SparseAxisReference on SparseAxisReference {\n  id\n  axis\n  references {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment SparseDataset on SparseDataset {\n  id\n  name\n  description\n  axisNames\n  shape\n  indexableAxes\n  arrays {\n    ...SparseArray\n    __typename\n  }\n  axisReferences {\n    ...SparseAxisReference\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nquery GetSparseDataset($id: ID!) {\n  sparseDataset(id: $id) {\n    ...SparseDataset\n    __typename\n  }\n}'
 
 class SearchSparseDatasetsQueryOptions(SparseDatasetTrait, BaseModel):
     """A sparse matrix over two enumerated axes -- objects on one, features on the other -- stored as anndata-spelled zarr groups. It exists because a colouring names one *column*, so a colourable measurement is a column of a table: right for a few hundred features and impossible for a transcriptome, where a feature stops being a schema fact and becomes a data one. **Each axis is identified exactly once**, by its own `identifiedBy` -- a source whose contents are the ids, or the table whose rows the positions are. Its stores, axes and coordinate system are fixed at creation; a recomputation is a new dataset"""
@@ -10107,7 +10377,7 @@ class GetTableDatasetQuery(BaseModel):
 
     class Meta:
         """Meta class for GetTableDataset """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    references {\n      id\n      __typename\n    }\n    nodeReferences {\n      id\n      __typename\n    }\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}\n\nquery GetTableDataset($id: ID!) {\n  tableDataset(id: $id) {\n    ...TableDataset\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    references {\n      id\n      __typename\n    }\n    nodeReferences {\n      id\n      __typename\n    }\n    variesOver\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  visualizations {\n    __typename\n    id\n    name\n  }\n  __typename\n}\n\nquery GetTableDataset($id: ID!) {\n  tableDataset(id: $id) {\n    ...TableDataset\n    __typename\n  }\n}'
 
 class GetTableDatasetsQuery(BaseModel):
     """No documentation found for this operation."""
@@ -10121,7 +10391,7 @@ class GetTableDatasetsQuery(BaseModel):
 
     class Meta:
         """Meta class for GetTableDatasets """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    references {\n      id\n      __typename\n    }\n    nodeReferences {\n      id\n      __typename\n    }\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}\n\nquery GetTableDatasets($filters: TableDatasetFilter, $pagination: OffsetPaginationInput) {\n  tableDatasets(filters: $filters, pagination: $pagination) {\n    ...TableDataset\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    references {\n      id\n      __typename\n    }\n    nodeReferences {\n      id\n      __typename\n    }\n    variesOver\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  visualizations {\n    __typename\n    id\n    name\n  }\n  __typename\n}\n\nquery GetTableDatasets($filters: TableDatasetFilter, $pagination: OffsetPaginationInput) {\n  tableDatasets(filters: $filters, pagination: $pagination) {\n    ...TableDataset\n    __typename\n  }\n}'
 
 class GetTransformationQueryTransformationBase(BaseModel):
     """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
@@ -10187,7 +10457,7 @@ class GetTransformationQuery(BaseModel):
 
     class Meta:
         """Meta class for GetTransformation """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nquery GetTransformation($id: ID!) {\n  transformation(id: $id) {\n    ...Transformation\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nquery GetTransformation($id: ID!) {\n  transformation(id: $id) {\n    ...Transformation\n    __typename\n  }\n}'
 
 class GetTransformationsQueryTransformationsBase(BaseModel):
     """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
@@ -10254,7 +10524,7 @@ class GetTransformationsQuery(BaseModel):
 
     class Meta:
         """Meta class for GetTransformations """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nquery GetTransformations($filters: TransformationFilter, $pagination: OffsetPaginationInput) {\n  transformations(filters: $filters, pagination: $pagination) {\n    ...Transformation\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment TransformationPart on TransformationPart {\n  kind\n  inputAxes\n  outputAxes\n  scale\n  translation\n  affine\n  field {\n    unit\n    min\n    max\n    values\n    spatial\n    dereference\n    field {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on SequenceTransformation {\n    steps {\n      kind\n      scale\n      translation\n      affine\n      reason\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    parts {\n      ...TransformationPart\n    }\n  }\n  __typename\n}\n\nquery GetTransformations($filters: TransformationFilter, $pagination: OffsetPaginationInput) {\n  transformations(filters: $filters, pagination: $pagination) {\n    ...Transformation\n    __typename\n  }\n}'
 
 class WatchFilesSubscriptionFiles(BaseModel):
     """No documentation"""
@@ -10925,7 +11195,7 @@ Returns:
         variables['input'] = _input
         return self.execute(DeleteArrayDatasetMutation, variables, task=task).delete_array_dataset
 
-    async def acreate_chart(self, name: str, description: str | None | UnsetType=UNSET, coordinate_system: IDCoercible | None | UnsetType=UNSET, axis: PhysicalAxisInput | None | UnsetType=UNSET, task: TaskLike | None=None) -> Chart:
+    async def acreate_chart(self, name: str, description: str | None | UnsetType=UNSET, coordinate_system: IDCoercible | None | UnsetType=UNSET, axis: PhysicalAxisInput | None | UnsetType=UNSET, kind: ChartKind | UnsetType=UNSET, task: TaskLike | None=None) -> Chart:
         """CreateChart 
  A chart adopts a world with exactly one metric, unit-carrying axis -- an existing
  `coordinateSystem`, or one made from a single `axis` -- and is then filled with layers,
@@ -10937,6 +11207,7 @@ Args:
     description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
     coordinate_system: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
     axis: Input type for one axis of a unit-carrying coordinate system: its name, its semantic kind and its physical unit
+    kind: ChartKind (required)
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
@@ -10951,10 +11222,12 @@ Returns:
             _input['coordinateSystem'] = coordinate_system
         if axis is not UNSET:
             _input['axis'] = axis
+        if kind is not UNSET:
+            _input['kind'] = kind
         variables['input'] = _input
         return (await self.aexecute(CreateChartMutation, variables, task=task)).create_chart
 
-    def create_chart(self, name: str, description: str | None | UnsetType=UNSET, coordinate_system: IDCoercible | None | UnsetType=UNSET, axis: PhysicalAxisInput | None | UnsetType=UNSET, task: TaskLike | None=None) -> Chart:
+    def create_chart(self, name: str, description: str | None | UnsetType=UNSET, coordinate_system: IDCoercible | None | UnsetType=UNSET, axis: PhysicalAxisInput | None | UnsetType=UNSET, kind: ChartKind | UnsetType=UNSET, task: TaskLike | None=None) -> Chart:
         """CreateChart 
  A chart adopts a world with exactly one metric, unit-carrying axis -- an existing
  `coordinateSystem`, or one made from a single `axis` -- and is then filled with layers,
@@ -10966,6 +11239,7 @@ Args:
     description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
     coordinate_system: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
     axis: Input type for one axis of a unit-carrying coordinate system: its name, its semantic kind and its physical unit
+    kind: ChartKind (required)
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
@@ -10980,6 +11254,8 @@ Returns:
             _input['coordinateSystem'] = coordinate_system
         if axis is not UNSET:
             _input['axis'] = axis
+        if kind is not UNSET:
+            _input['kind'] = kind
         variables['input'] = _input
         return self.execute(CreateChartMutation, variables, task=task).create_chart
 
@@ -11297,6 +11573,284 @@ Returns:
         variables['input'] = _input
         return self.execute(CreateSeriesChartLayerMutation, variables, task=task).create_series_chart_layer
 
+    async def acreate_points_chart_layer(self, chart: IDCoercible, lens: IDCoercible, x_column: str, y_column: str, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, z_column: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerPointsChartLayer:
+        """CreatePointsChartLayer 
+ A chart of values (created with neither `coordinateSystem` nor `axis`): a table lens' rows at
+ the values of two or three columns -- a scatter.
+
+Args:
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    color: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list)
+    mark: ChartMark
+    line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    marker_size: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    chart: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    x_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    y_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    z_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ChartLayerPointsChartLayer
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        if name is not UNSET:
+            _input['name'] = name
+        if visible is not UNSET:
+            _input['visible'] = visible
+        if order is not UNSET:
+            _input['order'] = order
+        if opacity is not UNSET:
+            _input['opacity'] = opacity
+        if color is not UNSET:
+            _input['color'] = color
+        if mark is not UNSET:
+            _input['mark'] = mark
+        if line_width is not UNSET:
+            _input['lineWidth'] = line_width
+        if marker_size is not UNSET:
+            _input['markerSize'] = marker_size
+        _input['chart'] = chart
+        _input['lens'] = lens
+        _input['xColumn'] = x_column
+        _input['yColumn'] = y_column
+        if z_column is not UNSET:
+            _input['zColumn'] = z_column
+        variables['input'] = _input
+        return (await self.aexecute(CreatePointsChartLayerMutation, variables, task=task)).create_points_chart_layer
+
+    def create_points_chart_layer(self, chart: IDCoercible, lens: IDCoercible, x_column: str, y_column: str, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, z_column: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerPointsChartLayer:
+        """CreatePointsChartLayer 
+ A chart of values (created with neither `coordinateSystem` nor `axis`): a table lens' rows at
+ the values of two or three columns -- a scatter.
+
+Args:
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    color: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list)
+    mark: ChartMark
+    line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    marker_size: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    chart: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    x_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    y_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    z_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ChartLayerPointsChartLayer
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        if name is not UNSET:
+            _input['name'] = name
+        if visible is not UNSET:
+            _input['visible'] = visible
+        if order is not UNSET:
+            _input['order'] = order
+        if opacity is not UNSET:
+            _input['opacity'] = opacity
+        if color is not UNSET:
+            _input['color'] = color
+        if mark is not UNSET:
+            _input['mark'] = mark
+        if line_width is not UNSET:
+            _input['lineWidth'] = line_width
+        if marker_size is not UNSET:
+            _input['markerSize'] = marker_size
+        _input['chart'] = chart
+        _input['lens'] = lens
+        _input['xColumn'] = x_column
+        _input['yColumn'] = y_column
+        if z_column is not UNSET:
+            _input['zColumn'] = z_column
+        variables['input'] = _input
+        return self.execute(CreatePointsChartLayerMutation, variables, task=task).create_points_chart_layer
+
+    async def acreate_distribution_chart_layer(self, chart: IDCoercible, lens: IDCoercible, value_column: str, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, group_column: str | None | UnsetType=UNSET, bins: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerDistributionChartLayer:
+        """CreateDistributionChartLayer 
+ A chart of values: the values of one column summarised as a histogram or a box, once per
+ value of a grouping column.
+
+Args:
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    color: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list)
+    mark: ChartMark
+    chart: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    value_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    group_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    bins: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ChartLayerDistributionChartLayer
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        if name is not UNSET:
+            _input['name'] = name
+        if visible is not UNSET:
+            _input['visible'] = visible
+        if order is not UNSET:
+            _input['order'] = order
+        if opacity is not UNSET:
+            _input['opacity'] = opacity
+        if color is not UNSET:
+            _input['color'] = color
+        if mark is not UNSET:
+            _input['mark'] = mark
+        _input['chart'] = chart
+        _input['lens'] = lens
+        _input['valueColumn'] = value_column
+        if group_column is not UNSET:
+            _input['groupColumn'] = group_column
+        if bins is not UNSET:
+            _input['bins'] = bins
+        variables['input'] = _input
+        return (await self.aexecute(CreateDistributionChartLayerMutation, variables, task=task)).create_distribution_chart_layer
+
+    def create_distribution_chart_layer(self, chart: IDCoercible, lens: IDCoercible, value_column: str, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, group_column: str | None | UnsetType=UNSET, bins: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerDistributionChartLayer:
+        """CreateDistributionChartLayer 
+ A chart of values: the values of one column summarised as a histogram or a box, once per
+ value of a grouping column.
+
+Args:
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    color: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list)
+    mark: ChartMark
+    chart: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    value_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    group_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    bins: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ChartLayerDistributionChartLayer
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        if name is not UNSET:
+            _input['name'] = name
+        if visible is not UNSET:
+            _input['visible'] = visible
+        if order is not UNSET:
+            _input['order'] = order
+        if opacity is not UNSET:
+            _input['opacity'] = opacity
+        if color is not UNSET:
+            _input['color'] = color
+        if mark is not UNSET:
+            _input['mark'] = mark
+        _input['chart'] = chart
+        _input['lens'] = lens
+        _input['valueColumn'] = value_column
+        if group_column is not UNSET:
+            _input['groupColumn'] = group_column
+        if bins is not UNSET:
+            _input['bins'] = bins
+        variables['input'] = _input
+        return self.execute(CreateDistributionChartLayerMutation, variables, task=task).create_distribution_chart_layer
+
+    async def acreate_table_plot(self, table: IDCoercible, kind: ChartLayerKind, x_column: str, lens: IDCoercible | None | UnsetType=UNSET, y_column: str | None | UnsetType=UNSET, z_column: str | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, group_column: str | None | UnsetType=UNSET, bins: int | None | UnsetType=UNSET, name: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> Chart:
+        """CreateTablePlot 
+ The "Create plot" button: a chart of values and its one layer, in one transaction.
+
+Args:
+    table: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    kind: ChartLayerKind (required)
+    x_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    y_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    z_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    mark: ChartMark
+    group_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    bins: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    Chart
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['table'] = table
+        if lens is not UNSET:
+            _input['lens'] = lens
+        _input['kind'] = kind
+        _input['xColumn'] = x_column
+        if y_column is not UNSET:
+            _input['yColumn'] = y_column
+        if z_column is not UNSET:
+            _input['zColumn'] = z_column
+        if mark is not UNSET:
+            _input['mark'] = mark
+        if group_column is not UNSET:
+            _input['groupColumn'] = group_column
+        if bins is not UNSET:
+            _input['bins'] = bins
+        if name is not UNSET:
+            _input['name'] = name
+        variables['input'] = _input
+        return (await self.aexecute(CreateTablePlotMutation, variables, task=task)).create_table_plot
+
+    def create_table_plot(self, table: IDCoercible, kind: ChartLayerKind, x_column: str, lens: IDCoercible | None | UnsetType=UNSET, y_column: str | None | UnsetType=UNSET, z_column: str | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, group_column: str | None | UnsetType=UNSET, bins: int | None | UnsetType=UNSET, name: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> Chart:
+        """CreateTablePlot 
+ The "Create plot" button: a chart of values and its one layer, in one transaction.
+
+Args:
+    table: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    kind: ChartLayerKind (required)
+    x_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    y_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    z_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    mark: ChartMark
+    group_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    bins: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    Chart
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['table'] = table
+        if lens is not UNSET:
+            _input['lens'] = lens
+        _input['kind'] = kind
+        _input['xColumn'] = x_column
+        if y_column is not UNSET:
+            _input['yColumn'] = y_column
+        if z_column is not UNSET:
+            _input['zColumn'] = z_column
+        if mark is not UNSET:
+            _input['mark'] = mark
+        if group_column is not UNSET:
+            _input['groupColumn'] = group_column
+        if bins is not UNSET:
+            _input['bins'] = bins
+        if name is not UNSET:
+            _input['name'] = name
+        variables['input'] = _input
+        return self.execute(CreateTablePlotMutation, variables, task=task).create_table_plot
+
     async def acreate_annotation_chart_layer(self, chart: IDCoercible, lens: IDCoercible | None | UnsetType=UNSET, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerAnnotationChartLayer:
         """CreateAnnotationChartLayer 
  With no `annotationCollection` this makes the drawing surface: a collection whose space
@@ -11363,7 +11917,7 @@ Returns:
         variables['input'] = _input
         return self.execute(CreateAnnotationChartLayerMutation, variables, task=task).create_annotation_chart_layer
 
-    async def aupdate_chart_layer(self, id: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotated[UpdateChartLayerMutationUpdateChartLayerBaseAnnotationChartLayer | UpdateChartLayerMutationUpdateChartLayerBaseSeriesChartLayer | UpdateChartLayerMutationUpdateChartLayerBaseTraceChartLayer, Field(discriminator='typename')] | UpdateChartLayerMutationUpdateChartLayerBaseCatchAll:
+    async def aupdate_chart_layer(self, id: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotated[UpdateChartLayerMutationUpdateChartLayerBaseAnnotationChartLayer | UpdateChartLayerMutationUpdateChartLayerBaseDistributionChartLayer | UpdateChartLayerMutationUpdateChartLayerBasePointsChartLayer | UpdateChartLayerMutationUpdateChartLayerBaseSeriesChartLayer | UpdateChartLayerMutationUpdateChartLayerBaseTraceChartLayer, Field(discriminator='typename')] | UpdateChartLayerMutationUpdateChartLayerBaseCatchAll:
         """UpdateChartLayer 
  View state only: a layer's kind and its source are fixed at creation.
 
@@ -11404,7 +11958,7 @@ Returns:
         variables['input'] = _input
         return (await self.aexecute(UpdateChartLayerMutation, variables, task=task)).update_chart_layer
 
-    def update_chart_layer(self, id: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotated[UpdateChartLayerMutationUpdateChartLayerBaseAnnotationChartLayer | UpdateChartLayerMutationUpdateChartLayerBaseSeriesChartLayer | UpdateChartLayerMutationUpdateChartLayerBaseTraceChartLayer, Field(discriminator='typename')] | UpdateChartLayerMutationUpdateChartLayerBaseCatchAll:
+    def update_chart_layer(self, id: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotated[UpdateChartLayerMutationUpdateChartLayerBaseAnnotationChartLayer | UpdateChartLayerMutationUpdateChartLayerBaseDistributionChartLayer | UpdateChartLayerMutationUpdateChartLayerBasePointsChartLayer | UpdateChartLayerMutationUpdateChartLayerBaseSeriesChartLayer | UpdateChartLayerMutationUpdateChartLayerBaseTraceChartLayer, Field(discriminator='typename')] | UpdateChartLayerMutationUpdateChartLayerBaseCatchAll:
         """UpdateChartLayer 
  View state only: a layer's kind and its source are fixed at creation.
 
@@ -14828,7 +15382,7 @@ Returns:
     async def acreate_table_lens(self, table_dataset: IDCoercible | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, windows: Iterable[WindowInput] | None | UnsetType=UNSET, task: TaskLike | None=None) -> TableLens:
         """CreateTableLens 
 
-The lens keeping these windows of a table dataset's coordinate columns: the one that exists, or a new one. It lives in the table's own space
+The lens keeping these windows of a table dataset's columns -- a coordinate (a region of space) or a numeric measurement (a gate, `area >= 50`): the one that exists, or a new one. It lives in the table's own space
 
 Args:
     table_dataset: The table dataset to select over. Exactly one of this and `lens`
@@ -14853,7 +15407,7 @@ Returns:
     def create_table_lens(self, table_dataset: IDCoercible | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, windows: Iterable[WindowInput] | None | UnsetType=UNSET, task: TaskLike | None=None) -> TableLens:
         """CreateTableLens 
 
-The lens keeping these windows of a table dataset's coordinate columns: the one that exists, or a new one. It lives in the table's own space
+The lens keeping these windows of a table dataset's columns -- a coordinate (a region of space) or a numeric measurement (a gate, `area >= 50`): the one that exists, or a new one. It lives in the table's own space
 
 Args:
     table_dataset: The table dataset to select over. Exactly one of this and `lens`
@@ -17585,7 +18139,7 @@ Returns:
             variables['pagination'] = pagination
         return self.execute(ListChartsQuery, variables, task=task).charts
 
-    async def aget_chart_layer(self, id: IDCoercible, task: TaskLike | None=None) -> Annotated[GetChartLayerQueryChartLayerBaseAnnotationChartLayer | GetChartLayerQueryChartLayerBaseSeriesChartLayer | GetChartLayerQueryChartLayerBaseTraceChartLayer, Field(discriminator='typename')] | GetChartLayerQueryChartLayerBaseCatchAll:
+    async def aget_chart_layer(self, id: IDCoercible, task: TaskLike | None=None) -> Annotated[GetChartLayerQueryChartLayerBaseAnnotationChartLayer | GetChartLayerQueryChartLayerBaseDistributionChartLayer | GetChartLayerQueryChartLayerBasePointsChartLayer | GetChartLayerQueryChartLayerBaseSeriesChartLayer | GetChartLayerQueryChartLayerBaseTraceChartLayer, Field(discriminator='typename')] | GetChartLayerQueryChartLayerBaseCatchAll:
         """GetChartLayer 
 
 Get a single chart layer by ID
@@ -17601,7 +18155,7 @@ Returns:
         variables['id'] = id
         return (await self.aexecute(GetChartLayerQuery, variables, task=task)).chart_layer
 
-    def get_chart_layer(self, id: IDCoercible, task: TaskLike | None=None) -> Annotated[GetChartLayerQueryChartLayerBaseAnnotationChartLayer | GetChartLayerQueryChartLayerBaseSeriesChartLayer | GetChartLayerQueryChartLayerBaseTraceChartLayer, Field(discriminator='typename')] | GetChartLayerQueryChartLayerBaseCatchAll:
+    def get_chart_layer(self, id: IDCoercible, task: TaskLike | None=None) -> Annotated[GetChartLayerQueryChartLayerBaseAnnotationChartLayer | GetChartLayerQueryChartLayerBaseDistributionChartLayer | GetChartLayerQueryChartLayerBasePointsChartLayer | GetChartLayerQueryChartLayerBaseSeriesChartLayer | GetChartLayerQueryChartLayerBaseTraceChartLayer, Field(discriminator='typename')] | GetChartLayerQueryChartLayerBaseCatchAll:
         """GetChartLayer 
 
 Get a single chart layer by ID
@@ -17617,7 +18171,7 @@ Returns:
         variables['id'] = id
         return self.execute(GetChartLayerQuery, variables, task=task).chart_layer
 
-    async def achart_layers(self, filters: ChartLayerFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[Annotated[ChartLayersQueryChartLayersBaseAnnotationChartLayer | ChartLayersQueryChartLayersBaseSeriesChartLayer | ChartLayersQueryChartLayersBaseTraceChartLayer, Field(discriminator='typename')] | ChartLayersQueryChartLayersBaseCatchAll, ...]:
+    async def achart_layers(self, filters: ChartLayerFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[Annotated[ChartLayersQueryChartLayersBaseAnnotationChartLayer | ChartLayersQueryChartLayersBaseDistributionChartLayer | ChartLayersQueryChartLayersBasePointsChartLayer | ChartLayersQueryChartLayersBaseSeriesChartLayer | ChartLayersQueryChartLayersBaseTraceChartLayer, Field(discriminator='typename')] | ChartLayersQueryChartLayersBaseCatchAll, ...]:
         """ChartLayers 
 
 List layers drawn in charts (a heterogeneous list of layer kinds)
@@ -17637,7 +18191,7 @@ Returns:
             variables['pagination'] = pagination
         return (await self.aexecute(ChartLayersQuery, variables, task=task)).chart_layers
 
-    def chart_layers(self, filters: ChartLayerFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[Annotated[ChartLayersQueryChartLayersBaseAnnotationChartLayer | ChartLayersQueryChartLayersBaseSeriesChartLayer | ChartLayersQueryChartLayersBaseTraceChartLayer, Field(discriminator='typename')] | ChartLayersQueryChartLayersBaseCatchAll, ...]:
+    def chart_layers(self, filters: ChartLayerFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[Annotated[ChartLayersQueryChartLayersBaseAnnotationChartLayer | ChartLayersQueryChartLayersBaseDistributionChartLayer | ChartLayersQueryChartLayersBasePointsChartLayer | ChartLayersQueryChartLayersBaseSeriesChartLayer | ChartLayersQueryChartLayersBaseTraceChartLayer, Field(discriminator='typename')] | ChartLayersQueryChartLayersBaseCatchAll, ...]:
         """ChartLayers 
 
 List layers drawn in charts (a heterogeneous list of layer kinds)

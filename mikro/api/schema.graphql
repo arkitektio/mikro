@@ -1581,6 +1581,11 @@ type Axis @key(fields: "id", resolvable: true) {
   unit: Unit
   longName: String
   description: String
+
+  """
+  The metric group this axis is in: the axes that share one distance with it. What it declared, else 'space' for a SPACE axis, else null -- an axis that shares a distance with nothing. A rotation, a distance and a scene's render axes need one group; a per-axis scale, an offset and an affine map do not
+  """
+  metricGroup: String
 }
 
 """
@@ -1626,6 +1631,7 @@ Input type for one structural axis of a dataset's pixel grid: its name and its s
 input AxisInput {
   name: String!
   type: AxisType!
+  metricGroup: String = null
   longName: String = null
   description: String = null
 }
@@ -1678,6 +1684,11 @@ enum AxisType {
   The direction values are drawn along. It exists only in a drawing space -- an annotation collection's -- so that a mark can sit at a height as well as a position: no dataset's grid, no table and no unit-carrying space has one, because what data *holds* is its values, not an axis of them. Always unitless: what a height measures is whatever the thing drawn beside it measures.
   """
   VALUE
+
+  """
+  An enumerating axis whose positions are the values a column holds -- a condition, a genotype, a cluster id. It has no unit and no metric, exactly as an INDEX axis has none: nothing scales or offsets it, and a BY_DIMENSION passes it through with an IDENTITY part. The positions are not stored: they are whatever the values are. Never on an array's grid; declared on a coordinate system that enumerates by value.
+  """
+  CATEGORY
 }
 
 enum AxisTypeChoices {
@@ -1690,6 +1701,7 @@ enum AxisTypeChoices {
   SPECTRUM
   INDEX
   VALUE
+  CATEGORY
 }
 
 """
@@ -2141,7 +2153,7 @@ type ChannelSourceNode implements LayerRenderNode {
 }
 
 """
-A composition of data laid out along one metric axis, with values read off it. The second kind of composition beside a scene: a scene is a place, a chart is an axis. It names data by id and owns none of it, and it carries no unit of its own -- the unit is its world axis's
+A composition that shows **how much**: values drawn as position. The counterpart of a scene, which shows **where**: in a scene every screen axis is a world axis, data is placed by the graph's edges and values are drawn as appearance (a colour, a size); in a chart at most one axis is drawn from the world and every other position is a value. Every chart has a world -- the domain its layers' rows live in -- and every layer is placed into it. An **AXIS** chart draws its world, one metric axis with a unit, and lays TRACE, SERIES and ANNOTATION layers along it: a timelapse's intensity against `t`. A **VALUES** chart does not draw its world, which says whose rows -- a table's space, usually its INDEX axis -- and its POINTS and DISTRIBUTION layers draw those rows at the values of the columns they name: nuclei at `area` against `volume`, a histogram of `area` per `condition`. Two layers in one VALUES world are about the same rows (a table and the PCA derived from it). The same table lens may be drawn as a scene, at its `(y, x)` coloured by `area`, and as a VALUES chart at `(area, volume)`. A chart names data through lenses and owns none of it; if rotating its view would mix units, it is a chart, and if it would not, a scene
 """
 type Chart implements Visualization @key(fields: "id", resolvable: true) @identified(by: "@mikro/chart") {
   id: ID!
@@ -2153,7 +2165,7 @@ type Chart implements Visualization @key(fields: "id", resolvable: true) @identi
   descriptors: JSON!
 
   """
-  The space this chart is laid out along. Never owned by the chart: several charts can share it, it outlives each of them, and deleting a chart never deletes it. Ask it for `placedSystems` to learn what could be drawn here
+  The domain this chart's layers live in: an AXIS chart's one metric axis, which it draws; a VALUES chart's space whose rows it draws -- a table's -- which it does not. Never owned by the chart: several charts can share it, it outlives each of them, and deleting a chart never deletes it. Ask it for `placedSystems` to learn what could be drawn here
   """
   worldCoordinateSystem: CoordinateSystem!
   description: String
@@ -2166,9 +2178,14 @@ type Chart implements Visualization @key(fields: "id", resolvable: true) @identi
   layers(filters: ChartLayerFilter, ordering: [ChartLayerOrder!]! = [], pagination: OffsetPaginationInput): [ChartLayer!]!
 
   """
-  The one axis this chart is laid out along: its name, its metric type and its unit. The world's only axis, repeated here so a client drawing the chart need not unwrap a list of one
+  What the world is to this chart: AXIS, the one axis it draws and lays its layers along; VALUES, whose rows it draws at the values of their columns
   """
-  axis: Axis!
+  kind: ChartKind!
+
+  """
+  The one axis an AXIS chart is laid out along: its name, its metric type and its unit -- the world's only axis, repeated so a client need not unwrap a list of one. Null for a VALUES chart, whose drawn axes are the columns its layers name
+  """
+  axis: Axis
 }
 
 """Numeric/aggregatable fields of Chart"""
@@ -2205,7 +2222,15 @@ input ChartFilter {
 }
 
 """
-A layer drawn in a chart. It carries view state only. Where its data sits along the chart's axis -- `pathToWorld`, `asAffine`, `alongAxis`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one registration moves every layer that looks through it. The concrete kind says what the layer reads: TraceChartLayer an array, SeriesChartLayer a table, AnnotationChartLayer drawn marks
+What a chart's world is to it. Every chart has a world -- the domain its layers' rows live in -- and every layer is placed into it by the graph. An AXIS chart draws its world: one measured axis with a unit, which TRACE, SERIES and ANNOTATION layers are laid along (intensity against `t`). A VALUES chart does not draw it: its world says *whose rows* -- a table's space, usually its INDEX axis (`cell_id`) -- and its POINTS and DISTRIBUTION layers draw those rows at the values of the columns they name (`area` against `volume`). Two layers placed in one VALUES world are about the same rows.
+"""
+enum ChartKind {
+  AXIS
+  VALUES
+}
+
+"""
+A layer drawn in a chart. It carries view state only. A placed layer's position along the chart's axis -- `pathToWorld`, `asAffine`, `alongAxis`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one registration moves every layer that looks through it. A value layer is placed the same way -- its rows into the VALUES chart's world, which says they are the same rows as the others' -- and drawn at the values of the columns it names. The concrete kind says what the layer reads: TraceChartLayer an array, SeriesChartLayer a table's value column, AnnotationChartLayer drawn marks -- along an AXIS chart's axis -- and PointsChartLayer and DistributionChartLayer a table's columns, in a VALUES chart
 """
 interface ChartLayer {
   id: ID!
@@ -2265,18 +2290,22 @@ input ChartLayerFilter {
 }
 
 """
-The kind of a chart layer, which says what it reads -- never how it looks. TRACE reads an array along one axis; SERIES reads one column of a table against another; ANNOTATION reads drawn marks. A line, markers, both or steps is `ChartMark`, a setting on the layer.
+The kind of a chart layer, which says what it reads -- never how it looks. Three are drawn in an AXIS chart, laid along its one world axis by the graph: TRACE reads an array along one axis, SERIES one value column of a table along its coordinate, ANNOTATION drawn marks. Two are drawn in a VALUES chart, their rows placed in its world and drawn at their values: POINTS at two or three columns (a scatter), DISTRIBUTION summarising one column (a histogram, a box), once per value of a grouping column. A line, markers, a histogram or a box is `ChartMark`, a setting on the layer.
 """
 enum ChartLayerKind {
   TRACE
   SERIES
   ANNOTATION
+  POINTS
+  DISTRIBUTION
 }
 
 enum ChartLayerKindChoices {
   TRACE
   SERIES
   ANNOTATION
+  POINTS
+  DISTRIBUTION
 }
 
 input ChartLayerOrder @oneOf {
@@ -2285,13 +2314,15 @@ input ChartLayerOrder @oneOf {
 }
 
 """
-How a trace or a series is drawn. A look, not a kind: changing it changes nothing about what the layer reads.
+How a layer is drawn. A look, not a kind: changing it changes nothing about what the layer reads. A trace or a series is a LINE, MARKERS, both or STEPS; points are MARKERS or a LINE through them in row order sorted along x; a distribution is a HISTOGRAM or a BOX.
 """
 enum ChartMark {
   LINE
   MARKERS
   LINE_MARKERS
   STEPS
+  HISTOGRAM
+  BOX
 }
 
 input ChartOrder @oneOf {
@@ -2607,6 +2638,11 @@ type Column @key(fields: "id", resolvable: true) {
   description: String
 
   """
+  For a long-form table, the CHANNEL coordinate columns this column's value changes along, as declared. In a `(cell, c, volume, mean)` table a per-cell `volume` varies over nothing and is read once per cell; a per-channel `mean` varies over `c`. Null when undeclared: read as varying over every CHANNEL coordinate, which counts nothing twice that should not be
+  """
+  variesOver: [String!]
+
+  """
   The table this column is declared on. Trivial when the column was read through its table, load-bearing when it was not -- an options list is flat, and a column with no table on it cannot be named in a `colorBy`
   """
   table: TableDataset!
@@ -2663,6 +2699,7 @@ input ColumnInput {
   longName: String = null
   description: String = null
   identifiedBy: [IdentificationInput!]! = []
+  variesOver: [String!] = null
 }
 
 input ColumnOptionFilter {
@@ -3182,13 +3219,14 @@ input CreateChartFromCoordinateSystemInput {
 }
 
 """
-Input type for creating a chart: a composition of data laid out along one metric axis. The chart is created over a world -- an existing coordinate system adopted as it is, or one created from a single axis -- and starts with no layers
+Input type for creating a chart over a world: an existing coordinate system adopted as it is, or one created from `axis`. An AXIS chart (the default) draws its world -- one metric axis with a unit -- and lays TRACE, SERIES and ANNOTATION layers along it by the graph: intensity against `t`. A VALUES chart does not draw its world: the world says whose rows -- a table's space, usually its INDEX axis -- and its POINTS and DISTRIBUTION layers, placed into it, draw those rows at the values of the columns they name: `area` against `volume`. It starts with no layers
 """
 input CreateChartInput {
   name: String!
   description: String = null
   coordinateSystem: ID = null
   axis: PhysicalAxisInput = null
+  kind: ChartKind! = AXIS
 }
 
 """A new collaboration"""
@@ -3216,6 +3254,23 @@ input CreateCoordinateSystemInput {
   epoch: DateTime = null
   reference: String = null
   registrations: [RegistrationPathInput!]! = []
+}
+
+"""
+Input for summarising the values of one column of a table's rows in a VALUES chart: a HISTOGRAM or a BOX, over every row or once per value of `groupColumn` -- the `area` of nuclei, one histogram per `condition`. The rows are placed in the chart's world (whose rows). Writes no edge
+"""
+input CreateDistributionChartLayerInput {
+  name: String = null
+  visible: Boolean = null
+  order: Int = null
+  opacity: Float = null
+  color: [Float!] = null
+  mark: ChartMark = null
+  chart: ID!
+  lens: ID!
+  valueColumn: String!
+  groupColumn: String = null
+  bins: Int = null
 }
 
 """
@@ -3543,6 +3598,25 @@ input CreatePointLayerInput {
 }
 
 """
+Input for drawing a table's rows as points in a VALUES chart: each row at the values of `xColumn` and `yColumn` (and `zColumn` for depth) -- nuclei at their `area` and `volume`. The rows are placed in the chart's world (whose rows); the columns' units are its drawn axes, and a second layer's must convert to them. Writes no edge
+"""
+input CreatePointsChartLayerInput {
+  name: String = null
+  visible: Boolean = null
+  order: Int = null
+  opacity: Float = null
+  color: [Float!] = null
+  mark: ChartMark = null
+  lineWidth: Float = null
+  markerSize: Float = null
+  chart: ID!
+  lens: ID!
+  xColumn: String!
+  yColumn: String!
+  zColumn: String = null
+}
+
+"""
 Create a layer that composites three single-channel lenses, each a crop of `lens`, as the red, green and blue components of one picture
 """
 input CreateRgbLayerInput {
@@ -3659,7 +3733,7 @@ input CreateTableDatasetInput {
 }
 
 """
-Input for the lens making a selection over a table dataset, by windows on its coordinate columns
+Input for the lens making a selection over a table dataset, by windows on its columns: a coordinate column bounds a region of space, a numeric measurement column is a gate (`area >= 50`) -- the rows whose value lies in the window
 """
 input CreateTableLensInput {
   """The table dataset to select over. Exactly one of this and `lens`"""
@@ -3674,6 +3748,22 @@ input CreateTableLensInput {
   Windows, one per axis to restrict, each keeping the positions whose value lies between its min and its max (an omitted side is open). Omit for everything: the table dataset's whole lens, or the lens cut from
   """
   windows: [WindowInput!] = null
+}
+
+"""
+Input for plotting a table's columns in one call: a VALUES chart over the table's space (whose rows, not drawn) and one POINTS or DISTRIBUTION layer through the table's whole lens or a window of it, in one transaction, so a refused layer makes nothing. `area` against `volume` is `{kind: POINTS, xColumn: "area", yColumn: "volume"}`; a histogram of `area` per `condition` is `{kind: DISTRIBUTION, xColumn: "area", groupColumn: "condition"}`
+"""
+input CreateTablePlotInput {
+  table: ID!
+  lens: ID = null
+  kind: ChartLayerKind!
+  xColumn: String!
+  yColumn: String = null
+  zColumn: String = null
+  mark: ChartMark = null
+  groupColumn: String = null
+  bins: Int = null
+  name: String = null
 }
 
 """
@@ -4393,6 +4483,84 @@ input DimensionPartInput {
   translation: [Float!] = null
   affine: [[Float!]!] = null
   field: FieldInput = null
+}
+
+"""
+A layer that summarises the values of one column of a table lens' rows: a HISTOGRAM (`bins`) or a BOX, over every row or once per value of `groupColumn` -- a condition, a cluster, a long-form channel. The rows are placed in the VALUES chart's world; their values are the horizontal axis. Example: the `area` of nuclei, one histogram per `condition`
+"""
+type DistributionChartLayer implements ChartLayer @key(fields: "id", resolvable: true) {
+  id: ID!
+  kind: ChartLayerKind!
+  name: String
+  chart: Chart!
+  visible: Boolean!
+  order: Int!
+  opacity: Float!
+
+  """The colour the layer is drawn in, as RGBA. Null lets the viewer choose"""
+  color: [Float!]
+
+  """
+  The path of transformation edges from this layer's source coordinate system to its chart's world. Null when the layer is unregistered; empty when the source already is the world. `asAffine` is the same path composed
+  """
+  pathToWorld(at: [CoordinateInput!] = null): [PlacementStep!]
+
+  """
+  This layer's whole `pathToWorld` composed into one affine map: a single row, because the chart's world has a single axis. The coefficient on `alongAxis` is the scale from a step along the data to a step along the chart's axis, in the axis's unit, and the last entry is the offset. Derived on read. Null when `pathToWorld` is null; an error when a path exists but does not condense
+  """
+  asAffine(at: [CoordinateInput!] = null): AffinePlacement
+
+  """
+  The name of the source axis that runs along the chart's axis: for a trace, the axis of its lens the values are read along; for a series, the table's coordinate column; for an annotation layer, the axis of the drawing space that is the chart's own. **Not a setting.** It is the one source axis the composed placement reads the chart's axis from, so it follows the registration: re-register the data by another axis and this changes with no write to the layer. Null when the layer is no longer placed, or is placed by a map that reads the chart's axis from several source axes
+  """
+  alongAxis(at: [CoordinateInput!] = null): String
+
+  """
+  Whether this layer has a place along its chart's axis, and if not, why not. UNREGISTERED is a gap to close; UNMAPPABLE is a fact to badge; CONDITIONAL is a placement to ask again for with `at`. Derived, never stored
+  """
+  placement(at: [CoordinateInput!] = null): PlacementState!
+
+  """
+  How much this layer's placement is actually known: the weakest edge on its path to the chart's world. Derived, never stored
+  """
+  placementValidity(at: [CoordinateInput!] = null): PlacementValidity!
+
+  """
+  Which geometric properties survive the walk from this layer's data to the chart's world: the weakest edge on its path. Derived, never stored
+  """
+  placementInvariance(at: [CoordinateInput!] = null): TransformInvariance!
+
+  """The table lens whose rows are summarised: the rows its selection keeps"""
+  lens: TableLens!
+
+  """
+  The numeric column whose values are summarised: the chart's horizontal axis
+  """
+  valueColumn: String!
+
+  """
+  The column whose values split the rows into one summary each: a text or boolean attribute, a label, a group id, or a long-form CHANNEL coordinate. Null for one summary over every row
+  """
+  groupColumn: String
+
+  """How many bins a HISTOGRAM is cut into. Null lets the viewer choose"""
+  bins: Int
+
+  """How the values are summarised: a HISTOGRAM or a BOX"""
+  mark: ChartMark!
+
+  """
+  The lens' selection as row filters, always applied: a row is drawn when every one keeps it (`min <= column <= max`, an omitted side open). Derived from the lens; empty for a whole lens
+  """
+  windowFilters: [LabelFilterBy!]!
+
+  """The table dataset whose columns are read: the container of the lens"""
+  tableDataset: TableDataset!
+
+  """
+  The unit of `valueColumn`, as the table declares it: the chart's horizontal axis. Null when the column declares none
+  """
+  valueUnit: Unit
 }
 
 """
@@ -8610,7 +8778,7 @@ type Mutation {
   createLens(input: CreateLensInput!): ArrayLens! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
-  The lens keeping these windows of a table dataset's coordinate columns: the one that exists, or a new one. It lives in the table's own space
+  The lens keeping these windows of a table dataset's columns -- a coordinate (a region of space) or a numeric measurement (a gate, `area >= 50`): the one that exists, or a new one. It lives in the table's own space
   """
   createTableLens(input: CreateTableLensInput!): TableLens! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
@@ -8681,7 +8849,7 @@ type Mutation {
   deleteScene(input: DeleteSceneInput!): ID! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
-  Create a chart: a composition of data laid out along one metric axis. Over an existing coordinate system with exactly one metric, unit-carrying axis, or over one created from a single axis
+  Create a chart over a world: values drawn as position. An AXIS chart draws its world's one metric, unit-carrying axis (an existing space, or one created from `axis`); a VALUES chart's world is a table's space -- whose rows -- and its layers draw those rows at the values of columns, for scatters and histograms
   """
   createChart(input: CreateChartInput!): Chart! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
@@ -8712,6 +8880,21 @@ type Mutation {
   Draw an annotation collection's marks in a chart, or make a new drawing surface for the chart when no collection is named
   """
   createAnnotationChartLayer(input: CreateAnnotationChartLayerInput!): AnnotationChartLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
+
+  """
+  Plot a table's columns in one call: a VALUES chart over the table's space and one POINTS or DISTRIBUTION layer drawing its rows at the values of the named columns. One transaction
+  """
+  createTablePlot(input: CreateTablePlotInput!): Chart! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
+
+  """
+  Draw a table lens' rows as points in a VALUES chart: placed in its world (whose rows), each drawn at the values of two columns (a scatter), or three for depth
+  """
+  createPointsChartLayer(input: CreatePointsChartLayerInput!): PointsChartLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
+
+  """
+  Summarise the values of one column of a table lens' rows in a VALUES chart: a histogram or a box, over every row or once per value of a grouping column such as a condition
+  """
+  createDistributionChartLayer(input: CreateDistributionChartLayerInput!): DistributionChartLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """Restyle a chart layer. View state only"""
   updateChartLayer(input: UpdateChartLayerInput!): ChartLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
@@ -10209,7 +10392,8 @@ Input type for one axis of a unit-carrying coordinate system: its name, its sema
 input PhysicalAxisInput {
   name: String!
   type: AxisType!
-  unit: Unit!
+  unit: Unit = null
+  metricGroup: String = null
   longName: String = null
   description: String = null
 }
@@ -10476,6 +10660,98 @@ type PointLayer implements Layer @key(fields: "id", resolvable: true) {
 
   """The dataset's ID-role column identifying each point, if any"""
   idColumn: String
+}
+
+"""
+A layer that draws a table lens' rows at the values of its columns: each row a point at (`xColumn`, `yColumn`), and at `zColumn` too for depth -- a scatter. The rows are placed in the VALUES chart's world -- whose rows -- and drawn at their values: the position is the measurement, read from the row. A row with a null in a named column is not drawn. MARKERS, or a LINE through the rows sorted along x. Example: nuclei at (`area`, `volume`), through a lens that keeps `area >= 50`
+"""
+type PointsChartLayer implements ChartLayer @key(fields: "id", resolvable: true) {
+  id: ID!
+  kind: ChartLayerKind!
+  name: String
+  chart: Chart!
+  visible: Boolean!
+  order: Int!
+  opacity: Float!
+
+  """The colour the layer is drawn in, as RGBA. Null lets the viewer choose"""
+  color: [Float!]
+
+  """
+  The path of transformation edges from this layer's source coordinate system to its chart's world. Null when the layer is unregistered; empty when the source already is the world. `asAffine` is the same path composed
+  """
+  pathToWorld(at: [CoordinateInput!] = null): [PlacementStep!]
+
+  """
+  This layer's whole `pathToWorld` composed into one affine map: a single row, because the chart's world has a single axis. The coefficient on `alongAxis` is the scale from a step along the data to a step along the chart's axis, in the axis's unit, and the last entry is the offset. Derived on read. Null when `pathToWorld` is null; an error when a path exists but does not condense
+  """
+  asAffine(at: [CoordinateInput!] = null): AffinePlacement
+
+  """
+  The name of the source axis that runs along the chart's axis: for a trace, the axis of its lens the values are read along; for a series, the table's coordinate column; for an annotation layer, the axis of the drawing space that is the chart's own. **Not a setting.** It is the one source axis the composed placement reads the chart's axis from, so it follows the registration: re-register the data by another axis and this changes with no write to the layer. Null when the layer is no longer placed, or is placed by a map that reads the chart's axis from several source axes
+  """
+  alongAxis(at: [CoordinateInput!] = null): String
+
+  """
+  Whether this layer has a place along its chart's axis, and if not, why not. UNREGISTERED is a gap to close; UNMAPPABLE is a fact to badge; CONDITIONAL is a placement to ask again for with `at`. Derived, never stored
+  """
+  placement(at: [CoordinateInput!] = null): PlacementState!
+
+  """
+  How much this layer's placement is actually known: the weakest edge on its path to the chart's world. Derived, never stored
+  """
+  placementValidity(at: [CoordinateInput!] = null): PlacementValidity!
+
+  """
+  Which geometric properties survive the walk from this layer's data to the chart's world: the weakest edge on its path. Derived, never stored
+  """
+  placementInvariance(at: [CoordinateInput!] = null): TransformInvariance!
+
+  """The table lens whose rows are drawn: the rows its selection keeps"""
+  lens: TableLens!
+
+  """The numeric column whose value is a row's horizontal position"""
+  xColumn: String!
+
+  """The numeric column whose value is a row's vertical position"""
+  yColumn: String!
+
+  """
+  The numeric column whose value is a row's depth, for a three-dimensional scatter. Null for a flat one
+  """
+  zColumn: String
+
+  """How the rows are drawn: MARKERS, or a LINE through them sorted along x"""
+  mark: ChartMark!
+
+  """Line width in screen pixels. Null lets the viewer choose"""
+  lineWidth: Float
+
+  """Marker size in screen pixels. Null lets the viewer choose"""
+  markerSize: Float
+
+  """
+  The lens' selection as row filters, always applied: a row is drawn when every one keeps it (`min <= column <= max`, an omitted side open). Derived from the lens; empty for a whole lens
+  """
+  windowFilters: [LabelFilterBy!]!
+
+  """The table dataset whose columns are read: the container of the lens"""
+  tableDataset: TableDataset!
+
+  """
+  The unit of `xColumn`, as the table declares it: the chart's horizontal axis. Null when the column declares none
+  """
+  xUnit: Unit
+
+  """
+  The unit of `yColumn`, as the table declares it: the chart's vertical axis. Null when the column declares none
+  """
+  yUnit: Unit
+
+  """
+  The unit of `zColumn`, as the table declares it. Null for a flat scatter or a column that declares none
+  """
+  zUnit: Unit
 }
 
 """A polarization filter, at an angle"""
@@ -11577,7 +11853,7 @@ type ScaleTransformation implements Transformation @key(fields: "id", resolvable
 }
 
 """
-A composition of layers over a shared world coordinate system. The scene carries no units of its own -- they are per-axis, on the axes of its world system
+A composition that shows **where**: every screen axis is an axis of its world -- a place, with a time or space axis -- and each layer is placed there by the graph's edges, so refining a registration moves what is drawn. Values are drawn as appearance: an image's intensity as colour, a table's `area` as the colour or size of its points. The counterpart of a chart, which shows *how much*: there values are drawn as position. The same table lens may be drawn both ways -- nuclei at their `(y, x)` on the image here, at `(area, volume)` in a VALUES chart. If rotating the view makes sense, it is a scene. The scene carries no units of its own -- they are per-axis, on the axes of its world system
 """
 type Scene implements Visualization @key(fields: "id", resolvable: true) @identified(by: "@mikro/scene") {
   id: ID!
@@ -12758,6 +13034,11 @@ type TableDataset @key(fields: "id", resolvable: true) @identified(by: "@mikro/t
   lenses(windowed: Boolean = null): [TableLens!]!
 
   """
+  The compositions that draw this table: every scene and chart with a layer through any lens of it -- its whole lens or a window of it. Derived, never stored, kind by kind in registration order and oldest first within a kind
+  """
+  visualizations: [Visualization!]!
+
+  """
   The lens that selects this whole table dataset: what a viewer opens for it, and the handle to pass wherever a `Lens` is asked for and all of it is meant. Every table dataset is created with one
   """
   fullLens: TableLens
@@ -13027,7 +13308,7 @@ type TableKey {
 }
 
 """
-A selection over a table dataset by value windows on its coordinate columns: the rows kept. Lives in the table's own space
+A selection over a table dataset by value windows on its columns: the rows kept. A window on a coordinate column bounds a region of space; one on a numeric measurement column is a gate (`area >= 50`), which bounds nothing in space. Lives in the table's own space
 """
 type TableLens implements Lens @key(fields: "id", resolvable: true) @identified(by: "@mikro/tablelens") {
   id: ID!
@@ -14385,7 +14666,7 @@ type VectorLayer implements Layer @key(fields: "id", resolvable: true) {
 }
 
 """
-A composition laid out over a coordinate system: a scene (a place) or a chart (one metric axis). It adopts the space as its world, names data by id and owns none of it. Only what every kind has is here -- the layers differ per kind, so select them on the concrete type
+A composition: something that draws data through lenses, names it by id and owns none of it. A **scene** shows *where* -- every screen axis is an axis of its world, data is placed there by the graph's edges, and values are drawn as appearance (colour, size). A **chart** shows *how much* -- values are drawn as position, and at most one axis is drawn from its world: an AXIS chart draws its one axis (intensity against `t`), a VALUES chart draws its rows at the values of their columns (nuclei at `area` against `volume`), its world saying whose rows. Only what every kind has is here -- the layers differ per kind, so select them on the concrete type
 """
 interface Visualization {
   id: ID!
@@ -14397,7 +14678,7 @@ interface Visualization {
   descriptors: JSON!
 
   """
-  The space this visualization is laid out over. Never owned by it: several can share the space, it outlives each of them, and deleting one never deletes it
+  The space this visualization is laid out over: a scene's place, an AXIS chart's one axis, a VALUES chart's rows (a table's space, not drawn). Never owned by it: several can share the space, it outlives each of them, and deleting one never deletes it
   """
   worldCoordinateSystem: CoordinateSystem!
 }
@@ -14574,7 +14855,7 @@ type ZarrUploadGrant {
 
 scalar _Any
 
-union _Entity = AcquisitionWindow | AffineTransformation | Animation | AnimationWaypoint | Annotation | AnnotationChartLayer | AnnotationCollection | AnnotationDerivation | AnnotationLayer | AnnotationLens | ArrayDataset | ArrayLens | Axis | BigFileStore | ByDimensionTransformation | ChannelLabel | Chart | Client | Column | CoordinateAnchor | CoordinateSystem | DataArray | DerivationConflict | FabriksStore | File | FileLink | Fixture | FixtureLayer | FixtureLens | Folder | IdentityTransformation | ImageLayer | IntensityLayer | KonnektionStore | KulisseStore | LabelLayer | LightPath | MapAxisTransformation | MediaStore | Membership | MeshCollection | MeshLayer | MeshLens | Metric | MetricTarget | NetworkCollection | NetworkLayer | NetworkLens | OmeMetadata | OptikitState | Organization | ParquetStore | PhasorCalibration | PhasorHistogram | PhasorLayer | PointLayer | PositionLabel | RgbLayer | RotationTransformation | ScaleTransformation | Scene | SceneSnapshot | SequenceTransformation | SeriesChartLayer | SparseArray | SparseAxisReference | SparseDataset | SparseLens | SparseStore | TableDataset | TableLens | Task | TraceChartLayer | TrackLayer | TranslationTransformation | UnmappableTransformation | User | ValueHistogram | VectorLayer | ZarrStore
+union _Entity = AcquisitionWindow | AffineTransformation | Animation | AnimationWaypoint | Annotation | AnnotationChartLayer | AnnotationCollection | AnnotationDerivation | AnnotationLayer | AnnotationLens | ArrayDataset | ArrayLens | Axis | BigFileStore | ByDimensionTransformation | ChannelLabel | Chart | Client | Column | CoordinateAnchor | CoordinateSystem | DataArray | DerivationConflict | DistributionChartLayer | FabriksStore | File | FileLink | Fixture | FixtureLayer | FixtureLens | Folder | IdentityTransformation | ImageLayer | IntensityLayer | KonnektionStore | KulisseStore | LabelLayer | LightPath | MapAxisTransformation | MediaStore | Membership | MeshCollection | MeshLayer | MeshLens | Metric | MetricTarget | NetworkCollection | NetworkLayer | NetworkLens | OmeMetadata | OptikitState | Organization | ParquetStore | PhasorCalibration | PhasorHistogram | PhasorLayer | PointLayer | PointsChartLayer | PositionLabel | RgbLayer | RotationTransformation | ScaleTransformation | Scene | SceneSnapshot | SequenceTransformation | SeriesChartLayer | SparseArray | SparseAxisReference | SparseDataset | SparseLens | SparseStore | TableDataset | TableLens | Task | TraceChartLayer | TrackLayer | TranslationTransformation | UnmappableTransformation | User | ValueHistogram | VectorLayer | ZarrStore
 
 type _Service {
   sdl: String!

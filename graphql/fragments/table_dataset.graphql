@@ -24,6 +24,8 @@ fragment TableDataset on TableDataset {
     nodeReferences {
       id
     }
+    # Long form: the CHANNEL coordinates this column's value changes along (null: all of them).
+    variesOver
   }
   coordinateSystem {
     ...CoordinateSystem
@@ -33,4 +35,10 @@ fragment TableDataset on TableDataset {
   }
   axisNames
   provenanceMetadata
+  # The scenes and charts that draw any lens of this table.
+  visualizations {
+    __typename
+    id
+    name
+  }
 }

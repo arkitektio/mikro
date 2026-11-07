@@ -368,9 +368,20 @@ def test_spatial_columns_in_ascending_order_are_refused():
         )
 
 
-def test_a_table_axis_is_a_position_an_instant_or_an_enumeration(frame):
+def test_a_table_axis_is_a_position_an_instant_an_enumeration_or_a_channel(frame):
     with pytest.raises(ValidationError, match="a table's axes are"):
-        declare(frame, columns=[ColumnInput(name="object_id", axis_type=AxisType.CHANNEL)])
+        declare(frame, columns=[ColumnInput(name="object_id", axis_type=AxisType.SPECTRUM)])
+
+
+def test_a_channel_coordinate_is_unitless(frame):
+    """A long-form table's channel enumerates: there is no distance from channel 0 to channel 1."""
+    with pytest.raises(ValidationError, match="CHANNEL axis"):
+        declare(frame, columns=[ColumnInput(name="object_id", axis_type=AxisType.CHANNEL, unit="nanometer")])
+
+
+def test_varies_over_names_a_channel_coordinate(frame):
+    with pytest.raises(ValidationError, match="not a CHANNEL coordinate"):
+        declare(frame, columns=[ColumnInput(name="object_id", axis_type=AxisType.INDEX), ColumnInput(name="volume_um3", varies_over=["object_id"])])
 
 
 def test_a_coordinate_role_is_spelled_axis_type(frame):

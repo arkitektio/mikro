@@ -17,6 +17,7 @@ from mikro.api.schema import (
     AxisInput,
     AxisType,
     Chart,
+    ChartKind,
     ChartLayerKind,
     ChartMark,
     ChartPolicyInput,
@@ -26,6 +27,7 @@ from mikro.api.schema import (
     CreateChartMutation,
     CreateTraceChartLayerMutation,
     PhysicalAxisInput,
+    PlacementState,
     Scene,
 )
 from mikro.mikro import Mikro
@@ -185,3 +187,59 @@ def test_a_lens_is_shown_as_a_chart_or_a_scene_by_the_space_it_selects_in(mikro:
     )
     staged = mikro.auto_visualize(lens=image.lens().id, name="auto plane")
     assert isinstance(staged, Scene) and staged.name == "auto plane"
+
+
+@pytest.mark.integration
+def test_a_table_is_plotted_as_a_chart_of_its_values(mikro: Mikro) -> None:
+    """A scatter of two columns places nothing: the chart has no world, its axes are the columns' units."""
+    table = mikro.create_table_dataset(
+        name="chart_nuclei",
+        data={
+            "area": np.array([40.0, 90.0, 55.0, 120.0]),
+            "volume": np.array([200.0, 600.0, 310.0, 900.0]),
+            "condition": ["ctrl", "drug", "ctrl", "drug"],
+        },
+        columns=[
+            ColumnInput(name="area", role=ColumnRole.ATTRIBUTE, unit=Unit("micrometer ** 2")),
+            ColumnInput(name="volume", role=ColumnRole.ATTRIBUTE, unit=Unit("micrometer ** 3")),
+            ColumnInput(name="condition", role=ColumnRole.ATTRIBUTE),
+        ],
+    )
+    assert [axis.name for axis in table.coordinate_system.axes] == ["object"], "a table's space is its frame; its measurements stay columns"
+
+    scatter = table.plot("area", "volume")
+    assert scatter.kind == ChartKind.VALUES and scatter.axis is None
+    assert scatter.world.id == table.coordinate_system.id, "the world is whose rows: the table's space"
+    (layer,) = scatter.layers
+    assert layer.typename == "PointsChartLayer"
+    assert (layer.x_column, layer.y_column, layer.x_unit) == ("area", "volume", "micrometer ** 2")
+    assert layer.placement == PlacementState.PLACED, "the rows are this world's rows"
+
+    gate = table.lens(area=(50, None))
+    gated = table.plot("area", "volume", lens=gate)
+    assert gated.layers[0].points_lens.id == gate.id
+
+    histogram = table.plot("area", group="condition", bins=10)
+    assert histogram.layers[0].typename == "DistributionChartLayer"
+    assert (histogram.layers[0].group_column, histogram.layers[0].bins) == ("condition", 10)
+
+    shown = {visualization.id for visualization in mikro.get_table_dataset(table.id).visualizations}
+    assert {scatter.id, gated.id, histogram.id} <= shown
+
+
+@pytest.mark.integration
+def test_a_long_form_table_declares_its_channel(mikro: Mikro) -> None:
+    table = mikro.create_table_dataset(
+        name="chart_per_channel",
+        data={"cell": np.array([1, 1, 2, 2]), "c": np.array([0, 1, 0, 1]), "volume": np.array([2.0, 2.0, 3.0, 3.0]), "mean": np.array([0.8, 0.1, 0.3, 0.9])},
+        columns=[
+            ColumnInput(name="cell", axis_type=AxisType.INDEX),
+            ColumnInput(name="c", axis_type=AxisType.CHANNEL),
+            ColumnInput(name="volume", role=ColumnRole.ATTRIBUTE, varies_over=[]),
+            ColumnInput(name="mean", role=ColumnRole.ATTRIBUTE, varies_over=["c"]),
+        ],
+    )
+    assert [(axis.name, axis.type) for axis in table.coordinate_system.axes] == [("cell", AxisType.INDEX), ("c", AxisType.CHANNEL)]
+    assert tuple({column.name: column.varies_over for column in table.columns}["mean"]) == ("c",)
+    by_channel = table.plot("mean", group="c")
+    assert by_channel.layers[0].group_column == "c"

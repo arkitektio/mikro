@@ -1,7 +1,10 @@
-# A chart is the second composition beside a scene: a scene is a place, a chart is one
-# metric axis with values read off it. A layer names its data (a lens, a table, an
-# annotation collection) and owns none of it; where the data sits along the axis is the
-# graph's answer (`alongAxis`, `placement`, `asAffine`), never a column of the layer.
+# A chart is the second composition beside a scene: a scene shows *where* (every screen axis a
+# world axis, values as appearance), a chart shows *how much* (values as position, at most one
+# axis drawn from its world). Every chart has a world -- the domain its layers' rows live in --
+# and every layer is placed into it (`placement`, `asAffine`). An AXIS chart draws its world's
+# one metric axis and lays TRACE, SERIES and ANNOTATION layers along it (`alongAxis`); a VALUES
+# chart's world is whose rows (a table's space, not drawn), and its POINTS and DISTRIBUTION
+# layers draw those rows at the values of the columns they name.
 #
 # The kinds are inlined rather than spread as named fragments, for the reason spelled out
 # on the scene's `Layer` fragment: a nested fragment spread inside an *interface* fragment
@@ -79,6 +82,51 @@ fragment ChartLayer on ChartLayer {
     lineWidth
     markerSize
   }
+  ... on PointsChartLayer {
+    # The table lens whose rows are drawn; a window on a numeric column is a gate.
+    pointsLens: lens {
+      id
+      name
+      windows {
+        axis
+        min
+        max
+      }
+    }
+    pointsTable: tableDataset {
+      id
+      name
+    }
+    xColumn
+    yColumn
+    zColumn
+    xUnit
+    yUnit
+    zUnit
+    pointsMark: mark
+    pointsLineWidth: lineWidth
+    pointsMarkerSize: markerSize
+  }
+  ... on DistributionChartLayer {
+    distributionLens: lens {
+      id
+      name
+      windows {
+        axis
+        min
+        max
+      }
+    }
+    distributionTable: tableDataset {
+      id
+      name
+    }
+    distributionValueColumn: valueColumn
+    groupColumn
+    bins
+    distributionValueUnit: valueUnit
+    distributionMark: mark
+  }
   ... on AnnotationChartLayer {
     annotationLens: lens {
       id
@@ -100,7 +148,10 @@ fragment Chart on Chart {
   id
   name
   description
-  # The world's one axis, repeated by the server so nobody unwraps a list of one.
+  # AXIS: drawn along its world's one axis; VALUES: draws its world's rows at their values.
+  kind
+  # An AXIS chart's one world axis, repeated by the server so nobody unwraps a list of one.
+  # Null for a VALUES chart, whose drawn axes are its layers' columns.
   axis {
     ...Axis
   }

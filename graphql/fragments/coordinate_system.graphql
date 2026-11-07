@@ -5,6 +5,8 @@ fragment Axis on Axis {
   type
   unit
   longName
+  # The axes sharing one distance with this one: "space" for a SPACE axis unless declared.
+  metricGroup
 }
 
 fragment CoordinateSystem on CoordinateSystem {

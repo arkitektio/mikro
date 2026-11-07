@@ -103,6 +103,7 @@ if TYPE_CHECKING:
         DimensionPartInput,
         AxisType,
         Chart,
+        ChartMark,
         ChartPolicyInput,
         CoordinateAnchorInput,
         CoordinateSystem,
@@ -879,7 +880,7 @@ class DatasetTrait(HasNamedAxes):
 
 
 def _window_inputs(
-    container: object, selections: Mapping[str, WindowSelection]
+    container: object, selections: Mapping[str, WindowSelection], names: "Sequence[str] | None" = None
 ) -> list[WindowInput]:
     """The windows a container's ``lens()`` keywords describe, refused by axis name.
 
@@ -890,7 +891,7 @@ def _window_inputs(
     """
     from mikro.api.schema import WindowInput
 
-    axis_names = getattr(container, "axis_names", None)
+    axis_names = names if names is not None else getattr(container, "axis_names", None)
     windows: list[WindowInput] = []
     for axis, selection in selections.items():
         if axis_names is not None and axis not in axis_names:
@@ -900,21 +901,71 @@ def _window_inputs(
     return windows
 
 
+#: DuckDB type names a gate may bound: the numbers.
+_NUMERIC_DTYPES = ("TINYINT", "SMALLINT", "INTEGER", "BIGINT", "HUGEINT", "UTINYINT", "USMALLINT", "UINTEGER", "UBIGINT", "FLOAT", "DOUBLE", "REAL")
+
+
+def _windowable_names(table: object) -> "list[str] | None":
+    """What a table lens may window: its axes (coordinate columns) and its numeric columns, a gate. None when the fragment carries neither."""
+    axis_names = getattr(table, "axis_names", None)
+    columns = getattr(table, "columns", None)
+    if axis_names is None or columns is None:
+        return None
+    numeric = [column.name for column in columns if column.axis_type is None and (column.dtype.upper() in _NUMERIC_DTYPES or column.dtype.upper().startswith("DECIMAL"))]
+    return [*axis_names, *numeric]
+
+
 class TableDatasetLensTrait:
     """The lens over a table dataset: what a point, track or series layer draws."""
 
     def lens(self, mikro: "Mikro | None" = None, **windows: WindowSelection) -> TableLens:
-        """The lens keeping these windows of the table's coordinate columns.
+        """The lens keeping these windows of the table's columns.
 
         With no windows it is the table's whole lens, which is what a layer over
         the whole table names: ``mikro.create_point_layer(scene=scene, lens=table.lens())``.
-        ``table.lens(t=(0, 10))`` keeps the rows whose ``t`` lies in that range.
+        ``table.lens(t=(0, 10))`` keeps the rows whose ``t`` lies in that range; a
+        window on a numeric measurement is a gate, ``table.lens(area=(50, None))``.
         One row per table and selection: asking twice answers with the same lens.
         """
         return client_of(self, mikro).create_table_lens(
             table_dataset=get_attributes_or_error(self, "id"),
-            windows=_window_inputs(self, windows),
+            windows=_window_inputs(self, windows, names=_windowable_names(self)),
         )
+
+    def plot(
+        self,
+        x: str,
+        y: str | None = None,
+        z: str | None = None,
+        *,
+        group: str | None = None,
+        bins: int | None = None,
+        lens: "TableLens | str | None" = None,
+        mark: "ChartMark | None" = None,
+        name: str | None = None,
+        mikro: "Mikro | None" = None,
+    ) -> "Chart":
+        """A chart of this table's values, in one call: points at ``(x, y[, z])``, or the distribution of ``x``.
+
+        ``table.plot("area", "volume")`` draws each row at its area and volume -- a scatter;
+        ``table.plot("area", group="condition", bins=30)`` a histogram of area per condition.
+        The chart is a VALUES chart whose world is this table's space -- whose rows, not
+        drawn -- and whose drawn axes are the columns' units.
+        ``lens`` draws a window of the table instead of every row, e.g. a gate
+        ``table.lens(area=(50, None))``.
+        """
+        from mikro.api.schema import ChartLayerKind
+
+        kind = ChartLayerKind.POINTS if y is not None else ChartLayerKind.DISTRIBUTION
+        if kind is ChartLayerKind.POINTS and (group is not None or bins is not None):
+            raise ValueError("`group` and `bins` belong to a distribution (no `y`); a scatter reads x, y and z.")
+        if kind is ChartLayerKind.DISTRIBUTION and z is not None:
+            raise ValueError("A distribution summarises one column; give `y` for a scatter with depth `z`.")
+        settings: dict[str, object] = {}
+        for key, value in (("lens", getattr(lens, "id", lens)), ("y_column", y), ("z_column", z), ("group_column", group), ("bins", bins), ("mark", mark), ("name", name)):
+            if value is not None:
+                settings[key] = value
+        return client_of(self, mikro).create_table_plot(table=get_attributes_or_error(self, "id"), kind=kind, x_column=x, **settings)
 
 
 class SparseDatasetTrait:
@@ -2643,10 +2694,11 @@ class ChartTrait:
 
     @property
     def world(self) -> CoordinateSystem:
-        """The shared one-axis coordinate system this chart is laid out along.
+        """The domain this chart's layers live in: an AXIS chart's one axis, or a VALUES chart's rows (a table's space).
 
         Adopted, never owned: many charts can share it, it outlives each of
-        them, and deleting a chart never deletes it.
+        them, and deleting a chart never deletes it. A VALUES chart -- a scatter
+        of ``area`` against ``volume`` -- does not draw it: it says whose rows.
         """
         return get_attributes_or_error(self, "world_coordinate_system")
 

@@ -61,9 +61,12 @@ if TYPE_CHECKING:
 
 
 #: The axis types a table's coordinate column may have. A table's axes are its
-#: own space: positions, instants, or an enumeration. The array-only types
-#: (CHANNEL, SPECTRUM, ...) are not positions a row can hold.
-TABLE_AXIS_TYPES: Final[frozenset[str]] = frozenset({"SPACE", "TIME", "INDEX"})
+#: frame: positions, instants, an enumeration, or -- for a long-form table, one row per
+#: (object, channel) -- a channel. SPECTRUM and MICROTIME are not drawn from a table yet.
+TABLE_AXIS_TYPES: Final[frozenset[str]] = frozenset({"SPACE", "TIME", "INDEX", "CHANNEL"})
+
+#: The coordinate types that enumerate, and so have no unit.
+_UNITLESS_AXIS_TYPES: Final[frozenset[str]] = frozenset({"INDEX", "CHANNEL"})
 
 #: The width past which the object is a matrix rather than a table. Mirrors the server's
 #: ``_MAX_TABLE_COLUMNS``; refused here so a caller meets it before the bytes move. See
@@ -211,6 +214,7 @@ def resolve_columns(
         raise TableDeclarationError(_too_wide(len(file_columns)))
 
     _check_role_counts(declared)
+    _check_varies_over(declared)
 
     resolved: list[ColumnInput] = []
     for name, dtype in file_columns:
@@ -311,19 +315,24 @@ def _check_declarations(
             if axis_type not in TABLE_AXIS_TYPES:
                 raise TableDeclarationError(
                     f"Column {column.name!r} is a {axis_type} axis, but a table's axes are "
-                    f"{', '.join(sorted(TABLE_AXIS_TYPES))} -- a row holds a position, an instant "
-                    "or an enumeration, and nothing else is one of those."
+                    f"{', '.join(sorted(TABLE_AXIS_TYPES))} -- a row is placed by a position, an "
+                    "instant, an enumeration or a channel, and nothing else is one of those."
                 )
-            if axis_type == "INDEX" and column.unit is not None:
+            if axis_type in _UNITLESS_AXIS_TYPES and column.unit is not None:
                 raise TableDeclarationError(
-                    f"Column {column.name!r} is an INDEX axis, which enumerates -- the distance "
-                    "between object 3 and object 4 is not a small number, it is not a number -- "
-                    "so it has no metric to state a unit in. Drop `unit`."
+                    f"Column {column.name!r} is an {axis_type} axis, which enumerates -- the "
+                    "distance between object 3 and object 4, or channel 0 and channel 1, is not "
+                    "a number -- so it has no metric to state a unit in. Drop `unit`."
+                )
+            if getattr(column, "varies_over", None) is not None:
+                raise TableDeclarationError(
+                    f"Column {column.name!r} is a coordinate column and declares `varies_over`. "
+                    "A coordinate is part of the row's key, not a value that varies along it."
                 )
         elif role == "COORDINATE":
             raise TableDeclarationError(
                 f"Column {column.name!r} is declared COORDINATE, but a coordinate column is an "
-                "axis: say so with `axis_type` (SPACE, TIME or INDEX), which is what makes it "
+                "axis: say so with `axis_type` (SPACE, TIME, INDEX or CHANNEL), which is what makes it "
                 "one. The server refuses this too."
             )
         # An empty role is an *undeclared* one, which the server fills in as ATTRIBUTE -- so a
@@ -405,6 +414,29 @@ def _check_axis_order(resolved: Sequence[ColumnInput]) -> None:
             "(Nothing on the server can catch this: a table's axis names are free-form, so "
             "only a name that follows the convention says which order was meant.)"
         )
+
+
+def _check_varies_over(columns: Sequence[ColumnInput]) -> None:
+    """A long-form column names the CHANNEL coordinates its value changes along, each once.
+
+    In a ``(cell, c, volume, mean)`` table a per-cell ``volume`` varies over nothing and is
+    read once per cell; a per-channel ``mean`` varies over ``c``. The server refuses the same.
+    """
+    channels = {column.name for column in columns if column.axis_type is not None and _enum_value(column.axis_type) == "CHANNEL"}
+    for column in columns:
+        varies = getattr(column, "varies_over", None)
+        if varies is None:
+            continue
+        repeated = sorted({name for name in varies if list(varies).count(name) > 1})
+        if repeated:
+            raise TableDeclarationError(f"Column {column.name!r} names {repeated} more than once in `varies_over`.")
+        unknown = [name for name in varies if name not in channels]
+        if unknown:
+            raise TableDeclarationError(
+                f"Column {column.name!r} varies over {unknown}, which is not a CHANNEL coordinate "
+                f"column of this table ({sorted(channels) or 'it declares none'}). `varies_over` "
+                "names the channel axes a long-form row repeats along."
+            )
 
 
 def _check_role_counts(columns: Sequence[ColumnInput]) -> None:
