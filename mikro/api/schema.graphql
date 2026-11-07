@@ -2238,6 +2238,11 @@ type Chart implements Visualization @key(fields: "id", resolvable: true) @identi
   kind: ChartKind!
 
   """
+  How the layers share the screen, remembered with the chart: STACKED (one row or panel each), SHARED (overlaid where they measure the same thing) or OVERLAY (all in one plot; AXIS only)
+  """
+  layout: ChartLayout!
+
+  """
   The one axis an AXIS chart is laid out along: its name, its metric type and its unit -- the world's only axis, repeated so a client need not unwrap a list of one. Null for a VALUES chart, whose drawn axes are the columns its layers name
   """
   axis: Axis
@@ -2344,9 +2349,6 @@ input ChartLayerFilter {
   chart: ID
 }
 
-"""
-The kind of a chart layer, which says what it reads -- never how it looks. Three are drawn in an AXIS chart, laid along its one world axis by the graph: TRACE reads an array along one axis, SERIES one value column of a table along its coordinate, ANNOTATION drawn marks. Two are drawn in a VALUES chart, their rows placed in its world and drawn at their values: POINTS at two or three columns (a scatter), DISTRIBUTION summarising one column (a histogram, a box), once per value of a grouping column. A line, markers, a histogram or a box is `ChartMark`, a setting on the layer.
-"""
 enum ChartLayerKind {
   TRACE
   SERIES
@@ -2366,6 +2368,15 @@ enum ChartLayerKindChoices {
 input ChartLayerOrder @oneOf {
   order: Ordering
   id: Ordering
+}
+
+"""
+The kind of a chart layer, which says what it reads -- never how it looks. Three are drawn in an AXIS chart, laid along its one world axis by the graph: TRACE reads an array along one axis, SERIES one value column of a table along its coordinate, ANNOTATION drawn marks. Two are drawn in a VALUES chart, their rows placed in its world and drawn at their values: POINTS at two or three columns (a scatter), DISTRIBUTION summarising one column (a histogram, a box), once per value of a grouping column. A line, markers, a histogram or a box is `ChartMark`, a setting on the layer.
+"""
+enum ChartLayout {
+  STACKED
+  SHARED
+  OVERLAY
 }
 
 """
@@ -3298,6 +3309,7 @@ input CreateChartInput {
   coordinateSystem: ID = null
   axis: PhysicalAxisInput = null
   kind: ChartKind! = AXIS
+  layout: ChartLayout! = SHARED
 }
 
 """A new collaboration"""
@@ -14553,12 +14565,13 @@ input UpdateArrayDatasetInput {
 }
 
 """
-Input for renaming or re-describing a chart. Its world is not editable: a chart along another axis is another chart
+Input for renaming, re-describing or re-laying-out a chart. Its world and kind are not editable: a chart along another axis is another chart
 """
 input UpdateChartInput {
   id: ID!
   name: String = null
   description: String = null
+  layout: ChartLayout = null
 }
 
 """

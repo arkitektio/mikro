@@ -18,6 +18,7 @@ from mikro.api.schema import (
     AxisType,
     Chart,
     ChartKind,
+    ChartLayout,
     ChartLayerKind,
     ChartMark,
     ChartPolicyInput,
@@ -238,6 +239,10 @@ def test_a_table_is_plotted_as_a_chart_of_its_values(mikro: Mikro) -> None:
     assert (flipped.x_column, flipped.y_column, flipped.marker_size) == ("volume", "area", 6)
     boxed = mikro.update_distribution_chart_layer(histogram.layers[0].id, mark=ChartMark.BOX)
     assert (boxed.mark, boxed.bins) == (ChartMark.BOX, None), "a box has no bins"
+
+    # How the layers share the screen is remembered with the chart.
+    assert scatter.layout == ChartLayout.SHARED
+    assert mikro.update_chart(scatter.id, layout=ChartLayout.STACKED).layout == ChartLayout.STACKED
 
 
 @pytest.mark.integration
