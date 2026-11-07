@@ -1,0 +1,73 @@
+# A grid is the third composition beside a scene and a chart: a scene shows *where*, a chart
+# *how much*, a grid *which* -- its rows and columns are the members of its world's one or two
+# enumerating axes (genes against cells, objects against channels), with no distance between
+# them, and a value is drawn as a cell's colour. Every layer is placed into its world and covers
+# both axes. Kinds are inlined, as on the chart's and the scene's layer fragments.
+fragment GridLayer on GridLayer {
+  id
+  kind
+  name
+  grid {
+    id
+    name
+  }
+  visible
+  order
+  opacity
+  colormap
+  min
+  max
+  placement
+  asAffine {
+    matrix
+    inputAxes
+    outputAxes
+    total
+  }
+  ... on HeatmapGridLayer {
+    # An array or a sparse lens leaving free exactly the grid's axes.
+    heatmapLens: lens {
+      id
+      name
+    }
+  }
+  ... on CellsGridLayer {
+    # A table lens whose frame is the grid's axes; each row a cell.
+    cellsLens: lens {
+      id
+      name
+      windows {
+        axis
+        min
+        max
+      }
+    }
+    cellsTable: tableDataset {
+      id
+      name
+    }
+    valueColumn
+    valueUnit
+  }
+}
+
+fragment Grid on Grid {
+  id
+  name
+  description
+  # Rows are the world's first axis, columns its second (null for one axis).
+  rowAxis {
+    ...Axis
+  }
+  columnAxis {
+    ...Axis
+  }
+  worldCoordinateSystem {
+    ...CoordinateSystem
+  }
+  # Aliased: `autoVisualize` selects a chart's `layers` in the same set, whose `kind` is
+  # another enum.
+  gridLayers: layers {
+    ...GridLayer
+  }
+}

@@ -3,7 +3,7 @@ from datetime import datetime
 from enum import Enum
 from kanne.scalars import Frequency, GenericQuantity, Length, Power, Temperature, Unit
 from mikro.scalars import ArrayCoercible, ArrayLike, AxisName, ByteCount, ByteCountCoercible, FabriksCoercible, FabriksLike, FileLike, ImageFileCoercible, ImageFileLike, KonnektionCoercible, KonnektionLike, KulisseCoercible, KulisseLike, MetricTargetCoercible, ParquetCoercible, ParquetLike, SporadikCoercible, SporadikLike, ThreeDVector
-from mikro.traits import AxisInputTrait, ChartTrait, CoordinateAnchorInputTrait, CoordinateSystemTrait, CreateADatasetTrait, CreateSparseDatasetTrait, CreateTableDatasetTrait, DataArrayTrait, DatasetTrait, FileTrait, GraphColorByInputTrait, HasDownloadAccessor, HasMediaDownloadAccessor, HasParquestStoreTrait, HasParquetStoreAccesor, HasZarrStoreAccessor, Lensable, MeshCollectionTrait, MetricTargetInputTrait, MikroFetchable, NetworkCollectionTrait, RGBAColorInputTrait, SceneTrait, SparseAxisInputTrait, SparseColorByInputTrait, SparseDatasetTrait, TableDatasetLensTrait, TransformationTrait, ValueHistogramInputTrait
+from mikro.traits import AxisInputTrait, ChartTrait, CoordinateAnchorInputTrait, CoordinateSystemTrait, CreateADatasetTrait, CreateSparseDatasetTrait, CreateTableDatasetTrait, DataArrayTrait, DatasetTrait, FileTrait, GraphColorByInputTrait, GridTrait, HasDownloadAccessor, HasMediaDownloadAccessor, HasParquestStoreTrait, HasParquetStoreAccesor, HasZarrStoreAccessor, Lensable, MeshCollectionTrait, MetricTargetInputTrait, MikroFetchable, NetworkCollectionTrait, RGBAColorInputTrait, SceneTrait, SparseAxisInputTrait, SparseColorByInputTrait, SparseDatasetTrait, TableDatasetLensTrait, TransformationTrait, ValueHistogramInputTrait
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 from rath.scalars import ID, IDCoercible
 from rath.task import TaskLike
@@ -422,6 +422,12 @@ class GraphTarget(str, Enum):
     "Every node, and the segments and glyphs that touch it: a segment takes its start node's value, so colouring nodes colours the wireframe too."
     EDGE = 'EDGE'
     "Segments only, each taking its start node's value; node glyphs keep the layer's base colour. The honest per-edge statement, since an edge owns no value of its own."
+    __str__ = str.__str__
+
+class GridLayerKind(str, Enum):
+    """The kind of a grid layer, which says what it reads. HEATMAP reads an array or a sparse matrix whose free axes are the grid's: one cell per position, its value the colour -- genes against cells. CELLS reads a table whose frame is the grid's axes: one cell per row, coloured by the value of a column -- the mean of each cell in each channel of a long-form table, or a value per well of a plate."""
+    HEATMAP = 'HEATMAP'
+    CELLS = 'CELLS'
     __str__ = str.__str__
 
 class HopCardinality(str, Enum):
@@ -1511,7 +1517,7 @@ class ArrayDatasetFilter(BaseModel):
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class AutoVisualizeInput(BaseModel):
-    """Show a coordinate system, or one lens, without choosing how. A space with exactly one metric, unit-carrying axis becomes a chart; any other space with a time or space axis becomes a scene. Over a `coordinateSystem`, either is bootstrapped from what already resides in the space; over a `lens`, it shows that lens' selection and nothing else of its container, the choice read off the space the selection lives in. Both use that kind's default policy and register nothing into any space. Provide exactly one of the two. For a say in the kind or the policy, use `createChartFromCoordinateSystem`, `createSceneFromCoordinateSystem` or `createSceneFromLens`"""
+    """Show a coordinate system, or one lens, without choosing how. A space with exactly one metric, unit-carrying axis becomes a chart; a space of two enumerating axes (genes against cells, objects against channels) a grid; any other space with a time or space axis a scene; a table lens whose rows have no place a VALUES chart of its measurements. Over a `coordinateSystem`, either is bootstrapped from what already resides in the space; over a `lens`, it shows that lens' selection and nothing else of its container, the choice read off the space the selection lives in. Both use that kind's default policy and register nothing into any space. Provide exactly one of the two. For a say in the kind or the policy, use `createChartFromCoordinateSystem`, `createSceneFromCoordinateSystem` or `createSceneFromLens`"""
     coordinate_system: ID | None = Field(validation_alias=AliasChoices('coordinate_system', 'coordinateSystem'), serialization_alias='coordinateSystem', default=None)
     lens: ID | None = None
     name: str | None = None
@@ -1739,6 +1745,20 @@ class CreateArrayDatasetInput(CreateADatasetTrait, BaseModel):
     source_files: tuple['SourceFileInput', ...] | None = Field(validation_alias=AliasChoices('source_files', 'sourceFiles'), serialization_alias='sourceFiles', default=None)
     model_config = ConfigDict(frozen=True, extra='forbid')
 
+class CreateCellsGridLayerInput(BaseModel):
+    """Input for drawing a table's rows in a grid: each row a cell at its position along the grid's axes -- the table's frame -- coloured by the value of `valueColumn`"""
+    name: str | None = None
+    visible: bool | None = None
+    order: int | None = None
+    opacity: float | None = None
+    colormap: ColorMap | None = None
+    min: float | None = None
+    max: float | None = None
+    grid: ID
+    lens: ID
+    value_column: str | None = Field(validation_alias=AliasChoices('value_column', 'valueColumn'), serialization_alias='valueColumn', default=None)
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
 class CreateChartFromCoordinateSystemInput(BaseModel):
     """Bootstrap a chart over an existing coordinate system, drawing what is already laid along its axis: each array placed in it that is a trace, each table that is a series, each annotation collection. Authors no edges -- what places each layer is the registration already in the graph -- and leaves out anything placed in the space that no layer kind reads. Rerunning makes another chart over the same space"""
     coordinate_system: ID = Field(validation_alias=AliasChoices('coordinate_system', 'coordinateSystem'), serialization_alias='coordinateSystem')
@@ -1816,6 +1836,34 @@ class CreateFolderInput(BaseModel):
     """Input for creating a new folder to organize images and files"""
     name: str = Field(description='The name of the folder')
     parent: ID | None = Field(default=None, description='The ID of the parent folder to nest this folder under')
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class CreateGridFromCoordinateSystemInput(BaseModel):
+    """Bootstrap a grid over an existing space, drawing what already covers its axes: each sparse matrix and array as a heatmap, each table as cells coloured by its one numeric column. Authors no edges, and leaves out whatever its kind refuses"""
+    coordinate_system: ID = Field(validation_alias=AliasChoices('coordinate_system', 'coordinateSystem'), serialization_alias='coordinateSystem')
+    name: str | None = None
+    policy: Annotated['GridPolicyInput | None', GraphQLDefault("{'nchildren': 32}")] = None
+    "Default: {'nchildren': 32}"
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class CreateGridInput(BaseModel):
+    """Input for creating a grid over an existing space whose one or two enumerating axes (INDEX, CHANNEL, CATEGORY) are its rows and columns -- a sparse dataset's own space, a long-form table's. Adopted as it is, never minted. It starts with no layers"""
+    name: str
+    coordinate_system: ID = Field(validation_alias=AliasChoices('coordinate_system', 'coordinateSystem'), serialization_alias='coordinateSystem')
+    description: str | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class CreateHeatmapGridLayerInput(BaseModel):
+    """Input for drawing an array or a sparse matrix in a grid: its lens leaves free exactly the grid's axes, placed in its world, and each position is a cell coloured by the value there"""
+    name: str | None = None
+    visible: bool | None = None
+    order: int | None = None
+    opacity: float | None = None
+    colormap: ColorMap | None = None
+    min: float | None = None
+    max: float | None = None
+    grid: ID
+    lens: ID
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreateIntensityLayerInput(BaseModel):
@@ -2236,6 +2284,16 @@ class DeleteFixtureInput(BaseModel):
     'Also delete everything made from it -- the closure `preflightDelete<Model>` lists: derived data, data computed within a shape, shapes refined or converted from it, series converted out of a file, files exported from a dataset. Without it, a delete of something anything was made from is refused, naming what\nDefault: False'
     model_config = ConfigDict(frozen=True, extra='forbid')
 
+class DeleteGridInput(BaseModel):
+    """Input for deleting a grid by ID. Deletes its layers and nothing they drew: the data, and the grid's world, are untouched"""
+    id: ID = Field(description='The ID of the grid to delete')
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class DeleteGridLayerInput(BaseModel):
+    """Input for deleting a grid layer by ID. Deletes the layer and nothing it drew"""
+    id: ID = Field(description='The ID of the grid layer to delete')
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
 class DeleteLayerInput(BaseModel):
     """Input for deleting a layer by ID"""
     id: ID = Field(description='The ID of the layer to delete')
@@ -2433,6 +2491,28 @@ class FromFileLike(BaseModel):
     file_name: str = Field(validation_alias=AliasChoices('file_name', 'fileName'), serialization_alias='fileName', description='The name of the file')
     folder: ID | None = Field(default=None, description='The ID of the folder to put the file in (defaults to the current default folder)')
     export_of: tuple[ExportOfInput, ...] | None = Field(validation_alias=AliasChoices('export_of', 'exportOf'), serialization_alias='exportOf', default=None, description='The containers this file was written from')
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class GridFilter(BaseModel):
+    """No documentation"""
+    ids: tuple[ID, ...] | None = Field(default=None, description='Filter by list of IDs')
+    created_before: datetime | None = Field(validation_alias=AliasChoices('created_before', 'createdBefore'), serialization_alias='createdBefore', default=None, description='Filter for items created before this datetime')
+    created_after: datetime | None = Field(validation_alias=AliasChoices('created_after', 'createdAfter'), serialization_alias='createdAfter', default=None, description='Filter for items created after this datetime')
+    id: ID | None = None
+    name: 'StrFilterLookup | None' = None
+    and_: 'GridFilter | None' = Field(validation_alias=AliasChoices('and_', 'AND'), serialization_alias='AND', default=None)
+    or_: 'GridFilter | None' = Field(validation_alias=AliasChoices('or_', 'OR'), serialization_alias='OR', default=None)
+    not_: 'GridFilter | None' = Field(validation_alias=AliasChoices('not_', 'NOT'), serialization_alias='NOT', default=None)
+    distinct: bool | None = Field(validation_alias=AliasChoices('distinct', 'DISTINCT'), serialization_alias='DISTINCT', default=None)
+    search: str | None = Field(default=None, description='Search by name (case-insensitive substring)')
+    coordinate_system: ID | None = Field(validation_alias=AliasChoices('coordinate_system', 'coordinateSystem'), serialization_alias='coordinateSystem', default=None, description='Filter to the grids laid out over this coordinate system')
+    requires: tuple[DescriptorConstraintInput, ...] | None = Field(default=None, description='Filter to the objects satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored on every row. A key the structure does not declare is refused rather than ignored')
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class GridPolicyInput(BaseModel):
+    """How a grid is drawn from what is already placed in a space"""
+    nchildren: Annotated[int | None, GraphQLDefault('32')] = None
+    'Default: 32'
     model_config = ConfigDict(frozen=True, extra='forbid')
 IdentificationInput = Annotated[DatasetIdentifiesInput | MeshCollectionIdentifiesInput | NetworkCollectionIdentifiesInput | NetworkCollectionNodesIdentifiesInput | TableIdentifiesInput, Field(discriminator='kind')]
 
@@ -3149,6 +3229,25 @@ class UpdateFixtureLayerInput(BaseModel):
     opacity: float | None = Field(default=None, description='Layer alpha, from 0 (transparent) to 1 (opaque)')
     visible: bool | None = Field(default=None, description='Whether the layer participates in compositing')
     order: int | None = Field(default=None, description='Explicit z-index for back-to-front compositing')
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class UpdateGridInput(BaseModel):
+    """Input for renaming or re-describing a grid. Its world is not editable: a grid over another space is another grid"""
+    id: ID
+    name: str | None = None
+    description: str | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class UpdateGridLayerInput(BaseModel):
+    """Input for restyling a grid layer. View state only: what it reads is fixed at creation, and where it sits is the graph's"""
+    name: str | None = None
+    visible: bool | None = None
+    order: int | None = None
+    opacity: float | None = None
+    colormap: ColorMap | None = None
+    min: float | None = None
+    max: float | None = None
+    id: ID
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class UpdateLabelLayerInput(BaseModel):
@@ -4081,6 +4180,163 @@ class Folder(MikroFetchable, BaseModel):
         document = 'fragment Folder on Folder {\n  id\n  name\n  description\n  parent {\n    id\n    name\n    __typename\n  }\n  __typename\n}'
         name = 'Folder'
         type = 'Folder'
+
+class GridLayerGrid(GridTrait, BaseModel):
+    """A composition that shows **which**: its rows and columns are the members of its world's one or two enumerating axes (INDEX, CHANNEL, CATEGORY), in order and with no distance between them, and a value is drawn as a cell's colour. Beside a scene, which shows *where* (screen axes a place), and a chart, which shows *how much* (values as position): row 3 of a grid comes after row 2, it is not one unit from it. Examples: a sparse matrix of genes against cells as a heatmap; a long-form table's mean per cell and channel; a plate's wells. It adopts its world -- the space whose members it lays out -- names data through lenses and owns none of it"""
+    __identifier__: ClassVar[Literal['@mikro/grid']] = '@mikro/grid'
+    typename: Literal['Grid'] = Field(alias='__typename', default='Grid', exclude=True)
+    id: ID
+    name: str
+    model_config = ConfigDict(frozen=True)
+
+class GridLayerAsAffine(BaseModel):
+    """A whole placement path composed into one affine map, labelled with the axes it is written over. `matrix` is M x (N+1) with rows outermost -- the same layout an AffineTransformation's `affine` uses -- its columns in `inputAxes` order and its last column the translation. **`outputAxes` names only the destination axes the path actually constrains**: a (c,y,x) dataset registered on (y,x) into a (t,z,y,x) world gets two rows, not four, because the registration says nothing about t and z and a zero row there would pin the data at their origin rather than leave it unstated. `total` is whether the map covers every destination axis"""
+    typename: Literal['AffinePlacement'] = Field(alias='__typename', default='AffinePlacement', exclude=True)
+    matrix: tuple[tuple[float, ...], ...]
+    'The composed map, M x (N+1), rows outermost. One row per axis in `outputAxes`, one column per axis in `inputAxes`, plus a final translation column'
+    input_axes: tuple[str, ...] = Field(alias='inputAxes')
+    "The axes the matrix's columns are in, which is the layer's own source coordinate system's axis order"
+    output_axes: tuple[str, ...] = Field(alias='outputAxes')
+    "The destination axes the matrix's rows are in, in the world's own axis order. An axis the path says nothing about has no row at all"
+    total: bool
+    'Whether `outputAxes` and `fields` together cover every axis of the destination space. False for a partial registration -- an honest map over the axes it names, and silence about the rest'
+    model_config = ConfigDict(frozen=True)
+
+class GridLayerHeatmapLensBase(BaseModel):
+    """A selection over a container that lives in a coordinate system: one row per (container, selection), so the same selection asked for twice is the same id. An ArrayLens selects over an array dataset by index slices and, when sliced, owns the crop's space and the edge back into the dataset's grid; every other kind selects over its container by value windows in the container's own axes and lives in the container's space. Every container has its whole lens from creation."""
+    id: ID
+    name: str | None = Field(default=None)
+    "What this selection is called, or null when nothing names it: the labels at the positions it pins (a person's `setPositionLabel` over the channel label ingest recorded) and the name of the annotation it was cut to, e.g. 'GFP · nucleus 3'. Derived and kept by the server, never set: naming channel 1 names every lens through channel 1. No part of the lens' identity, which is its container and its selection. `nameAnchors` says where it comes from"
+    model_config = ConfigDict(frozen=True)
+
+class GridLayerHeatmapLensBaseAnnotationLens(GridLayerHeatmapLensBase, BaseModel):
+    """A selection over an annotation collection by windows in its drawing space"""
+    __identifier__: ClassVar[Literal['@mikro/annotationlens']] = '@mikro/annotationlens'
+    typename: Literal['AnnotationLens'] = Field(alias='__typename', default='AnnotationLens', exclude=True)
+
+class GridLayerHeatmapLensBaseArrayLens(GridLayerHeatmapLensBase, Lensable, BaseModel):
+    """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    __identifier__: ClassVar[Literal['@mikro/arraylens']] = '@mikro/arraylens'
+    typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
+
+class GridLayerHeatmapLensBaseFixtureLens(GridLayerHeatmapLensBase, BaseModel):
+    """A selection over a fixture by windows in its own space: a clip box, or the whole model"""
+    __identifier__: ClassVar[Literal['@mikro/fixturelens']] = '@mikro/fixturelens'
+    typename: Literal['FixtureLens'] = Field(alias='__typename', default='FixtureLens', exclude=True)
+
+class GridLayerHeatmapLensBaseMeshLens(GridLayerHeatmapLensBase, BaseModel):
+    """A selection over a mesh collection by windows in its own space"""
+    __identifier__: ClassVar[Literal['@mikro/meshlens']] = '@mikro/meshlens'
+    typename: Literal['MeshLens'] = Field(alias='__typename', default='MeshLens', exclude=True)
+
+class GridLayerHeatmapLensBaseNetworkLens(GridLayerHeatmapLensBase, BaseModel):
+    """A selection over a network collection by windows in its own space"""
+    __identifier__: ClassVar[Literal['@mikro/networklens']] = '@mikro/networklens'
+    typename: Literal['NetworkLens'] = Field(alias='__typename', default='NetworkLens', exclude=True)
+
+class GridLayerHeatmapLensBaseSparseLens(GridLayerHeatmapLensBase, BaseModel):
+    """A selection over a sparse dataset by windows on its axes: the positions kept, never re-indexed. Lives in the dataset's own space"""
+    __identifier__: ClassVar[Literal['@mikro/sparselens']] = '@mikro/sparselens'
+    typename: Literal['SparseLens'] = Field(alias='__typename', default='SparseLens', exclude=True)
+
+class GridLayerHeatmapLensBaseTableLens(GridLayerHeatmapLensBase, BaseModel):
+    """A selection over a table dataset by value windows on its columns: the rows kept. A window on a coordinate column bounds a region of space; one on a numeric measurement column is a gate (`area >= 50`), which bounds nothing in space. Lives in the table's own space"""
+    __identifier__: ClassVar[Literal['@mikro/tablelens']] = '@mikro/tablelens'
+    typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
+
+class GridLayerHeatmapLensBaseCatchAll(GridLayerHeatmapLensBase, BaseModel):
+    """Catch all class for GridLayerHeatmapLensBase"""
+    typename: str = Field(alias='__typename', exclude=True)
+
+class GridLayerCellsLensWindows(BaseModel):
+    """A value window along a named axis of a container that is not an array: the positions kept, by value, with an open side as null"""
+    typename: Literal['Window'] = Field(alias='__typename', default='Window', exclude=True)
+    axis: str
+    "The name of the axis the window constrains, e.g. 't' for a table's time column"
+    min: float | None = Field(default=None)
+    'The smallest position kept, inclusive, or None for no lower bound'
+    max: float | None = Field(default=None)
+    'The largest position kept, inclusive, or None for no upper bound'
+    model_config = ConfigDict(frozen=True)
+
+class GridLayerCellsLens(BaseModel):
+    """A selection over a table dataset by value windows on its columns: the rows kept. A window on a coordinate column bounds a region of space; one on a numeric measurement column is a gate (`area >= 50`), which bounds nothing in space. Lives in the table's own space"""
+    __identifier__: ClassVar[Literal['@mikro/tablelens']] = '@mikro/tablelens'
+    typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
+    id: ID
+    name: str | None = Field(default=None)
+    "What this selection is called, or null when nothing names it: the labels at the positions it pins (a person's `setPositionLabel` over the channel label ingest recorded) and the name of the annotation it was cut to, e.g. 'GFP · nucleus 3'. Derived and kept by the server, never set: naming channel 1 names every lens through channel 1. No part of the lens' identity, which is its container and its selection. `nameAnchors` says where it comes from"
+    windows: tuple[GridLayerCellsLensWindows, ...]
+    'The windows, in the one normalized spelling: container axis order, floats, an open side as null. Empty for the whole lens'
+    model_config = ConfigDict(frozen=True)
+
+class GridLayerCellsTable(HasParquestStoreTrait, TableDatasetLensTrait, BaseModel):
+    """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
+    __identifier__: ClassVar[Literal['@mikro/tabledataset']] = '@mikro/tabledataset'
+    typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
+    id: ID
+    name: str
+    model_config = ConfigDict(frozen=True)
+
+class GridLayerBase(BaseModel):
+    """A layer drawn in a grid: a lens placed in the grid's world, covering its rows and columns, each cell coloured by a value. It carries view state only; where its data sits (`asAffine`, `placement`) is derived from the graph on read. The concrete kind says what it reads: HeatmapGridLayer an array or a sparse matrix, CellsGridLayer a table's rows"""
+    id: ID
+    kind: GridLayerKind
+    name: str | None = Field(default=None)
+    grid: GridLayerGrid
+    visible: bool
+    order: int
+    opacity: float
+    colormap: ColorMap
+    'How a value becomes a colour'
+    min: float | None = Field(default=None)
+    'The value drawn at the bottom of the colormap. Null lets the viewer choose'
+    max: float | None = Field(default=None)
+    'The value drawn at the top of the colormap. Null lets the viewer choose'
+    placement: PlacementState
+    "Whether this layer has a place in its grid's world, and if not, why not. Derived, never stored"
+    as_affine: GridLayerAsAffine | None = Field(default=None, alias='asAffine')
+    "This layer's placement composed into one affine map from its lens' space onto the grid's world: which of its positions is which row and column. Derived on read. Null when the layer is no longer placed"
+
+class GridLayerCatch(GridLayerBase):
+    """Catch all class for GridLayerBase"""
+    typename: str = Field(alias='__typename', exclude=True)
+    "A layer drawn in a grid: a lens placed in the grid's world, covering its rows and columns, each cell coloured by a value. It carries view state only; where its data sits (`asAffine`, `placement`) is derived from the graph on read. The concrete kind says what it reads: HeatmapGridLayer an array or a sparse matrix, CellsGridLayer a table's rows"
+    id: ID
+    kind: GridLayerKind
+    name: str | None = Field(default=None)
+    grid: GridLayerGrid
+    visible: bool
+    order: int
+    opacity: float
+    colormap: ColorMap
+    'How a value becomes a colour'
+    min: float | None = Field(default=None)
+    'The value drawn at the bottom of the colormap. Null lets the viewer choose'
+    max: float | None = Field(default=None)
+    'The value drawn at the top of the colormap. Null lets the viewer choose'
+    placement: PlacementState
+    "Whether this layer has a place in its grid's world, and if not, why not. Derived, never stored"
+    as_affine: GridLayerAsAffine | None = Field(default=None, alias='asAffine')
+    "This layer's placement composed into one affine map from its lens' space onto the grid's world: which of its positions is which row and column. Derived on read. Null when the layer is no longer placed"
+
+class GridLayerCellsGridLayer(GridLayerBase, BaseModel):
+    """A layer that draws a table's rows as cells: each row at its position along the grid's axes (the table's frame), coloured by the value of `valueColumn`. Example: a long-form `(cell, c, mean)` table, cells against channels coloured by `mean`; a plate's `(row, column)` wells coloured by a readout"""
+    typename: Literal['CellsGridLayer'] = Field(alias='__typename', default='CellsGridLayer', exclude=True)
+    cells_lens: GridLayerCellsLens = Field(alias='cellsLens')
+    'The table lens whose rows are drawn: the rows its windows keep'
+    cells_table: GridLayerCellsTable = Field(alias='cellsTable')
+    'The table dataset whose rows are drawn: the container of the lens'
+    value_column: str = Field(alias='valueColumn')
+    "The numeric column whose value colours each row's cell"
+    value_unit: Unit | None = Field(default=None, alias='valueUnit')
+    'The unit of `valueColumn`, as the table declares it. Null when the column declares none'
+
+class GridLayerHeatmapGridLayer(GridLayerBase, BaseModel):
+    """A layer that draws an array or a sparse matrix as a heatmap: its lens leaves free exactly the grid's axes, and each position is a cell coloured by the value there. Example: a sparse matrix of genes against cells, read through its whole lens"""
+    typename: Literal['HeatmapGridLayer'] = Field(alias='__typename', default='HeatmapGridLayer', exclude=True)
+    heatmap_lens: Annotated[GridLayerHeatmapLensBaseAnnotationLens | GridLayerHeatmapLensBaseArrayLens | GridLayerHeatmapLensBaseFixtureLens | GridLayerHeatmapLensBaseMeshLens | GridLayerHeatmapLensBaseNetworkLens | GridLayerHeatmapLensBaseSparseLens | GridLayerHeatmapLensBaseTableLens, Field(discriminator='typename')] | GridLayerHeatmapLensBaseCatchAll = Field(alias='heatmapLens')
+    'The array or sparse lens whose values are drawn'
 
 class LayerScene(SceneTrait, BaseModel):
     """A composition that shows **where**: every screen axis is an axis of its world -- a place, with a time or space axis -- and each layer is placed there by the graph's edges, so refining a registration moves what is drawn. Values are drawn as appearance: an image's intensity as colour, a table's `area` as the colour or size of its points. The counterpart of a chart, which shows *how much*: there values are drawn as position. The same table lens may be drawn both ways -- nuclei at their `(y, x)` on the image here, at `(area, volume)` in a VALUES chart. If rotating the view makes sense, it is a scene. The scene carries no units of its own -- they are per-axis, on the axes of its world system"""
@@ -5641,6 +5897,45 @@ class Chart(ChartTrait, MikroFetchable, BaseModel):
         name = 'Chart'
         type = 'Chart'
 
+class GridGridLayersBase(BaseModel):
+    """A layer drawn in a grid: a lens placed in the grid's world, covering its rows and columns, each cell coloured by a value. It carries view state only; where its data sits (`asAffine`, `placement`) is derived from the graph on read. The concrete kind says what it reads: HeatmapGridLayer an array or a sparse matrix, CellsGridLayer a table's rows"""
+    model_config = ConfigDict(frozen=True)
+
+class GridGridLayersBaseCellsGridLayer(GridLayerCellsGridLayer, GridGridLayersBase, BaseModel):
+    """A layer that draws a table's rows as cells: each row at its position along the grid's axes (the table's frame), coloured by the value of `valueColumn`. Example: a long-form `(cell, c, mean)` table, cells against channels coloured by `mean`; a plate's `(row, column)` wells coloured by a readout"""
+    typename: Literal['CellsGridLayer'] = Field(alias='__typename', default='CellsGridLayer', exclude=True)
+
+class GridGridLayersBaseHeatmapGridLayer(GridLayerHeatmapGridLayer, GridGridLayersBase, BaseModel):
+    """A layer that draws an array or a sparse matrix as a heatmap: its lens leaves free exactly the grid's axes, and each position is a cell coloured by the value there. Example: a sparse matrix of genes against cells, read through its whole lens"""
+    typename: Literal['HeatmapGridLayer'] = Field(alias='__typename', default='HeatmapGridLayer', exclude=True)
+
+class GridGridLayersBaseCatchAll(GridGridLayersBase, BaseModel):
+    """Catch all class for GridGridLayersBase"""
+    typename: str = Field(alias='__typename', exclude=True)
+
+class Grid(GridTrait, MikroFetchable, BaseModel):
+    """A composition that shows **which**: its rows and columns are the members of its world's one or two enumerating axes (INDEX, CHANNEL, CATEGORY), in order and with no distance between them, and a value is drawn as a cell's colour. Beside a scene, which shows *where* (screen axes a place), and a chart, which shows *how much* (values as position): row 3 of a grid comes after row 2, it is not one unit from it. Examples: a sparse matrix of genes against cells as a heatmap; a long-form table's mean per cell and channel; a plate's wells. It adopts its world -- the space whose members it lays out -- names data through lenses and owns none of it"""
+    __identifier__: ClassVar[Literal['@mikro/grid']] = '@mikro/grid'
+    typename: Literal['Grid'] = Field(alias='__typename', default='Grid', exclude=True)
+    id: ID
+    name: str
+    description: str | None = Field(default=None)
+    row_axis: Axis = Field(alias='rowAxis')
+    "The axis whose members are the rows: the world's first axis"
+    column_axis: Axis | None = Field(default=None, alias='columnAxis')
+    "The axis whose members are the columns: the world's second axis. Null for a grid of one axis, a single column of rows"
+    world_coordinate_system: CoordinateSystem = Field(alias='worldCoordinateSystem')
+    'The space whose members this grid lays out: one or two enumerating axes, rows then columns. Never owned by the grid: several compositions can share it, and deleting a grid never deletes it'
+    grid_layers: tuple[Annotated[GridGridLayersBaseCellsGridLayer | GridGridLayersBaseHeatmapGridLayer, Field(discriminator='typename')] | GridGridLayersBaseCatchAll, ...] = Field(alias='gridLayers')
+    'The layers drawn in this grid, back to front (a heterogeneous list of layer kinds)'
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for Grid"""
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment GridLayer on GridLayer {\n  id\n  kind\n  name\n  grid {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  colormap\n  min\n  max\n  placement\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    __typename\n  }\n  ... on HeatmapGridLayer {\n    heatmapLens: lens {\n      id\n      name\n    }\n  }\n  ... on CellsGridLayer {\n    cellsLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    cellsTable: tableDataset {\n      id\n      name\n    }\n    valueColumn\n    valueUnit\n  }\n  __typename\n}\n\nfragment Grid on Grid {\n  id\n  name\n  description\n  rowAxis {\n    ...Axis\n    __typename\n  }\n  columnAxis {\n    ...Axis\n    __typename\n  }\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  gridLayers: layers {\n    ...GridLayer\n    __typename\n  }\n  __typename\n}'
+        name = 'Grid'
+        type = 'Grid'
+
 class ArrayLensDatasetDataArrays(DataArrayTrait, BaseModel):
     """One level of a dataset's resolution pyramid: a zarr-backed array, with its own voxel-index coordinate system and a stored edge into the dataset's intrinsic space"""
     typename: Literal['DataArray'] = Field(alias='__typename', default='DataArray', exclude=True)
@@ -6252,6 +6547,11 @@ class TableDatasetVisualizationsBaseChart(TableDatasetVisualizationsBase, ChartT
     __identifier__: ClassVar[Literal['@mikro/chart']] = '@mikro/chart'
     typename: Literal['Chart'] = Field(alias='__typename', default='Chart', exclude=True)
 
+class TableDatasetVisualizationsBaseGrid(TableDatasetVisualizationsBase, GridTrait, BaseModel):
+    """A composition that shows **which**: its rows and columns are the members of its world's one or two enumerating axes (INDEX, CHANNEL, CATEGORY), in order and with no distance between them, and a value is drawn as a cell's colour. Beside a scene, which shows *where* (screen axes a place), and a chart, which shows *how much* (values as position): row 3 of a grid comes after row 2, it is not one unit from it. Examples: a sparse matrix of genes against cells as a heatmap; a long-form table's mean per cell and channel; a plate's wells. It adopts its world -- the space whose members it lays out -- names data through lenses and owns none of it"""
+    __identifier__: ClassVar[Literal['@mikro/grid']] = '@mikro/grid'
+    typename: Literal['Grid'] = Field(alias='__typename', default='Grid', exclude=True)
+
 class TableDatasetVisualizationsBaseScene(TableDatasetVisualizationsBase, SceneTrait, BaseModel):
     """A composition that shows **where**: every screen axis is an axis of its world -- a place, with a time or space axis -- and each layer is placed there by the graph's edges, so refining a registration moves what is drawn. Values are drawn as appearance: an image's intensity as colour, a table's `area` as the colour or size of its points. The counterpart of a chart, which shows *how much*: there values are drawn as position. The same table lens may be drawn both ways -- nuclei at their `(y, x)` on the image here, at `(area, volume)` in a VALUES chart. If rotating the view makes sense, it is a scene. The scene carries no units of its own -- they are per-axis, on the axes of its world system"""
     __identifier__: ClassVar[Literal['@mikro/scene']] = '@mikro/scene'
@@ -6280,7 +6580,7 @@ class TableDataset(HasParquestStoreTrait, TableDatasetLensTrait, MikroFetchable,
     "The table's axis names, in order. Derived from the coordinate columns"
     provenance_metadata: Any = Field(alias='provenanceMetadata')
     'How this table was produced: the run, its parameters and its inputs'
-    visualizations: tuple[Annotated[TableDatasetVisualizationsBaseChart | TableDatasetVisualizationsBaseScene, Field(discriminator='typename')] | TableDatasetVisualizationsBaseCatchAll, ...]
+    visualizations: tuple[Annotated[TableDatasetVisualizationsBaseChart | TableDatasetVisualizationsBaseGrid | TableDatasetVisualizationsBaseScene, Field(discriminator='typename')] | TableDatasetVisualizationsBaseCatchAll, ...]
     'The compositions that draw this table: every scene and chart with a layer through any lens of it -- its whole lens or a window of it. Derived, never stored, kind by kind in registration order and oldest first within a kind'
     model_config = ConfigDict(frozen=True)
 
@@ -7196,6 +7496,126 @@ class RevertFolderMutation(BaseModel):
         """Meta class for RevertFolder """
         document = 'fragment Folder on Folder {\n  id\n  name\n  description\n  parent {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nmutation RevertFolder($input: RevertInput!) {\n  revertFolder(input: $input) {\n    ...Folder\n    __typename\n  }\n}'
 
+class CreateGridMutation(BaseModel):
+    """No documentation found for this operation."""
+    create_grid: Grid = Field(alias='createGrid')
+    "Create a grid over an existing space whose one or two enumerating axes (INDEX, CHANNEL, CATEGORY) are its rows and columns: members in order, a value as each cell's colour"
+
+    class Arguments(BaseModel):
+        """Arguments for CreateGrid """
+        input: CreateGridInput
+
+    class Meta:
+        """Meta class for CreateGrid """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment GridLayer on GridLayer {\n  id\n  kind\n  name\n  grid {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  colormap\n  min\n  max\n  placement\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    __typename\n  }\n  ... on HeatmapGridLayer {\n    heatmapLens: lens {\n      id\n      name\n    }\n  }\n  ... on CellsGridLayer {\n    cellsLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    cellsTable: tableDataset {\n      id\n      name\n    }\n    valueColumn\n    valueUnit\n  }\n  __typename\n}\n\nfragment Grid on Grid {\n  id\n  name\n  description\n  rowAxis {\n    ...Axis\n    __typename\n  }\n  columnAxis {\n    ...Axis\n    __typename\n  }\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  gridLayers: layers {\n    ...GridLayer\n    __typename\n  }\n  __typename\n}\n\nmutation CreateGrid($input: CreateGridInput!) {\n  createGrid(input: $input) {\n    ...Grid\n    __typename\n  }\n}'
+
+class CreateGridFromCoordinateSystemMutation(BaseModel):
+    """No documentation found for this operation."""
+    create_grid_from_coordinate_system: Grid = Field(alias='createGridFromCoordinateSystem')
+    'Bootstrap a grid over an existing space, drawing each sparse matrix and array covering its axes as a heatmap and each table as cells. Authors no edges'
+
+    class Arguments(BaseModel):
+        """Arguments for CreateGridFromCoordinateSystem """
+        input: CreateGridFromCoordinateSystemInput
+
+    class Meta:
+        """Meta class for CreateGridFromCoordinateSystem """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment GridLayer on GridLayer {\n  id\n  kind\n  name\n  grid {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  colormap\n  min\n  max\n  placement\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    __typename\n  }\n  ... on HeatmapGridLayer {\n    heatmapLens: lens {\n      id\n      name\n    }\n  }\n  ... on CellsGridLayer {\n    cellsLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    cellsTable: tableDataset {\n      id\n      name\n    }\n    valueColumn\n    valueUnit\n  }\n  __typename\n}\n\nfragment Grid on Grid {\n  id\n  name\n  description\n  rowAxis {\n    ...Axis\n    __typename\n  }\n  columnAxis {\n    ...Axis\n    __typename\n  }\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  gridLayers: layers {\n    ...GridLayer\n    __typename\n  }\n  __typename\n}\n\nmutation CreateGridFromCoordinateSystem($input: CreateGridFromCoordinateSystemInput!) {\n  createGridFromCoordinateSystem(input: $input) {\n    ...Grid\n    __typename\n  }\n}'
+
+class UpdateGridMutation(BaseModel):
+    """No documentation found for this operation."""
+    update_grid: Grid = Field(alias='updateGrid')
+    'Rename or re-describe a grid. Its world is fixed'
+
+    class Arguments(BaseModel):
+        """Arguments for UpdateGrid """
+        input: UpdateGridInput
+
+    class Meta:
+        """Meta class for UpdateGrid """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment GridLayer on GridLayer {\n  id\n  kind\n  name\n  grid {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  colormap\n  min\n  max\n  placement\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    __typename\n  }\n  ... on HeatmapGridLayer {\n    heatmapLens: lens {\n      id\n      name\n    }\n  }\n  ... on CellsGridLayer {\n    cellsLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    cellsTable: tableDataset {\n      id\n      name\n    }\n    valueColumn\n    valueUnit\n  }\n  __typename\n}\n\nfragment Grid on Grid {\n  id\n  name\n  description\n  rowAxis {\n    ...Axis\n    __typename\n  }\n  columnAxis {\n    ...Axis\n    __typename\n  }\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  gridLayers: layers {\n    ...GridLayer\n    __typename\n  }\n  __typename\n}\n\nmutation UpdateGrid($input: UpdateGridInput!) {\n  updateGrid(input: $input) {\n    ...Grid\n    __typename\n  }\n}'
+
+class DeleteGridMutation(BaseModel):
+    """No documentation found for this operation."""
+    delete_grid: ID = Field(alias='deleteGrid')
+    "Delete a grid and its layers. The data they drew and the grid's world are untouched"
+
+    class Arguments(BaseModel):
+        """Arguments for DeleteGrid """
+        input: DeleteGridInput
+
+    class Meta:
+        """Meta class for DeleteGrid """
+        document = 'mutation DeleteGrid($input: DeleteGridInput!) {\n  deleteGrid(input: $input)\n}'
+
+class CreateHeatmapGridLayerMutation(BaseModel):
+    """ An array or a sparse matrix, one cell per position: genes against cells."""
+    create_heatmap_grid_layer: GridLayerHeatmapGridLayer = Field(alias='createHeatmapGridLayer')
+    "Draw an array or a sparse matrix in a grid: one cell per position along the grid's axes, coloured by the value there -- genes against cells"
+
+    class Arguments(BaseModel):
+        """Arguments for CreateHeatmapGridLayer """
+        input: CreateHeatmapGridLayerInput
+
+    class Meta:
+        """Meta class for CreateHeatmapGridLayer """
+        document = 'fragment GridLayer on GridLayer {\n  id\n  kind\n  name\n  grid {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  colormap\n  min\n  max\n  placement\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    __typename\n  }\n  ... on HeatmapGridLayer {\n    heatmapLens: lens {\n      id\n      name\n    }\n  }\n  ... on CellsGridLayer {\n    cellsLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    cellsTable: tableDataset {\n      id\n      name\n    }\n    valueColumn\n    valueUnit\n  }\n  __typename\n}\n\nmutation CreateHeatmapGridLayer($input: CreateHeatmapGridLayerInput!) {\n  createHeatmapGridLayer(input: $input) {\n    ...GridLayer\n    __typename\n  }\n}'
+
+class CreateCellsGridLayerMutation(BaseModel):
+    """ A table's rows, one cell each, coloured by a numeric column."""
+    create_cells_grid_layer: GridLayerCellsGridLayer = Field(alias='createCellsGridLayer')
+    "Draw a table's rows in a grid: one cell per row at its position along the grid's axes, coloured by a numeric column -- a long-form table's mean per cell and channel"
+
+    class Arguments(BaseModel):
+        """Arguments for CreateCellsGridLayer """
+        input: CreateCellsGridLayerInput
+
+    class Meta:
+        """Meta class for CreateCellsGridLayer """
+        document = 'fragment GridLayer on GridLayer {\n  id\n  kind\n  name\n  grid {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  colormap\n  min\n  max\n  placement\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    __typename\n  }\n  ... on HeatmapGridLayer {\n    heatmapLens: lens {\n      id\n      name\n    }\n  }\n  ... on CellsGridLayer {\n    cellsLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    cellsTable: tableDataset {\n      id\n      name\n    }\n    valueColumn\n    valueUnit\n  }\n  __typename\n}\n\nmutation CreateCellsGridLayer($input: CreateCellsGridLayerInput!) {\n  createCellsGridLayer(input: $input) {\n    ...GridLayer\n    __typename\n  }\n}'
+
+class UpdateGridLayerMutationUpdateGridLayerBase(BaseModel):
+    """A layer drawn in a grid: a lens placed in the grid's world, covering its rows and columns, each cell coloured by a value. It carries view state only; where its data sits (`asAffine`, `placement`) is derived from the graph on read. The concrete kind says what it reads: HeatmapGridLayer an array or a sparse matrix, CellsGridLayer a table's rows"""
+    model_config = ConfigDict(frozen=True)
+
+class UpdateGridLayerMutationUpdateGridLayerBaseCellsGridLayer(GridLayerCellsGridLayer, UpdateGridLayerMutationUpdateGridLayerBase, BaseModel):
+    """A layer that draws a table's rows as cells: each row at its position along the grid's axes (the table's frame), coloured by the value of `valueColumn`. Example: a long-form `(cell, c, mean)` table, cells against channels coloured by `mean`; a plate's `(row, column)` wells coloured by a readout"""
+    typename: Literal['CellsGridLayer'] = Field(alias='__typename', default='CellsGridLayer', exclude=True)
+
+class UpdateGridLayerMutationUpdateGridLayerBaseHeatmapGridLayer(GridLayerHeatmapGridLayer, UpdateGridLayerMutationUpdateGridLayerBase, BaseModel):
+    """A layer that draws an array or a sparse matrix as a heatmap: its lens leaves free exactly the grid's axes, and each position is a cell coloured by the value there. Example: a sparse matrix of genes against cells, read through its whole lens"""
+    typename: Literal['HeatmapGridLayer'] = Field(alias='__typename', default='HeatmapGridLayer', exclude=True)
+
+class UpdateGridLayerMutationUpdateGridLayerBaseCatchAll(UpdateGridLayerMutationUpdateGridLayerBase, BaseModel):
+    """Catch all class for UpdateGridLayerMutationUpdateGridLayerBase"""
+    typename: str = Field(alias='__typename', exclude=True)
+
+class UpdateGridLayerMutation(BaseModel):
+    """No documentation found for this operation."""
+    update_grid_layer: Annotated[UpdateGridLayerMutationUpdateGridLayerBaseCellsGridLayer | UpdateGridLayerMutationUpdateGridLayerBaseHeatmapGridLayer, Field(discriminator='typename')] | UpdateGridLayerMutationUpdateGridLayerBaseCatchAll = Field(alias='updateGridLayer')
+    'Restyle a grid layer. View state only'
+
+    class Arguments(BaseModel):
+        """Arguments for UpdateGridLayer """
+        input: UpdateGridLayerInput
+
+    class Meta:
+        """Meta class for UpdateGridLayer """
+        document = 'fragment GridLayer on GridLayer {\n  id\n  kind\n  name\n  grid {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  colormap\n  min\n  max\n  placement\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    __typename\n  }\n  ... on HeatmapGridLayer {\n    heatmapLens: lens {\n      id\n      name\n    }\n  }\n  ... on CellsGridLayer {\n    cellsLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    cellsTable: tableDataset {\n      id\n      name\n    }\n    valueColumn\n    valueUnit\n  }\n  __typename\n}\n\nmutation UpdateGridLayer($input: UpdateGridLayerInput!) {\n  updateGridLayer(input: $input) {\n    ...GridLayer\n    __typename\n  }\n}'
+
+class DeleteGridLayerMutation(BaseModel):
+    """No documentation found for this operation."""
+    delete_grid_layer: ID = Field(alias='deleteGridLayer')
+    'Delete a grid layer. Deletes nothing it drew'
+
+    class Arguments(BaseModel):
+        """Arguments for DeleteGridLayer """
+        input: DeleteGridLayerInput
+
+    class Meta:
+        """Meta class for DeleteGridLayer """
+        document = 'mutation DeleteGridLayer($input: DeleteGridLayerInput!) {\n  deleteGridLayer(input: $input)\n}'
+
 class CreateLayerMutation(BaseModel):
     """No documentation found for this operation."""
     create_layer: LayerImageLayer = Field(alias='createLayer')
@@ -7897,6 +8317,11 @@ class AutoVisualizeMutationAutoVisualizeBaseChart(Chart, AutoVisualizeMutationAu
     __identifier__: ClassVar[Literal['@mikro/chart']] = '@mikro/chart'
     typename: Literal['Chart'] = Field(alias='__typename', default='Chart', exclude=True)
 
+class AutoVisualizeMutationAutoVisualizeBaseGrid(Grid, AutoVisualizeMutationAutoVisualizeBase, GridTrait, BaseModel):
+    """A composition that shows **which**: its rows and columns are the members of its world's one or two enumerating axes (INDEX, CHANNEL, CATEGORY), in order and with no distance between them, and a value is drawn as a cell's colour. Beside a scene, which shows *where* (screen axes a place), and a chart, which shows *how much* (values as position): row 3 of a grid comes after row 2, it is not one unit from it. Examples: a sparse matrix of genes against cells as a heatmap; a long-form table's mean per cell and channel; a plate's wells. It adopts its world -- the space whose members it lays out -- names data through lenses and owns none of it"""
+    __identifier__: ClassVar[Literal['@mikro/grid']] = '@mikro/grid'
+    typename: Literal['Grid'] = Field(alias='__typename', default='Grid', exclude=True)
+
 class AutoVisualizeMutationAutoVisualizeBaseScene(Scene, AutoVisualizeMutationAutoVisualizeBase, SceneTrait, BaseModel):
     """A composition that shows **where**: every screen axis is an axis of its world -- a place, with a time or space axis -- and each layer is placed there by the graph's edges, so refining a registration moves what is drawn. Values are drawn as appearance: an image's intensity as colour, a table's `area` as the colour or size of its points. The counterpart of a chart, which shows *how much*: there values are drawn as position. The same table lens may be drawn both ways -- nuclei at their `(y, x)` on the image here, at `(area, volume)` in a VALUES chart. If rotating the view makes sense, it is a scene. The scene carries no units of its own -- they are per-axis, on the axes of its world system"""
     __identifier__: ClassVar[Literal['@mikro/scene']] = '@mikro/scene'
@@ -7908,9 +8333,9 @@ class AutoVisualizeMutationAutoVisualizeBaseCatchAll(AutoVisualizeMutationAutoVi
 
 class AutoVisualizeMutation(BaseModel):
     """ Shows a space as whichever composition fits it: a chart over exactly one metric,
- unit-carrying axis, a scene otherwise."""
-    auto_visualize: Annotated[AutoVisualizeMutationAutoVisualizeBaseChart | AutoVisualizeMutationAutoVisualizeBaseScene, Field(discriminator='typename')] | AutoVisualizeMutationAutoVisualizeBaseCatchAll = Field(alias='autoVisualize')
-    'Show a coordinate system as whichever composition fits it: a chart over a space with exactly one metric, unit-carrying axis, a scene over any other space with a time or space axis. Bootstrapped from what already resides in the space; authors no edges'
+ unit-carrying axis, a grid over two enumerating axes, a scene otherwise."""
+    auto_visualize: Annotated[AutoVisualizeMutationAutoVisualizeBaseChart | AutoVisualizeMutationAutoVisualizeBaseGrid | AutoVisualizeMutationAutoVisualizeBaseScene, Field(discriminator='typename')] | AutoVisualizeMutationAutoVisualizeBaseCatchAll = Field(alias='autoVisualize')
+    'Show a coordinate system or a lens as whichever composition fits it: a chart over a space with exactly one metric, unit-carrying axis, a grid over two enumerating axes, a scene over any other space with a time or space axis. Bootstrapped from what already resides in the space; authors no edges'
 
     class Arguments(BaseModel):
         """Arguments for AutoVisualize """
@@ -7918,7 +8343,7 @@ class AutoVisualizeMutation(BaseModel):
 
     class Meta:
         """Meta class for AutoVisualize """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    fields {\n      outputAxis\n      inner\n      base\n      component\n      scale\n      offset\n      inputAxis\n      innerScale\n      innerOffset\n      dataset {\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on PointsChartLayer {\n    pointsLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    pointsTable: tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    xUnit\n    yUnit\n    zUnit\n    pointsMark: mark\n    pointsLineWidth: lineWidth\n    pointsMarkerSize: markerSize\n  }\n  ... on DistributionChartLayer {\n    distributionLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    distributionTable: tableDataset {\n      id\n      name\n    }\n    distributionValueColumn: valueColumn\n    groupColumn\n    bins\n    distributionValueUnit: valueUnit\n    distributionMark: mark\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Chart on Chart {\n  id\n  name\n  description\n  kind\n  axis {\n    ...Axis\n    __typename\n  }\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  layers {\n    ...ChartLayer\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nmutation AutoVisualize($input: AutoVisualizeInput!) {\n  autoVisualize(input: $input) {\n    ... on Scene {\n      ...Scene\n    }\n    ... on Chart {\n      ...Chart\n    }\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    fields {\n      outputAxis\n      inner\n      base\n      component\n      scale\n      offset\n      inputAxis\n      innerScale\n      innerOffset\n      dataset {\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n  }\n  ... on PointsChartLayer {\n    pointsLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    pointsTable: tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    xUnit\n    yUnit\n    zUnit\n    pointsMark: mark\n    pointsLineWidth: lineWidth\n    pointsMarkerSize: markerSize\n  }\n  ... on DistributionChartLayer {\n    distributionLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    distributionTable: tableDataset {\n      id\n      name\n    }\n    distributionValueColumn: valueColumn\n    groupColumn\n    bins\n    distributionValueUnit: valueUnit\n    distributionMark: mark\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment GridLayer on GridLayer {\n  id\n  kind\n  name\n  grid {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  colormap\n  min\n  max\n  placement\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    __typename\n  }\n  ... on HeatmapGridLayer {\n    heatmapLens: lens {\n      id\n      name\n    }\n  }\n  ... on CellsGridLayer {\n    cellsLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    cellsTable: tableDataset {\n      id\n      name\n    }\n    valueColumn\n    valueUnit\n  }\n  __typename\n}\n\nfragment Chart on Chart {\n  id\n  name\n  description\n  kind\n  axis {\n    ...Axis\n    __typename\n  }\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  layers {\n    ...ChartLayer\n    __typename\n  }\n  __typename\n}\n\nfragment Grid on Grid {\n  id\n  name\n  description\n  rowAxis {\n    ...Axis\n    __typename\n  }\n  columnAxis {\n    ...Axis\n    __typename\n  }\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  gridLayers: layers {\n    ...GridLayer\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nmutation AutoVisualize($input: AutoVisualizeInput!) {\n  autoVisualize(input: $input) {\n    ... on Scene {\n      ...Scene\n    }\n    ... on Chart {\n      ...Chart\n    }\n    ... on Grid {\n      ...Grid\n    }\n    __typename\n  }\n}'
 
 class CreateSceneSnapshotMutation(BaseModel):
     """No documentation found for this operation."""
@@ -9390,6 +9815,57 @@ class SearchFoldersQuery(BaseModel):
     class Meta:
         """Meta class for SearchFolders """
         document = 'query SearchFolders($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: folders(\n    filters: { search: $search, ids: $values }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
+
+class GetGridQuery(BaseModel):
+    """No documentation found for this operation."""
+    grid: Grid
+    'Get a single grid by ID'
+
+    class Arguments(BaseModel):
+        """Arguments for GetGrid """
+        id: ID
+
+    class Meta:
+        """Meta class for GetGrid """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment GridLayer on GridLayer {\n  id\n  kind\n  name\n  grid {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  colormap\n  min\n  max\n  placement\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    __typename\n  }\n  ... on HeatmapGridLayer {\n    heatmapLens: lens {\n      id\n      name\n    }\n  }\n  ... on CellsGridLayer {\n    cellsLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    cellsTable: tableDataset {\n      id\n      name\n    }\n    valueColumn\n    valueUnit\n  }\n  __typename\n}\n\nfragment Grid on Grid {\n  id\n  name\n  description\n  rowAxis {\n    ...Axis\n    __typename\n  }\n  columnAxis {\n    ...Axis\n    __typename\n  }\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  gridLayers: layers {\n    ...GridLayer\n    __typename\n  }\n  __typename\n}\n\nquery GetGrid($id: ID!) {\n  grid(id: $id) {\n    ...Grid\n    __typename\n  }\n}'
+
+class SearchGridsQueryOptions(GridTrait, BaseModel):
+    """A composition that shows **which**: its rows and columns are the members of its world's one or two enumerating axes (INDEX, CHANNEL, CATEGORY), in order and with no distance between them, and a value is drawn as a cell's colour. Beside a scene, which shows *where* (screen axes a place), and a chart, which shows *how much* (values as position): row 3 of a grid comes after row 2, it is not one unit from it. Examples: a sparse matrix of genes against cells as a heatmap; a long-form table's mean per cell and channel; a plate's wells. It adopts its world -- the space whose members it lays out -- names data through lenses and owns none of it"""
+    __identifier__: ClassVar[Literal['@mikro/grid']] = '@mikro/grid'
+    typename: Literal['Grid'] = Field(alias='__typename', default='Grid', exclude=True)
+    value: ID
+    label: str
+    model_config = ConfigDict(frozen=True)
+
+class SearchGridsQuery(BaseModel):
+    """No documentation found for this operation."""
+    options: tuple[SearchGridsQueryOptions, ...]
+    "List grids (compositions laying out the members of one or two enumerating axes: a heatmap of genes against cells, a table's cells against channels)"
+
+    class Arguments(BaseModel):
+        """Arguments for SearchGrids """
+        search: str | None = Field(default=None)
+        values: list[ID] | None = Field(default=None)
+        limit: int | None = Field(default=None)
+        offset: Annotated[int | None, GraphQLDefault('0')] = Field(default=None)
+
+    class Meta:
+        """Meta class for SearchGrids """
+        document = 'query SearchGrids($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: grids(\n    filters: { search: $search, ids: $values }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
+
+class ListGridsQuery(BaseModel):
+    """No documentation found for this operation."""
+    grids: tuple[Grid, ...]
+    "List grids (compositions laying out the members of one or two enumerating axes: a heatmap of genes against cells, a table's cells against channels)"
+
+    class Arguments(BaseModel):
+        """Arguments for ListGrids """
+        filters: GridFilter | None = Field(default=None)
+        pagination: OffsetPaginationInput | None = Field(default=None)
+
+    class Meta:
+        """Meta class for ListGrids """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment GridLayer on GridLayer {\n  id\n  kind\n  name\n  grid {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  colormap\n  min\n  max\n  placement\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    __typename\n  }\n  ... on HeatmapGridLayer {\n    heatmapLens: lens {\n      id\n      name\n    }\n  }\n  ... on CellsGridLayer {\n    cellsLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    cellsTable: tableDataset {\n      id\n      name\n    }\n    valueColumn\n    valueUnit\n  }\n  __typename\n}\n\nfragment Grid on Grid {\n  id\n  name\n  description\n  rowAxis {\n    ...Axis\n    __typename\n  }\n  columnAxis {\n    ...Axis\n    __typename\n  }\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  gridLayers: layers {\n    ...GridLayer\n    __typename\n  }\n  __typename\n}\n\nquery ListGrids($filters: GridFilter, $pagination: OffsetPaginationInput) {\n  grids(filters: $filters, pagination: $pagination) {\n    ...Grid\n    __typename\n  }\n}'
 
 class GetLayerQueryLayerBase(BaseModel):
     """A layer placed in a scene and alpha-blended over the layers below it. It carries view state only: a spatial fact is a coordinate system or a transformation edge, never a field here, and every spatial question a layer answers -- `pathToWorld`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one edge updates every layer that looks through it. Which columns hold a point layer's coordinates is likewise the table dataset's declaration, not a per-layer copy. The concrete kind carries its own data source and render settings: IntensityLayer, RgbLayer, PhasorLayer and LabelLayer each state a recipe of fixed shape as fields, ImageLayer carries a composable render graph for the layers that genuinely composite, and AnnotationLayer, PointLayer, TrackLayer, MeshLayer and NetworkLayer draw through a lens over a collection or a table -- every layer, of every kind, draws through a lens of its source's kind."""
@@ -13797,6 +14273,464 @@ Returns:
         variables['input'] = _input
         return self.execute(RevertFolderMutation, variables, task=task).revert_folder
 
+    async def acreate_grid(self, name: str, coordinate_system: IDCoercible, description: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> Grid:
+        """CreateGrid 
+
+Create a grid over an existing space whose one or two enumerating axes (INDEX, CHANNEL, CATEGORY) are its rows and columns: members in order, a value as each cell's colour
+
+Args:
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    coordinate_system: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    Grid
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['name'] = name
+        _input['coordinateSystem'] = coordinate_system
+        if description is not UNSET:
+            _input['description'] = description
+        variables['input'] = _input
+        return (await self.aexecute(CreateGridMutation, variables, task=task)).create_grid
+
+    def create_grid(self, name: str, coordinate_system: IDCoercible, description: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> Grid:
+        """CreateGrid 
+
+Create a grid over an existing space whose one or two enumerating axes (INDEX, CHANNEL, CATEGORY) are its rows and columns: members in order, a value as each cell's colour
+
+Args:
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    coordinate_system: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    Grid
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['name'] = name
+        _input['coordinateSystem'] = coordinate_system
+        if description is not UNSET:
+            _input['description'] = description
+        variables['input'] = _input
+        return self.execute(CreateGridMutation, variables, task=task).create_grid
+
+    async def acreate_grid_from_coordinate_system(self, coordinate_system: IDCoercible, name: str | None | UnsetType=UNSET, policy: GridPolicyInput | UnsetType=UNSET, task: TaskLike | None=None) -> Grid:
+        """CreateGridFromCoordinateSystem 
+
+Bootstrap a grid over an existing space, drawing each sparse matrix and array covering its axes as a heatmap and each table as cells. Authors no edges
+
+Args:
+    coordinate_system: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    policy: How a grid is drawn from what is already placed in a space (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    Grid
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['coordinateSystem'] = coordinate_system
+        if name is not UNSET:
+            _input['name'] = name
+        if policy is not UNSET:
+            _input['policy'] = policy
+        variables['input'] = _input
+        return (await self.aexecute(CreateGridFromCoordinateSystemMutation, variables, task=task)).create_grid_from_coordinate_system
+
+    def create_grid_from_coordinate_system(self, coordinate_system: IDCoercible, name: str | None | UnsetType=UNSET, policy: GridPolicyInput | UnsetType=UNSET, task: TaskLike | None=None) -> Grid:
+        """CreateGridFromCoordinateSystem 
+
+Bootstrap a grid over an existing space, drawing each sparse matrix and array covering its axes as a heatmap and each table as cells. Authors no edges
+
+Args:
+    coordinate_system: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    policy: How a grid is drawn from what is already placed in a space (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    Grid
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['coordinateSystem'] = coordinate_system
+        if name is not UNSET:
+            _input['name'] = name
+        if policy is not UNSET:
+            _input['policy'] = policy
+        variables['input'] = _input
+        return self.execute(CreateGridFromCoordinateSystemMutation, variables, task=task).create_grid_from_coordinate_system
+
+    async def aupdate_grid(self, id: IDCoercible, name: str | None | UnsetType=UNSET, description: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> Grid:
+        """UpdateGrid 
+
+Rename or re-describe a grid. Its world is fixed
+
+Args:
+    id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    Grid
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['id'] = id
+        if name is not UNSET:
+            _input['name'] = name
+        if description is not UNSET:
+            _input['description'] = description
+        variables['input'] = _input
+        return (await self.aexecute(UpdateGridMutation, variables, task=task)).update_grid
+
+    def update_grid(self, id: IDCoercible, name: str | None | UnsetType=UNSET, description: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> Grid:
+        """UpdateGrid 
+
+Rename or re-describe a grid. Its world is fixed
+
+Args:
+    id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    Grid
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['id'] = id
+        if name is not UNSET:
+            _input['name'] = name
+        if description is not UNSET:
+            _input['description'] = description
+        variables['input'] = _input
+        return self.execute(UpdateGridMutation, variables, task=task).update_grid
+
+    async def adelete_grid(self, id: IDCoercible, task: TaskLike | None=None) -> ID:
+        """DeleteGrid 
+
+Delete a grid and its layers. The data they drew and the grid's world are untouched
+
+Args:
+    id: The ID of the grid to delete
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ID
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['id'] = id
+        variables['input'] = _input
+        return (await self.aexecute(DeleteGridMutation, variables, task=task)).delete_grid
+
+    def delete_grid(self, id: IDCoercible, task: TaskLike | None=None) -> ID:
+        """DeleteGrid 
+
+Delete a grid and its layers. The data they drew and the grid's world are untouched
+
+Args:
+    id: The ID of the grid to delete
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ID
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['id'] = id
+        variables['input'] = _input
+        return self.execute(DeleteGridMutation, variables, task=task).delete_grid
+
+    async def acreate_heatmap_grid_layer(self, grid: IDCoercible, lens: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, colormap: ColorMap | None | UnsetType=UNSET, min: float | None | UnsetType=UNSET, max: float | None | UnsetType=UNSET, task: TaskLike | None=None) -> GridLayerHeatmapGridLayer:
+        """CreateHeatmapGridLayer 
+ An array or a sparse matrix, one cell per position: genes against cells.
+
+Args:
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    colormap: ColorMap
+    min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    max: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    grid: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    GridLayerHeatmapGridLayer
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        if name is not UNSET:
+            _input['name'] = name
+        if visible is not UNSET:
+            _input['visible'] = visible
+        if order is not UNSET:
+            _input['order'] = order
+        if opacity is not UNSET:
+            _input['opacity'] = opacity
+        if colormap is not UNSET:
+            _input['colormap'] = colormap
+        if min is not UNSET:
+            _input['min'] = min
+        if max is not UNSET:
+            _input['max'] = max
+        _input['grid'] = grid
+        _input['lens'] = lens
+        variables['input'] = _input
+        return (await self.aexecute(CreateHeatmapGridLayerMutation, variables, task=task)).create_heatmap_grid_layer
+
+    def create_heatmap_grid_layer(self, grid: IDCoercible, lens: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, colormap: ColorMap | None | UnsetType=UNSET, min: float | None | UnsetType=UNSET, max: float | None | UnsetType=UNSET, task: TaskLike | None=None) -> GridLayerHeatmapGridLayer:
+        """CreateHeatmapGridLayer 
+ An array or a sparse matrix, one cell per position: genes against cells.
+
+Args:
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    colormap: ColorMap
+    min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    max: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    grid: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    GridLayerHeatmapGridLayer
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        if name is not UNSET:
+            _input['name'] = name
+        if visible is not UNSET:
+            _input['visible'] = visible
+        if order is not UNSET:
+            _input['order'] = order
+        if opacity is not UNSET:
+            _input['opacity'] = opacity
+        if colormap is not UNSET:
+            _input['colormap'] = colormap
+        if min is not UNSET:
+            _input['min'] = min
+        if max is not UNSET:
+            _input['max'] = max
+        _input['grid'] = grid
+        _input['lens'] = lens
+        variables['input'] = _input
+        return self.execute(CreateHeatmapGridLayerMutation, variables, task=task).create_heatmap_grid_layer
+
+    async def acreate_cells_grid_layer(self, grid: IDCoercible, lens: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, colormap: ColorMap | None | UnsetType=UNSET, min: float | None | UnsetType=UNSET, max: float | None | UnsetType=UNSET, value_column: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> GridLayerCellsGridLayer:
+        """CreateCellsGridLayer 
+ A table's rows, one cell each, coloured by a numeric column.
+
+Args:
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    colormap: ColorMap
+    min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    max: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    grid: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    value_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    GridLayerCellsGridLayer
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        if name is not UNSET:
+            _input['name'] = name
+        if visible is not UNSET:
+            _input['visible'] = visible
+        if order is not UNSET:
+            _input['order'] = order
+        if opacity is not UNSET:
+            _input['opacity'] = opacity
+        if colormap is not UNSET:
+            _input['colormap'] = colormap
+        if min is not UNSET:
+            _input['min'] = min
+        if max is not UNSET:
+            _input['max'] = max
+        _input['grid'] = grid
+        _input['lens'] = lens
+        if value_column is not UNSET:
+            _input['valueColumn'] = value_column
+        variables['input'] = _input
+        return (await self.aexecute(CreateCellsGridLayerMutation, variables, task=task)).create_cells_grid_layer
+
+    def create_cells_grid_layer(self, grid: IDCoercible, lens: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, colormap: ColorMap | None | UnsetType=UNSET, min: float | None | UnsetType=UNSET, max: float | None | UnsetType=UNSET, value_column: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> GridLayerCellsGridLayer:
+        """CreateCellsGridLayer 
+ A table's rows, one cell each, coloured by a numeric column.
+
+Args:
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    colormap: ColorMap
+    min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    max: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    grid: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    value_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    GridLayerCellsGridLayer
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        if name is not UNSET:
+            _input['name'] = name
+        if visible is not UNSET:
+            _input['visible'] = visible
+        if order is not UNSET:
+            _input['order'] = order
+        if opacity is not UNSET:
+            _input['opacity'] = opacity
+        if colormap is not UNSET:
+            _input['colormap'] = colormap
+        if min is not UNSET:
+            _input['min'] = min
+        if max is not UNSET:
+            _input['max'] = max
+        _input['grid'] = grid
+        _input['lens'] = lens
+        if value_column is not UNSET:
+            _input['valueColumn'] = value_column
+        variables['input'] = _input
+        return self.execute(CreateCellsGridLayerMutation, variables, task=task).create_cells_grid_layer
+
+    async def aupdate_grid_layer(self, id: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, colormap: ColorMap | None | UnsetType=UNSET, min: float | None | UnsetType=UNSET, max: float | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotated[UpdateGridLayerMutationUpdateGridLayerBaseCellsGridLayer | UpdateGridLayerMutationUpdateGridLayerBaseHeatmapGridLayer, Field(discriminator='typename')] | UpdateGridLayerMutationUpdateGridLayerBaseCatchAll:
+        """UpdateGridLayer 
+
+Restyle a grid layer. View state only
+
+Args:
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    colormap: ColorMap
+    min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    max: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    GridLayer
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        if name is not UNSET:
+            _input['name'] = name
+        if visible is not UNSET:
+            _input['visible'] = visible
+        if order is not UNSET:
+            _input['order'] = order
+        if opacity is not UNSET:
+            _input['opacity'] = opacity
+        if colormap is not UNSET:
+            _input['colormap'] = colormap
+        if min is not UNSET:
+            _input['min'] = min
+        if max is not UNSET:
+            _input['max'] = max
+        _input['id'] = id
+        variables['input'] = _input
+        return (await self.aexecute(UpdateGridLayerMutation, variables, task=task)).update_grid_layer
+
+    def update_grid_layer(self, id: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, colormap: ColorMap | None | UnsetType=UNSET, min: float | None | UnsetType=UNSET, max: float | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotated[UpdateGridLayerMutationUpdateGridLayerBaseCellsGridLayer | UpdateGridLayerMutationUpdateGridLayerBaseHeatmapGridLayer, Field(discriminator='typename')] | UpdateGridLayerMutationUpdateGridLayerBaseCatchAll:
+        """UpdateGridLayer 
+
+Restyle a grid layer. View state only
+
+Args:
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    colormap: ColorMap
+    min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    max: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    GridLayer
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        if name is not UNSET:
+            _input['name'] = name
+        if visible is not UNSET:
+            _input['visible'] = visible
+        if order is not UNSET:
+            _input['order'] = order
+        if opacity is not UNSET:
+            _input['opacity'] = opacity
+        if colormap is not UNSET:
+            _input['colormap'] = colormap
+        if min is not UNSET:
+            _input['min'] = min
+        if max is not UNSET:
+            _input['max'] = max
+        _input['id'] = id
+        variables['input'] = _input
+        return self.execute(UpdateGridLayerMutation, variables, task=task).update_grid_layer
+
+    async def adelete_grid_layer(self, id: IDCoercible, task: TaskLike | None=None) -> ID:
+        """DeleteGridLayer 
+
+Delete a grid layer. Deletes nothing it drew
+
+Args:
+    id: The ID of the grid layer to delete
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ID
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['id'] = id
+        variables['input'] = _input
+        return (await self.aexecute(DeleteGridLayerMutation, variables, task=task)).delete_grid_layer
+
+    def delete_grid_layer(self, id: IDCoercible, task: TaskLike | None=None) -> ID:
+        """DeleteGridLayer 
+
+Delete a grid layer. Deletes nothing it drew
+
+Args:
+    id: The ID of the grid layer to delete
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    ID
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['id'] = id
+        variables['input'] = _input
+        return self.execute(DeleteGridLayerMutation, variables, task=task).delete_grid_layer
+
     async def acreate_layer(self, lens: IDCoercible, scene: IDCoercible, render_graph: LayerRenderGraphInput, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> LayerImageLayer:
         """CreateLayer 
 
@@ -16735,10 +17669,10 @@ Returns:
         variables['input'] = _input
         return self.execute(CreateSceneFromLensMutation, variables, task=task).create_scene_from_lens
 
-    async def aauto_visualize(self, coordinate_system: IDCoercible | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, name: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotated[AutoVisualizeMutationAutoVisualizeBaseChart | AutoVisualizeMutationAutoVisualizeBaseScene, Field(discriminator='typename')] | AutoVisualizeMutationAutoVisualizeBaseCatchAll:
+    async def aauto_visualize(self, coordinate_system: IDCoercible | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, name: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotated[AutoVisualizeMutationAutoVisualizeBaseChart | AutoVisualizeMutationAutoVisualizeBaseGrid | AutoVisualizeMutationAutoVisualizeBaseScene, Field(discriminator='typename')] | AutoVisualizeMutationAutoVisualizeBaseCatchAll:
         """AutoVisualize 
  Shows a space as whichever composition fits it: a chart over exactly one metric,
- unit-carrying axis, a scene otherwise.
+ unit-carrying axis, a grid over two enumerating axes, a scene otherwise.
 
 Args:
     coordinate_system: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
@@ -16760,10 +17694,10 @@ Returns:
         variables['input'] = _input
         return (await self.aexecute(AutoVisualizeMutation, variables, task=task)).auto_visualize
 
-    def auto_visualize(self, coordinate_system: IDCoercible | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, name: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotated[AutoVisualizeMutationAutoVisualizeBaseChart | AutoVisualizeMutationAutoVisualizeBaseScene, Field(discriminator='typename')] | AutoVisualizeMutationAutoVisualizeBaseCatchAll:
+    def auto_visualize(self, coordinate_system: IDCoercible | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, name: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotated[AutoVisualizeMutationAutoVisualizeBaseChart | AutoVisualizeMutationAutoVisualizeBaseGrid | AutoVisualizeMutationAutoVisualizeBaseScene, Field(discriminator='typename')] | AutoVisualizeMutationAutoVisualizeBaseCatchAll:
         """AutoVisualize 
  Shows a space as whichever composition fits it: a chart over exactly one metric,
- unit-carrying axis, a scene otherwise.
+ unit-carrying axis, a grid over two enumerating axes, a scene otherwise.
 
 Args:
     coordinate_system: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
@@ -19255,6 +20189,130 @@ Returns:
             variables['offset'] = offset
         return self.execute(SearchFoldersQuery, variables, task=task).options
 
+    async def aget_grid(self, id: IDCoercible, task: TaskLike | None=None) -> Grid:
+        """GetGrid 
+
+Get a single grid by ID
+
+Args:
+    id (ID): No description
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    Grid
+"""
+        variables: dict[str, builtins.object] = {}
+        variables['id'] = id
+        return (await self.aexecute(GetGridQuery, variables, task=task)).grid
+
+    def get_grid(self, id: IDCoercible, task: TaskLike | None=None) -> Grid:
+        """GetGrid 
+
+Get a single grid by ID
+
+Args:
+    id (ID): No description
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    Grid
+"""
+        variables: dict[str, builtins.object] = {}
+        variables['id'] = id
+        return self.execute(GetGridQuery, variables, task=task).grid
+
+    async def asearch_grids(self, search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[SearchGridsQueryOptions, ...]:
+        """SearchGrids 
+
+List grids (compositions laying out the members of one or two enumerating axes: a heatmap of genes against cells, a table's cells against channels)
+
+Args:
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    list[SearchGridsQueryGrids]
+"""
+        variables: dict[str, builtins.object] = {}
+        if search is not UNSET:
+            variables['search'] = search
+        if values is not UNSET:
+            variables['values'] = values
+        if limit is not UNSET:
+            variables['limit'] = limit
+        if offset is not UNSET:
+            variables['offset'] = offset
+        return (await self.aexecute(SearchGridsQuery, variables, task=task)).options
+
+    def search_grids(self, search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[SearchGridsQueryOptions, ...]:
+        """SearchGrids 
+
+List grids (compositions laying out the members of one or two enumerating axes: a heatmap of genes against cells, a table's cells against channels)
+
+Args:
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    list[SearchGridsQueryGrids]
+"""
+        variables: dict[str, builtins.object] = {}
+        if search is not UNSET:
+            variables['search'] = search
+        if values is not UNSET:
+            variables['values'] = values
+        if limit is not UNSET:
+            variables['limit'] = limit
+        if offset is not UNSET:
+            variables['offset'] = offset
+        return self.execute(SearchGridsQuery, variables, task=task).options
+
+    async def alist_grids(self, filters: GridFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[Grid, ...]:
+        """ListGrids 
+
+List grids (compositions laying out the members of one or two enumerating axes: a heatmap of genes against cells, a table's cells against channels)
+
+Args:
+    filters (GridFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    list[Grid]
+"""
+        variables: dict[str, builtins.object] = {}
+        if filters is not UNSET:
+            variables['filters'] = filters
+        if pagination is not UNSET:
+            variables['pagination'] = pagination
+        return (await self.aexecute(ListGridsQuery, variables, task=task)).grids
+
+    def list_grids(self, filters: GridFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[Grid, ...]:
+        """ListGrids 
+
+List grids (compositions laying out the members of one or two enumerating axes: a heatmap of genes against cells, a table's cells against channels)
+
+Args:
+    filters (GridFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    list[Grid]
+"""
+        variables: dict[str, builtins.object] = {}
+        if filters is not UNSET:
+            variables['filters'] = filters
+        if pagination is not UNSET:
+            variables['pagination'] = pagination
+        return self.execute(ListGridsQuery, variables, task=task).grids
+
     async def aget_layer(self, id: IDCoercible, task: TaskLike | None=None) -> Annotated[GetLayerQueryLayerBaseAnnotationLayer | GetLayerQueryLayerBaseFixtureLayer | GetLayerQueryLayerBaseImageLayer | GetLayerQueryLayerBaseIntensityLayer | GetLayerQueryLayerBaseLabelLayer | GetLayerQueryLayerBaseMeshLayer | GetLayerQueryLayerBaseNetworkLayer | GetLayerQueryLayerBasePhasorLayer | GetLayerQueryLayerBasePointLayer | GetLayerQueryLayerBaseRgbLayer | GetLayerQueryLayerBaseTrackLayer | GetLayerQueryLayerBaseVectorLayer, Field(discriminator='typename')] | GetLayerQueryLayerBaseCatchAll:
         """GetLayer 
  Read a layer back. The server has had `layer` and `layers` all along; no document ever
@@ -20698,6 +21756,7 @@ CreateChartInput.model_rebuild()
 CreateCoordinateSystemInput.model_rebuild()
 CreateFixtureInput.model_rebuild()
 CreateFixtureLensInput.model_rebuild()
+CreateGridFromCoordinateSystemInput.model_rebuild()
 CreateLabelLayerInput.model_rebuild()
 CreateLayerInput.model_rebuild()
 CreateLensInput.model_rebuild()
@@ -20723,6 +21782,7 @@ DeviceStateInput.model_rebuild()
 DimensionPartInput.model_rebuild()
 FilterElementInput.model_rebuild()
 FixtureFilter.model_rebuild()
+GridFilter.model_rebuild()
 LampElementInput.model_rebuild()
 LaserElementInput.model_rebuild()
 LayerFilter.model_rebuild()

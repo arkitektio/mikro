@@ -1,0 +1,18 @@
+query GetGrid($id: ID!) {
+  grid(id: $id) {
+    ...Grid
+  }
+}
+
+query SearchGrids($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {
+  options: grids(filters: { search: $search, ids: $values }, pagination: { limit: $limit, offset: $offset }) {
+    value: id
+    label: name
+  }
+}
+
+query ListGrids($filters: GridFilter, $pagination: OffsetPaginationInput) {
+  grids(filters: $filters, pagination: $pagination) {
+    ...Grid
+  }
+}

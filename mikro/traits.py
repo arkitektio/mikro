@@ -2679,6 +2679,28 @@ class SceneTrait:
         return client_of(self, mikro).delete_scene(id=get_attributes_or_error(self, "id"))
 
 
+class GridTrait:
+    """A trait for grids: a *composition* that lays out members along one or two enumerating axes.
+
+    The third beside a scene (where) and a chart (how much): its rows and columns are
+    members -- genes and cells, objects and channels -- with no distance between them,
+    and a value is a cell's colour. It adopts its world (a sparse dataset's space, a
+    long-form table's) and owns only view state, its layers::
+
+        grid = mikro.create_grid(name="means", coordinate_system=table.coordinate_system.id)
+        mikro.create_cells_grid_layer(grid=grid.id, lens=table.lens().id, value_column="mean")
+    """
+
+    @property
+    def world(self) -> CoordinateSystem:
+        """The space whose members this grid lays out: rows, then columns. Adopted, never owned."""
+        return get_attributes_or_error(self, "world_coordinate_system")
+
+    def delete(self, mikro: "Mikro | None" = None) -> ID:
+        """Delete this grid and its layers. Nothing a layer drew is touched, and the world survives."""
+        return client_of(self, mikro).delete_grid(id=get_attributes_or_error(self, "id"))
+
+
 class ChartTrait:
     """A trait for charts: a *composition* of layers along one metric axis.
 

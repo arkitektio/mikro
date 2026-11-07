@@ -243,3 +243,27 @@ def test_a_long_form_table_declares_its_channel(mikro: Mikro) -> None:
     assert tuple({column.name: column.varies_over for column in table.columns}["mean"]) == ("c",)
     by_channel = table.plot("mean", group="c")
     assert by_channel.layers[0].group_column == "c"
+
+
+@pytest.mark.integration
+def test_a_long_form_table_is_laid_out_as_a_grid(mikro: Mikro) -> None:
+    """Cells against channels: members, not measurements, so a grid -- each row a cell coloured by its mean."""
+    table = mikro.create_table_dataset(
+        name="grid_per_channel",
+        data={"cell": np.array([1, 1, 2, 2]), "c": np.array([0, 1, 0, 1]), "mean": np.array([0.8, 0.1, 0.3, 0.9])},
+        columns=[
+            ColumnInput(name="cell", axis_type=AxisType.INDEX),
+            ColumnInput(name="c", axis_type=AxisType.CHANNEL),
+            ColumnInput(name="mean", role=ColumnRole.ATTRIBUTE, varies_over=["c"]),
+        ],
+    )
+    grid = mikro.create_grid(name="means", coordinate_system=table.coordinate_system.id)
+    assert (grid.row_axis.name, grid.column_axis.name) == ("cell", "c")
+    assert grid.world.id == table.coordinate_system.id
+
+    cells = mikro.create_cells_grid_layer(grid=grid.id, lens=table.lens().id)
+    assert (cells.value_column, cells.placement) == ("mean", PlacementState.PLACED)
+
+    shown = mikro.auto_visualize(lens=table.lens().id)
+    assert shown.typename == "Grid"
+    grid.delete()

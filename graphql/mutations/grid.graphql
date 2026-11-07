@@ -1,0 +1,45 @@
+mutation CreateGrid($input: CreateGridInput!) {
+  createGrid(input: $input) {
+    ...Grid
+  }
+}
+
+mutation CreateGridFromCoordinateSystem($input: CreateGridFromCoordinateSystemInput!) {
+  createGridFromCoordinateSystem(input: $input) {
+    ...Grid
+  }
+}
+
+mutation UpdateGrid($input: UpdateGridInput!) {
+  updateGrid(input: $input) {
+    ...Grid
+  }
+}
+
+mutation DeleteGrid($input: DeleteGridInput!) {
+  deleteGrid(input: $input)
+}
+
+# An array or a sparse matrix, one cell per position: genes against cells.
+mutation CreateHeatmapGridLayer($input: CreateHeatmapGridLayerInput!) {
+  createHeatmapGridLayer(input: $input) {
+    ...GridLayer
+  }
+}
+
+# A table's rows, one cell each, coloured by a numeric column.
+mutation CreateCellsGridLayer($input: CreateCellsGridLayerInput!) {
+  createCellsGridLayer(input: $input) {
+    ...GridLayer
+  }
+}
+
+mutation UpdateGridLayer($input: UpdateGridLayerInput!) {
+  updateGridLayer(input: $input) {
+    ...GridLayer
+  }
+}
+
+mutation DeleteGridLayer($input: DeleteGridLayerInput!) {
+  deleteGridLayer(input: $input)
+}

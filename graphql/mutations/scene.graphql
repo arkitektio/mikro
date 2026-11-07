@@ -37,7 +37,7 @@ mutation CreateSceneFromLens($input: CreateSceneFromLensInput!) {
 }
 
 # Shows a space as whichever composition fits it: a chart over exactly one metric,
-# unit-carrying axis, a scene otherwise.
+# unit-carrying axis, a grid over two enumerating axes, a scene otherwise.
 mutation AutoVisualize($input: AutoVisualizeInput!) {
   autoVisualize(input: $input) {
     ... on Scene {
@@ -45,6 +45,9 @@ mutation AutoVisualize($input: AutoVisualizeInput!) {
     }
     ... on Chart {
       ...Chart
+    }
+    ... on Grid {
+      ...Grid
     }
   }
 }

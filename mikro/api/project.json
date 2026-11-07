@@ -150,6 +150,9 @@
                 "Chart": [
                     "mikro.traits.ChartTrait"
                 ],
+                "Grid": [
+                    "mikro.traits.GridTrait"
+                ],
                 "CoordinateSystem": [
                     "mikro.traits.CoordinateSystemTrait"
                 ],

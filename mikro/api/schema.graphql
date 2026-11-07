@@ -1562,7 +1562,7 @@ type AttributePlan {
 }
 
 """
-Show a coordinate system, or one lens, without choosing how. A space with exactly one metric, unit-carrying axis becomes a chart; any other space with a time or space axis becomes a scene. Over a `coordinateSystem`, either is bootstrapped from what already resides in the space; over a `lens`, it shows that lens' selection and nothing else of its container, the choice read off the space the selection lives in. Both use that kind's default policy and register nothing into any space. Provide exactly one of the two. For a say in the kind or the policy, use `createChartFromCoordinateSystem`, `createSceneFromCoordinateSystem` or `createSceneFromLens`
+Show a coordinate system, or one lens, without choosing how. A space with exactly one metric, unit-carrying axis becomes a chart; a space of two enumerating axes (genes against cells, objects against channels) a grid; any other space with a time or space axis a scene; a table lens whose rows have no place a VALUES chart of its measurements. Over a `coordinateSystem`, either is bootstrapped from what already resides in the space; over a `lens`, it shows that lens' selection and nothing else of its container, the choice read off the space the selection lives in. Both use that kind's default policy and register nothing into any space. Provide exactly one of the two. For a say in the kind or the policy, use `createChartFromCoordinateSystem`, `createSceneFromCoordinateSystem` or `createSceneFromLens`
 """
 input AutoVisualizeInput {
   coordinateSystem: ID = null
@@ -2110,6 +2110,61 @@ type CascadeCount {
 
   """How many"""
   count: Int!
+}
+
+"""
+A layer that draws a table's rows as cells: each row at its position along the grid's axes (the table's frame), coloured by the value of `valueColumn`. Example: a long-form `(cell, c, mean)` table, cells against channels coloured by `mean`; a plate's `(row, column)` wells coloured by a readout
+"""
+type CellsGridLayer implements GridLayer @key(fields: "id", resolvable: true) {
+  id: ID!
+  kind: GridLayerKind!
+  name: String
+  grid: Grid!
+  visible: Boolean!
+  order: Int!
+  opacity: Float!
+
+  """How a value becomes a colour"""
+  colormap: ColorMap!
+
+  """
+  The value drawn at the bottom of the colormap. Null lets the viewer choose
+  """
+  min: Float
+
+  """
+  The value drawn at the top of the colormap. Null lets the viewer choose
+  """
+  max: Float
+
+  """
+  This layer's placement composed into one affine map from its lens' space onto the grid's world: which of its positions is which row and column. Derived on read. Null when the layer is no longer placed
+  """
+  asAffine(at: [CoordinateInput!] = null): AffinePlacement
+
+  """
+  Whether this layer has a place in its grid's world, and if not, why not. Derived, never stored
+  """
+  placement(at: [CoordinateInput!] = null): PlacementState!
+
+  """The table lens whose rows are drawn: the rows its windows keep"""
+  lens: TableLens!
+
+  """The numeric column whose value colours each row's cell"""
+  valueColumn: String!
+
+  """
+  The lens' windows as row filters, always applied. Derived from the lens; empty for a whole lens
+  """
+  windowFilters: [LabelFilterBy!]!
+
+  """The table dataset whose rows are drawn: the container of the lens"""
+  tableDataset: TableDataset!
+
+  """
+  The unit of `valueColumn`, as the table declares it. Null when the column declares none
+  """
+  valueUnit: Unit
 }
 
 """Input for changing an existing folder's name or parent"""
@@ -3210,6 +3265,22 @@ input CreateArrayDatasetInput {
 }
 
 """
+Input for drawing a table's rows in a grid: each row a cell at its position along the grid's axes -- the table's frame -- coloured by the value of `valueColumn`
+"""
+input CreateCellsGridLayerInput {
+  name: String = null
+  visible: Boolean = null
+  order: Int = null
+  opacity: Float = null
+  colormap: ColorMap = null
+  min: Float = null
+  max: Float = null
+  grid: ID!
+  lens: ID!
+  valueColumn: String = null
+}
+
+"""
 Bootstrap a chart over an existing coordinate system, drawing what is already laid along its axis: each array placed in it that is a trace, each table that is a series, each annotation collection. Authors no edges -- what places each layer is the registration already in the graph -- and leaves out anything placed in the space that no layer kind reads. Rerunning makes another chart over the same space
 """
 input CreateChartFromCoordinateSystemInput {
@@ -3325,6 +3396,39 @@ input CreateFolderInput {
 
   """The ID of the parent folder to nest this folder under"""
   parent: ID = null
+}
+
+"""
+Bootstrap a grid over an existing space, drawing what already covers its axes: each sparse matrix and array as a heatmap, each table as cells coloured by its one numeric column. Authors no edges, and leaves out whatever its kind refuses
+"""
+input CreateGridFromCoordinateSystemInput {
+  coordinateSystem: ID!
+  name: String = null
+  policy: GridPolicyInput! = {nchildren: 32}
+}
+
+"""
+Input for creating a grid over an existing space whose one or two enumerating axes (INDEX, CHANNEL, CATEGORY) are its rows and columns -- a sparse dataset's own space, a long-form table's. Adopted as it is, never minted. It starts with no layers
+"""
+input CreateGridInput {
+  name: String!
+  coordinateSystem: ID!
+  description: String = null
+}
+
+"""
+Input for drawing an array or a sparse matrix in a grid: its lens leaves free exactly the grid's axes, placed in its world, and each position is a cell coloured by the value there
+"""
+input CreateHeatmapGridLayerInput {
+  name: String = null
+  visible: Boolean = null
+  order: Int = null
+  opacity: Float = null
+  colormap: ColorMap = null
+  min: Float = null
+  max: Float = null
+  grid: ID!
+  lens: ID!
 }
 
 """
@@ -4061,6 +4165,22 @@ input DeleteFixtureInput {
 """Input for deleting a folder by ID"""
 input DeleteFolderInput {
   """The ID of the folder to delete"""
+  id: ID!
+}
+
+"""
+Input for deleting a grid by ID. Deletes its layers and nothing they drew: the data, and the grid's world, are untouched
+"""
+input DeleteGridInput {
+  """The ID of the grid to delete"""
+  id: ID!
+}
+
+"""
+Input for deleting a grid layer by ID. Deletes the layer and nothing it drew
+"""
+input DeleteGridLayerInput {
+  """The ID of the grid layer to delete"""
   id: ID!
 }
 
@@ -5876,6 +5996,219 @@ enum GraphTarget {
   Segments only, each taking its start node's value; node glyphs keep the layer's base colour. The honest per-edge statement, since an edge owns no value of its own.
   """
   EDGE
+}
+
+"""
+A composition that shows **which**: its rows and columns are the members of its world's one or two enumerating axes (INDEX, CHANNEL, CATEGORY), in order and with no distance between them, and a value is drawn as a cell's colour. Beside a scene, which shows *where* (screen axes a place), and a chart, which shows *how much* (values as position): row 3 of a grid comes after row 2, it is not one unit from it. Examples: a sparse matrix of genes against cells as a heatmap; a long-form table's mean per cell and channel; a plate's wells. It adopts its world -- the space whose members it lays out -- names data through lenses and owns none of it
+"""
+type Grid implements Visualization @key(fields: "id", resolvable: true) @identified(by: "@mikro/grid") {
+  id: ID!
+  name: String!
+
+  """
+  This object's descriptors, a flat mapping of key to value: the facts about it that an action's port can `require` and a trigger can test (e.g. `@mikro/n_channels`). The keys are the ones mikro declares for this structure, and the values are the ones a signal about the object carries. Empty for a structure that declares none
+  """
+  descriptors: JSON!
+
+  """
+  The space whose members this grid lays out: one or two enumerating axes, rows then columns. Never owned by the grid: several compositions can share it, and deleting a grid never deletes it
+  """
+  worldCoordinateSystem: CoordinateSystem!
+  description: String
+  createdAt: DateTime!
+  creator: User
+
+  """
+  The layers drawn in this grid, back to front (a heterogeneous list of layer kinds)
+  """
+  layers(filters: GridLayerFilter, ordering: [GridLayerOrder!]! = [], pagination: OffsetPaginationInput): [GridLayer!]!
+
+  """The axis whose members are the rows: the world's first axis"""
+  rowAxis: Axis!
+
+  """
+  The axis whose members are the columns: the world's second axis. Null for a grid of one axis, a single column of rows
+  """
+  columnAxis: Axis
+}
+
+"""Numeric/aggregatable fields of Grid"""
+enum GridField {
+  PK
+}
+
+input GridFilter {
+  """Filter by list of IDs"""
+  ids: [ID!]
+
+  """Filter for items created before this datetime"""
+  createdBefore: DateTime
+
+  """Filter for items created after this datetime"""
+  createdAfter: DateTime
+  id: ID
+  name: StrFilterLookup
+  AND: GridFilter
+  OR: GridFilter
+  NOT: GridFilter
+  DISTINCT: Boolean
+
+  """Search by name (case-insensitive substring)"""
+  search: String
+
+  """Filter to the grids laid out over this coordinate system"""
+  coordinateSystem: ID
+
+  """
+  Filter to the objects satisfying every one of these descriptor constraints: the `requires` of a port, handed on unchanged, so a picker offers what the port accepts. Answered in SQL from the descriptors stored on every row. A key the structure does not declare is refused rather than ignored
+  """
+  requires: [DescriptorConstraintInput!]
+}
+
+"""
+A layer drawn in a grid: a lens placed in the grid's world, covering its rows and columns, each cell coloured by a value. It carries view state only; where its data sits (`asAffine`, `placement`) is derived from the graph on read. The concrete kind says what it reads: HeatmapGridLayer an array or a sparse matrix, CellsGridLayer a table's rows
+"""
+interface GridLayer {
+  id: ID!
+  kind: GridLayerKind!
+  name: String
+  grid: Grid!
+  visible: Boolean!
+  order: Int!
+  opacity: Float!
+
+  """How a value becomes a colour"""
+  colormap: ColorMap!
+
+  """
+  The value drawn at the bottom of the colormap. Null lets the viewer choose
+  """
+  min: Float
+
+  """
+  The value drawn at the top of the colormap. Null lets the viewer choose
+  """
+  max: Float
+
+  """
+  This layer's placement composed into one affine map from its lens' space onto the grid's world: which of its positions is which row and column. Derived on read. Null when the layer is no longer placed
+  """
+  asAffine(at: [CoordinateInput!] = null): AffinePlacement
+
+  """
+  Whether this layer has a place in its grid's world, and if not, why not. Derived, never stored
+  """
+  placement(at: [CoordinateInput!] = null): PlacementState!
+}
+
+input GridLayerFilter {
+  """Filter by list of IDs"""
+  ids: [ID!]
+  id: ID
+  kind: GridLayerKindChoices
+  AND: GridLayerFilter
+  OR: GridLayerFilter
+  NOT: GridLayerFilter
+  DISTINCT: Boolean
+
+  """Filter by the grid this layer is drawn in"""
+  grid: ID
+}
+
+"""
+The kind of a grid layer, which says what it reads. HEATMAP reads an array or a sparse matrix whose free axes are the grid's: one cell per position, its value the colour -- genes against cells. CELLS reads a table whose frame is the grid's axes: one cell per row, coloured by the value of a column -- the mean of each cell in each channel of a long-form table, or a value per well of a plate.
+"""
+enum GridLayerKind {
+  HEATMAP
+  CELLS
+}
+
+enum GridLayerKindChoices {
+  HEATMAP
+  CELLS
+}
+
+input GridLayerOrder @oneOf {
+  order: Ordering
+  id: Ordering
+}
+
+input GridOrder @oneOf {
+  createdAt: Ordering
+  name: Ordering
+  id: Ordering
+}
+
+"""How a grid is drawn from what is already placed in a space"""
+input GridPolicyInput {
+  nchildren: Int! = 32
+}
+
+type GridStats {
+  """Total number of items in the selection"""
+  count: Int!
+
+  """Number of distinct values for the field"""
+  distinctCount(field: GridField!): Int!
+
+  """Maximum"""
+  max(field: GridField!): Float
+
+  """Minimum"""
+  min(field: GridField!): Float
+
+  """Average"""
+  avg(field: GridField!): Float
+
+  """Sum"""
+  sum(field: GridField!): Float
+
+  """Time-bucketed stats over a datetime field."""
+  series(field: GridField!, timestampField: GridTimestampField!, by: Granularity!): [TimeBucket!]!
+}
+
+"""Datetime fields of Grid for bucketing"""
+enum GridTimestampField {
+  CREATED_AT
+}
+
+"""
+A layer that draws an array or a sparse matrix as a heatmap: its lens leaves free exactly the grid's axes, and each position is a cell coloured by the value there. Example: a sparse matrix of genes against cells, read through its whole lens
+"""
+type HeatmapGridLayer implements GridLayer @key(fields: "id", resolvable: true) {
+  id: ID!
+  kind: GridLayerKind!
+  name: String
+  grid: Grid!
+  visible: Boolean!
+  order: Int!
+  opacity: Float!
+
+  """How a value becomes a colour"""
+  colormap: ColorMap!
+
+  """
+  The value drawn at the bottom of the colormap. Null lets the viewer choose
+  """
+  min: Float
+
+  """
+  The value drawn at the top of the colormap. Null lets the viewer choose
+  """
+  max: Float
+
+  """
+  This layer's placement composed into one affine map from its lens' space onto the grid's world: which of its positions is which row and column. Derived on read. Null when the layer is no longer placed
+  """
+  asAffine(at: [CoordinateInput!] = null): AffinePlacement
+
+  """
+  Whether this layer has a place in its grid's world, and if not, why not. Derived, never stored
+  """
+  placement(at: [CoordinateInput!] = null): PlacementState!
+
+  """The array or sparse lens whose values are drawn"""
+  lens: Lens!
 }
 
 """The type of change that was made."""
@@ -8903,6 +9236,40 @@ type Mutation {
   deleteChartLayer(input: DeleteChartLayerInput!): ID! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
+  Create a grid over an existing space whose one or two enumerating axes (INDEX, CHANNEL, CATEGORY) are its rows and columns: members in order, a value as each cell's colour
+  """
+  createGrid(input: CreateGridInput!): Grid! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
+
+  """
+  Bootstrap a grid over an existing space, drawing each sparse matrix and array covering its axes as a heatmap and each table as cells. Authors no edges
+  """
+  createGridFromCoordinateSystem(input: CreateGridFromCoordinateSystemInput!): Grid! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
+
+  """Rename or re-describe a grid. Its world is fixed"""
+  updateGrid(input: UpdateGridInput!): Grid! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
+
+  """
+  Delete a grid and its layers. The data they drew and the grid's world are untouched
+  """
+  deleteGrid(input: DeleteGridInput!): ID! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
+
+  """
+  Draw an array or a sparse matrix in a grid: one cell per position along the grid's axes, coloured by the value there -- genes against cells
+  """
+  createHeatmapGridLayer(input: CreateHeatmapGridLayerInput!): HeatmapGridLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
+
+  """
+  Draw a table's rows in a grid: one cell per row at its position along the grid's axes, coloured by a numeric column -- a long-form table's mean per cell and channel
+  """
+  createCellsGridLayer(input: CreateCellsGridLayerInput!): CellsGridLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
+
+  """Restyle a grid layer. View state only"""
+  updateGridLayer(input: UpdateGridLayerInput!): GridLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
+
+  """Delete a grid layer. Deletes nothing it drew"""
+  deleteGridLayer(input: DeleteGridLayerInput!): ID! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
+
+  """
   Record one value about an annotation or a dataset: a quantity or a code. Announced to the hub's rekuest (a CREATED @mikro/metric signal) once committed
   """
   createMetric(input: MetricInput!): Metric! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
@@ -8918,7 +9285,7 @@ type Mutation {
   deleteMetric(input: DeleteMetricInput!): ID! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
-  Show a coordinate system as whichever composition fits it: a chart over a space with exactly one metric, unit-carrying axis, a scene over any other space with a time or space axis. Bootstrapped from what already resides in the space; authors no edges
+  Show a coordinate system or a lens as whichever composition fits it: a chart over a space with exactly one metric, unit-carrying axis, a grid over two enumerating axes, a scene over any other space with a time or space axis. Bootstrapped from what already resides in the space; authors no edges
   """
   autoVisualize(input: AutoVisualizeInput!): Visualization! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
@@ -10989,6 +11356,20 @@ type Query {
   chartLayer(id: ID!): ChartLayer! @auth(required_scopes: ["mikro_read"])
 
   """
+  List grids (compositions laying out the members of one or two enumerating axes: a heatmap of genes against cells, a table's cells against channels)
+  """
+  grids(filters: GridFilter, ordering: [GridOrder!]! = [], pagination: OffsetPaginationInput): [Grid!]! @auth(required_scopes: ["mikro_read"])
+
+  """Get a single grid by ID"""
+  grid(id: ID!): Grid! @auth(required_scopes: ["mikro_read"])
+
+  """List layers drawn in grids (a heterogeneous list of layer kinds)"""
+  gridLayers(filters: GridLayerFilter, ordering: [GridLayerOrder!]! = [], pagination: OffsetPaginationInput): [GridLayer!]! @auth(required_scopes: ["mikro_read"])
+
+  """Get a single grid layer by ID"""
+  gridLayer(id: ID!): GridLayer! @auth(required_scopes: ["mikro_read"])
+
+  """
   List metrics: values recorded about annotations and datasets, by apps and people
   """
   metrics(filters: MetricFilter, ordering: [MetricOrder!]! = [], pagination: OffsetPaginationInput): [Metric!]! @auth(required_scopes: ["mikro_read"])
@@ -11156,6 +11537,11 @@ type Query {
   Get statistics about charts: counts and time-bucketed series over the charts of the current organization
   """
   chartsStats(filters: ChartFilter = null): ChartStats! @auth(required_scopes: ["mikro_read"])
+
+  """
+  Get statistics about grids: counts and time-bucketed series over the grids of the current organization
+  """
+  gridsStats(filters: GridFilter = null): GridStats! @auth(required_scopes: ["mikro_read"])
 
   """
   The k annotations of one collection nearest to a point, by cube distance between the point and each annotation's intrinsic bounding box (GiST-accelerated; 0 inside the box). Scoped to one collection because boxes only compare within one frame; the point is in the collection's nearest-intrinsic space, in its coordinate order
@@ -14207,6 +14593,29 @@ input UpdateFixtureLayerInput {
 }
 
 """
+Input for renaming or re-describing a grid. Its world is not editable: a grid over another space is another grid
+"""
+input UpdateGridInput {
+  id: ID!
+  name: String = null
+  description: String = null
+}
+
+"""
+Input for restyling a grid layer. View state only: what it reads is fixed at creation, and where it sits is the graph's
+"""
+input UpdateGridLayerInput {
+  name: String = null
+  visible: Boolean = null
+  order: Int = null
+  opacity: Float = null
+  colormap: ColorMap = null
+  min: Float = null
+  max: Float = null
+  id: ID!
+}
+
+"""
 Update an intensity layer's render settings. Every field is a patch: what is not sent keeps its current value
 """
 input UpdateIntensityLayerInput {
@@ -14855,7 +15264,7 @@ type ZarrUploadGrant {
 
 scalar _Any
 
-union _Entity = AcquisitionWindow | AffineTransformation | Animation | AnimationWaypoint | Annotation | AnnotationChartLayer | AnnotationCollection | AnnotationDerivation | AnnotationLayer | AnnotationLens | ArrayDataset | ArrayLens | Axis | BigFileStore | ByDimensionTransformation | ChannelLabel | Chart | Client | Column | CoordinateAnchor | CoordinateSystem | DataArray | DerivationConflict | DistributionChartLayer | FabriksStore | File | FileLink | Fixture | FixtureLayer | FixtureLens | Folder | IdentityTransformation | ImageLayer | IntensityLayer | KonnektionStore | KulisseStore | LabelLayer | LightPath | MapAxisTransformation | MediaStore | Membership | MeshCollection | MeshLayer | MeshLens | Metric | MetricTarget | NetworkCollection | NetworkLayer | NetworkLens | OmeMetadata | OptikitState | Organization | ParquetStore | PhasorCalibration | PhasorHistogram | PhasorLayer | PointLayer | PointsChartLayer | PositionLabel | RgbLayer | RotationTransformation | ScaleTransformation | Scene | SceneSnapshot | SequenceTransformation | SeriesChartLayer | SparseArray | SparseAxisReference | SparseDataset | SparseLens | SparseStore | TableDataset | TableLens | Task | TraceChartLayer | TrackLayer | TranslationTransformation | UnmappableTransformation | User | ValueHistogram | VectorLayer | ZarrStore
+union _Entity = AcquisitionWindow | AffineTransformation | Animation | AnimationWaypoint | Annotation | AnnotationChartLayer | AnnotationCollection | AnnotationDerivation | AnnotationLayer | AnnotationLens | ArrayDataset | ArrayLens | Axis | BigFileStore | ByDimensionTransformation | CellsGridLayer | ChannelLabel | Chart | Client | Column | CoordinateAnchor | CoordinateSystem | DataArray | DerivationConflict | DistributionChartLayer | FabriksStore | File | FileLink | Fixture | FixtureLayer | FixtureLens | Folder | Grid | HeatmapGridLayer | IdentityTransformation | ImageLayer | IntensityLayer | KonnektionStore | KulisseStore | LabelLayer | LightPath | MapAxisTransformation | MediaStore | Membership | MeshCollection | MeshLayer | MeshLens | Metric | MetricTarget | NetworkCollection | NetworkLayer | NetworkLens | OmeMetadata | OptikitState | Organization | ParquetStore | PhasorCalibration | PhasorHistogram | PhasorLayer | PointLayer | PointsChartLayer | PositionLabel | RgbLayer | RotationTransformation | ScaleTransformation | Scene | SceneSnapshot | SequenceTransformation | SeriesChartLayer | SparseArray | SparseAxisReference | SparseDataset | SparseLens | SparseStore | TableDataset | TableLens | Task | TraceChartLayer | TrackLayer | TranslationTransformation | UnmappableTransformation | User | ValueHistogram | VectorLayer | ZarrStore
 
 type _Service {
   sdl: String!
