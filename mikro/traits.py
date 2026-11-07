@@ -949,8 +949,8 @@ class TableDatasetLensTrait:
 
         ``table.plot("area", "volume")`` draws each row at its area and volume -- a scatter;
         ``table.plot("area", group="condition", bins=30)`` a histogram of area per condition.
-        The chart is a VALUES chart whose world is this table's space -- whose rows, not
-        drawn -- and whose drawn axes are the columns' units.
+        The chart's world is this table's space -- whose rows -- and its layer is drawn by
+        its values: the drawn axes are the columns' units.
         ``lens`` draws a window of the table instead of every row, e.g. a gate
         ``table.lens(area=(50, None))``.
         """
@@ -2716,11 +2716,12 @@ class ChartTrait:
 
     @property
     def world(self) -> CoordinateSystem:
-        """The domain this chart's layers live in: an AXIS chart's one axis, or a VALUES chart's rows (a table's space).
+        """The domain this chart's layers live in: one measured axis (``axis``), a table's rows, or both.
 
         Adopted, never owned: many charts can share it, it outlives each of
-        them, and deleting a chart never deletes it. A VALUES chart -- a scatter
-        of ``area`` against ``volume`` -- does not draw it: it says whose rows.
+        them, and deleting a chart never deletes it. Along-axis layers (traces,
+        series) are laid along it; value layers -- a scatter of ``area`` against
+        ``volume`` -- say whose rows they draw, and do not draw it.
         """
         return get_attributes_or_error(self, "world_coordinate_system")
 

@@ -1562,7 +1562,7 @@ type AttributePlan {
 }
 
 """
-Show a coordinate system, or one lens, without choosing how. A space with exactly one metric, unit-carrying axis becomes a chart; a space of two enumerating axes (genes against cells, objects against channels) a grid; any other space with a time or space axis a scene; a table lens whose rows have no place a VALUES chart of its measurements. Over a `coordinateSystem`, either is bootstrapped from what already resides in the space; over a `lens`, it shows that lens' selection and nothing else of its container, the choice read off the space the selection lives in. Both use that kind's default policy and register nothing into any space. Provide exactly one of the two. For a say in the kind or the policy, use `createChartFromCoordinateSystem`, `createSceneFromCoordinateSystem` or `createSceneFromLens`
+Show a coordinate system, or one lens, without choosing how. A space with exactly one metric, unit-carrying axis becomes a chart; a space of two enumerating axes (genes against cells, objects against channels) a grid; any other space with a time or space axis a scene; a table lens whose rows have no place a chart of its measurements' values. Over a `coordinateSystem`, either is bootstrapped from what already resides in the space; over a `lens`, it shows that lens' selection and nothing else of its container, the choice read off the space the selection lives in. Both use that kind's default policy and register nothing into any space. Provide exactly one of the two. For a say in the kind or the policy, use `createChartFromCoordinateSystem`, `createSceneFromCoordinateSystem` or `createSceneFromLens`
 """
 input AutoVisualizeInput {
   coordinateSystem: ID = null
@@ -2208,7 +2208,7 @@ type ChannelSourceNode implements LayerRenderNode {
 }
 
 """
-A composition that shows **how much**: values drawn as position. The counterpart of a scene, which shows **where**: in a scene every screen axis is a world axis, data is placed by the graph's edges and values are drawn as appearance (a colour, a size); in a chart at most one axis is drawn from the world and every other position is a value. Every chart has a world -- the domain its layers' rows live in -- and every layer is placed into it. An **AXIS** chart draws its world, one metric axis with a unit, and lays TRACE, SERIES and ANNOTATION layers along it: a timelapse's intensity against `t`. A **VALUES** chart does not draw its world, which says whose rows -- a table's space, usually its INDEX axis -- and its POINTS and DISTRIBUTION layers draw those rows at the values of the columns they name: nuclei at `area` against `volume`, a histogram of `area` per `condition`. Two layers in one VALUES world are about the same rows (a table and the PCA derived from it). The same table lens may be drawn as a scene, at its `(y, x)` coloured by `area`, and as a VALUES chart at `(area, volume)`. A chart names data through lenses and owns none of it; if rotating its view would mix units, it is a chart, and if it would not, a scene
+A composition that shows **how much**: values drawn as position. The counterpart of a scene, which shows **where**: in a scene every screen axis is a world axis, data is placed by the graph's edges and values are drawn as appearance (a colour, a size); in a chart at most one axis is drawn from the world and every other position is a value. Every chart has a world -- the domain its layers' rows live in -- and every layer is placed into it. An **AXIS** chart draws its world, one metric axis with a unit, and lays TRACE, SERIES and ANNOTATION layers along it: a timelapse's intensity against `t`. A **VALUES** chart does not draw its world, which says whose rows -- a table's space, usually its INDEX axis -- and its POINTS and DISTRIBUTION layers draw those rows at the values of the columns they name: nuclei at `area` against `volume`, a histogram of `area` per `condition`. Two layers in one VALUES world are about the same rows (a table and the PCA derived from it). The same table lens may be drawn as a scene, at its `(y, x)` coloured by `area`, and as a chart at `(area, volume)`. A chart names data through lenses and owns none of it; if rotating its view would mix units, it is a chart, and if it would not, a scene
 """
 type Chart implements Visualization @key(fields: "id", resolvable: true) @identified(by: "@mikro/chart") {
   id: ID!
@@ -2220,7 +2220,7 @@ type Chart implements Visualization @key(fields: "id", resolvable: true) @identi
   descriptors: JSON!
 
   """
-  The domain this chart's layers live in: an AXIS chart's one metric axis, which it draws; a VALUES chart's space whose rows it draws -- a table's -- which it does not. Never owned by the chart: several charts can share it, it outlives each of them, and deleting a chart never deletes it. Ask it for `placedSystems` to learn what could be drawn here
+  The domain this chart's layers live in: one measured axis its along-axis layers are laid along (`axis`), the space whose rows its value layers draw (a table's), or both at once (a table framed by `t`). Never owned by the chart: several charts can share it, it outlives each of them, and deleting a chart never deletes it. Ask it for `placedSystems` to learn what could be drawn here
   """
   worldCoordinateSystem: CoordinateSystem!
   description: String
@@ -2233,17 +2233,12 @@ type Chart implements Visualization @key(fields: "id", resolvable: true) @identi
   layers(filters: ChartLayerFilter, ordering: [ChartLayerOrder!]! = [], pagination: OffsetPaginationInput): [ChartLayer!]!
 
   """
-  What the world is to this chart: AXIS, the one axis it draws and lays its layers along; VALUES, whose rows it draws at the values of their columns
-  """
-  kind: ChartKind!
-
-  """
-  How the layers share the screen, remembered with the chart: STACKED (one row or panel each), SHARED (overlaid where they measure the same thing) or OVERLAY (all in one plot; AXIS only)
+  How the layers share the screen, remembered with the chart: STACKED (one row or panel each), SHARED (overlaid where they read their axes alike) or OVERLAY (every along-axis layer in one plot)
   """
   layout: ChartLayout!
 
   """
-  The one axis an AXIS chart is laid out along: its name, its metric type and its unit -- the world's only axis, repeated so a client need not unwrap a list of one. Null for a VALUES chart, whose drawn axes are the columns its layers name
+  The one measured axis this chart's along-axis layers (TRACE, SERIES, ANNOTATION) are laid along: its name, its type and its unit -- the world's only axis, repeated so a client need not unwrap a list of one. Null when the world is not one measured axis, and then only value layers can be drawn here. A renderer reads it to know whether an axis panel exists before any layer does
   """
   axis: Axis
 }
@@ -2282,15 +2277,7 @@ input ChartFilter {
 }
 
 """
-What a chart's world is to it. Every chart has a world -- the domain its layers' rows live in -- and every layer is placed into it by the graph. An AXIS chart draws its world: one measured axis with a unit, which TRACE, SERIES and ANNOTATION layers are laid along (intensity against `t`). A VALUES chart does not draw it: its world says *whose rows* -- a table's space, usually its INDEX axis (`cell_id`) -- and its POINTS and DISTRIBUTION layers draw those rows at the values of the columns they name (`area` against `volume`). Two layers placed in one VALUES world are about the same rows.
-"""
-enum ChartKind {
-  AXIS
-  VALUES
-}
-
-"""
-A layer drawn in a chart. It carries view state only. A placed layer's position along the chart's axis -- `pathToWorld`, `asAffine`, `alongAxis`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one registration moves every layer that looks through it. A value layer is placed the same way -- its rows into the VALUES chart's world, which says they are the same rows as the others' -- and drawn at the values of the columns it names. The concrete kind says what the layer reads: TraceChartLayer an array, SeriesChartLayer a table's value column, AnnotationChartLayer drawn marks -- along an AXIS chart's axis -- and PointsChartLayer and DistributionChartLayer a table's columns, in a VALUES chart
+A layer drawn in a chart. It carries view state only. A placed layer's position along the chart's axis -- `pathToWorld`, `asAffine`, `alongAxis`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one registration moves every layer that looks through it. A value layer is placed the same way -- its rows into the chart's world, which says they are the same rows as the others' -- and drawn at the values of the columns it names. The concrete kind says what the layer reads: TraceChartLayer an array, SeriesChartLayer a table's value column, AnnotationChartLayer drawn marks -- along the chart's axis -- and PointsChartLayer and DistributionChartLayer a table's columns, by their values -- the kind says which, and one chart may hold both
 """
 interface ChartLayer {
   id: ID!
@@ -2349,6 +2336,9 @@ input ChartLayerFilter {
   chart: ID
 }
 
+"""
+The kind of a chart layer, which says what it reads -- never how it looks. Three are laid along the chart's world axis by the graph: TRACE reads an array along one axis, SERIES one value column of a table along its coordinate, ANNOTATION drawn marks. Two are drawn by their values, their rows placed in the chart's world: POINTS at two or three columns (a scatter), DISTRIBUTION summarising one column (a histogram, a box), once per value of a grouping column. One chart may hold both. A line, markers, a histogram or a box is `ChartMark`, a setting on the layer.
+"""
 enum ChartLayerKind {
   TRACE
   SERIES
@@ -2371,7 +2361,7 @@ input ChartLayerOrder @oneOf {
 }
 
 """
-The kind of a chart layer, which says what it reads -- never how it looks. Three are drawn in an AXIS chart, laid along its one world axis by the graph: TRACE reads an array along one axis, SERIES one value column of a table along its coordinate, ANNOTATION drawn marks. Two are drawn in a VALUES chart, their rows placed in its world and drawn at their values: POINTS at two or three columns (a scatter), DISTRIBUTION summarising one column (a histogram, a box), once per value of a grouping column. A line, markers, a histogram or a box is `ChartMark`, a setting on the layer.
+How a chart's layers share the screen, remembered with the chart. STACKED: one row (an along-axis layer) or one panel (a value layer) per layer, each on its own scale. SHARED: layers measuring the same thing overlaid on one scale -- along the axis, the same value unit; by their values, one kind, one mark and the same x and y units -- and the rest beside them. OVERLAY: every along-axis layer in one plot, each on its own scale; value layers lay out as SHARED, since there a layer's scale is its axis
 """
 enum ChartLayout {
   STACKED
@@ -2389,6 +2379,18 @@ enum ChartMark {
   STEPS
   HISTOGRAM
   BOX
+}
+
+"""
+The symbol each marker is drawn as. A look: it changes nothing about what the layer reads
+"""
+enum ChartMarkerShape {
+  CIRCLE
+  SQUARE
+  TRIANGLE
+  DIAMOND
+  CROSS
+  PLUS
 }
 
 input ChartOrder @oneOf {
@@ -3301,14 +3303,13 @@ input CreateChartFromCoordinateSystemInput {
 }
 
 """
-Input type for creating a chart over a world: an existing coordinate system adopted as it is, or one created from `axis`. An AXIS chart (the default) draws its world -- one metric axis with a unit -- and lays TRACE, SERIES and ANNOTATION layers along it by the graph: intensity against `t`. A VALUES chart does not draw its world: the world says whose rows -- a table's space, usually its INDEX axis -- and its POINTS and DISTRIBUTION layers, placed into it, draw those rows at the values of the columns they name: `area` against `volume`. It starts with no layers
+Input type for creating a chart over a world: an existing coordinate system adopted as it is, or one created from `axis`. The world is the domain the layers live in. TRACE, SERIES and ANNOTATION layers are laid along its one measured axis by the graph (intensity against `t`), so they need a world of exactly one; POINTS and DISTRIBUTION layers have their rows placed in it -- a table's space -- and are drawn at the values of the columns they name (`area` against `volume`). One chart may hold both. It starts with no layers
 """
 input CreateChartInput {
   name: String!
   description: String = null
   coordinateSystem: ID = null
   axis: PhysicalAxisInput = null
-  kind: ChartKind! = AXIS
   layout: ChartLayout! = SHARED
 }
 
@@ -3340,7 +3341,7 @@ input CreateCoordinateSystemInput {
 }
 
 """
-Input for summarising the values of one column of a table's rows in a VALUES chart: a HISTOGRAM or a BOX, over every row or once per value of `groupColumn` -- the `area` of nuclei, one histogram per `condition`. The rows are placed in the chart's world (whose rows). Writes no edge
+Input for summarising the values of one column of a table's rows in a chart: a HISTOGRAM or a BOX, over every row or once per value of `groupColumn` -- the `area` of nuclei, one histogram per `condition`. The rows are placed in the chart's world (whose rows). Writes no edge
 """
 input CreateDistributionChartLayerInput {
   name: String = null
@@ -3714,7 +3715,7 @@ input CreatePointLayerInput {
 }
 
 """
-Input for drawing a table's rows as points in a VALUES chart: each row at the values of `xColumn` and `yColumn` (and `zColumn` for depth) -- nuclei at their `area` and `volume`. The rows are placed in the chart's world (whose rows); the columns' units are its drawn axes, and a second layer's must convert to them. Writes no edge
+Input for drawing a table's rows as points in a chart: each row at the values of `xColumn` and `yColumn` (and `zColumn` for depth) -- nuclei at their `area` and `volume`. The rows are placed in the chart's world (whose rows); the columns' units are its drawn axes, and a second layer's must convert to them. Writes no edge
 """
 input CreatePointsChartLayerInput {
   name: String = null
@@ -3725,6 +3726,7 @@ input CreatePointsChartLayerInput {
   mark: ChartMark = null
   lineWidth: Float = null
   markerSize: Float = null
+  markerShape: ChartMarkerShape = null
   chart: ID!
   lens: ID!
   xColumn: String!
@@ -3797,6 +3799,7 @@ input CreateSeriesChartLayerInput {
   mark: ChartMark = null
   lineWidth: Float = null
   markerSize: Float = null
+  markerShape: ChartMarkerShape = null
   chart: ID!
   lens: ID!
   valueColumn: String = null
@@ -3867,7 +3870,7 @@ input CreateTableLensInput {
 }
 
 """
-Input for plotting a table's columns in one call: a VALUES chart over the table's space (whose rows, not drawn) and one POINTS or DISTRIBUTION layer through the table's whole lens or a window of it, in one transaction, so a refused layer makes nothing. `area` against `volume` is `{kind: POINTS, xColumn: "area", yColumn: "volume"}`; a histogram of `area` per `condition` is `{kind: DISTRIBUTION, xColumn: "area", groupColumn: "condition"}`
+Input for plotting a table's columns in one call: a chart over the table's space (whose rows) and one POINTS or DISTRIBUTION layer through the table's whole lens or a window of it, in one transaction, so a refused layer makes nothing. `area` against `volume` is `{kind: POINTS, xColumn: "area", yColumn: "volume"}`; a histogram of `area` per `condition` is `{kind: DISTRIBUTION, xColumn: "area", groupColumn: "condition"}`
 """
 input CreateTablePlotInput {
   table: ID!
@@ -3894,6 +3897,7 @@ input CreateTraceChartLayerInput {
   mark: ChartMark = null
   lineWidth: Float = null
   markerSize: Float = null
+  markerShape: ChartMarkerShape = null
   chart: ID!
   lens: ID!
 }
@@ -4618,7 +4622,7 @@ input DimensionPartInput {
 }
 
 """
-A layer that summarises the values of one column of a table lens' rows: a HISTOGRAM (`bins`) or a BOX, over every row or once per value of `groupColumn` -- a condition, a cluster, a long-form channel. The rows are placed in the VALUES chart's world; their values are the horizontal axis. Example: the `area` of nuclei, one histogram per `condition`
+A layer that summarises the values of one column of a table lens' rows: a HISTOGRAM (`bins`) or a BOX, over every row or once per value of `groupColumn` -- a condition, a cluster, a long-form channel. The rows are placed in the chart's world; their values are the horizontal axis. Example: the `area` of nuclei, one histogram per `condition`
 """
 type DistributionChartLayer implements ChartLayer @key(fields: "id", resolvable: true) {
   id: ID!
@@ -4680,6 +4684,11 @@ type DistributionChartLayer implements ChartLayer @key(fields: "id", resolvable:
 
   """How the values are summarised: a HISTOGRAM or a BOX"""
   mark: ChartMark!
+
+  """
+  How thick the outlines are, as a multiple of the chart's default: 1 is the default, 2 twice as thick, 0.5 half. Never pixels -- what the default is on screen is the viewer's. Null lets the viewer choose
+  """
+  lineWidth: Float
 
   """
   The lens' selection as row filters, always applied: a row is drawn when every one keeps it (`min <= column <= max`, an omitted side open). Derived from the lens; empty for a whole lens
@@ -6292,6 +6301,15 @@ enum HopCardinality {
 }
 
 """
+Which way a hop crosses its fact. FORWARD: as declared -- a column's values are rows of the table it `references`, a matrix axis' positions are rows. REVERSE: a `references` read backwards -- every row of another table whose column names the held row (a cluster's members); MANY, binding the parent's INDEX into the child's referencing column. SAME_ROWS: the same row in another table, across an edge between the two tables' frames (the PCA row of a measurement row); the lookup's `keyMap`, when set, maps the held id onto the other INDEX first. REVERSE and SAME_ROWS appear only in a row's plan (`rowPlan`)
+"""
+enum HopDirection {
+  FORWARD
+  REVERSE
+  SAME_ROWS
+}
+
+"""
 The schema fact one hop crosses. `column`: a `Column.references` hop -- the parent row's column whose values are row ids of the next table -- or, on a hop into a matrix, or a dense array, the parent table's INDEX column whose values are positions along `axis`. `axis`: the matrix axis crossed, in either direction, or the array axis entered. Whichever is set, its name is the name the hop's lookup binds under (`keyColumns[].axis` / `keyHeld`)
 """
 type HopVia {
@@ -6304,6 +6322,11 @@ type HopVia {
   The axis crossed: the parent slice's value axis when the hop leaves a matrix, the target's indexed axis when it enters one, the array's key axis when it enters a dense array
   """
   axis: String
+
+  """
+  Which way the fact is crossed: FORWARD as declared, REVERSE a `references` read backwards (the child's referencing column binds the parent's INDEX), SAME_ROWS the same row in another table
+  """
+  direction: HopDirection!
 }
 
 input IDFilterLookup {
@@ -8025,7 +8048,7 @@ type LookupStep {
   valueAxes: [String!]!
 
   """
-  (ARRAY) The held id as a position along `keyAxis`. A matrix axis *is* the row ids; a dense array's positions relate to them by whatever its derivation edge states (`cell_id = cell + 1`), and this is that edge already inverted. Do not re-derive it from the edge's steps
+  (ARRAY) The held id as a position along `keyAxis`. A matrix axis *is* the row ids; a dense array's positions relate to them by whatever its derivation edge states (`cell_id = cell + 1`), and this is that edge already inverted. Do not re-derive it from the edge's steps. (TABLE, a SAME_ROWS hop) The held id as the target's INDEX value, when the edge between the two frames relabels it; null when the id is the same in both tables
   """
   keyMap: KeyMap
 }
@@ -9194,7 +9217,7 @@ type Mutation {
   deleteScene(input: DeleteSceneInput!): ID! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
-  Create a chart over a world: values drawn as position. An AXIS chart draws its world's one metric, unit-carrying axis (an existing space, or one created from `axis`); a VALUES chart's world is a table's space -- whose rows -- and its layers draw those rows at the values of columns, for scatters and histograms
+  Create a chart over a world: values drawn as position. The world is an existing space or one created from `axis`; along-axis layers (traces, series, marks) are laid along its one metric, unit-carrying axis, value layers (scatters, histograms) draw the rows placed in it at the values of their columns. One chart may hold both
   """
   createChart(input: CreateChartInput!): Chart! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
@@ -9227,17 +9250,17 @@ type Mutation {
   createAnnotationChartLayer(input: CreateAnnotationChartLayerInput!): AnnotationChartLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
-  Plot a table's columns in one call: a VALUES chart over the table's space and one POINTS or DISTRIBUTION layer drawing its rows at the values of the named columns. One transaction
+  Plot a table's columns in one call: a chart over the table's space and one POINTS or DISTRIBUTION layer drawing its rows at the values of the named columns. One transaction
   """
   createTablePlot(input: CreateTablePlotInput!): Chart! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
-  Draw a table lens' rows as points in a VALUES chart: placed in its world (whose rows), each drawn at the values of two columns (a scatter), or three for depth
+  Draw a table lens' rows as points in a chart: placed in its world (whose rows), each drawn at the values of two columns (a scatter), or three for depth
   """
   createPointsChartLayer(input: CreatePointsChartLayerInput!): PointsChartLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
   """
-  Summarise the values of one column of a table lens' rows in a VALUES chart: a histogram or a box, over every row or once per value of a grouping column such as a condition
+  Summarise the values of one column of a table lens' rows in a chart: a histogram or a box, over every row or once per value of a grouping column such as a condition
   """
   createDistributionChartLayer(input: CreateDistributionChartLayerInput!): DistributionChartLayer! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
 
@@ -11064,7 +11087,7 @@ type PointLayer implements Layer @key(fields: "id", resolvable: true) {
 }
 
 """
-A layer that draws a table lens' rows at the values of its columns: each row a point at (`xColumn`, `yColumn`), and at `zColumn` too for depth -- a scatter. The rows are placed in the VALUES chart's world -- whose rows -- and drawn at their values: the position is the measurement, read from the row. A row with a null in a named column is not drawn. MARKERS, or a LINE through the rows sorted along x. Example: nuclei at (`area`, `volume`), through a lens that keeps `area >= 50`
+A layer that draws a table lens' rows at the values of its columns: each row a point at (`xColumn`, `yColumn`), and at `zColumn` too for depth -- a scatter. The rows are placed in the chart's world -- whose rows -- and drawn at their values: the position is the measurement, read from the row. A row with a null in a named column is not drawn. MARKERS, or a LINE through the rows sorted along x. Example: nuclei at (`area`, `volume`), through a lens that keeps `area >= 50`
 """
 type PointsChartLayer implements ChartLayer @key(fields: "id", resolvable: true) {
   id: ID!
@@ -11125,11 +11148,20 @@ type PointsChartLayer implements ChartLayer @key(fields: "id", resolvable: true)
   """How the rows are drawn: MARKERS, or a LINE through them sorted along x"""
   mark: ChartMark!
 
-  """Line width in screen pixels. Null lets the viewer choose"""
+  """
+  How thick lines are, as a multiple of the chart's default: 1 is the default, 2 twice as thick, 0.5 half. Never pixels -- what the default is on screen is the viewer's. Null lets the viewer choose
+  """
   lineWidth: Float
 
-  """Marker size in screen pixels. Null lets the viewer choose"""
+  """
+  How big markers are, as a multiple of the chart's default: 1 is the default, 2 twice as big, 0.5 half. Never pixels -- what the default is on screen is the viewer's. Null lets the viewer choose
+  """
   markerSize: Float
+
+  """
+  The symbol a marker is drawn as. Null lets the viewer choose (a circle)
+  """
+  markerShape: ChartMarkerShape
 
   """
   The lens' selection as row filters, always applied: a row is drawn when every one keeps it (`min <= column <= max`, an omitted side open). Derived from the lens; empty for a whole lens
@@ -11663,6 +11695,11 @@ type Query {
   attributePlans(system: ID!, maxDepth: Int = null, maxJoinDepth: Int! = 1): [AttributePlan!]! @auth(required_scopes: ["mikro_read"])
 
   """
+  What a picked row of a table reaches -- a point of a chart of values: the row itself, then every hop the schema allows from it, as `attributePlans` describes its chain, plus REVERSE references (a cluster's member rows) and SAME_ROWS crossings (the PCA row of a measurement row). No sample: the picked row's INDEX value is the id. Instructions, never values, and no id argument, so fetch it once per table. Refused for a table not keyed by one INDEX column
+  """
+  rowPlan(table: ID!, maxJoinDepth: Int! = 1): RowPlan! @auth(required_scopes: ["mikro_read"])
+
+  """
   Every column a mesh collection's objects can be coloured or filtered by: one entry per (joinPath, table, column), with the control its declared role admits. **The set this returns is exactly the set `createMeshLayer(colorBys:)` and `filterBys` accept** -- same reachability walk, same measure-vs-categorical rule -- which is what makes it an options query rather than a suggestion. Distinct from `attributePlans`, which answers a different question (how to execute a lookup per hover) over a different set: it walks the whole fact component and returns plans rooted at a source mask that mesh ids cannot execute, drops tables the write path accepts, and fails outright on a storeless array. Both pickers read these same options, because both branch on the same split. `joinPath` follows `references` from table to table -- pass an option's path back verbatim to select it. The columns' *values* are not here: a picker wanting a class list or a numeric range reads them from the parquet it already has an `accessGrant` for
   """
   colorByOptions(meshCollection: ID!, filters: ColumnOptionFilter = null, pagination: OffsetPaginationInput = null, maxJoinDepth: Int! = 1): [ColorByOption!]! @auth(required_scopes: ["mikro_read"])
@@ -12087,6 +12124,24 @@ type RotationTransformation implements Transformation @key(fields: "id", resolva
 
   """The rotation matrix"""
   affine: [[Float!]!]!
+}
+
+"""
+What a picked row of a table reaches -- a point of a chart of values. There is no sample: the row's INDEX value IS the id, so a client holding it binds `key` and runs `hops` in order, exactly as it runs an `AttributePlan`'s after its sample. `hops[0]` is the row itself; later hops cross every fact the schema allows from it, including two only a row's plan takes: REVERSE references (a cluster's member rows) and SAME_ROWS crossings (the PCA row of a measurement row). Like an attribute plan it takes no id and reads no store, so fetch it once per table
+"""
+type RowPlan {
+  """Whose rows these are"""
+  table: TableDataset!
+
+  """
+  The INDEX column a row is found by: hold the picked row's value under `key.axis`
+  """
+  key: PlanKeyColumn!
+
+  """
+  The chain, in execution order. `hops[0]` is the row in its own table, bound from `key`; each later hop binds from its `parent`
+  """
+  hops: [Hop!]!
 }
 
 """The sample"""
@@ -12646,11 +12701,20 @@ type SeriesChartLayer implements ChartLayer @key(fields: "id", resolvable: true)
   """How the values are drawn: a line, markers, both, or steps"""
   mark: ChartMark!
 
-  """Line width in screen pixels. Null lets the viewer choose"""
+  """
+  How thick lines are, as a multiple of the chart's default: 1 is the default, 2 twice as thick, 0.5 half. Never pixels -- what the default is on screen is the viewer's. Null lets the viewer choose
+  """
   lineWidth: Float
 
-  """Marker size in screen pixels. Null lets the viewer choose"""
+  """
+  How big markers are, as a multiple of the chart's default: 1 is the default, 2 twice as big, 0.5 half. Never pixels -- what the default is on screen is the viewer's. Null lets the viewer choose
+  """
   markerSize: Float
+
+  """
+  The symbol a marker is drawn as. Null lets the viewer choose (a circle)
+  """
+  markerShape: ChartMarkerShape
 
   """
   The lens' windows as row filters, always applied: a row is read when every one keeps it (`min <= column <= max`, an omitted side open). The selection the series draws, derived from the lens; empty for a whole lens
@@ -13725,6 +13789,11 @@ type TableKey {
   Table axes the source shares by name (a per-frame mask's `t`), which select alongside the id
   """
   passesThrough: [String!]!
+
+  """
+  What each row IS, as a structure a client can open: `@mikro/meshobject` for a mesh collection's objects, whose id is `<collection>:<object>` (the `produces` value as the object, `MeshObject.id`). Null where a row has no structure of its own yet -- a label of a mask
+  """
+  structure: String
 }
 
 """
@@ -13954,11 +14023,20 @@ type TraceChartLayer implements ChartLayer @key(fields: "id", resolvable: true) 
   """How the values are drawn: a line, markers, both, or steps"""
   mark: ChartMark!
 
-  """Line width in screen pixels. Null lets the viewer choose"""
+  """
+  How thick lines are, as a multiple of the chart's default: 1 is the default, 2 twice as thick, 0.5 half. Never pixels -- what the default is on screen is the viewer's. Null lets the viewer choose
+  """
   lineWidth: Float
 
-  """Marker size in screen pixels. Null lets the viewer choose"""
+  """
+  How big markers are, as a multiple of the chart's default: 1 is the default, 2 twice as big, 0.5 half. Never pixels -- what the default is on screen is the viewer's. Null lets the viewer choose
+  """
   markerSize: Float
+
+  """
+  The symbol a marker is drawn as. Null lets the viewer choose (a circle)
+  """
+  markerShape: ChartMarkerShape
 
   """
   The CHANNEL or INDEX axis the lens leaves free beside `alongAxis`, drawn as one line per position along it. Null when the lens is a single line. Read from the lens' shape, not stored
@@ -14565,7 +14643,7 @@ input UpdateArrayDatasetInput {
 }
 
 """
-Input for renaming, re-describing or re-laying-out a chart. Its world and kind are not editable: a chart along another axis is another chart
+Input for renaming, re-describing or re-laying-out a chart. Its world is not editable: a chart over another space is another chart
 """
 input UpdateChartInput {
   id: ID!
@@ -14586,6 +14664,7 @@ input UpdateChartLayerInput {
   mark: ChartMark = null
   lineWidth: Float = null
   markerSize: Float = null
+  markerShape: ChartMarkerShape = null
   id: ID!
 }
 
@@ -14884,6 +14963,7 @@ input UpdatePointsChartLayerInput {
   mark: ChartMark = null
   lineWidth: Float = null
   markerSize: Float = null
+  markerShape: ChartMarkerShape = null
   id: ID!
   lens: ID = null
   xColumn: String = null
@@ -14931,6 +15011,7 @@ input UpdateSeriesChartLayerInput {
   mark: ChartMark = null
   lineWidth: Float = null
   markerSize: Float = null
+  markerShape: ChartMarkerShape = null
   id: ID!
   lens: ID = null
   valueColumn: String = null
@@ -14964,6 +15045,7 @@ input UpdateTraceChartLayerInput {
   mark: ChartMark = null
   lineWidth: Float = null
   markerSize: Float = null
+  markerShape: ChartMarkerShape = null
   id: ID!
   lens: ID = null
 }

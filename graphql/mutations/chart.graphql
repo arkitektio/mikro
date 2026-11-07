@@ -38,7 +38,7 @@ mutation CreateSeriesChartLayer($input: CreateSeriesChartLayerInput!) {
   }
 }
 
-# A chart of values (`createChart(kind: VALUES)`): a table lens' rows, placed in its world, at
+# A value layer: a table lens' rows, placed in the chart's world, at
 # the values of two or three columns -- a scatter.
 mutation CreatePointsChartLayer($input: CreatePointsChartLayerInput!) {
   createPointsChartLayer(input: $input) {

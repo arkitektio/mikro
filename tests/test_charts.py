@@ -17,8 +17,8 @@ from mikro.api.schema import (
     AxisInput,
     AxisType,
     Chart,
-    ChartKind,
     ChartLayout,
+    ChartMarkerShape,
     ChartLayerKind,
     ChartMark,
     ChartPolicyInput,
@@ -216,7 +216,7 @@ def test_a_table_is_plotted_as_a_chart_of_its_values(mikro: Mikro) -> None:
     assert [axis.name for axis in table.coordinate_system.axes] == ["object"], "a table's space is its frame; its measurements stay columns"
 
     scatter = table.plot("area", "volume")
-    assert scatter.kind == ChartKind.VALUES and scatter.axis is None
+    assert scatter.axis is None, "a table's rows are not a measured axis to lay along"
     assert scatter.world.id == table.coordinate_system.id, "the world is whose rows: the table's space"
     (layer,) = scatter.layers
     assert layer.typename == "PointsChartLayer"
@@ -235,8 +235,9 @@ def test_a_table_is_plotted_as_a_chart_of_its_values(mikro: Mikro) -> None:
     assert {scatter.id, gated.id, histogram.id} <= shown
 
     # Retuned as a scene's layers are: each kind by its own update.
-    flipped = mikro.update_points_chart_layer(layer.id, x_column="volume", y_column="area", marker_size=6)
-    assert (flipped.x_column, flipped.y_column, flipped.marker_size) == ("volume", "area", 6)
+    # Sizes are multiples of the chart's default (2 = twice it), never pixels; a marker has a shape.
+    flipped = mikro.update_points_chart_layer(layer.id, x_column="volume", y_column="area", marker_size=2.0, marker_shape=ChartMarkerShape.SQUARE)
+    assert (flipped.x_column, flipped.y_column, flipped.points_marker_size, flipped.points_marker_shape) == ("volume", "area", 2.0, ChartMarkerShape.SQUARE)
     boxed = mikro.update_distribution_chart_layer(histogram.layers[0].id, mark=ChartMark.BOX)
     assert (boxed.mark, boxed.bins) == (ChartMark.BOX, None), "a box has no bins"
 

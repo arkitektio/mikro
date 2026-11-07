@@ -59,6 +59,7 @@ fragment ChartLayer on ChartLayer {
     mark
     lineWidth
     markerSize
+    markerShape
   }
   ... on SeriesChartLayer {
     # The table lens the series draws through; `windows` is empty for the whole table.
@@ -81,6 +82,7 @@ fragment ChartLayer on ChartLayer {
     mark
     lineWidth
     markerSize
+    markerShape
   }
   ... on PointsChartLayer {
     # The table lens whose rows are drawn; a window on a numeric column is a gate.
@@ -106,6 +108,7 @@ fragment ChartLayer on ChartLayer {
     pointsMark: mark
     pointsLineWidth: lineWidth
     pointsMarkerSize: markerSize
+    pointsMarkerShape: markerShape
   }
   ... on DistributionChartLayer {
     distributionLens: lens {
@@ -122,6 +125,7 @@ fragment ChartLayer on ChartLayer {
       name
     }
     distributionValueColumn: valueColumn
+    distributionLineWidth: lineWidth
     groupColumn
     bins
     distributionValueUnit: valueUnit
@@ -148,13 +152,11 @@ fragment Chart on Chart {
   id
   name
   description
-  # AXIS: drawn along its world's one axis; VALUES: draws its world's rows at their values.
-  kind
   # How the layers share the screen, remembered: a row or panel each (STACKED), overlaid where
-  # they measure the same thing (SHARED), or all in one plot (OVERLAY, AXIS only).
+  # they read their axes alike (SHARED), or every along-axis layer in one plot (OVERLAY).
   layout
-  # An AXIS chart's one world axis, repeated by the server so nobody unwraps a list of one.
-  # Null for a VALUES chart, whose drawn axes are its layers' columns.
+  # The world's one measured axis, which along-axis layers are laid along. Null when the world
+  # is not one (a table's rows): then only value layers draw here.
   axis {
     ...Axis
   }

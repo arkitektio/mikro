@@ -41,7 +41,6 @@ from mikro.mikro import Mikro
 from mikro.api.schema import (
     AxisType,
     Blending,
-    ChartKind,
     ChartLayout,
     ChartMark,
     ColorMap,
@@ -366,7 +365,6 @@ def upload(
 
     side_by_side = mikro.create_chart(
         name="Cell morphology · measurements & PCA",
-        kind=ChartKind.VALUES,
         coordinate_system=table.coordinate_system.id,
         layout=ChartLayout.STACKED,
     )
@@ -391,8 +389,8 @@ def upload(
     if boxed.mark != ChartMark.BOX:
         raise SystemExit(f"the distribution reads back as {boxed.mark}, not BOX")
     for chart in (scatter, shared, per_phenotype, large):
-        if chart.kind != ChartKind.VALUES:
-            raise SystemExit(f"chart '{chart.name}' is {chart.kind}, not a chart of values")
+        if chart.axis is not None or any(layer.typename not in ("PointsChartLayer", "DistributionChartLayer") for layer in mikro.get_chart(chart.id).layers):
+            raise SystemExit(f"chart '{chart.name}' should draw cells by their values, over their rows (no axis)")
 
     print(f"\nDone — scene '{scene.name}' ({scene.id}):")
     print(f"  channels   : DAPI {channels['DAPI'].id}, actin {channels['actin'].id}; mask {mask_ds.id} ({len(measurements)} cells)")
