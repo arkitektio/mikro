@@ -6130,7 +6130,7 @@ class ArrayLens(Lensable, MikroFetchable, BaseModel):
     "The lens' axis names, in array order. A selection never drops or reorders an axis"
     voxel_size: tuple[ArrayLensVoxelSize, ...] = Field(alias='voxelSize')
     "This lens' voxel size: how far one step along each of its axes reaches, read along the edges to the first space with units. The `canonical` one of `voxelSizes` -- decided by the edges' validity, so a person's calibration outranks the pixel size a converter read from the file. Empty when the lens reaches no physical space, or none by a sane route. Every axis the route scales is listed (a time step too); a voxel's spatial size is the SPACE entries. Never raises, so it is the form to put in a fragment"
-    coordinate_system: CoordinateSystem | None = Field(default=None, alias='coordinateSystem')
+    coordinate_system: CoordinateSystem = Field(alias='coordinateSystem')
     "The coordinate system the lens' selection is expressed in. A sliced array lens owns one (the space its slices cut out, with the derived edge recording the shift); every other lens selects within its container's own space and resolves to it"
     slices: tuple[Slice, ...]
     'The slices, in the one normalized spelling: dataset axis order, explicit ints, a step always present. Empty for the whole lens'

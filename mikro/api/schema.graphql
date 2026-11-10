@@ -827,7 +827,7 @@ type AnnotationLens implements Lens @key(fields: "id", resolvable: true) @identi
   """
   The coordinate system the lens' selection is expressed in. A sliced array lens owns one (the space its slices cut out, with the derived edge recording the shift); every other lens selects within its container's own space and resolves to it
   """
-  coordinateSystem: CoordinateSystem
+  coordinateSystem: CoordinateSystem!
 
   """
   The coordinate anchors whose labels make up `name`, in the order they appear in it: those of the container whose every pinned axis this lens holds to the same position, the most specific only. Each carries the person's `positionLabel` and the recorded `channelLabel`; the first that says something is the one used. Empty for a lens no position names, and for a kind whose container carries no anchors
@@ -1414,7 +1414,7 @@ type ArrayLens implements Lens @key(fields: "id", resolvable: true) @identified(
   """
   The coordinate system the lens' selection is expressed in. A sliced array lens owns one (the space its slices cut out, with the derived edge recording the shift); every other lens selects within its container's own space and resolves to it
   """
-  coordinateSystem: CoordinateSystem
+  coordinateSystem: CoordinateSystem!
 
   """
   The coordinate anchors whose labels make up `name`, in the order they appear in it: those of the container whose every pinned axis this lens holds to the same position, the most specific only. Each carries the person's `positionLabel` and the recorded `channelLabel`; the first that says something is the one used. Empty for a lens no position names, and for a kind whose container carries no anchors
@@ -5146,7 +5146,7 @@ type FileLink @key(fields: "id", resolvable: true) @identified(by: "@mikro/filel
   """
   Which part of the file this link concerns -- the series of a multi-series LIF or CZI. Empty when the file holds one thing. Part of the link's identity, so a dataset fused from two series of one file has two links
   """
-  seriesIdentifier: String
+  seriesIdentifier: String!
 
   """
   What the conversion did to the values: IDENTICAL for a lossless transcode, TRANSFORMED for a projection or a contrast-stretched export. Null when unstated
@@ -5683,7 +5683,7 @@ type FixtureLens implements Lens @key(fields: "id", resolvable: true) @identifie
   """
   The coordinate system the lens' selection is expressed in. A sliced array lens owns one (the space its slices cut out, with the derived edge recording the shift); every other lens selects within its container's own space and resolves to it
   """
-  coordinateSystem: CoordinateSystem
+  coordinateSystem: CoordinateSystem!
 
   """
   The coordinate anchors whose labels make up `name`, in the order they appear in it: those of the container whose every pinned axis this lens holds to the same position, the most specific only. Each carries the person's `positionLabel` and the recorded `channelLabel`; the first that says something is the one used. Empty for a lens no position names, and for a kind whose container carries no anchors
@@ -5748,7 +5748,7 @@ type Folder @key(fields: "id", resolvable: true) @identified(by: "@mikro/folder"
   provenanceEntries(pagination: OffsetPaginationInput): [ProvenanceEntry!]!
   isDefault: Boolean!
   createdAt: DateTime!
-  creator: User
+  creator: User!
 
   """The task this folder was created through, if any"""
   createdThrough: Task
@@ -7385,7 +7385,7 @@ interface Lens {
   """
   The coordinate system the lens' selection is expressed in. A sliced array lens owns one (the space its slices cut out, with the derived edge recording the shift); every other lens selects within its container's own space and resolves to it
   """
-  coordinateSystem: CoordinateSystem
+  coordinateSystem: CoordinateSystem!
 
   """
   The coordinate anchors whose labels make up `name`, in the order they appear in it: those of the container whose every pinned axis this lens holds to the same position, the most specific only. Each carries the person's `positionLabel` and the recorded `channelLabel`; the first that says something is the one used. Empty for a lens no position names, and for a kind whose container carries no anchors
@@ -8553,7 +8553,7 @@ type MeshLens implements Lens @key(fields: "id", resolvable: true) @identified(b
   """
   The coordinate system the lens' selection is expressed in. A sliced array lens owns one (the space its slices cut out, with the derived edge recording the shift); every other lens selects within its container's own space and resolves to it
   """
-  coordinateSystem: CoordinateSystem
+  coordinateSystem: CoordinateSystem!
 
   """
   The coordinate anchors whose labels make up `name`, in the order they appear in it: those of the container whose every pinned axis this lens holds to the same position, the most specific only. Each carries the person's `positionLabel` and the recorded `channelLabel`; the first that says something is the one used. Empty for a lens no position names, and for a kind whose container carries no anchors
@@ -10000,7 +10000,7 @@ type NetworkLens implements Lens @key(fields: "id", resolvable: true) @identifie
   """
   The coordinate system the lens' selection is expressed in. A sliced array lens owns one (the space its slices cut out, with the derived edge recording the shift); every other lens selects within its container's own space and resolves to it
   """
-  coordinateSystem: CoordinateSystem
+  coordinateSystem: CoordinateSystem!
 
   """
   The coordinate anchors whose labels make up `name`, in the order they appear in it: those of the container whose every pinned axis this lens holds to the same position, the most specific only. Each carries the person's `positionLabel` and the recorded `channelLabel`; the first that says something is the one used. Empty for a lens no position names, and for a kind whose container carries no anchors
@@ -13288,7 +13288,7 @@ type SparseLens implements Lens @key(fields: "id", resolvable: true) @identified
   """
   The coordinate system the lens' selection is expressed in. A sliced array lens owns one (the space its slices cut out, with the derived edge recording the shift); every other lens selects within its container's own space and resolves to it
   """
-  coordinateSystem: CoordinateSystem
+  coordinateSystem: CoordinateSystem!
 
   """
   The coordinate anchors whose labels make up `name`, in the order they appear in it: those of the container whose every pinned axis this lens holds to the same position, the most specific only. Each carries the person's `positionLabel` and the recorded `channelLabel`; the first that says something is the one used. Empty for a lens no position names, and for a kind whose container carries no anchors
@@ -13853,7 +13853,7 @@ type TableLens implements Lens @key(fields: "id", resolvable: true) @identified(
   """
   The coordinate system the lens' selection is expressed in. A sliced array lens owns one (the space its slices cut out, with the derived edge recording the shift); every other lens selects within its container's own space and resolves to it
   """
-  coordinateSystem: CoordinateSystem
+  coordinateSystem: CoordinateSystem!
 
   """
   The coordinate anchors whose labels make up `name`, in the order they appear in it: those of the container whose every pinned axis this lens holds to the same position, the most specific only. Each carries the person's `positionLabel` and the recorded `channelLabel`; the first that says something is the one used. Empty for a lens no position names, and for a kind whose container carries no anchors
