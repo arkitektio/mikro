@@ -1343,7 +1343,6 @@ dependencies = [
     { name = "obstore" },
     { name = "rath" },
     { name = "websockets" },
-    { name = "xarray" },
     { name = "zarr", version = "3.1.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "zarr", version = "3.2.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
 ]
@@ -1356,6 +1355,7 @@ complete = [
     { name = "pandas" },
     { name = "pyarrow" },
     { name = "sporadik" },
+    { name = "xarray" },
 ]
 mesh = [
     { name = "fabriks" },
@@ -1376,6 +1376,9 @@ table = [
     { name = "duckdb" },
     { name = "pandas" },
     { name = "pyarrow" },
+]
+xarray = [
+    { name = "xarray" },
 ]
 
 [package.dev-dependencies]
@@ -1403,6 +1406,7 @@ dev = [
     { name = "tifffile", version = "2026.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "tifffile", version = "2026.8.16", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "turms" },
+    { name = "xarray" },
 ]
 
 [package.metadata]
@@ -1432,10 +1436,11 @@ requires-dist = [
     { name = "sporadik", marker = "extra == 'complete'", specifier = ">=0.1" },
     { name = "sporadik", marker = "extra == 'sparse'", specifier = ">=0.1" },
     { name = "websockets", specifier = ">=15.0.1" },
-    { name = "xarray", specifier = ">=2024.11.0" },
+    { name = "xarray", marker = "extra == 'complete'", specifier = ">=2024.11.0" },
+    { name = "xarray", marker = "extra == 'xarray'", specifier = ">=2024.11.0" },
     { name = "zarr", specifier = ">=3.1" },
 ]
-provides-extras = ["complete", "mesh", "meshopt", "network", "sparse", "table"]
+provides-extras = ["complete", "mesh", "meshopt", "network", "sparse", "table", "xarray"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -1461,6 +1466,7 @@ dev = [
     { name = "sporadik", specifier = ">=1.1" },
     { name = "tifffile", specifier = ">=2024.1.30" },
     { name = "turms", specifier = ">=3.0" },
+    { name = "xarray", specifier = ">=2024.11.0" },
 ]
 
 [[package]]
