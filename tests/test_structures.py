@@ -77,7 +77,7 @@ def test_a_lens_and_a_dataset_say_how_they_are_described() -> None:
     assert structures.get_fullfilled_structure("@mikro/arraydataset").describe is lens_descriptors
     # Nothing else carries descriptors a port could constrain on.
     described = {i for i, s in structures.identifier_structure_map.items() if s.describe}
-    assert described == {"@mikro/arraylens", "@mikro/arraydataset", "@mikro/annotation", "@mikro/metric"}
+    assert described == {"@mikro/arraylens", "@mikro/arraydataset", "@mikro/annotation", "@mikro/metric", "@mikro/file"}
 
 
 def test_an_annotation_is_described_by_its_shape_and_the_axes_it_is_drawn_in() -> None:
