@@ -239,7 +239,7 @@ def test_a_table_is_plotted_as_a_chart_of_its_values(mikro: Mikro) -> None:
     flipped = mikro.update_points_chart_layer(layer.id, x_column="volume", y_column="area", marker_size=2.0, marker_shape=ChartMarkerShape.SQUARE)
     assert (flipped.x_column, flipped.y_column, flipped.points_marker_size, flipped.points_marker_shape) == ("volume", "area", 2.0, ChartMarkerShape.SQUARE)
     boxed = mikro.update_distribution_chart_layer(histogram.layers[0].id, mark=ChartMark.BOX)
-    assert (boxed.mark, boxed.bins) == (ChartMark.BOX, None), "a box has no bins"
+    assert (boxed.distribution_mark, boxed.bins) == (ChartMark.BOX, None), "a box has no bins"
 
     # How the layers share the screen is remembered with the chart.
     assert scatter.layout == ChartLayout.SHARED
