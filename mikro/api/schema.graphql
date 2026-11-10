@@ -314,6 +314,11 @@ type Annotation @key(fields: "id", resolvable: true) @identified(by: "@mikro/ann
   provenanceEntries(pagination: OffsetPaginationInput): [ProvenanceEntry!]!
 
   """
+  The lens the shape was traced on -- the channel or layer the person was looking at, e.g. the marker a neurite was traced in. Metadata only: it neither pins the shape (`coordinates`) nor places it (the collection's own edges). Null when the drawer did not say, or the lens is gone
+  """
+  tracedOn: Lens
+
+  """
   The coordinate system this annotation's vectors are expressed in: its collection's own system
   """
   coordinateSystem: CoordinateSystem
@@ -907,6 +912,7 @@ input AnnotationSpecInput {
   strokeWidth: Float = null
   filled: Boolean = null
   derivedFrom: [AnnotationSourceInput!] = null
+  tracedOn: ID = null
 }
 
 type AnnotationStats {
@@ -1020,6 +1026,11 @@ type ArrayDataset @key(fields: "id", resolvable: true) @identified(by: "@mikro/a
 
   """The multiscale data arrays belonging to this dataset"""
   dataArrays(filters: DataArrayFilter, ordering: [DataArrayOrder!]! = [], pagination: OffsetPaginationInput): [DataArray!]!
+
+  """
+  The descriptors `createLens(input: {dataset: <this>, slices:})` would give the lens it returns, without making it: what that selection provides to an action's port (one plane of a stack is an IMAGE, a pinned frame or channel counts one). The slices are dataset indices, spelled as `createLens` takes them. Null where the cut would be refused -- an axis the dataset lacks, an axis sliced twice, a window that selects nothing
+  """
+  descriptorsSliced(slices: [SliceInput!]!): JSON
 
   """
   This dataset's stored vector, as `<model id>:<floats>`. Null until it has been indexed.
@@ -3220,6 +3231,7 @@ input CreateAnnotationInput {
   strokeWidth: Float = null
   filled: Boolean = null
   derivedFrom: [AnnotationSourceInput!] = null
+  tracedOn: ID = null
 }
 
 """
@@ -14631,6 +14643,7 @@ input UpdateAnnotationInput {
   coordinates: [CoordinateInput!] = null
   strokeWidth: Float = null
   filled: Boolean = null
+  tracedOn: ID = null
 }
 
 """

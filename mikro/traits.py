@@ -1576,6 +1576,7 @@ class Lensable(HasNamedAxes):
         name: str | None = None,
         collection: IDCoercible | None = None,
         scene: IDCoercible | None = None,
+        traced_on: IDCoercible | None = None,
     ) -> Annotation:
         """Draw an annotation on the data of this lens
 
@@ -1596,11 +1597,14 @@ class Lensable(HasNamedAxes):
             name (str | None): An optional name for the annotation
             collection (str | None): The ID of the annotation collection to draw into
             scene (str | None): The ID of the scene to draw onto
+            traced_on (str | None): The lens the shape was traced on, e.g. the channel a
+                neurite was traced in. Metadata only: it neither pins nor places the shape
 
         Returns:
             Annotation: The drawn annotation
         """
         from mikro.api.schema import (
+            UNSET,
             AxisInput,
             AxisType,
             CoordinateInput,
@@ -1655,6 +1659,7 @@ class Lensable(HasNamedAxes):
             kind=kind,
             name=name,
             coordinates=coordinates,
+            traced_on=traced_on if traced_on is not None else UNSET,
         )
 
     def derive(

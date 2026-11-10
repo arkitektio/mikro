@@ -19,6 +19,9 @@ fragment Annotation on Annotation {
   strokeWidth
   filled
   sourceIds
+  tracedOn {
+    id
+  }
 }
 
 fragment AnnotationCollection on AnnotationCollection {

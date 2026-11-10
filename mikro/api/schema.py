@@ -1486,6 +1486,7 @@ class AnnotationSpecInput(BaseModel):
     stroke_width: float | None = Field(validation_alias=AliasChoices('stroke_width', 'strokeWidth'), serialization_alias='strokeWidth', default=None)
     filled: bool | None = None
     derived_from: tuple[AnnotationSourceInput, ...] | None = Field(validation_alias=AliasChoices('derived_from', 'derivedFrom'), serialization_alias='derivedFrom', default=None)
+    traced_on: ID | None = Field(validation_alias=AliasChoices('traced_on', 'tracedOn'), serialization_alias='tracedOn', default=None)
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class ArrayDatasetFilter(BaseModel):
@@ -1727,6 +1728,7 @@ class CreateAnnotationInput(BaseModel):
     stroke_width: float | None = Field(validation_alias=AliasChoices('stroke_width', 'strokeWidth'), serialization_alias='strokeWidth', default=None)
     filled: bool | None = None
     derived_from: tuple[AnnotationSourceInput, ...] | None = Field(validation_alias=AliasChoices('derived_from', 'derivedFrom'), serialization_alias='derivedFrom', default=None)
+    traced_on: ID | None = Field(validation_alias=AliasChoices('traced_on', 'tracedOn'), serialization_alias='tracedOn', default=None)
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreateAnnotationLensInput(BaseModel):
@@ -3204,6 +3206,7 @@ class UpdateAnnotationInput(BaseModel):
     coordinates: tuple[CoordinateInput, ...] | None = None
     stroke_width: float | None = Field(validation_alias=AliasChoices('stroke_width', 'strokeWidth'), serialization_alias='strokeWidth', default=None)
     filled: bool | None = None
+    traced_on: ID | None = Field(validation_alias=AliasChoices('traced_on', 'tracedOn'), serialization_alias='tracedOn', default=None)
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class UpdateChartInput(BaseModel):
@@ -5871,6 +5874,50 @@ class AnnotationIntrinsicBbox(BaseModel):
     'The upper corner, in the coordinate order of the coordinate system'
     model_config = ConfigDict(frozen=True)
 
+class AnnotationTracedOnBase(BaseModel):
+    """A selection over a container that lives in a coordinate system: one row per (container, selection), so the same selection asked for twice is the same id. An ArrayLens selects over an array dataset by index slices and, when sliced, owns the crop's space and the edge back into the dataset's grid; every other kind selects over its container by value windows in the container's own axes and lives in the container's space. Every container has its whole lens from creation."""
+    id: ID
+    model_config = ConfigDict(frozen=True)
+
+class AnnotationTracedOnBaseAnnotationLens(AnnotationTracedOnBase, BaseModel):
+    """A selection over an annotation collection by windows in its drawing space"""
+    __identifier__: ClassVar[Literal['@mikro/annotationlens']] = '@mikro/annotationlens'
+    typename: Literal['AnnotationLens'] = Field(alias='__typename', default='AnnotationLens', exclude=True)
+
+class AnnotationTracedOnBaseArrayLens(AnnotationTracedOnBase, Lensable, BaseModel):
+    """A selection over an array dataset by index slices: what an action that works on pixels is handed. Its shape and axes are derived from the dataset and the slices"""
+    __identifier__: ClassVar[Literal['@mikro/arraylens']] = '@mikro/arraylens'
+    typename: Literal['ArrayLens'] = Field(alias='__typename', default='ArrayLens', exclude=True)
+
+class AnnotationTracedOnBaseFixtureLens(AnnotationTracedOnBase, BaseModel):
+    """A selection over a fixture by windows in its own space: a clip box, or the whole model"""
+    __identifier__: ClassVar[Literal['@mikro/fixturelens']] = '@mikro/fixturelens'
+    typename: Literal['FixtureLens'] = Field(alias='__typename', default='FixtureLens', exclude=True)
+
+class AnnotationTracedOnBaseMeshLens(AnnotationTracedOnBase, BaseModel):
+    """A selection over a mesh collection by windows in its own space"""
+    __identifier__: ClassVar[Literal['@mikro/meshlens']] = '@mikro/meshlens'
+    typename: Literal['MeshLens'] = Field(alias='__typename', default='MeshLens', exclude=True)
+
+class AnnotationTracedOnBaseNetworkLens(AnnotationTracedOnBase, BaseModel):
+    """A selection over a network collection by windows in its own space"""
+    __identifier__: ClassVar[Literal['@mikro/networklens']] = '@mikro/networklens'
+    typename: Literal['NetworkLens'] = Field(alias='__typename', default='NetworkLens', exclude=True)
+
+class AnnotationTracedOnBaseSparseLens(AnnotationTracedOnBase, BaseModel):
+    """A selection over a sparse dataset by windows on its axes: the positions kept, never re-indexed. Lives in the dataset's own space"""
+    __identifier__: ClassVar[Literal['@mikro/sparselens']] = '@mikro/sparselens'
+    typename: Literal['SparseLens'] = Field(alias='__typename', default='SparseLens', exclude=True)
+
+class AnnotationTracedOnBaseTableLens(AnnotationTracedOnBase, BaseModel):
+    """A selection over a table dataset by value windows on its columns: the rows kept. A window on a coordinate column bounds a region of space; one on a numeric measurement column is a gate (`area >= 50`), which bounds nothing in space. Lives in the table's own space"""
+    __identifier__: ClassVar[Literal['@mikro/tablelens']] = '@mikro/tablelens'
+    typename: Literal['TableLens'] = Field(alias='__typename', default='TableLens', exclude=True)
+
+class AnnotationTracedOnBaseCatchAll(AnnotationTracedOnBase, BaseModel):
+    """Catch all class for AnnotationTracedOnBase"""
+    typename: str = Field(alias='__typename', exclude=True)
+
 class Annotation(MikroFetchable, BaseModel):
     """A human-drawn shape in an annotation collection's coordinate system. It belongs to the collection, not to a scene: delete the scene and the annotation survives"""
     __identifier__: ClassVar[Literal['@mikro/annotation']] = '@mikro/annotation'
@@ -5895,11 +5942,13 @@ class Annotation(MikroFetchable, BaseModel):
     'Whether the geometry is filled with fill_color'
     source_ids: tuple[ID, ...] = Field(alias='sourceIds')
     "The ids of the shapes this one was made from, in declared order: `derivedFrom` without the links, cheap enough for every shape of a scene's list. Empty for a shape drawn from nothing. What a viewer reads to tell a refinement from the shape it refines"
+    traced_on: Annotated[AnnotationTracedOnBaseAnnotationLens | AnnotationTracedOnBaseArrayLens | AnnotationTracedOnBaseFixtureLens | AnnotationTracedOnBaseMeshLens | AnnotationTracedOnBaseNetworkLens | AnnotationTracedOnBaseSparseLens | AnnotationTracedOnBaseTableLens, Field(discriminator='typename')] | AnnotationTracedOnBaseCatchAll | None = Field(default=None, alias='tracedOn')
+    "The lens the shape was traced on -- the channel or layer the person was looking at, e.g. the marker a neurite was traced in. Metadata only: it neither pins the shape (`coordinates`) nor places it (the collection's own edges). Null when the drawer did not say, or the lens is gone"
     model_config = ConfigDict(frozen=True)
 
     class Meta:
         """Meta class for Annotation"""
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  tracedOn {\n    id\n    __typename\n  }\n  __typename\n}'
         name = 'Annotation'
         type = 'Annotation'
 
@@ -6261,7 +6310,7 @@ class AnnotationCollection(MikroFetchable, BaseModel):
 
     class Meta:
         """Meta class for AnnotationCollection"""
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnnotationCollection on AnnotationCollection {\n  id\n  name\n  description\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  annotations {\n    ...Annotation\n    __typename\n  }\n  __typename\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  tracedOn {\n    id\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnnotationCollection on AnnotationCollection {\n  id\n  name\n  description\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  annotations {\n    ...Annotation\n    __typename\n  }\n  __typename\n}'
         name = 'AnnotationCollection'
         type = 'AnnotationCollection'
 
@@ -6735,7 +6784,7 @@ class CreateAnnotationMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateAnnotation """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nmutation CreateAnnotation($input: CreateAnnotationInput!) {\n  createAnnotation(input: $input) {\n    ...Annotation\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  tracedOn {\n    id\n    __typename\n  }\n  __typename\n}\n\nmutation CreateAnnotation($input: CreateAnnotationInput!) {\n  createAnnotation(input: $input) {\n    ...Annotation\n    __typename\n  }\n}'
 
 class CreateAnnotationsMutation(BaseModel):
     """No documentation found for this operation."""
@@ -6748,7 +6797,7 @@ class CreateAnnotationsMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateAnnotations """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nmutation CreateAnnotations($input: CreateAnnotationsInput!) {\n  createAnnotations(input: $input) {\n    ...Annotation\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  tracedOn {\n    id\n    __typename\n  }\n  __typename\n}\n\nmutation CreateAnnotations($input: CreateAnnotationsInput!) {\n  createAnnotations(input: $input) {\n    ...Annotation\n    __typename\n  }\n}'
 
 class UpdateAnnotationMutation(BaseModel):
     """No documentation found for this operation."""
@@ -6761,7 +6810,7 @@ class UpdateAnnotationMutation(BaseModel):
 
     class Meta:
         """Meta class for UpdateAnnotation """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nmutation UpdateAnnotation($input: UpdateAnnotationInput!) {\n  updateAnnotation(input: $input) {\n    ...Annotation\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  tracedOn {\n    id\n    __typename\n  }\n  __typename\n}\n\nmutation UpdateAnnotation($input: UpdateAnnotationInput!) {\n  updateAnnotation(input: $input) {\n    ...Annotation\n    __typename\n  }\n}'
 
 class DeleteAnnotationMutation(BaseModel):
     """No documentation found for this operation."""
@@ -6787,7 +6836,7 @@ class CreateAnnotationCollectionMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateAnnotationCollection """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnnotationCollection on AnnotationCollection {\n  id\n  name\n  description\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  annotations {\n    ...Annotation\n    __typename\n  }\n  __typename\n}\n\nmutation CreateAnnotationCollection($input: CreateAnnotationCollectionInput!) {\n  createAnnotationCollection(input: $input) {\n    ...AnnotationCollection\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  tracedOn {\n    id\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnnotationCollection on AnnotationCollection {\n  id\n  name\n  description\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  annotations {\n    ...Annotation\n    __typename\n  }\n  __typename\n}\n\nmutation CreateAnnotationCollection($input: CreateAnnotationCollectionInput!) {\n  createAnnotationCollection(input: $input) {\n    ...AnnotationCollection\n    __typename\n  }\n}'
 
 class DeleteAnnotationCollectionMutation(BaseModel):
     """No documentation found for this operation."""
@@ -8817,7 +8866,7 @@ class GetAnnotationQuery(BaseModel):
 
     class Meta:
         """Meta class for GetAnnotation """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nquery GetAnnotation($id: ID!) {\n  annotation(id: $id) {\n    ...Annotation\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  tracedOn {\n    id\n    __typename\n  }\n  __typename\n}\n\nquery GetAnnotation($id: ID!) {\n  annotation(id: $id) {\n    ...Annotation\n    __typename\n  }\n}'
 
 class GetAnnotationLineageQueryAnnotation(BaseModel):
     """A human-drawn shape in an annotation collection's coordinate system. It belongs to the collection, not to a scene: delete the scene and the annotation survives"""
@@ -8841,7 +8890,7 @@ class GetAnnotationLineageQuery(BaseModel):
 
     class Meta:
         """Meta class for GetAnnotationLineage """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nfragment AnnotationDerivation on AnnotationDerivation {\n  id\n  relation\n  reason\n  createdAt\n  source {\n    id\n    name\n    kind\n    __typename\n  }\n  child {\n    id\n    name\n    kind\n    __typename\n  }\n  __typename\n}\n\nquery GetAnnotationLineage($id: ID!) {\n  annotation(id: $id) {\n    id\n    derivedFrom {\n      ...AnnotationDerivation\n      __typename\n    }\n    derivedAnnotations {\n      ...Annotation\n      __typename\n    }\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  tracedOn {\n    id\n    __typename\n  }\n  __typename\n}\n\nfragment AnnotationDerivation on AnnotationDerivation {\n  id\n  relation\n  reason\n  createdAt\n  source {\n    id\n    name\n    kind\n    __typename\n  }\n  child {\n    id\n    name\n    kind\n    __typename\n  }\n  __typename\n}\n\nquery GetAnnotationLineage($id: ID!) {\n  annotation(id: $id) {\n    id\n    derivedFrom {\n      ...AnnotationDerivation\n      __typename\n    }\n    derivedAnnotations {\n      ...Annotation\n      __typename\n    }\n    __typename\n  }\n}'
 
 class GetAnnotationsQuery(BaseModel):
     """No documentation found for this operation."""
@@ -8855,7 +8904,7 @@ class GetAnnotationsQuery(BaseModel):
 
     class Meta:
         """Meta class for GetAnnotations """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nquery GetAnnotations($filters: AnnotationFilter, $pagination: OffsetPaginationInput) {\n  annotations(filters: $filters, pagination: $pagination) {\n    ...Annotation\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  tracedOn {\n    id\n    __typename\n  }\n  __typename\n}\n\nquery GetAnnotations($filters: AnnotationFilter, $pagination: OffsetPaginationInput) {\n  annotations(filters: $filters, pagination: $pagination) {\n    ...Annotation\n    __typename\n  }\n}'
 
 class GetAnnotationCollectionQuery(BaseModel):
     """No documentation found for this operation."""
@@ -8868,7 +8917,7 @@ class GetAnnotationCollectionQuery(BaseModel):
 
     class Meta:
         """Meta class for GetAnnotationCollection """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnnotationCollection on AnnotationCollection {\n  id\n  name\n  description\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  annotations {\n    ...Annotation\n    __typename\n  }\n  __typename\n}\n\nquery GetAnnotationCollection($id: ID!) {\n  annotationCollection(id: $id) {\n    ...AnnotationCollection\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  tracedOn {\n    id\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnnotationCollection on AnnotationCollection {\n  id\n  name\n  description\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  annotations {\n    ...Annotation\n    __typename\n  }\n  __typename\n}\n\nquery GetAnnotationCollection($id: ID!) {\n  annotationCollection(id: $id) {\n    ...AnnotationCollection\n    __typename\n  }\n}'
 
 class GetAnnotationCollectionsQuery(BaseModel):
     """No documentation found for this operation."""
@@ -8882,7 +8931,7 @@ class GetAnnotationCollectionsQuery(BaseModel):
 
     class Meta:
         """Meta class for GetAnnotationCollections """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnnotationCollection on AnnotationCollection {\n  id\n  name\n  description\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  annotations {\n    ...Annotation\n    __typename\n  }\n  __typename\n}\n\nquery GetAnnotationCollections($filters: AnnotationCollectionFilter, $pagination: OffsetPaginationInput) {\n  annotationCollections(filters: $filters, pagination: $pagination) {\n    ...AnnotationCollection\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  metricGroup\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  sourceIds\n  tracedOn {\n    id\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  reference\n  referenceApp\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnnotationCollection on AnnotationCollection {\n  id\n  name\n  description\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  annotations {\n    ...Annotation\n    __typename\n  }\n  __typename\n}\n\nquery GetAnnotationCollections($filters: AnnotationCollectionFilter, $pagination: OffsetPaginationInput) {\n  annotationCollections(filters: $filters, pagination: $pagination) {\n    ...AnnotationCollection\n    __typename\n  }\n}'
 
 class SearchAnnotationCollectionsQueryOptions(BaseModel):
     """A named set of human-drawn annotations, owning the coordinate system they are drawn in. The CRUD counterpart of a table dataset's machine-produced rows: shapes a person draws and edits, sharing one drawing space and one registration story"""
@@ -11317,7 +11366,7 @@ Returns:
         variables['input'] = _input
         return self.execute(DeleteAnimationMutation, variables, task=task).delete_animation
 
-    async def acreate_annotation(self, kind: AnnotationKind, vectors: Iterable[ThreeDVector], stroke_color: Iterable[int] | None | UnsetType=UNSET, fill_color: Iterable[int] | None | UnsetType=UNSET, collection: IDCoercible | None | UnsetType=UNSET, scene: IDCoercible | None | UnsetType=UNSET, name: str | None | UnsetType=UNSET, description: str | None | UnsetType=UNSET, coordinates: Iterable[CoordinateInput] | None | UnsetType=UNSET, stroke_width: float | None | UnsetType=UNSET, filled: bool | None | UnsetType=UNSET, derived_from: Iterable[AnnotationSourceInput] | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotation:
+    async def acreate_annotation(self, kind: AnnotationKind, vectors: Iterable[ThreeDVector], stroke_color: Iterable[int] | None | UnsetType=UNSET, fill_color: Iterable[int] | None | UnsetType=UNSET, collection: IDCoercible | None | UnsetType=UNSET, scene: IDCoercible | None | UnsetType=UNSET, name: str | None | UnsetType=UNSET, description: str | None | UnsetType=UNSET, coordinates: Iterable[CoordinateInput] | None | UnsetType=UNSET, stroke_width: float | None | UnsetType=UNSET, filled: bool | None | UnsetType=UNSET, derived_from: Iterable[AnnotationSourceInput] | None | UnsetType=UNSET, traced_on: IDCoercible | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotation:
         """CreateAnnotation 
 
 Draw an annotation into a collection, or onto a scene (exactly one of the two). Drawing on a scene finds its annotation collection or mints it on first use: a coordinate system copying the world's axes, an identity registration into the world, and one annotation layer
@@ -11335,6 +11384,7 @@ Args:
     stroke_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     filled: The `Boolean` scalar type represents `true` or `false`.
     derived_from: One shape a new shape was made from, and how (required) (list)
+    traced_on: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
@@ -11364,10 +11414,12 @@ Returns:
             _input['filled'] = filled
         if derived_from is not UNSET:
             _input['derivedFrom'] = derived_from
+        if traced_on is not UNSET:
+            _input['tracedOn'] = traced_on
         variables['input'] = _input
         return (await self.aexecute(CreateAnnotationMutation, variables, task=task)).create_annotation
 
-    def create_annotation(self, kind: AnnotationKind, vectors: Iterable[ThreeDVector], stroke_color: Iterable[int] | None | UnsetType=UNSET, fill_color: Iterable[int] | None | UnsetType=UNSET, collection: IDCoercible | None | UnsetType=UNSET, scene: IDCoercible | None | UnsetType=UNSET, name: str | None | UnsetType=UNSET, description: str | None | UnsetType=UNSET, coordinates: Iterable[CoordinateInput] | None | UnsetType=UNSET, stroke_width: float | None | UnsetType=UNSET, filled: bool | None | UnsetType=UNSET, derived_from: Iterable[AnnotationSourceInput] | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotation:
+    def create_annotation(self, kind: AnnotationKind, vectors: Iterable[ThreeDVector], stroke_color: Iterable[int] | None | UnsetType=UNSET, fill_color: Iterable[int] | None | UnsetType=UNSET, collection: IDCoercible | None | UnsetType=UNSET, scene: IDCoercible | None | UnsetType=UNSET, name: str | None | UnsetType=UNSET, description: str | None | UnsetType=UNSET, coordinates: Iterable[CoordinateInput] | None | UnsetType=UNSET, stroke_width: float | None | UnsetType=UNSET, filled: bool | None | UnsetType=UNSET, derived_from: Iterable[AnnotationSourceInput] | None | UnsetType=UNSET, traced_on: IDCoercible | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotation:
         """CreateAnnotation 
 
 Draw an annotation into a collection, or onto a scene (exactly one of the two). Drawing on a scene finds its annotation collection or mints it on first use: a coordinate system copying the world's axes, an identity registration into the world, and one annotation layer
@@ -11385,6 +11437,7 @@ Args:
     stroke_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     filled: The `Boolean` scalar type represents `true` or `false`.
     derived_from: One shape a new shape was made from, and how (required) (list)
+    traced_on: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
@@ -11414,6 +11467,8 @@ Returns:
             _input['filled'] = filled
         if derived_from is not UNSET:
             _input['derivedFrom'] = derived_from
+        if traced_on is not UNSET:
+            _input['tracedOn'] = traced_on
         variables['input'] = _input
         return self.execute(CreateAnnotationMutation, variables, task=task).create_annotation
 
@@ -11465,7 +11520,7 @@ Returns:
         variables['input'] = _input
         return self.execute(CreateAnnotationsMutation, variables, task=task).create_annotations
 
-    async def aupdate_annotation(self, id: IDCoercible, kind: AnnotationKind | None | UnsetType=UNSET, vectors: Iterable[ThreeDVector] | None | UnsetType=UNSET, stroke_color: Iterable[int] | None | UnsetType=UNSET, fill_color: Iterable[int] | None | UnsetType=UNSET, name: str | None | UnsetType=UNSET, description: str | None | UnsetType=UNSET, coordinates: Iterable[CoordinateInput] | None | UnsetType=UNSET, stroke_width: float | None | UnsetType=UNSET, filled: bool | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotation:
+    async def aupdate_annotation(self, id: IDCoercible, kind: AnnotationKind | None | UnsetType=UNSET, vectors: Iterable[ThreeDVector] | None | UnsetType=UNSET, stroke_color: Iterable[int] | None | UnsetType=UNSET, fill_color: Iterable[int] | None | UnsetType=UNSET, name: str | None | UnsetType=UNSET, description: str | None | UnsetType=UNSET, coordinates: Iterable[CoordinateInput] | None | UnsetType=UNSET, stroke_width: float | None | UnsetType=UNSET, filled: bool | None | UnsetType=UNSET, traced_on: IDCoercible | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotation:
         """UpdateAnnotation 
 
 Edit an annotation: name, kind, vectors, pins or styling. New vectors re-derive the bounding box against the current transform chain
@@ -11481,6 +11536,7 @@ Args:
     coordinates: A discrete coordinate an annotation is pinned to, e.g. a timepoint or a channel (required) (list)
     stroke_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     filled: The `Boolean` scalar type represents `true` or `false`.
+    traced_on: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
@@ -11507,10 +11563,12 @@ Returns:
             _input['strokeWidth'] = stroke_width
         if filled is not UNSET:
             _input['filled'] = filled
+        if traced_on is not UNSET:
+            _input['tracedOn'] = traced_on
         variables['input'] = _input
         return (await self.aexecute(UpdateAnnotationMutation, variables, task=task)).update_annotation
 
-    def update_annotation(self, id: IDCoercible, kind: AnnotationKind | None | UnsetType=UNSET, vectors: Iterable[ThreeDVector] | None | UnsetType=UNSET, stroke_color: Iterable[int] | None | UnsetType=UNSET, fill_color: Iterable[int] | None | UnsetType=UNSET, name: str | None | UnsetType=UNSET, description: str | None | UnsetType=UNSET, coordinates: Iterable[CoordinateInput] | None | UnsetType=UNSET, stroke_width: float | None | UnsetType=UNSET, filled: bool | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotation:
+    def update_annotation(self, id: IDCoercible, kind: AnnotationKind | None | UnsetType=UNSET, vectors: Iterable[ThreeDVector] | None | UnsetType=UNSET, stroke_color: Iterable[int] | None | UnsetType=UNSET, fill_color: Iterable[int] | None | UnsetType=UNSET, name: str | None | UnsetType=UNSET, description: str | None | UnsetType=UNSET, coordinates: Iterable[CoordinateInput] | None | UnsetType=UNSET, stroke_width: float | None | UnsetType=UNSET, filled: bool | None | UnsetType=UNSET, traced_on: IDCoercible | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotation:
         """UpdateAnnotation 
 
 Edit an annotation: name, kind, vectors, pins or styling. New vectors re-derive the bounding box against the current transform chain
@@ -11526,6 +11584,7 @@ Args:
     coordinates: A discrete coordinate an annotation is pinned to, e.g. a timepoint or a channel (required) (list)
     stroke_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     filled: The `Boolean` scalar type represents `true` or `false`.
+    traced_on: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
 Returns:
@@ -11552,6 +11611,8 @@ Returns:
             _input['strokeWidth'] = stroke_width
         if filled is not UNSET:
             _input['filled'] = filled
+        if traced_on is not UNSET:
+            _input['tracedOn'] = traced_on
         variables['input'] = _input
         return self.execute(UpdateAnnotationMutation, variables, task=task).update_annotation
 
