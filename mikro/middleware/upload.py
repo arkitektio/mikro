@@ -37,7 +37,7 @@ from mikro.io.upload import (
     # Async paths (obstore)
     aupload_bigfile,
     aupload_parquet,
-    aupload_xarray,
+    aupload_array,
     store_fabriks_collection,
     store_konnektion_collection,
     store_media_file,
@@ -45,7 +45,7 @@ from mikro.io.upload import (
     upload_bigfile,
     upload_parquet,
     # Sync paths (obstore)
-    upload_xarray,
+    upload_array,
 )
 from mikro.api.schema import (
     FinishBigFileUploadInput,
@@ -328,9 +328,9 @@ class UploadMiddleware(OperationMiddleware):
             self._cached_datalayer_url = unkoil(self.datalayer.get_endpoint_url)
         return self._cached_datalayer_url
 
-    def _upload_xarray(self, datalayer: "DataLayer", rath: "MikroRath", xarray: ArrayLike) -> str:
-        """Upload an xarray as a zarr store."""
-        return self._upload(rath, ZARR, _request(RequestZarrUploadMutation, RequestZarrUploadInput()), lambda grant: upload_xarray(xarray, grant, datalayer))
+    def _upload_array(self, datalayer: "DataLayer", rath: "MikroRath", array: ArrayLike) -> str:
+        """Upload an array as a zarr store."""
+        return self._upload(rath, ZARR, _request(RequestZarrUploadMutation, RequestZarrUploadInput()), lambda grant: upload_array(array, grant, datalayer))
 
     def _upload_parquet(self, datalayer: "DataLayer", rath: "MikroRath", parquet_input: ParquetLike) -> str:
         """Upload a table as one parquet object."""
@@ -364,9 +364,9 @@ class UploadMiddleware(OperationMiddleware):
     # The kinds (async)
     # ====================================================================
 
-    async def _aupload_xarray(self, datalayer: "DataLayer", rath: "MikroRath", xarray: ArrayLike) -> str:
-        """Upload an xarray as a zarr store."""
-        return await self._aupload(rath, ZARR, _request(RequestZarrUploadMutation, RequestZarrUploadInput()), lambda grant: aupload_xarray(xarray, grant, datalayer))
+    async def _aupload_array(self, datalayer: "DataLayer", rath: "MikroRath", array: ArrayLike) -> str:
+        """Upload an array as a zarr store."""
+        return await self._aupload(rath, ZARR, _request(RequestZarrUploadMutation, RequestZarrUploadInput()), lambda grant: aupload_array(array, grant, datalayer))
 
     async def _aupload_parquet(self, datalayer: "DataLayer", rath: "MikroRath", parquet_input: ParquetLike) -> str:
         """Upload a table as one parquet object."""
@@ -422,7 +422,7 @@ class UploadMiddleware(OperationMiddleware):
         datalayer = self.datalayer
 
         variables = _apply_recursive_sync(
-            partial(self._upload_xarray, datalayer, rath),
+            partial(self._upload_array, datalayer, rath),
             variables,
             (ArrayLike,),
         )
@@ -486,7 +486,7 @@ class UploadMiddleware(OperationMiddleware):
         datalayer = self.datalayer
 
         variables = await _apply_recursive_async(
-            partial(self._aupload_xarray, datalayer, rath),
+            partial(self._aupload_array, datalayer, rath),
             variables,
             (ArrayLike,),
         )

@@ -20,7 +20,7 @@ class _Axis:
 class _Scale:
     def __init__(self, level: int, array: xr.DataArray) -> None:
         self.level = level
-        self.array = type("V", (), {"value": array})()
+        self.array = array
 
 
 def _cube(*dims: str) -> xr.DataArray:
@@ -52,3 +52,16 @@ def test_the_trait_delegates_here() -> None:
 
     with pytest.raises(ValidationError, match="do not match the data array dimensions"):
         CreateArrayDatasetInput(name="x", data=_cube("y", "x"), axes=[AxisInput(name="z", type=AxisType.SPACE)], scales=[])
+
+
+def test_a_bare_array_is_named_by_its_axes_in_order() -> None:
+    """numpy has no dimension names, so the axes are them -- and their count is held to the rank."""
+    from pydantic import ValidationError
+
+    from mikro.api.schema import CreateArrayDatasetInput
+
+    model = CreateArrayDatasetInput(name="x", data=np.zeros((3, 4, 5)), axes=["c", "y", "x"])
+    assert model.data.dims == ("c", "y", "x")
+
+    with pytest.raises(ValidationError, match="3 dimensions, but 2 axes"):
+        CreateArrayDatasetInput(name="x", data=np.zeros((3, 4, 5)), axes=["y", "x"])

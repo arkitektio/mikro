@@ -20,7 +20,7 @@ from zarr.storage import ObjectStore as ZarrObjectStore
 from zarr.storage import StorePath
 
 from mikro.api.schema import ValueHistogramInput
-from mikro.io.obstore import write_dataarray_to_zarr
+from mikro.io.obstore import write_array_to_zarr
 from mikro.io.scheduling import compute_numpy, dask_scheduler, pool_size
 from mikro.pyramid import build_pyramid
 
@@ -35,7 +35,8 @@ def _lazy(side: int, depth: int = 4) -> xr.DataArray:
 
 
 def _write(index: int, side: int) -> None:
-    write_dataarray_to_zarr(StorePath(ZarrObjectStore(MemoryStore()), f"a{index}"), _lazy(side))
+    array = _lazy(side)
+    write_array_to_zarr(StorePath(ZarrObjectStore(MemoryStore()), f"a{index}"), array.data, array.dims)
 
 
 def test_writes_from_long_lived_threads_add_no_pools_or_threads() -> None:

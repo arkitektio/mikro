@@ -1,9 +1,9 @@
 """Module for uploading various data types to a DataLayer.
 
 Provides both async and sync upload paths via obstore:
-    - Async: aupload_xarray, aupload_parquet, aupload_bigfile, astore_media_file,
+    - Async: aupload_array, aupload_parquet, aupload_bigfile, astore_media_file,
       astore_fabriks_collection
-    - Sync: upload_xarray, upload_parquet, upload_bigfile, store_media_file,
+    - Sync: upload_array, upload_parquet, upload_bigfile, store_media_file,
       store_fabriks_collection
 """
 
@@ -56,28 +56,38 @@ if TYPE_CHECKING:
     from mikro.datalayer import DataLayer
 
 
+def _named_dims(array: ArrayLike) -> tuple[str, ...]:
+    """The array's dimension names; a bare array is named by its declaration before upload."""
+    if array.dims is None:
+        raise UploadError(
+            "This array's dimensions were never named. Pass an xarray.DataArray, or upload it "
+            "through create_array_dataset, which names a bare array from its axes."
+        )
+    return array.dims
+
+
 # ========================================================================
 # Async upload functions (obstore)
 # ========================================================================
 
 
-async def astore_xarray_input(
-    xarray: ArrayLike,
+async def astore_array_input(
+    array: ArrayLike,
     credentials: "ZarrUploadGrant",
     endpoint_url: str,
     proxy: str | None = None,
 ) -> str:
-    """Stores an xarray in the DataLayer"""
-    from mikro.io.obstore import awrite_dataarray_to_zarr, create_zarr_store_path
+    """Stores an array in the DataLayer"""
+    from mikro.io.obstore import awrite_array_to_zarr, create_zarr_store_path
 
-    array = xarray.value
+    dims = _named_dims(array)
     store_path = create_zarr_store_path(endpoint_url, credentials, proxy=proxy)
 
     try:
         logger.debug(
             f"Uploading zarr t to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
         )
-        await awrite_dataarray_to_zarr(store_path, array, layout=xarray.layout)
+        await awrite_array_to_zarr(store_path, array.data, dims, layout=array.layout)
         logger.info(
             f"Successfully uploaded zarr to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}"
         )
@@ -345,13 +355,13 @@ async def aupload_bigfile(
         ) from e
 
 
-async def aupload_xarray(
+async def aupload_array(
     array: ArrayLike,
     credentials: "ZarrUploadGrant",
     datalayer: "DataLayer",
 ) -> str:
-    """Upload an xarray to the DataLayer asynchronously via obstore."""
-    return await astore_xarray_input(array, credentials, await datalayer.get_endpoint_url(), proxy=datalayer.proxy)
+    """Upload an array to the DataLayer asynchronously via obstore."""
+    return await astore_array_input(array, credentials, await datalayer.get_endpoint_url(), proxy=datalayer.proxy)
 
 
 async def aupload_parquet(
@@ -372,22 +382,23 @@ async def aupload_parquet(
 # ========================================================================
 
 
-def _store_xarray_via_obstore(
-    xarray: ArrayLike,
+def _store_array_via_obstore(
+    array: ArrayLike,
     credentials: "ZarrUploadGrant",
     endpoint_url: str,
     proxy: str | None = None,
 ) -> str:
-    """Stores an xarray in the DataLayer synchronously via obstore/zarr."""
-    from mikro.io.obstore import create_zarr_store_path, write_dataarray_to_zarr
+    """Stores an array in the DataLayer synchronously via obstore/zarr."""
+    from mikro.io.obstore import create_zarr_store_path, write_array_to_zarr
 
+    dims = _named_dims(array)
     store_path = create_zarr_store_path(endpoint_url, credentials, proxy=proxy)
 
     try:
         logger.debug(
             f"Uploading zarr (sync/obstore) to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
         )
-        write_dataarray_to_zarr(store_path, xarray.value, layout=xarray.layout)
+        write_array_to_zarr(store_path, array.data, dims, layout=array.layout)
         logger.info(
             f"Successfully uploaded zarr (sync/obstore) to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}"
         )
@@ -566,13 +577,13 @@ def store_konnektion_collection(
         ) from e
 
 
-def upload_xarray(
+def upload_array(
     array: ArrayLike,
     credentials: "ZarrUploadGrant",
     datalayer: "DataLayer",
 ) -> str:
-    """Upload an xarray synchronously via obstore."""
-    return _store_xarray_via_obstore(array, credentials, datalayer.endpoint_url, proxy=datalayer.proxy)
+    """Upload an array synchronously via obstore."""
+    return _store_array_via_obstore(array, credentials, datalayer.endpoint_url, proxy=datalayer.proxy)
 
 
 def upload_parquet(

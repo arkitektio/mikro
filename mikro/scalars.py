@@ -10,18 +10,19 @@ import io
 from enum import Enum
 import mimetypes
 import uuid
-from collections.abc import Hashable, Mapping
+from collections.abc import Hashable, Mapping, Sequence
 from pathlib import Path
 from typing import IO, TYPE_CHECKING, Any, ClassVar, Literal, Protocol, TypeAlias
 
 import numpy as np
-import xarray as xr
 from numpy.typing import NDArray
 from pydantic import GetCoreSchemaHandler
 from pydantic_core import CoreSchema, core_schema
 
 if TYPE_CHECKING:
+    import dask.array as da
     import pandas as pd
+    import xarray as xr
     import pyarrow as pa
     from fabriks import MeshCollection
     from konnektion import NetworkCollection
@@ -35,7 +36,17 @@ ThreeDVectorCoercible: TypeAlias = list[float] | OneDArray | list[int]
 """ A type alias for 3D vector-like structures that can be coerced into a ThreeDVector."""
 
 
-ArrayCoercible: TypeAlias = xr.DataArray | OneDArray | list[float] | list[list[float]]
+if TYPE_CHECKING:
+    ArrayCoercible: TypeAlias = (
+        "ArrayLike | xr.DataArray | da.Array | NDArray[Any] | list[float] | list[list[float]]"
+    )
+else:
+    # At runtime only a name: the real union names xarray and dask types, and neither is
+    # imported to build it.
+    ArrayCoercible = Any
+""" What an array input accepts: a numpy or dask array, whose dimensions are then named by
+the ``axes`` it is declared with, in order; or anything carrying its own names -- an
+``xarray.DataArray``, read by duck typing, so xarray is never imported here."""
 
 AxisName: TypeAlias = Hashable
 """An axis given by its name alone: any hashable, as xarray types its dims (see :func:`axis_name`)."""
@@ -46,10 +57,9 @@ def axis_name(name: AxisName) -> str:
     if isinstance(name, Enum):
         name = name.value
     return str(name)
-""" A type alias for array-like structures that can be coerced into an xarray DataArray."""
 
 ImageFileCoercible: TypeAlias = str | bytes | Path | io.BufferedReader
-""" A type alias for image file-like structures that can be coerced into an xarray DataArray."""
+""" A type alias for image file-like structures."""
 
 ParquetCoercible: TypeAlias = (
     "Mapping[str, Any] | pd.DataFrame | str | Path | pa.Table | pa.RecordBatchReader | ParquetLike"
@@ -59,7 +69,7 @@ in-memory DataFrame, a path to a parquet file already on disk, or a pyarrow
 ``Table``/``RecordBatchReader``."""
 
 FileCoercible: TypeAlias = str | bytes | Path | io.BufferedReader
-""" A type alias for file-like structures that can be coerced into an xarray DataArray."""
+""" A type alias for file-like structures."""
 
 
 # What a metric may be about, one protocol per structure. Every class turms generates
@@ -110,7 +120,7 @@ MetricTargetCoercible: TypeAlias = AnnotationTarget | ArrayDatasetTarget | Table
 
 
 MicrometersCoercible: TypeAlias = int | float
-""" A type alias for micrometer-like structures that can be coerced into an xarray DataArray."""
+""" A type alias for micrometer-like structures."""
 
 ByteCountCoercible: TypeAlias = int | str
 """ What a ByteCount input accepts: an int, or a numeric string."""
@@ -144,25 +154,43 @@ def is_dask_array(v: Any) -> bool:  # noqa: ANN401
         raise ValueError(f"Error checking for dask array: {e}")
 
 
-def coerce_to_labeled_array(v: ArrayCoercible) -> xr.DataArray:
-    """Coerce array-like input into a labelled ``xr.DataArray`` without forcing ``ctzyx``.
+def _require_xarray() -> Any:  # noqa: ANN401
+    """Import xarray lazily, raising a helpful error if the extra is missing.
 
-    This preserves the caller's dimension labels and order verbatim: no dimensions are added,
-    removed, or transposed. This is the generic dataset path where the user
-    supplies arbitrary, explicitly-labelled dimensions alongside matching
-    ``axes`` (validated at the model level by ``CreateADatasetTrait``).
-
-    Bare numpy/dask arrays carry no labels, so they are wrapped with xarray's
-    default dimension names (``dim_0``, ``dim_1``, ...). The array is returned
-    lazily (dask chunks preserved) so the upload path can stream it to zarr.
+    mikro reads and writes plain numpy/dask arrays; xarray (and the pandas it pulls in)
+    is only needed to hand a dataset back as a labelled ``xarray.DataArray``. Install it
+    via ``mikro[xarray]``.
     """
+    try:
+        import xarray as xr
+    except ImportError as e:  # pragma: no cover - exercised only without the extra
+        raise ImportError(
+            "xarray is required for labelled arrays (`.xarray_data`). "
+            "Install it with `pip install mikro[xarray]`."
+        ) from e
+    return xr
+
+
+def labelled(v: Any) -> tuple[Any, tuple[str, ...] | None]:  # noqa: ANN401
+    """Split an array input into its data (numpy or dask) and its dimension names.
+
+    Anything carrying ``.dims`` and ``.data`` -- an ``xarray.DataArray``, an
+    :class:`ArrayLike` -- brings its own names, read verbatim: nothing is added, removed or
+    transposed, and a dask array stays lazy. A bare numpy or dask array has no names
+    (``None``); the dataset declaration names them from its ``axes``. Lists become numpy.
+    """
+    dims = getattr(v, "dims", None)
+    if dims is not None and hasattr(v, "data"):
+        return v.data, tuple(axis_name(d) for d in dims)
+    if isinstance(v, ArrayLike):
+        return v.data, None
     if isinstance(v, np.ndarray) or is_dask_array(v):
-        return xr.DataArray(v)
-
-    if not isinstance(v, xr.DataArray):
-        raise ValueError("This needs to be a instance of xarray.DataArray")
-
-    return v
+        return v, None
+    if isinstance(v, (list, tuple)):
+        return np.asarray(v), None
+    raise ValueError(
+        f"An array input is a numpy or dask array, or an xarray.DataArray, not a {type(v).__name__}"
+    )
 
 
 class ByteCount(int):
@@ -209,7 +237,7 @@ class Micrometers(float):
 
     @classmethod
     def validate(cls, v: MicrometersCoercible) -> Micrometers:
-        """Validate the input array and convert it to a xr.DataArray."""
+        """Validate the input as a float."""
         return cls(v)
 
 
@@ -231,7 +259,7 @@ class ThreeDVector(list[float]):
 
     @classmethod
     def validate(cls, v: ThreeDVectorCoercible) -> ThreeDVector:
-        """Validate the input array and convert it to a xr.DataArray."""
+        """Validate the input as a list of two or three components."""
         if isinstance(v, np.ndarray):
             assert v.ndim == 1
             v = v.tolist()
@@ -246,19 +274,64 @@ class ThreeDVector(list[float]):
 
 
 class ArrayLike:
-    """A custom scalar for wrapping of every supported array like structure on
-    the mikro platform. This scalar enables validation of various array formats
-    into a mikro api compliant xr.DataArray.."""
+    """A custom scalar for wrapping every supported array-like structure on the mikro
+    platform: the array itself (numpy or dask, kept lazy) and the names of its dimensions.
 
-    def __init__(self, value: xr.DataArray, layout: ChunkLayout | None = None) -> None:
-        """Initialize the ArrayLike scalar with an xarray DataArray.
+    ``dims`` is ``None`` for a bare array until the dataset declaration names it from its
+    ``axes`` (see :class:`mikro.traits.CreateADatasetTrait`).
+    """
+
+    def __init__(
+        self,
+        data: Any,  # noqa: ANN401
+        dims: Sequence[Hashable] | None = None,
+        layout: ChunkLayout | None = None,
+    ) -> None:
+        """Wrap ``data`` (numpy or dask) with its dimension names.
 
         ``layout`` overrides the chunks and shards the array is written with; left unset, the
         dataset declaration it is uploaded for chooses them (see :mod:`mikro.io.chunking`).
+        An array that carries its own names (an ``xarray.DataArray``) keeps them when ``dims``
+        is not given.
         """
-        self.value = value
+        unwrapped, own = labelled(data)
+        if dims is None:
+            dims = own
+        elif own is not None and tuple(axis_name(d) for d in dims) != own:
+            raise ValueError(f"dims={list(dims)} disagrees with the array's own {list(own)}")
+        data = unwrapped
+        self.data = data
+        self.dims: tuple[str, ...] | None = (
+            None if dims is None else tuple(axis_name(d) for d in dims)
+        )
+        if self.dims is not None and len(self.dims) != data.ndim:
+            raise ValueError(
+                f"{len(self.dims)} dimension names {self.dims} for an array of shape {data.shape}"
+            )
         self.layout = layout
         self.key = str(uuid.uuid4())
+
+    @property
+    def shape(self) -> tuple[int, ...]:
+        """The array's shape."""
+        return tuple(self.data.shape)
+
+    @property
+    def dtype(self) -> np.dtype[Any]:
+        """The array's dtype."""
+        return self.data.dtype
+
+    @property
+    def ndim(self) -> int:
+        """The array's rank."""
+        return self.data.ndim
+
+    @property
+    def sizes(self) -> dict[str, int]:
+        """Dimension name -> extent, once the dimensions are named."""
+        if self.dims is None:
+            raise ValueError("This array's dimensions are not named yet")
+        return dict(zip(self.dims, self.shape))
 
     def __get__(self, instance, owner) -> ArrayLike: ...  # noqa: ANN001, D105 #type: ignore
 
@@ -275,14 +348,15 @@ class ArrayLike:
 
     @classmethod
     def validate(cls, v: ArrayCoercible) -> ArrayLike:
-        """Validate the input array, preserving its labelled dimensions as-is."""
+        """Validate the input array, preserving any dimension names it carries as-is."""
         if isinstance(v, cls):
             return v
-        return cls(coerce_to_labeled_array(v))
+        data, dims = labelled(v)
+        return cls(data, dims)
 
     def __repr__(self) -> str:
         """Return a string representation of the ArrayLike scalar."""
-        return f"InputArray({self.value})"
+        return f"ArrayLike(dims={self.dims}, shape={self.shape}, dtype={self.dtype})"
 
 
 class ParquetLike:

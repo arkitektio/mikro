@@ -8,11 +8,11 @@ import threading
 from collections.abc import Callable
 from contextvars import ContextVar
 from io import BytesIO
-from typing import TYPE_CHECKING, Protocol
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any, Protocol
 
 import numpy as np
 import obstore
-import xarray as xr
 import zarr
 from obstore.store import ObjectStore as ObstoreObjectStore
 from obstore.store import S3Store
@@ -199,13 +199,14 @@ def _write_workers(layout: ChunkLayout, itemsize: int) -> int:
     return max(1, min(os.cpu_count() or 1, WRITE_BUFFER_BYTES // (3 * block_bytes)))
 
 
-def write_dataarray_to_zarr(
+def write_array_to_zarr(
     store_path: StorePath,
-    array: xr.DataArray,
+    data: Any,  # noqa: ANN401
+    dims: Sequence[str],
     *,
     layout: ChunkLayout | None = None,
 ) -> None:
-    """Write a DataArray to a zarr v3 array synchronously.
+    """Write a numpy or dask array to a zarr v3 array synchronously, its dimensions named ``dims``.
 
     Without a ``layout`` the array is chunked by the bare-name convention of its dimensions
     (see :func:`mikro.io.chunking.roles_for`); a dataset declaration knows the axis types and
@@ -216,24 +217,27 @@ def write_dataarray_to_zarr(
     Dask-backed arrays are streamed via ``dask.array.store`` so the full array is
     never materialised in memory; numpy arrays are written directly.
     """
-    dims = [str(dim) for dim in array.dims]
-    if layout is None:
-        layout = chunk_layout(array.shape, roles_for(dims), array.dtype.itemsize)
-    elif len(layout.chunks) != array.ndim:
+    dims = [str(dim) for dim in dims]
+    if len(dims) != data.ndim:
         raise ValueError(
-            f"layout chunks {layout.chunks} do not have the array's {array.ndim} dimensions {dims}."
+            f"{len(dims)} dimension names {dims} for an array of shape {tuple(data.shape)}."
+        )
+    if layout is None:
+        layout = chunk_layout(data.shape, roles_for(dims), data.dtype.itemsize)
+    elif len(layout.chunks) != data.ndim:
+        raise ValueError(
+            f"layout chunks {layout.chunks} do not have the array's {data.ndim} dimensions {dims}."
         )
     zarr_array = zarr.create_array(
         store_path,
-        shape=array.shape,
+        shape=data.shape,
         chunks=layout.chunks,
         shards=layout.shards,
-        dtype=array.dtype,
+        dtype=data.dtype,
         dimension_names=dims,
         zarr_format=3,
         overwrite=True,
     )
-    data = array.data
     if is_dask_array(data):
         from dask.array.core import store as dask_store
 
@@ -241,47 +245,33 @@ def write_dataarray_to_zarr(
         # else the chunk — so concurrent, lock-free writes never target the same
         # object from two blocks. A sub-shard write is a read-modify-write of the
         # whole shard, so two blocks in one shard would silently drop inner chunks.
-        data = data.rechunk(layout.shards or layout.chunks)
         dask_store(
-            data,
+            data.rechunk(layout.shards or layout.chunks),
             zarr_array,
             lock=False,
             # The shared pool, capped at the shard budget: dask's own "threads" scheduler
             # would keep a pool per calling thread and per worker count, forever.
-            scheduler=dask_scheduler(_write_workers(layout, array.dtype.itemsize)),
+            scheduler=dask_scheduler(_write_workers(layout, data.dtype.itemsize)),
         )
     else:
         zarr_array[...] = np.asarray(data)
 
 
-async def awrite_dataarray_to_zarr(
+async def awrite_array_to_zarr(
     store_path: StorePath,
-    array: xr.DataArray,
+    data: Any,  # noqa: ANN401
+    dims: Sequence[str],
     *,
     layout: ChunkLayout | None = None,
 ) -> None:
-    """Write a DataArray to a zarr v3 array without blocking the event loop.
+    """Write a numpy or dask array to a zarr v3 array without blocking the event loop.
 
     Delegates to the synchronous streaming writer in a worker thread so that
     dask-backed arrays are streamed to zarr chunk-by-chunk (via ``dask.array.store``)
     and are never fully materialised in memory. ``dask.array.store`` runs the dask
     scheduler synchronously, so it must not be awaited directly on the event loop.
     """
-    await asyncio.to_thread(write_dataarray_to_zarr, store_path, array, layout=layout)
-
-
-async def awrite_xarray_to_obstore(
-    da: xr.DataArray,
-    grant: "S3UploadGrantLike",
-    datalayer: "DataLayer",
-) -> None:
-    """
-    Asynchronously write an xarray dataset to S3 via obstore and Zarr.
-    """
-    store_path = create_zarr_store_path(
-        await datalayer.get_endpoint_url(), grant, proxy=datalayer.proxy
-    )
-    await awrite_dataarray_to_zarr(store_path, da)
+    await asyncio.to_thread(write_array_to_zarr, store_path, data, dims, layout=layout)
 
 
 def get_bytes(store: ObstoreObjectStore, path: str) -> bytes:

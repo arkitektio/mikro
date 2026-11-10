@@ -35,7 +35,6 @@ from typing import (
 )
 
 import numpy as np
-import xarray as xr
 from dask.array.core import from_zarr  # type: ignore
 from numpy.typing import NDArray
 from pydantic import BaseModel, model_validator
@@ -46,8 +45,9 @@ from rath.turms.utils import get_attributes_or_error
 from zarr.storage import StorePath
 
 from .client import client_of
-from .scalars import ArrayCoercible
+from .scalars import ArrayCoercible, _require_xarray, labelled
 from mikro.checks.arrays import check_dims_match_axes
+from mikro.checks.arrays import name_bare_dims
 from mikro.checks.arrays import check_layouts_agree
 from mikro.io.chunking import lay_out_pyramid
 from mikro.io.scheduling import compute_numpy
@@ -92,7 +92,9 @@ ValueRelationName = Literal["IDENTICAL", "TRANSFORMED", "CATEGORIZED"]
 if TYPE_CHECKING:
     from datetime import datetime
 
+    import dask.array as da
     import duckdb
+    import xarray as xr
 
     from mikro.api.schema import (
         Annotation,
@@ -545,11 +547,10 @@ class DataArrayTrait:
     """A trait for dataset-like objects that can be downloaded"""
 
     @property
-    def data(self) -> xr.DataArray:
-        """The data of this dataset as an xarray.DataArray"""
+    def data(self) -> "da.Array":
+        """This pyramid level's array, lazily, as a dask array."""
         store: HasZarrStoreAccessor = get_attributes_or_error(self, "store")
-        array = from_zarr(store.zarr_store)
-        return xr.DataArray(array)
+        return from_zarr(store.zarr_store)
 
 
 def _as_calibration(axis: str, value: Any) -> Calibration:
@@ -626,34 +627,38 @@ class DatasetTrait(HasNamedAxes):
             )
         return intrinsic.stage(name=name, policy=policy, mikro=mikro)
 
-    def level_data(self, level: int = 0) -> xr.DataArray:
-        """One pyramid level of this dataset, with its axes named.
+    def level_data(self, level: int = 0) -> "da.Array":
+        """One pyramid level of this dataset, lazily, as a dask array in ``axis_names`` order.
 
         Level 0 is the full-resolution array; higher levels are coarser.
         """
         arrays = get_attributes_or_error(self, "data_arrays")
-        dims = get_attributes_or_error(self, "axis_names")
         for array in arrays:
             if array.level == level:
-                return xr.DataArray(from_zarr(array.store.zarr_store), dims=list(dims))
+                return from_zarr(array.store.zarr_store)
         raise ValueError(
             f"This dataset has no pyramid level {level}. Available levels: "
             f"{sorted(a.level for a in arrays)}"
         )
 
-    def multi_scale_data(self) -> list[xr.DataArray]:
-        """Every pyramid level of this dataset, finest first."""
+    def multi_scale_data(self) -> "list[da.Array]":
+        """Every pyramid level of this dataset as dask arrays, finest first."""
         arrays = get_attributes_or_error(self, "data_arrays")
-        dims = get_attributes_or_error(self, "axis_names")
-        return [
-            xr.DataArray(from_zarr(array.store.zarr_store), dims=list(dims))
-            for array in sorted(arrays, key=lambda a: a.level)
-        ]
+        return [from_zarr(array.store.zarr_store) for array in sorted(arrays, key=lambda a: a.level)]
 
     @property
-    def data(self) -> xr.DataArray:
-        """This dataset's full-resolution array, with its axes named."""
+    def data(self) -> "da.Array":
+        """This dataset's full-resolution array, lazily, as a dask array in ``axis_names`` order."""
         return self.level_data(0)
+
+    @property
+    def xarray_data(self) -> "xr.DataArray":
+        """This dataset's full-resolution array as an ``xarray.DataArray`` with its axes named.
+
+        Needs the ``mikro[xarray]`` extra.
+        """
+        xr = _require_xarray()
+        return xr.DataArray(self.data, dims=list(get_attributes_or_error(self, "axis_names")))
 
     def calibrate(
         self,
@@ -1038,7 +1043,9 @@ class CreateADatasetTrait:
     """Validation trait for the generic ``create_array_dataset`` input.
 
     Unlike the classic image path, the dataset path lets the user supply an
-    arbitrarily-labelled array. This trait enforces that the labels are coherent
+    arbitrarily-labelled array. A bare numpy or dask array is named by ``axes``, in
+    order; an array that carries its own names (an ``xarray.DataArray``) is held to
+    them. This trait enforces that the labels are coherent
     at the model level: every dimension of the ``data`` array must have exactly
     one matching ``axis`` (by name), and every scale's array must share that same
     set of dimensions. Once they do, each level is given the chunk layout its axes
@@ -1053,11 +1060,12 @@ class CreateADatasetTrait:
         if data is None or axes is None:
             return self
         scales = getattr(self, "scales", None)
-        check_dims_match_axes(data, axes, scales)
-
         # The declaration is the one place that sees the axis types and every level at once,
         # which is what a layout has to be chosen from: see `mikro.io.chunking`.
         levels = [data, *(scale.array for scale in sorted(scales or (), key=lambda s: s.level))]
+        name_bare_dims(levels, axes)
+        check_dims_match_axes(data, axes, scales)
+
         axis_types = {axis.name: str(getattr(axis.type, "value", axis.type)) for axis in axes}
         lay_out_pyramid(levels, axis_types)
         check_layouts_agree(levels, axis_types)
@@ -1426,12 +1434,13 @@ class CoordinateAnchorInputTrait(BaseModel):
         is one contrast window per channel, where each anchor is keyed by the
         channel it describes and the array handed in is that channel's slice::
 
-            [CoordinateAnchorInput.histogram_anchor(arr.isel(c=i), at={"c": i})
-             for i in range(arr.sizes["c"])]
+            [CoordinateAnchorInput.histogram_anchor(arr[i], at={"c": i})
+             for i in range(arr.shape[0])]
 
         Args:
-            array: The array to summarise. An ``xr.DataArray`` brings its own
-                dims; anything else needs ``dims`` spelled out.
+            array: The array to summarise. One carrying its own dimension names
+                (an ``xarray.DataArray``, a pyramid level) brings them; a bare
+                numpy or dask array needs ``dims`` spelled out.
             dims: The axis names to pin at 0, in array order. Ignored when ``at``
                 is given.
             bins: The number of histogram bins.
@@ -1454,7 +1463,7 @@ class CoordinateAnchorInputTrait(BaseModel):
                 if dims is None:
                     raise ValueError(
                         "dims= is required when the array does not carry its own "
-                        "dimension names (pass an xr.DataArray, or spell them out)"
+                        "dimension names (pass dims=, or an xarray.DataArray)"
                     )
             anchors = [AxisAnchorInput(axis=str(d), value=0) for d in dims]
 
@@ -1466,11 +1475,10 @@ class CoordinateAnchorInputTrait(BaseModel):
     @classmethod
     def histogram_anchors(
         cls,
-        # Narrower than its siblings on purpose: this one splits along a *named*
-        # axis, so it needs an array that carries its own dimension names.
-        array: xr.DataArray,
+        array: ArrayCoercible,
         axis: str = "c",
         bins: int = 256,
+        dims: Sequence[str] | None = None,
     ) -> list[CoordinateAnchorInput]:
         """One histogram anchor per position along ``axis`` — the whole
         ``anchors=`` argument in one call.
@@ -1488,21 +1496,30 @@ class CoordinateAnchorInputTrait(BaseModel):
             anchors=CoordinateAnchorInput.histogram_anchors(arr)
 
         Args:
-            array: An ``xr.DataArray`` to summarise.
+            array: The array to summarise. One that carries its own dimension names
+                (an ``xarray.DataArray``, a pyramid level) brings them; a bare numpy
+                or dask array needs ``dims``.
             axis: The axis to produce one anchor per position of.
             bins: The number of histogram bins.
+            dims: The axis names, in array order, for an array without its own.
         """
-        dims = getattr(array, "dims", None)
-        if dims is None:
+        data, own = labelled(array)
+        names = list(own if own is not None else dims or ())
+        if not names:
             raise ValueError(
-                "histogram_anchors needs an array carrying its own dimension "
-                "names (pass an xr.DataArray)"
+                "histogram_anchors needs the array's dimension names: pass dims=, "
+                "or an array that carries them"
             )
-        if axis not in dims:
-            return [cls.histogram_anchor(array, bins=bins)]
+        if len(names) != data.ndim:
+            raise ValueError(f"{len(names)} dimension names {names} for an array of shape {data.shape}")
+        if axis not in names:
+            return [cls.histogram_anchor(data, dims=names, bins=bins)]
+        position = names.index(axis)
         return [
-            cls.histogram_anchor(array.isel({axis: index}), bins=bins, at={axis: index})
-            for index in range(array.sizes[axis])
+            cls.histogram_anchor(
+                data[(slice(None),) * position + (index,)], bins=bins, at={axis: index}
+            )
+            for index in range(data.shape[position])
         ]
 
 
@@ -1519,41 +1536,38 @@ class Lensable(HasNamedAxes):
         return getattr(self, "coordinate_system", None)
 
     @property
-    def data(self) -> xr.DataArray:
-        """Download the file from the store
+    def data(self) -> "da.Array":
+        """The dataset's array cut to this lens' slices, lazily, as a dask array.
 
-        Args:
-            file_name (str | None): The name of the file to save the downloaded file as
-                If None, the key from the store will be used as the file name.
-        Returns:
-            str: The path to the downloaded file
+        Its dimensions are the dataset's, in ``dataset.axis_names`` order; a slice narrows
+        an axis but never drops it.
         """
         from mikro.api.schema import Slice
 
         store: DatasetTrait = get_attributes_or_error(self, "dataset")
         slices: list[Slice] = get_attributes_or_error(self, "slices")
+        dims = list(get_attributes_or_error(store, "axis_names"))
 
-        data = store.data
-
+        cut: list[slice] = [slice(None)] * len(dims)
         for lens_slice in slices:
-            if lens_slice.axis not in data.dims:
+            if lens_slice.axis not in dims:
                 raise ValueError(
-                    f"Invalid slice dimension {lens_slice.axis} for data with dimensions {data.dims}"
+                    f"Invalid slice dimension {lens_slice.axis} for data with dimensions {dims}"
                 )
-            if lens_slice.start is None and lens_slice.stop is None:
-                continue
+            cut[dims.index(lens_slice.axis)] = slice(
+                lens_slice.start, lens_slice.stop, lens_slice.step
+            )
+        return store.data[tuple(cut)]
 
-            data = data.isel(
-                {
-                    lens_slice.axis: slice(
-                        lens_slice.start,
-                        lens_slice.stop,
-                        lens_slice.step,
-                    )
-                }
-            )  # type: ignore
+    @property
+    def xarray_data(self) -> "xr.DataArray":
+        """:attr:`data` as an ``xarray.DataArray`` with the dataset's axes named.
 
-        return data
+        Needs the ``mikro[xarray]`` extra.
+        """
+        xr = _require_xarray()
+        store: DatasetTrait = get_attributes_or_error(self, "dataset")
+        return xr.DataArray(self.data, dims=list(get_attributes_or_error(store, "axis_names")))
 
     def draw(
         self,

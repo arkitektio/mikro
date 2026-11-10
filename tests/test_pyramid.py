@@ -260,7 +260,7 @@ def test_scales_from_carries_the_level_arrays() -> None:
     """The array on each scale is the level it was built from, unchanged."""
     pyramid = build_pyramid(_volume(), levels=3, method="mean")
     scales = scales_from(pyramid, "mean")
-    assert [scale.array.value.shape for scale in scales] == [
+    assert [scale.array.shape for scale in scales] == [
         level.shape for level in pyramid[1:]
     ]
 
@@ -313,3 +313,55 @@ class TestAxesFor:
         axes = axes_for(self._data(["z"]), long_names={"z": "depth"})
         assert axes[0].long_name == "depth"
         assert axes_for(self._data(["z"]))[0].long_name == "z"
+
+
+@pytest.mark.parametrize("method", ["max", "mean", "nearest"])
+def test_numpy_and_dask_pyramids_match_what_xarray_built(method: str) -> None:
+    """The pyramid no longer goes through xarray, and builds the very levels xarray did.
+
+    Odd extents (37, 7) trim; dask chunks of 5 do not divide by 2, which is where a
+    block-wise coarsen could drift from a whole-array one.
+    """
+    import dask.array as da
+
+    source = np.random.default_rng(0).integers(0, 4000, (2, 37, 7)).astype("uint16")
+    reference = [xr.DataArray(source, dims=("c", "y", "x"))]
+    for _ in range(3):
+        current = reference[-1]
+        halvable = [d for d in ("y", "x") if current.sizes[d] >= 2]
+        if method == "nearest":
+            nxt = current.isel({d: slice(None, None, 2) for d in halvable})
+        else:
+            nxt = getattr(current.coarsen({d: 2 for d in halvable}, boundary="trim"), method)()
+        reference.append(nxt.astype(source.dtype))
+
+    eager = build_pyramid(source, levels=4, method=method, dims=["c", "y", "x"])
+    lazy = build_pyramid(
+        da.from_array(source, chunks=(1, 5, 5)), levels=4, method=method,
+        dims=["c", "y", "x"], materialize=False,
+    )
+    for want, got_numpy, got_dask in zip(reference, eager, lazy, strict=True):
+        assert got_numpy.dims == got_dask.dims == ("c", "y", "x")
+        assert np.array_equal(np.asarray(got_numpy.data), want.to_numpy())
+        assert np.array_equal(got_dask.data.compute(), want.to_numpy())
+
+
+def test_core_mikro_needs_neither_xarray_nor_pandas() -> None:
+    """A bare install uploads and builds pyramids with xarray unimportable, and never loads pandas."""
+    import subprocess
+    import sys
+
+    script = """
+import sys
+sys.modules["xarray"] = None
+import numpy as np
+import mikro, mikro.api.schema, mikro.middleware.upload
+from mikro.pyramid import dataset_arrays
+from mikro.api.schema import CreateArrayDatasetInput
+
+data, scales = dataset_arrays(np.zeros((2, 64, 64), "uint16"), levels=3, dims=["c", "y", "x"])
+CreateArrayDatasetInput(name="n", data=data, scales=scales, axes=["c", "y", "x"])
+assert "pandas" not in sys.modules, "pandas was imported"
+"""
+    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr

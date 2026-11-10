@@ -10,7 +10,8 @@ imaging data. mikro-server is a GraphQL server that keeps the metadata of your d
 folders, coordinate systems, scenes, and the relations between them), while the pixels live in
 object storage as [Zarr](https://zarr.dev/) (and tables as Parquet). This client gives you both as
 one: typed, validated Python objects built on [rath](https://github.com/jhnnsrs/rath) and pydantic,
-whose `.data` is a lazy [xarray](https://docs.xarray.dev/) backed by dask. When you pass an array to a
+whose `.data` is a lazy [dask](https://docs.dask.org/) array (`.xarray_data` gives an
+[xarray](https://docs.xarray.dev/) with the axes named). When you pass an array to a
 mutation, mikro uploads it before the call runs, and when you read one back it downloads only the
 chunks you touch.
 
@@ -24,6 +25,7 @@ mikro requires **Python 3.11+**. Extras bring in the heavier wire formats only w
 
 | Extra | Brings in |
 | --- | --- |
+| `xarray` | xarray (and with it pandas), for `.xarray_data`: datasets and lenses as labelled arrays |
 | `table` | pyarrow, pandas and duckdb, for querying Parquet-backed tables |
 | `mesh` | `fabriks`, for uploading meshes |
 | `network` | `konnektion`, for uploading graphs |
@@ -60,7 +62,7 @@ def clip(volume: Volume, mikro: Mikro, task: Task) -> Volume:
 
     Clips negative values and stores the result on the same grid.
     """
-    source = volume.data  # a lazy xarray.DataArray
+    source = volume.data  # a lazy dask array, axes in volume.axis_names order
     task.progress(30, f"Processing {source.shape}")
     clipped = source.clip(min=0).compute()
 
@@ -68,7 +70,7 @@ def clip(volume: Volume, mikro: Mikro, task: Task) -> Volume:
         data=clipped,
         scales=[],
         name="clipped",
-        axes=volume.carried_axes(clipped.dims),
+        axes=volume.carried_axes(volume.axis_names),
         derived_from=[volume.derive_identity(value_relation="TRANSFORMED")],
     )
     return result.lens()
@@ -88,18 +90,18 @@ between actions by id (`@mikro/arraydataset`, `@mikro/arraylens` for an array le
 
 ```python
 import numpy as np
-import xarray as xr
 
 from arkitekt import easy
 from mikro import dataset_arrays, mikro_service
 
-volume = xr.DataArray(np.random.random((2, 10, 256, 256)), dims=("c", "z", "y", "x"))
+volume = np.random.random((2, 10, 256, 256))
 
 with easy("my-script", mikro_service) as mikro:
     folder = mikro.create_folder(name="examples")
 
-    # `data` is level 0; `scales` holds only the coarser levels
-    level_zero, scales = dataset_arrays(volume, levels=3)
+    # `data` is level 0; `scales` holds only the coarser levels. A bare numpy or dask
+    # array names its dimensions with `dims=`; an xarray.DataArray brings its own.
+    level_zero, scales = dataset_arrays(volume, levels=3, dims=["c", "z", "y", "x"])
 
     dataset = mikro.create_array_dataset(
         data=level_zero,
@@ -128,7 +130,6 @@ labelled axes, contrast limits to draw it with, and a place in physical space.
 
 ```python
 import numpy as np
-import xarray as xr
 
 from mikro import Unit, canonical, dataset_arrays, space_2d
 from mikro.api.schema import CoordinateAnchorInput, ScenePolicyInput
@@ -136,7 +137,7 @@ from mikro.api.schema import CoordinateAnchorInput, ScenePolicyInput
 
 def upload(mikro, frame: np.ndarray, name: str, space, x_um: float, y_um: float, pixel_um: float):
     # 1. Name the axes. `canonical` puts them in the order the server wants (c, y, x).
-    image = canonical(xr.DataArray(frame, dims=("y", "x", "c")[: frame.ndim]))
+    image = canonical(frame, dims=("y", "x", "c")[: frame.ndim])
 
     # 2. A pyramid, so a large frame opens at once, and one contrast anchor per channel.
     levels = max(1, min(4, int(np.log2(max(frame.shape[:2]) / 512)) + 1))
@@ -175,11 +176,12 @@ An action that returns the image returns a lens, not the dataset: `return datase
 ### Working with data
 
 ```python
-data = dataset.data               # level 0, a lazy dask-backed xarray.DataArray
+data = dataset.data               # level 0, a lazy dask array in dataset.axis_names order
+named = dataset.xarray_data       # the same, as an xarray.DataArray (needs mikro[xarray])
 coarse = dataset.level_data(2)    # a coarser pyramid level
 levels = dataset.multi_scale_data()
 window = dataset.lens(z=(0, 5))   # an ArrayLens: an immutable selection over the dataset
-window.data
+window.data                       # cut to the lens' slices; window.xarray_data with names
 whole = dataset.lens()            # the dataset's whole lens: read, never made
 ```
 

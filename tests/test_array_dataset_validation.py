@@ -40,7 +40,7 @@ def test_matching_axes_validate() -> None:
         name="ds",
         axes=_axes(["z", "y", "x", "c"]),
     )
-    assert model.data.value.dims == ("z", "y", "x", "c")
+    assert model.data.dims == ("z", "y", "x", "c")
 
 
 def test_axis_order_is_irrelevant() -> None:
@@ -100,7 +100,7 @@ def test_the_labels_of_the_data_array_survive() -> None:
             AxisInput(name="x", type=AxisType.SPACE),
         ],
     )
-    assert model.data.value.dims == ("t", "m", "y", "x")
+    assert model.data.dims == ("t", "m", "y", "x")
     assert [axis.type for axis in model.axes] == ["TIME", "MICROTIME", "SPACE", "SPACE"]
 
 

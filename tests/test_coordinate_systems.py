@@ -165,7 +165,7 @@ def derived_dataset(mikro: Mikro, registered_dataset: Placed) -> tuple[ArrayData
     intensities and start being labels, which is what CATEGORIZED says.
     """
     lens = registered_dataset.dataset.lens()
-    volume = lens.data.isel(c=0).compute().to_numpy()
+    volume = lens.xarray_data.isel(c=0).compute().to_numpy()
     segmented = (volume > np.median(volume)).astype(np.uint16)
 
     data = canonical(xr.DataArray(segmented, dims=["z", "y", "x"]).expand_dims("c"))
@@ -418,7 +418,7 @@ def test_lens_reads_back_the_volume(registered_dataset: Placed) -> None:
     assert tuple(lens.axis_names) == _DIMS
     assert tuple(lens.shape) == registered_dataset.data.shape
 
-    read_back = lens.data.isel(c=0).compute()
+    read_back = lens.xarray_data.isel(c=0).compute()
     expected = registered_dataset.data.isel(c=0)
     assert read_back.shape == expected.shape
     assert read_back.dtype == expected.dtype
@@ -465,7 +465,7 @@ def test_a_selection_is_one_lens_however_often_it_is_asked_for(mikro: Mikro, reg
     assert [(s.axis, s.start, s.stop, s.step) for s in crop.slices] == [("z", 0, 2, 1), ("x", 0, 8, 1)]
     assert tuple(crop.shape) == (1, 2, registered_dataset.data.shape[2], 8)
     assert np.array_equal(
-        crop.data.compute().to_numpy(),
+        crop.xarray_data.compute().to_numpy(),
         registered_dataset.data.isel(z=slice(0, 2), x=slice(0, 8)).to_numpy(),
     )
 

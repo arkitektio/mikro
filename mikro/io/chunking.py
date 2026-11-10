@@ -14,9 +14,7 @@ measured. Used by :mod:`mikro.io.obstore` on the way out.
 import math
 from collections.abc import Mapping, Sequence
 from enum import Enum
-from typing import Protocol, Self
-
-import xarray as xr
+from typing import Any, Protocol, Self
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
@@ -251,7 +249,8 @@ def chunk_layout(
 class LaidOutArray(Protocol):
     """An array on its way to a store, and the layout it will be written with."""
 
-    value: xr.DataArray
+    data: Any
+    dims: tuple[str, ...] | None
     layout: ChunkLayout | None
 
 
@@ -267,16 +266,18 @@ def lay_out_pyramid(
         axis_types: Axis type name by dimension name, see :func:`roles_for`.
     """
     def dims_of(level: LaidOutArray) -> list[str]:
-        return [str(dim) for dim in level.value.dims]
+        if level.dims is None:
+            raise ValueError("A level's dimensions must be named before it is laid out")
+        return list(level.dims)
 
-    base = levels[0].value
+    base = levels[0].data
     volumetric = is_volumetric(base.shape, roles_for(dims_of(levels[0]), axis_types))
     for level in levels:
         if level.layout is None:
             # Each level by its own dtype: a mean pyramid is wider than the integers under it.
             level.layout = chunk_layout(
-                level.value.shape,
+                level.data.shape,
                 roles_for(dims_of(level), axis_types),
-                level.value.dtype.itemsize,
+                level.data.dtype.itemsize,
                 volumetric=volumetric,
             )

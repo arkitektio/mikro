@@ -170,7 +170,7 @@ COMPOSABLE_KINDS: Final[frozenset[ResolvedTransformKind]] = MATRIX_KINDS | froze
 
 # --- Pyramids ---------------------------------------------------------------
 
-#: How a pyramid level reduces the level above it, named as xarray names it.
+#: How a pyramid level reduces the level above it, named as numpy names it.
 #: `pyramid._REDUCTIONS` maps these onto the server's `ScaleMethod`.
 Reduction = Literal["max", "mean", "sum", "min", "nearest"]
 
