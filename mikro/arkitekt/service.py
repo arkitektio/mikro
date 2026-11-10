@@ -67,7 +67,7 @@ from mikro.api.schema import (
     TransformationBase,
 )
 
-from mikro.arkitekt.specs import annotation_descriptors, lens_descriptors, metric_descriptors
+from mikro.arkitekt.specs import annotation_descriptors, file_descriptors, lens_descriptors, metric_descriptors
 from mikro.datalayer import DataLayer
 from mikro.middleware.upload import UploadMiddleware
 from mikro.mikro import Mikro
@@ -297,7 +297,7 @@ async def expand_folder(id: str, mikro: Mikro) -> Folder:
     return await mikro.aget_folder(id)
 
 
-@registry.structure("@mikro/file", widget=_search(SearchFilesQuery))
+@registry.structure("@mikro/file", widget=_search(SearchFilesQuery), describe=file_descriptors)
 async def expand_file(id: str, mikro: Mikro) -> File:
     """A file, by id."""
     return await mikro.aget_file(id)

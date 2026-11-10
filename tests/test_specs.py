@@ -151,3 +151,20 @@ class TestDtype:
         integers = [RequiresInput(key=DTYPE, operator="IN", value=["uint8", "uint16"])]
         assert unfulfilled(integers, lens_descriptors(VOLUME)) == unfulfilled(integers, lens_descriptors(self._with_arrays(SimpleNamespace(dtype="uint16")))) == ()
         assert unfulfilled(integers, lens_descriptors(self._with_arrays(SimpleNamespace(dtype="float32"))))
+
+
+def test_a_file_is_described_by_the_extension_the_server_stores() -> None:
+    """The client's extension rule is the server's: a drift lets the picker offer a file the port then refuses."""
+    from mikro.arkitekt.specs import EXTENSION, file_descriptors, file_extension
+
+    assert [file_extension(name) for name in ("Cells.OME.TIF", "brain.nii.gz", "x.ND2", "noext", ".hidden", "a/b.c/scan.lif")] == [
+        "ome.tif",
+        "nii.gz",
+        "nd2",
+        "",
+        "",
+        "lif",
+    ]
+    constraint = RequiresInput(key=EXTENSION, operator="IN", value=["tif", "tiff", "ome.tif"])
+    assert unfulfilled([constraint], file_descriptors(SimpleNamespace(name="Cells.OME.TIF"))) == ()
+    assert unfulfilled([constraint], file_descriptors(SimpleNamespace(name="scan.nd2")))

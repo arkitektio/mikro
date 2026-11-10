@@ -46,7 +46,7 @@ import numpy
 from arkitekt_spec.actions import DescriptorOperator
 from arkitekt_spec.declare.annotations import Provides, Requires
 
-from mikro.api.schema import Annotation, ArrayLens, Metric
+from mikro.api.schema import Annotation, ArrayLens, File, Metric
 from mikro.traits import AxisSource, axis_table
 
 # --- The descriptor keys --------------------------------------------------------
@@ -88,6 +88,8 @@ TARGET_IDENTIFIER = "@mikro/target_identifier"
 """The structure of the object a metric is about: ``@mikro/annotation``, ``@mikro/arraydataset``, ..."""
 TARGET_OBJECT = "@mikro/target_object"
 """The id of the object a metric is about."""
+EXTENSION = "@mikro/extension"
+"""A file's extension, lowercased and without the dot: ``nd2``, ``ome.tif``; empty for none. What an importer is picked by."""
 
 
 def lens_descriptors(lens: AxisSource) -> dict[str, Any]:
@@ -185,6 +187,40 @@ def metric_descriptors(metric: Metric) -> dict[str, Any]:
         TARGET_IDENTIFIER: metric.target.identifier,
         TARGET_OBJECT: str(metric.target.object),
     }
+
+#: Extensions of two parts, which name a format the last part alone does not. The server's list, verbatim.
+DOUBLE_EXTENSIONS = ("ome.tif", "ome.tiff", "ome.zarr", "ome.btf", "tar.gz", "nii.gz")
+
+
+def file_extension(name: str) -> str:
+    """A file name's extension, lowercased and without the dot: ``ome.tif`` for ``Cells.OME.TIF``, empty for none.
+
+    The server's rule, verbatim: a port's ``requires`` on :data:`EXTENSION` is tested
+    against this, and the file picker filters by the server's copy.
+    """
+    base = name.rsplit("/", 1)[-1].lower()
+    for double in DOUBLE_EXTENSIONS:
+        if base.endswith(f".{double}"):
+            return double
+    stem, dot, extension = base.rpartition(".")
+    return extension if dot and stem else ""
+
+
+def file_descriptors(file: File) -> dict[str, Any]:
+    """The descriptors of one file: its extension.
+
+    The server also declares ``@mikro/content_type`` and ``@mikro/size_bytes`` for
+    ``@mikro/file``; the File fragment does not fetch them, so a constraint on
+    them is not tested here (the picker still filters by them).
+
+    Args:
+        file: The file to describe.
+
+    Returns:
+        Its descriptors, by key.
+    """
+    return {EXTENSION: file_extension(file.name)}
+
 
 # --- By spatial rank: exactly one of these holds for any lens -------------------
 
@@ -361,6 +397,8 @@ shadow ``pathlib.Path`` in the app that imports it."""
 
 __all__ = [
     "ANNOTATION_KIND",
+    "DOUBLE_EXTENSIONS",
+    "EXTENSION",
     "N_CHANNELS",
     "N_CHANNEL_AXES",
     "N_MICROTIME_AXES",
@@ -390,5 +428,7 @@ __all__ = [
     "Timeseries",
     "Volume",
     "annotation_descriptors",
+    "file_descriptors",
+    "file_extension",
     "lens_descriptors",
 ]

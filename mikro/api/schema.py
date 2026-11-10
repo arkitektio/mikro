@@ -9909,7 +9909,8 @@ class SearchFilesQueryOptions(FileTrait, BaseModel):
     model_config = ConfigDict(frozen=True)
 
 class SearchFilesQuery(BaseModel):
-    """No documentation found for this operation."""
+    """ What a port's picker asks: `$requires` is the port's own constraints, handed on
+ unchanged (an importer's `@mikro/extension IN [...]`)."""
     options: tuple[SearchFilesQueryOptions, ...]
     'List files (raw microscopy files such as .czi or .ome.tiff)'
 
@@ -9917,12 +9918,13 @@ class SearchFilesQuery(BaseModel):
         """Arguments for SearchFiles """
         search: str | None = Field(default=None)
         values: list[ID] | None = Field(default=None)
+        requires: list[DescriptorConstraintInput] | None = Field(default=None)
         limit: int | None = Field(default=None)
         offset: Annotated[int | None, GraphQLDefault('0')] = Field(default=None)
 
     class Meta:
         """Meta class for SearchFiles """
-        document = 'query SearchFiles($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: files(\n    filters: { search: $search, ids: $values }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
+        document = 'query SearchFiles($search: String, $values: [ID!], $requires: [DescriptorConstraintInput!], $limit: Int, $offset: Int = 0) {\n  options: files(\n    filters: { search: $search, ids: $values, requires: $requires }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
 
 class GetFixtureQuery(BaseModel):
     """No documentation found for this operation."""
@@ -20600,14 +20602,15 @@ Returns:
         variables['id'] = id
         return self.execute(GetFileQuery, variables, task=task).file
 
-    async def asearch_files(self, search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[SearchFilesQueryOptions, ...]:
+    async def asearch_files(self, search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, requires: list[DescriptorConstraintInput] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[SearchFilesQueryOptions, ...]:
         """SearchFiles 
-
-List files (raw microscopy files such as .czi or .ome.tiff)
+ What a port's picker asks: `$requires` is the port's own constraints, handed on
+ unchanged (an importer's `@mikro/extension IN [...]`).
 
 Args:
     search (str | None, optional): No description. 
     values (list[ID] | None, optional): No description. 
+    requires (list[DescriptorConstraintInput] | None, optional): No description. 
     limit (int | None, optional): No description. 
     offset (int | None, optional): No description. Defaults to 0
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
@@ -20620,20 +20623,23 @@ Returns:
             variables['search'] = search
         if values is not UNSET:
             variables['values'] = values
+        if requires is not UNSET:
+            variables['requires'] = requires
         if limit is not UNSET:
             variables['limit'] = limit
         if offset is not UNSET:
             variables['offset'] = offset
         return (await self.aexecute(SearchFilesQuery, variables, task=task)).options
 
-    def search_files(self, search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[SearchFilesQueryOptions, ...]:
+    def search_files(self, search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, requires: list[DescriptorConstraintInput] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[SearchFilesQueryOptions, ...]:
         """SearchFiles 
-
-List files (raw microscopy files such as .czi or .ome.tiff)
+ What a port's picker asks: `$requires` is the port's own constraints, handed on
+ unchanged (an importer's `@mikro/extension IN [...]`).
 
 Args:
     search (str | None, optional): No description. 
     values (list[ID] | None, optional): No description. 
+    requires (list[DescriptorConstraintInput] | None, optional): No description. 
     limit (int | None, optional): No description. 
     offset (int | None, optional): No description. Defaults to 0
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
@@ -20646,6 +20652,8 @@ Returns:
             variables['search'] = search
         if values is not UNSET:
             variables['values'] = values
+        if requires is not UNSET:
+            variables['requires'] = requires
         if limit is not UNSET:
             variables['limit'] = limit
         if offset is not UNSET:

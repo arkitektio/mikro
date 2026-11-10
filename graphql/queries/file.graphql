@@ -4,14 +4,17 @@ query GetFile($id: ID!) {
   }
 }
 
+# What a port's picker asks: `$requires` is the port's own constraints, handed on
+# unchanged (an importer's `@mikro/extension IN [...]`).
 query SearchFiles(
   $search: String
   $values: [ID!]
+  $requires: [DescriptorConstraintInput!]
   $limit: Int
   $offset: Int = 0
 ) {
   options: files(
-    filters: { search: $search, ids: $values }
+    filters: { search: $search, ids: $values, requires: $requires }
     pagination: { limit: $limit, offset: $offset }
   ) {
     value: id
