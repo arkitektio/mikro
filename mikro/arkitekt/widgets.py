@@ -40,7 +40,9 @@ query %(operation)s(
     pagination: { limit: $limit, offset: $offset }
   ) {
     value: id
-    label
+    label: title
+    description: detail
+    group: origin
   }
 }
 """

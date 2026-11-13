@@ -60,7 +60,9 @@ query GetLenses($filters: LensFilter, $pagination: OffsetPaginationInput) {
 # `$requires` is the port's own constraints, handed on unchanged by the frontend: the
 # server keeps only the lenses satisfying them, so a `Volume` port is offered volumes. `$fits` is
 # what the agents that could take the form can handle, handed on the same way.
-# `label` is never empty (a lens nobody named is called by its container and selection).
+# A row is the lens' `title` (what a layer over it is called, never empty), under its `origin` (its
+# container, which a picker says once as a heading: `group`), beside its `detail` (what it selects
+# that the name does not say).
 query SearchArrayLenses(
   $search: String
   $values: [ID!]
@@ -74,7 +76,9 @@ query SearchArrayLenses(
     pagination: { limit: $limit, offset: $offset }
   ) {
     value: id
-    label
+    label: title
+    description: detail
+    group: origin
   }
 }
 
@@ -90,7 +94,9 @@ query SearchTableLenses(
     pagination: { limit: $limit, offset: $offset }
   ) {
     value: id
-    label
+    label: title
+    description: detail
+    group: origin
   }
 }
 
@@ -106,7 +112,9 @@ query SearchSparseLenses(
     pagination: { limit: $limit, offset: $offset }
   ) {
     value: id
-    label
+    label: title
+    description: detail
+    group: origin
   }
 }
 
@@ -122,7 +130,9 @@ query SearchMeshLenses(
     pagination: { limit: $limit, offset: $offset }
   ) {
     value: id
-    label
+    label: title
+    description: detail
+    group: origin
   }
 }
 
@@ -138,7 +148,9 @@ query SearchNetworkLenses(
     pagination: { limit: $limit, offset: $offset }
   ) {
     value: id
-    label
+    label: title
+    description: detail
+    group: origin
   }
 }
 
@@ -154,6 +166,8 @@ query SearchAnnotationLenses(
     pagination: { limit: $limit, offset: $offset }
   ) {
     value: id
-    label
+    label: title
+    description: detail
+    group: origin
   }
 }

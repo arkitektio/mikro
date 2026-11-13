@@ -6120,7 +6120,7 @@ class ArrayLens(Lensable, MikroFetchable, BaseModel):
     name: str | None = Field(default=None)
     "What this selection is called, or null when nothing names it: the labels at the positions it pins (a person's `setPositionLabel` over the channel label ingest recorded) and the name of the annotation it was cut to, e.g. 'GFP · nucleus 3'. Derived and kept by the server, never set: naming channel 1 names every lens through channel 1. No part of the lens' identity, which is its container and its selection. `nameAnchors` says where it comes from"
     label: str
-    "What to call this lens in a list, never empty: its container's name, its `name` when something names it, and what it selects (`cells.zarr · GFP · c[1:2], y[0:32]`); a whole lens is called by its container. What a picker shows for an option"
+    'What to call this lens in a list on one line, never empty: its `title`, its `origin` when the title is not already it, and its `detail` (`GFP · cells.zarr · y[0:32]`); a whole lens is called by its container. The title comes first because a row is cut at its end. A reader that lays the parts out itself asks for them instead'
     kind: LensKind
     'What this lens selects over: an array by slices, or a table, a sparse dataset, a mesh, a network or an annotation collection by windows'
     dataset: ArrayLensDataset
@@ -8151,7 +8151,7 @@ class SetPositionLabelMutationSetPositionLabelBase(BaseModel):
     name: str | None = Field(default=None)
     "What this selection is called, or null when nothing names it: the labels at the positions it pins (a person's `setPositionLabel` over the channel label ingest recorded) and the name of the annotation it was cut to, e.g. 'GFP · nucleus 3'. Derived and kept by the server, never set: naming channel 1 names every lens through channel 1. No part of the lens' identity, which is its container and its selection. `nameAnchors` says where it comes from"
     label: str
-    "What to call this lens in a list, never empty: its container's name, its `name` when something names it, and what it selects (`cells.zarr · GFP · c[1:2], y[0:32]`); a whole lens is called by its container. What a picker shows for an option"
+    'What to call this lens in a list on one line, never empty: its `title`, its `origin` when the title is not already it, and its `detail` (`GFP · cells.zarr · y[0:32]`); a whole lens is called by its container. The title comes first because a row is cut at its end. A reader that lays the parts out itself asks for them instead'
     kind: LensKind
     'What this lens selects over: an array by slices, or a table, a sparse dataset, a mesh, a network or an annotation collection by windows'
     model_config = ConfigDict(frozen=True)
@@ -10381,7 +10381,11 @@ class SearchArrayLensesQueryOptionsBase(BaseModel):
     """A selection over a container that lives in a coordinate system: one row per (container, selection), so the same selection asked for twice is the same id. An ArrayLens selects over an array dataset by index slices and, when sliced, owns the crop's space and the edge back into the dataset's grid; every other kind selects over its container by value windows in the container's own axes and lives in the container's space. Every container has its whole lens from creation."""
     value: ID
     label: str
-    "What to call this lens in a list, never empty: its container's name, its `name` when something names it, and what it selects (`cells.zarr · GFP · c[1:2], y[0:32]`); a whole lens is called by its container. What a picker shows for an option"
+    "What a layer drawing this lens is called, never empty: its `name` when something names it, else its container's name. The short half of `label`: what a picker's row says under a heading that already names the container (`origin`)"
+    description: str
+    "What this lens selects that its name does not already say, or empty: `y[0:32]` for a crop of the channel named 'GFP', nothing for that channel itself. An axis held to one position at an anchor whose label is in `name` is left out; an unnamed lens keeps its whole selection (`c[1:2], y[0:32]`), a whole lens has none"
+    group: str
+    "The name of the container this lens selects over, never empty: what `title` falls back to, and what a picker groups a container's lenses under"
     model_config = ConfigDict(frozen=True)
 
 class SearchArrayLensesQueryOptionsBaseAnnotationLens(SearchArrayLensesQueryOptionsBase, BaseModel):
@@ -10428,7 +10432,9 @@ class SearchArrayLensesQuery(BaseModel):
  `$requires` is the port's own constraints, handed on unchanged by the frontend: the
  server keeps only the lenses satisfying them, so a `Volume` port is offered volumes. `$fits` is
  what the agents that could take the form can handle, handed on the same way.
- `label` is never empty (a lens nobody named is called by its container and selection)."""
+ A row is the lens' `title` (what a layer over it is called, never empty), under its `origin` (its
+ container, which a picker says once as a heading: `group`), beside its `detail` (what it selects
+ that the name does not say)."""
     options: tuple[Annotated[SearchArrayLensesQueryOptionsBaseAnnotationLens | SearchArrayLensesQueryOptionsBaseArrayLens | SearchArrayLensesQueryOptionsBaseFixtureLens | SearchArrayLensesQueryOptionsBaseMeshLens | SearchArrayLensesQueryOptionsBaseNetworkLens | SearchArrayLensesQueryOptionsBaseSparseLens | SearchArrayLensesQueryOptionsBaseTableLens, Field(discriminator='typename')] | SearchArrayLensesQueryOptionsBaseCatchAll, ...]
     'List lenses: selections over array datasets (by slices) and over tables, sparse datasets, meshes, networks and annotation collections (by windows), a heterogeneous list of lens kinds'
 
@@ -10443,13 +10449,17 @@ class SearchArrayLensesQuery(BaseModel):
 
     class Meta:
         """Meta class for SearchArrayLenses """
-        document = 'query SearchArrayLenses($search: String, $values: [ID!], $requires: [DescriptorConstraintInput!], $fits: [FitsConstraintInput!], $limit: Int, $offset: Int = 0) {\n  options: lenses(\n    filters: { kind: ARRAY, search: $search, ids: $values, requires: $requires, fits: $fits }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label\n    __typename\n  }\n}'
+        document = 'query SearchArrayLenses($search: String, $values: [ID!], $requires: [DescriptorConstraintInput!], $fits: [FitsConstraintInput!], $limit: Int, $offset: Int = 0) {\n  options: lenses(\n    filters: { kind: ARRAY, search: $search, ids: $values, requires: $requires, fits: $fits }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label: title\n    description: detail\n    group: origin\n    __typename\n  }\n}'
 
 class SearchTableLensesQueryOptionsBase(BaseModel):
     """A selection over a container that lives in a coordinate system: one row per (container, selection), so the same selection asked for twice is the same id. An ArrayLens selects over an array dataset by index slices and, when sliced, owns the crop's space and the edge back into the dataset's grid; every other kind selects over its container by value windows in the container's own axes and lives in the container's space. Every container has its whole lens from creation."""
     value: ID
     label: str
-    "What to call this lens in a list, never empty: its container's name, its `name` when something names it, and what it selects (`cells.zarr · GFP · c[1:2], y[0:32]`); a whole lens is called by its container. What a picker shows for an option"
+    "What a layer drawing this lens is called, never empty: its `name` when something names it, else its container's name. The short half of `label`: what a picker's row says under a heading that already names the container (`origin`)"
+    description: str
+    "What this lens selects that its name does not already say, or empty: `y[0:32]` for a crop of the channel named 'GFP', nothing for that channel itself. An axis held to one position at an anchor whose label is in `name` is left out; an unnamed lens keeps its whole selection (`c[1:2], y[0:32]`), a whole lens has none"
+    group: str
+    "The name of the container this lens selects over, never empty: what `title` falls back to, and what a picker groups a container's lenses under"
     model_config = ConfigDict(frozen=True)
 
 class SearchTableLensesQueryOptionsBaseAnnotationLens(SearchTableLensesQueryOptionsBase, BaseModel):
@@ -10506,13 +10516,17 @@ class SearchTableLensesQuery(BaseModel):
 
     class Meta:
         """Meta class for SearchTableLenses """
-        document = 'query SearchTableLenses($search: String, $values: [ID!], $requires: [DescriptorConstraintInput!], $limit: Int, $offset: Int = 0) {\n  options: lenses(\n    filters: { kind: TABLE, search: $search, ids: $values, requires: $requires }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label\n    __typename\n  }\n}'
+        document = 'query SearchTableLenses($search: String, $values: [ID!], $requires: [DescriptorConstraintInput!], $limit: Int, $offset: Int = 0) {\n  options: lenses(\n    filters: { kind: TABLE, search: $search, ids: $values, requires: $requires }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label: title\n    description: detail\n    group: origin\n    __typename\n  }\n}'
 
 class SearchSparseLensesQueryOptionsBase(BaseModel):
     """A selection over a container that lives in a coordinate system: one row per (container, selection), so the same selection asked for twice is the same id. An ArrayLens selects over an array dataset by index slices and, when sliced, owns the crop's space and the edge back into the dataset's grid; every other kind selects over its container by value windows in the container's own axes and lives in the container's space. Every container has its whole lens from creation."""
     value: ID
     label: str
-    "What to call this lens in a list, never empty: its container's name, its `name` when something names it, and what it selects (`cells.zarr · GFP · c[1:2], y[0:32]`); a whole lens is called by its container. What a picker shows for an option"
+    "What a layer drawing this lens is called, never empty: its `name` when something names it, else its container's name. The short half of `label`: what a picker's row says under a heading that already names the container (`origin`)"
+    description: str
+    "What this lens selects that its name does not already say, or empty: `y[0:32]` for a crop of the channel named 'GFP', nothing for that channel itself. An axis held to one position at an anchor whose label is in `name` is left out; an unnamed lens keeps its whole selection (`c[1:2], y[0:32]`), a whole lens has none"
+    group: str
+    "The name of the container this lens selects over, never empty: what `title` falls back to, and what a picker groups a container's lenses under"
     model_config = ConfigDict(frozen=True)
 
 class SearchSparseLensesQueryOptionsBaseAnnotationLens(SearchSparseLensesQueryOptionsBase, BaseModel):
@@ -10569,13 +10583,17 @@ class SearchSparseLensesQuery(BaseModel):
 
     class Meta:
         """Meta class for SearchSparseLenses """
-        document = 'query SearchSparseLenses($search: String, $values: [ID!], $requires: [DescriptorConstraintInput!], $limit: Int, $offset: Int = 0) {\n  options: lenses(\n    filters: { kind: SPARSE, search: $search, ids: $values, requires: $requires }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label\n    __typename\n  }\n}'
+        document = 'query SearchSparseLenses($search: String, $values: [ID!], $requires: [DescriptorConstraintInput!], $limit: Int, $offset: Int = 0) {\n  options: lenses(\n    filters: { kind: SPARSE, search: $search, ids: $values, requires: $requires }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label: title\n    description: detail\n    group: origin\n    __typename\n  }\n}'
 
 class SearchMeshLensesQueryOptionsBase(BaseModel):
     """A selection over a container that lives in a coordinate system: one row per (container, selection), so the same selection asked for twice is the same id. An ArrayLens selects over an array dataset by index slices and, when sliced, owns the crop's space and the edge back into the dataset's grid; every other kind selects over its container by value windows in the container's own axes and lives in the container's space. Every container has its whole lens from creation."""
     value: ID
     label: str
-    "What to call this lens in a list, never empty: its container's name, its `name` when something names it, and what it selects (`cells.zarr · GFP · c[1:2], y[0:32]`); a whole lens is called by its container. What a picker shows for an option"
+    "What a layer drawing this lens is called, never empty: its `name` when something names it, else its container's name. The short half of `label`: what a picker's row says under a heading that already names the container (`origin`)"
+    description: str
+    "What this lens selects that its name does not already say, or empty: `y[0:32]` for a crop of the channel named 'GFP', nothing for that channel itself. An axis held to one position at an anchor whose label is in `name` is left out; an unnamed lens keeps its whole selection (`c[1:2], y[0:32]`), a whole lens has none"
+    group: str
+    "The name of the container this lens selects over, never empty: what `title` falls back to, and what a picker groups a container's lenses under"
     model_config = ConfigDict(frozen=True)
 
 class SearchMeshLensesQueryOptionsBaseAnnotationLens(SearchMeshLensesQueryOptionsBase, BaseModel):
@@ -10632,13 +10650,17 @@ class SearchMeshLensesQuery(BaseModel):
 
     class Meta:
         """Meta class for SearchMeshLenses """
-        document = 'query SearchMeshLenses($search: String, $values: [ID!], $requires: [DescriptorConstraintInput!], $limit: Int, $offset: Int = 0) {\n  options: lenses(\n    filters: { kind: MESH, search: $search, ids: $values, requires: $requires }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label\n    __typename\n  }\n}'
+        document = 'query SearchMeshLenses($search: String, $values: [ID!], $requires: [DescriptorConstraintInput!], $limit: Int, $offset: Int = 0) {\n  options: lenses(\n    filters: { kind: MESH, search: $search, ids: $values, requires: $requires }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label: title\n    description: detail\n    group: origin\n    __typename\n  }\n}'
 
 class SearchNetworkLensesQueryOptionsBase(BaseModel):
     """A selection over a container that lives in a coordinate system: one row per (container, selection), so the same selection asked for twice is the same id. An ArrayLens selects over an array dataset by index slices and, when sliced, owns the crop's space and the edge back into the dataset's grid; every other kind selects over its container by value windows in the container's own axes and lives in the container's space. Every container has its whole lens from creation."""
     value: ID
     label: str
-    "What to call this lens in a list, never empty: its container's name, its `name` when something names it, and what it selects (`cells.zarr · GFP · c[1:2], y[0:32]`); a whole lens is called by its container. What a picker shows for an option"
+    "What a layer drawing this lens is called, never empty: its `name` when something names it, else its container's name. The short half of `label`: what a picker's row says under a heading that already names the container (`origin`)"
+    description: str
+    "What this lens selects that its name does not already say, or empty: `y[0:32]` for a crop of the channel named 'GFP', nothing for that channel itself. An axis held to one position at an anchor whose label is in `name` is left out; an unnamed lens keeps its whole selection (`c[1:2], y[0:32]`), a whole lens has none"
+    group: str
+    "The name of the container this lens selects over, never empty: what `title` falls back to, and what a picker groups a container's lenses under"
     model_config = ConfigDict(frozen=True)
 
 class SearchNetworkLensesQueryOptionsBaseAnnotationLens(SearchNetworkLensesQueryOptionsBase, BaseModel):
@@ -10695,13 +10717,17 @@ class SearchNetworkLensesQuery(BaseModel):
 
     class Meta:
         """Meta class for SearchNetworkLenses """
-        document = 'query SearchNetworkLenses($search: String, $values: [ID!], $requires: [DescriptorConstraintInput!], $limit: Int, $offset: Int = 0) {\n  options: lenses(\n    filters: { kind: NETWORK, search: $search, ids: $values, requires: $requires }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label\n    __typename\n  }\n}'
+        document = 'query SearchNetworkLenses($search: String, $values: [ID!], $requires: [DescriptorConstraintInput!], $limit: Int, $offset: Int = 0) {\n  options: lenses(\n    filters: { kind: NETWORK, search: $search, ids: $values, requires: $requires }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label: title\n    description: detail\n    group: origin\n    __typename\n  }\n}'
 
 class SearchAnnotationLensesQueryOptionsBase(BaseModel):
     """A selection over a container that lives in a coordinate system: one row per (container, selection), so the same selection asked for twice is the same id. An ArrayLens selects over an array dataset by index slices and, when sliced, owns the crop's space and the edge back into the dataset's grid; every other kind selects over its container by value windows in the container's own axes and lives in the container's space. Every container has its whole lens from creation."""
     value: ID
     label: str
-    "What to call this lens in a list, never empty: its container's name, its `name` when something names it, and what it selects (`cells.zarr · GFP · c[1:2], y[0:32]`); a whole lens is called by its container. What a picker shows for an option"
+    "What a layer drawing this lens is called, never empty: its `name` when something names it, else its container's name. The short half of `label`: what a picker's row says under a heading that already names the container (`origin`)"
+    description: str
+    "What this lens selects that its name does not already say, or empty: `y[0:32]` for a crop of the channel named 'GFP', nothing for that channel itself. An axis held to one position at an anchor whose label is in `name` is left out; an unnamed lens keeps its whole selection (`c[1:2], y[0:32]`), a whole lens has none"
+    group: str
+    "The name of the container this lens selects over, never empty: what `title` falls back to, and what a picker groups a container's lenses under"
     model_config = ConfigDict(frozen=True)
 
 class SearchAnnotationLensesQueryOptionsBaseAnnotationLens(SearchAnnotationLensesQueryOptionsBase, BaseModel):
@@ -10758,7 +10784,7 @@ class SearchAnnotationLensesQuery(BaseModel):
 
     class Meta:
         """Meta class for SearchAnnotationLenses """
-        document = 'query SearchAnnotationLenses($search: String, $values: [ID!], $requires: [DescriptorConstraintInput!], $limit: Int, $offset: Int = 0) {\n  options: lenses(\n    filters: { kind: ANNOTATION, search: $search, ids: $values, requires: $requires }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label\n    __typename\n  }\n}'
+        document = 'query SearchAnnotationLenses($search: String, $values: [ID!], $requires: [DescriptorConstraintInput!], $limit: Int, $offset: Int = 0) {\n  options: lenses(\n    filters: { kind: ANNOTATION, search: $search, ids: $values, requires: $requires }\n    pagination: { limit: $limit, offset: $offset }\n  ) {\n    value: id\n    label: title\n    description: detail\n    group: origin\n    __typename\n  }\n}'
 
 class GetMeshCollectionQuery(BaseModel):
     """No documentation found for this operation."""
@@ -21218,7 +21244,9 @@ Returns:
  `$requires` is the port's own constraints, handed on unchanged by the frontend: the
  server keeps only the lenses satisfying them, so a `Volume` port is offered volumes. `$fits` is
  what the agents that could take the form can handle, handed on the same way.
- `label` is never empty (a lens nobody named is called by its container and selection).
+ A row is the lens' `title` (what a layer over it is called, never empty), under its `origin` (its
+ container, which a picker says once as a heading: `group`), beside its `detail` (what it selects
+ that the name does not say).
 
 Args:
     search (str | None, optional): No description. 
@@ -21253,7 +21281,9 @@ Returns:
  `$requires` is the port's own constraints, handed on unchanged by the frontend: the
  server keeps only the lenses satisfying them, so a `Volume` port is offered volumes. `$fits` is
  what the agents that could take the form can handle, handed on the same way.
- `label` is never empty (a lens nobody named is called by its container and selection).
+ A row is the lens' `title` (what a layer over it is called, never empty), under its `origin` (its
+ container, which a picker says once as a heading: `group`), beside its `detail` (what it selects
+ that the name does not say).
 
 Args:
     search (str | None, optional): No description. 
