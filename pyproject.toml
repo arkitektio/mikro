@@ -60,14 +60,12 @@ dev-dependencies =  [
     "python-semantic-release>=9.21.0",
     "autoflake>=1.7.7,<2",
     "aiohttp>=3.8.3,<4",
-    "black>=23.1.0,<24",
     "pytest-aiohttp>=1.0.4,<2",
     "ruff>0.11",
     "turms>=3.0",
     "cryptography>=44.0.3",
     "pyjwt>=2.10.1",
     "dokker>=2.8",
-    "pillow>=11.2.1",
     # Test-only: a real path/file-object reader to check `RemoteFile` against, since
     # the point of that class is that unmodified readers work through it.
     "tifffile>=2024.1.30",
