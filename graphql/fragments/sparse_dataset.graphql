@@ -20,6 +20,7 @@ fragment SparseAxisReference on SparseAxisReference {
 }
 
 fragment SparseDataset on SparseDataset {
+  descriptors
   id
   name
   description

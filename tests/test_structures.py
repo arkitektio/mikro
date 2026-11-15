@@ -68,63 +68,16 @@ def test_merging_stamps_the_service_that_owns_them() -> None:
     assert services == {"mikro"}
 
 
-def test_a_lens_and_a_dataset_say_how_they_are_described() -> None:
-    """What lets a run test a lens against a port's Requires and Provides."""
-    from mikro.arkitekt.specs import lens_descriptors
+def test_every_structure_mikro_describes_is_described_by_what_was_fetched() -> None:
+    """What lets a run test an object against a port's Requires and Provides, with no round trip of its own."""
+    from mikro.arkitekt.specs import descriptors_of
 
     structures = declared.registry.structure_registry
-    assert structures.get_fullfilled_structure("@mikro/arraylens").describe is lens_descriptors
-    assert structures.get_fullfilled_structure("@mikro/arraydataset").describe is lens_descriptors
-    # Nothing else carries descriptors a port could constrain on.
     described = {i for i, s in structures.identifier_structure_map.items() if s.describe}
-    assert described == {"@mikro/arraylens", "@mikro/arraydataset", "@mikro/annotation", "@mikro/metric", "@mikro/file"}
-
-
-def test_an_annotation_is_described_by_its_shape_and_the_axes_it_is_drawn_in() -> None:
-    """The keys the server declares for `@mikro/annotation`, in the schema's spelling."""
-    from types import SimpleNamespace
-
-    from mikro.api.schema import AnnotationKind, AxisType
-    from mikro.arkitekt.specs import annotation_descriptors
-
-    structures = declared.registry.structure_registry
-    assert structures.get_fullfilled_structure("@mikro/annotation").describe is annotation_descriptors
-
-    plane = SimpleNamespace(axes=[SimpleNamespace(type=AxisType.SPACE), SimpleNamespace(type=AxisType.SPACE)])
-    box = SimpleNamespace(kind=AnnotationKind.RECTANGLE, coordinate_system=plane)
-    assert annotation_descriptors(box) == {
-        "@mikro/annotation_kind": "RECTANGLE",
-        "@mikro/n_space_axes": 2,
-        "@mikro/n_time_axes": 0,
-    }
-
-
-
-def test_a_metric_is_described_by_its_key_its_value_and_what_it_is_about() -> None:
-    """The keys the server declares for `@mikro/metric`: a quantity says magnitude and unit, a code its code."""
-    from types import SimpleNamespace
-
-    from mikro.arkitekt.specs import metric_descriptors
-
-    structures = declared.registry.structure_registry
-    assert structures.get_fullfilled_structure("@mikro/metric").describe is metric_descriptors
-
-    target = SimpleNamespace(identifier="@mikro/arraydataset", object="3")
-    quantity = SimpleNamespace(key="my_app/area", magnitude=12.0, unit="micrometer ** 2", code=None, target=target)
-    assert metric_descriptors(quantity) == {
-        "@mikro/metric_key": "my_app/area",
-        "@mikro/magnitude": 12.0,
-        "@mikro/unit": "micrometer ** 2",
-        "@mikro/target_identifier": "@mikro/arraydataset",
-        "@mikro/target_object": "3",
-    }
-    code = SimpleNamespace(key="segmenter_v2/class", magnitude=None, unit=None, code="segmenter_v2/class_3", target=target)
-    assert metric_descriptors(code) == {
-        "@mikro/metric_key": "segmenter_v2/class",
-        "@mikro/metric_code": "segmenter_v2/class_3",
-        "@mikro/target_identifier": "@mikro/arraydataset",
-        "@mikro/target_object": "3",
-    }
+    # Every structure whose type has `descriptors`; a coordinate system and a transformation have none.
+    assert "@mikro/arraylens" in described and "@mikro/file" in described
+    assert not described & {"@mikro/coordinatesystem", "@mikro/transformation"}
+    assert all(structures.get_fullfilled_structure(i).describe is descriptors_of for i in described)
 
 
 def test_a_metric_is_picked_by_its_key_narrowed_by_the_ports_constraints() -> None:

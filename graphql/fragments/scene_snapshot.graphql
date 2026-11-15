@@ -1,4 +1,5 @@
 fragment SceneSnapshot on SceneSnapshot {
+  descriptors
   id
   name
   scene {

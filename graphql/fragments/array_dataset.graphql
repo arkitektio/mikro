@@ -1,4 +1,5 @@
 fragment ArrayDataset on ArrayDataset {
+  descriptors
   id
   name
   axisNames

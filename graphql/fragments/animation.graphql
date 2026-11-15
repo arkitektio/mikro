@@ -18,6 +18,7 @@ fragment AnimationWaypoint on AnimationWaypoint {
 }
 
 fragment Animation on Animation {
+  descriptors
   id
   name
   description

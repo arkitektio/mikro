@@ -11,7 +11,8 @@ Each spec is an :class:`~mikro.api.schema.ArrayLens` annotated with rekuest's ow
 ``Requires`` and ``Provides``, nothing more. Both are written out because a port
 keeps only its side: an argument the ``Requires`` (the UI offers only lenses that
 fit), a return the ``Provides`` (what the action says it made). A run tests them on
-every lens that crosses the port, using :func:`lens_descriptors`: a lens that does
+every lens that crosses the port, using the lens's own ``descriptors`` (the server's,
+fetched with it; see :func:`descriptors_of`): a lens that does
 not fit fails the task, saying which constraint it broke.
 
 Write your own the same way, as a plain assignment
@@ -38,16 +39,12 @@ Three things to know:
 
 from __future__ import annotations
 
-import math
-from collections import Counter
 from typing import Annotated, Any
 
-import numpy
 from arkitekt_spec.actions import DescriptorOperator
 from arkitekt_spec.declare.annotations import Provides, Requires
 
-from mikro.api.schema import Annotation, ArrayLens, File, Metric
-from mikro.traits import AxisSource, axis_table
+from mikro.api.schema import Annotation, ArrayLens
 
 # --- The descriptor keys --------------------------------------------------------
 # The same keys the mikro server declares for a lens and an array dataset.
@@ -92,101 +89,27 @@ EXTENSION = "@mikro/extension"
 """A file's extension, lowercased and without the dot: ``nd2``, ``ome.tif``; empty for none. What an importer is picked by."""
 
 
-def lens_descriptors(lens: AxisSource) -> dict[str, Any]:
-    """The descriptors of a lens (or an array dataset), computed from its axes.
+def descriptors_of(obj: Any) -> dict[str, Any]:  # noqa: ANN401 - any fragment that selects `descriptors`
+    """What mikro says of an object: its ``descriptors``, as they were fetched with it.
 
-    One count per axis type, zero included, the total extent along the
-    channel and the time axes, and -- when it was fetched with its arrays, as
-    the ``ArrayLens`` fragment fetches it -- the element type of its level-0
-    store, as the server states it. ``VALUE_KIND`` is not in it: nothing about
-    the axes tells a label mask from an image, so a constraint on it is the
-    producer's word and is not tested.
+    Every identified mikro type has the field, and every fragment a structure is
+    expanded to selects it, so describing an object costs nothing: the facts arrive
+    in the query that loads it. They are the server's own, the ones its pickers
+    filter by and its signals carry, so what a port tests is what the server matched.
+
+    Never compute them here, and never ask the server for them a second time: a
+    describer that makes its own round trip doubles every constrained call. An
+    object that was not fetched with its descriptors (one built by hand) has none,
+    and a constraint on a key that is absent is not tested.
 
     Args:
-        lens: The lens or dataset to describe.
+        obj: The object to describe.
 
     Returns:
         Its descriptors, by key.
     """
-    table = axis_table(lens)
-    counts = Counter(axis_type for _, axis_type, _ in table)
-    dtype = _level_zero_dtype(lens)
-    dsize = _element_size(dtype)
-    return {
-        **({DTYPE: dtype} if dtype is not None else {}),
-        **({DSIZE: dsize} if dsize is not None else {}),
-        N_SPACE_AXES: counts["SPACE"],
-        N_TIME_AXES: counts["TIME"],
-        N_CHANNEL_AXES: counts["CHANNEL"],
-        N_SPECTRUM_AXES: counts["SPECTRUM"],
-        N_MICROTIME_AXES: counts["MICROTIME"],
-        N_CHANNELS: sum(extent for _, axis_type, extent in table if axis_type == "CHANNEL"),
-        N_TIMEPOINTS: sum(extent for _, axis_type, extent in table if axis_type == "TIME"),
-        SIZE: math.prod(extent for _, _, extent in table),
-    }
+    return dict(getattr(obj, "descriptors", None) or {})
 
-
-def _element_size(dtype: str | None) -> int | None:
-    """How many bytes one element takes, when numpy can read the element type."""
-    try:
-        return numpy.dtype(dtype).itemsize if dtype else None
-    except TypeError:  # a dtype another writer spelled its own way
-        return None
-
-
-def _level_zero_dtype(lens: AxisSource) -> str | None:
-    """The dtype of a lens' (or a dataset's) level-0 store, ``""`` when it has none; None when its arrays were not fetched."""
-    dataset = getattr(lens, "dataset", None) or lens
-    arrays = getattr(dataset, "data_arrays", None)
-    if not arrays:
-        return None
-    store = min(arrays, key=lambda array: array.level).store
-    return (getattr(store, "dtype", None) if store is not None else None) or ""
-
-
-def annotation_descriptors(annotation: Any) -> dict[str, Any]:  # noqa: ANN401 - the generated Annotation
-    """The descriptors of one annotation: its shape, and the axes of the space it is drawn in.
-
-    The same keys the mikro server declares for ``@mikro/annotation``. The space
-    is its collection's, so the counts tell a box on a plane from one in a volume.
-
-    Args:
-        annotation: The annotation to describe.
-
-    Returns:
-        Its descriptors, by key.
-    """
-    system = annotation.coordinate_system
-    counts = Counter(str(getattr(axis.type, "value", axis.type)) for axis in (system.axes if system else ()))
-    return {
-        ANNOTATION_KIND: str(getattr(annotation.kind, "value", annotation.kind)),
-        N_SPACE_AXES: counts["SPACE"],
-        N_TIME_AXES: counts["TIME"],
-    }
-
-
-
-def metric_descriptors(metric: Metric) -> dict[str, Any]:
-    """The descriptors of one metric: its key, its value, and the object it is about.
-
-    The same keys the mikro server declares for ``@mikro/metric``: a quantity says its
-    magnitude and unit, a code its code, never both.
-
-    Args:
-        metric: The metric to describe.
-
-    Returns:
-        Its descriptors, by key.
-    """
-    value: dict[str, Any] = (
-        {METRIC_CODE: metric.code} if metric.code is not None else {MAGNITUDE: metric.magnitude, UNIT: metric.unit}
-    )
-    return {
-        METRIC_KEY: metric.key,
-        **value,
-        TARGET_IDENTIFIER: metric.target.identifier,
-        TARGET_OBJECT: str(metric.target.object),
-    }
 
 #: Extensions of two parts, which name a format the last part alone does not. The server's list, verbatim.
 DOUBLE_EXTENSIONS = ("ome.tif", "ome.tiff", "ome.zarr", "ome.btf", "tar.gz", "nii.gz")
@@ -204,22 +127,6 @@ def file_extension(name: str) -> str:
             return double
     stem, dot, extension = base.rpartition(".")
     return extension if dot and stem else ""
-
-
-def file_descriptors(file: File) -> dict[str, Any]:
-    """The descriptors of one file: its extension.
-
-    The server also declares ``@mikro/content_type`` and ``@mikro/size_bytes`` for
-    ``@mikro/file``; the File fragment does not fetch them, so a constraint on
-    them is not tested here (the picker still filters by them).
-
-    Args:
-        file: The file to describe.
-
-    Returns:
-        Its descriptors, by key.
-    """
-    return {EXTENSION: file_extension(file.name)}
 
 
 # --- By spatial rank: exactly one of these holds for any lens -------------------
@@ -427,8 +334,6 @@ __all__ = [
     "TimelapseVolume",
     "Timeseries",
     "Volume",
-    "annotation_descriptors",
-    "file_descriptors",
+    "descriptors_of",
     "file_extension",
-    "lens_descriptors",
 ]

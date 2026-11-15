@@ -52,6 +52,7 @@ fragment GridLayer on GridLayer {
 }
 
 fragment Grid on Grid {
+  descriptors
   id
   name
   description

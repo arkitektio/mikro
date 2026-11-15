@@ -22,6 +22,7 @@ fragment Window on Window {
 # dataset's whole lens. Which axis faces the screen is the viewer's, read off a layer's
 # placement under its view; `suggestedRenderAxes` is the server's convention for a bare lens.
 fragment ArrayLens on ArrayLens {
+  descriptors
   id
   name
   # `name` is what its pinned positions are called (setPositionLabel), never set on the lens.
@@ -60,6 +61,7 @@ fragment ArrayLens on ArrayLens {
 # The five kinds that select by value windows, in their container's own space. `windows`
 # is empty for the whole lens, which every container has.
 fragment TableLens on TableLens {
+  descriptors
   id
   name
   kind
@@ -73,6 +75,7 @@ fragment TableLens on TableLens {
 }
 
 fragment SparseLens on SparseLens {
+  descriptors
   id
   name
   kind
@@ -90,6 +93,7 @@ fragment SparseLens on SparseLens {
 }
 
 fragment MeshLens on MeshLens {
+  descriptors
   id
   name
   kind
@@ -102,6 +106,7 @@ fragment MeshLens on MeshLens {
 }
 
 fragment NetworkLens on NetworkLens {
+  descriptors
   id
   name
   kind
@@ -114,6 +119,7 @@ fragment NetworkLens on NetworkLens {
 }
 
 fragment FixtureLens on FixtureLens {
+  descriptors
   id
   name
   kind
@@ -126,6 +132,7 @@ fragment FixtureLens on FixtureLens {
 }
 
 fragment AnnotationLens on AnnotationLens {
+  descriptors
   id
   name
   kind

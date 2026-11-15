@@ -1,4 +1,5 @@
 fragment MeshCollection on MeshCollection {
+  descriptors
   id
   name
   label

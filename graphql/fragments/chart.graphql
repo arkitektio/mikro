@@ -149,6 +149,7 @@ fragment ChartLayer on ChartLayer {
 }
 
 fragment Chart on Chart {
+  descriptors
   id
   name
   description

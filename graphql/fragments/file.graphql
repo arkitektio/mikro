@@ -1,4 +1,5 @@
 fragment File on File {
+  descriptors
   id
   name
   store {

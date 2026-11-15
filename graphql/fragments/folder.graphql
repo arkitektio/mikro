@@ -1,4 +1,5 @@
 fragment Folder on Folder {
+  descriptors
   id
   name
   description

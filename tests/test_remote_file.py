@@ -385,6 +385,7 @@ def _real_file(name: str = "acquisition.tif") -> File:
     to line up for any of this to work in production.
     """
     return _bound(File(
+        descriptors={},
         id="file-id",
         name=name,
         store=BigFileStore(

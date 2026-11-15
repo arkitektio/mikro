@@ -1,4 +1,5 @@
 fragment NetworkCollection on NetworkCollection {
+  descriptors
   id
   name
   label

@@ -1,4 +1,5 @@
 fragment TableDataset on TableDataset {
+  descriptors
   id
   name
   description

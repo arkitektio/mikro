@@ -258,6 +258,7 @@ class TestCalibrateValidation:
         from mikro.api.schema import ArrayDataset
 
         return ArrayDataset(
+            descriptors={},
             id="d1",
             name="ds",
             axisNames=("y", "x"),
@@ -478,6 +479,7 @@ def make_dataset(axis_names):
     from mikro.api.schema import ArrayDataset
 
     return ArrayDataset(
+        descriptors={},
         id="d",
         name="ds",
         axisNames=tuple(axis_names),
@@ -492,6 +494,7 @@ def make_scene(world_axes=("t", "z", "y", "x")):
     from mikro.api.schema import Scene
 
     return Scene(
+        descriptors={},
         id="s",
         name="scene",
         preferredView="AUTO",

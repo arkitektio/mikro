@@ -54,8 +54,9 @@ def test_a_lens_fetched_by_id_is_described_as_the_specs_constrain_it(mikro: Mikr
 
 
 @pytest.mark.integration
-def test_provenance_is_never_read_off_a_lens(mikro: Mikro) -> None:
-    """So a ``-> LabelMask`` port is the producer's word, and no lens is refused on it."""
+def test_provenance_is_the_servers_word_too(mikro: Mikro) -> None:
+    """The descriptors are mikro's own, so they state what the client could never compute: a
+    lens nobody marked as labels is not a ``LabelMask``, and a port that says so is refused."""
     plane = _described(mikro, (8, 8), ["y", "x"])
-    assert "@mikro/value_kind" not in plane
-    assert unfulfilled(spec_constraints(LabelMask), plane) == ()
+    assert "@mikro/value_kind" in plane
+    assert unfulfilled(spec_constraints(LabelMask), plane) != ()

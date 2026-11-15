@@ -1,4 +1,5 @@
 fragment Scene on Scene {
+  descriptors
   name
   id
   preferredView

@@ -1,4 +1,5 @@
 fragment Annotation on Annotation {
+  descriptors
   id
   name
   kind
@@ -25,6 +26,7 @@ fragment Annotation on Annotation {
 }
 
 fragment AnnotationCollection on AnnotationCollection {
+  descriptors
   id
   name
   description

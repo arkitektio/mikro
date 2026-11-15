@@ -34,7 +34,7 @@ from mikro.arkitekt.specs import (
     RGBImage,
     SingleChannelVolume,
     Volume,
-    lens_descriptors,
+    descriptors_of,
 )
 
 # `axis_types` moved onto `mikro.traits` with the lens/dataset traits, which is
@@ -64,6 +64,24 @@ MULTICHANNEL = candidate(
 )
 
 
+def facts(space: int, channel_axes: int = 0, channels: int = 0) -> dict[str, Any]:
+    """Descriptors as the server states them for a lens: every count, zeroes included."""
+    return {
+        "@mikro/n_space_axes": space,
+        "@mikro/n_time_axes": 0,
+        "@mikro/n_channel_axes": channel_axes,
+        "@mikro/n_spectrum_axes": 0,
+        "@mikro/n_microtime_axes": 0,
+        "@mikro/n_channels": channels,
+        "@mikro/n_timepoints": 0,
+    }
+
+
+# What mikro says of the two, fetched with them (`descriptors` on the fragment).
+VOLUME.descriptors = facts(space=3)
+MULTICHANNEL.descriptors = facts(space=3, channel_axes=1, channels=3)
+
+
 class TestDescriptors:
     def test_types_fall_back_to_the_bare_name_convention(self) -> None:
         assert axis_types(VOLUME) == ("SPACE", "SPACE", "SPACE")
@@ -71,19 +89,13 @@ class TestDescriptors:
     def test_a_typed_system_wins_over_the_convention(self) -> None:
         assert axis_types(MULTICHANNEL)[0] == "CHANNEL"
 
-    def test_every_count_key_is_emitted_including_the_zeroes(self) -> None:
-        """`Still` and `SingleChannel` match on absence, so a missing key and a
-        zero count are not the same thing."""
-        descriptors = lens_descriptors(VOLUME)
-        assert descriptors["@mikro/n_space_axes"] == 3
-        assert descriptors["@mikro/n_channel_axes"] == 0
+    def test_an_object_is_described_by_what_was_fetched_with_it(self) -> None:
+        """The server's word, never recomputed and never asked for again."""
+        assert descriptors_of(VOLUME) == facts(space=3)
+        assert descriptors_of(VOLUME) is not VOLUME.descriptors
 
-    def test_adjustable_keys_are_total_extents(self) -> None:
-        assert lens_descriptors(MULTICHANNEL)["@mikro/n_channels"] == 3
-
-    def test_value_kind_is_never_computed(self) -> None:
-        """It is provenance: only a producer that made labels can vouch for it."""
-        assert VALUE_KIND not in lens_descriptors(MULTICHANNEL)
+    def test_an_object_built_by_hand_has_none_so_nothing_is_tested(self) -> None:
+        assert descriptors_of(candidate(["y", "x"], (4, 4))) == {}
 
 
 def requires(spec: Any) -> list[RequiresInput]:
@@ -98,22 +110,22 @@ def provides(spec: Any) -> list[ProvidesInput]:
 
 class TestSpecs:
     def test_a_volume_is_a_Volume_and_not_an_Image(self) -> None:
-        described = lens_descriptors(VOLUME)
+        described = descriptors_of(VOLUME)
         assert unfulfilled(requires(Volume), described) == ()
         assert unfulfilled(requires(Image), described) == ("@mikro/n_space_axes EQUALS 2 (actual 3)",)
 
     def test_every_unmet_constraint_is_reported_not_just_the_first(self) -> None:
-        failures = unfulfilled(requires(RGBImage), lens_descriptors(VOLUME))
+        failures = unfulfilled(requires(RGBImage), descriptors_of(VOLUME))
         assert len(failures) == 3
         assert "@mikro/n_channels EQUALS 3" in failures[-1]
 
     def test_a_multichannel_volume_is_not_single_channel(self) -> None:
-        assert unfulfilled(requires(SingleChannelVolume), lens_descriptors(MULTICHANNEL)) == (
+        assert unfulfilled(requires(SingleChannelVolume), descriptors_of(MULTICHANNEL)) == (
             "@mikro/n_channels LTE 1 (actual 3)",
         )
 
     def test_provenance_is_tested_only_when_stated(self) -> None:
-        described = lens_descriptors(VOLUME)
+        described = descriptors_of(VOLUME)
         assert unfulfilled(provides(LabelMask), described) == ()
         (failure,) = unfulfilled(provides(LabelMask), {**described, VALUE_KIND: "continuous"})
         assert "@mikro/value_kind EQUALS 'categorical' (actual 'continuous')" in failure
@@ -128,43 +140,3 @@ class TestSpecs:
             asked = [(m.key, m.operator, m.value) for m in requires(spec)]
             made = [(m.key, m.operator, m.value) for m in provides(spec)]
             assert asked and asked == made, name
-
-
-class TestDtype:
-    """The element type is the level-0 store's, as the server stores it -- and absent when the arrays were not fetched."""
-
-    def _with_arrays(self, *stores):
-        lens = candidate(["y", "x"], (64, 64))
-        arrays = [SimpleNamespace(level=level, store=store) for level, store in enumerate(stores)]
-        lens.dataset = SimpleNamespace(data_arrays=arrays)
-        return lens
-
-    def test_the_level_zero_store_says_it(self) -> None:
-        lens = self._with_arrays(SimpleNamespace(dtype="uint16"), SimpleNamespace(dtype="float32"))
-        assert lens_descriptors(lens)[DTYPE] == "uint16"
-
-    def test_a_store_without_one_states_it_empty(self) -> None:
-        assert lens_descriptors(self._with_arrays(None))[DTYPE] == ""
-
-    def test_without_its_arrays_the_key_is_left_out_and_so_untested(self) -> None:
-        assert DTYPE not in lens_descriptors(VOLUME)
-        integers = [RequiresInput(key=DTYPE, operator="IN", value=["uint8", "uint16"])]
-        assert unfulfilled(integers, lens_descriptors(VOLUME)) == unfulfilled(integers, lens_descriptors(self._with_arrays(SimpleNamespace(dtype="uint16")))) == ()
-        assert unfulfilled(integers, lens_descriptors(self._with_arrays(SimpleNamespace(dtype="float32"))))
-
-
-def test_a_file_is_described_by_the_extension_the_server_stores() -> None:
-    """The client's extension rule is the server's: a drift lets the picker offer a file the port then refuses."""
-    from mikro.arkitekt.specs import EXTENSION, file_descriptors, file_extension
-
-    assert [file_extension(name) for name in ("Cells.OME.TIF", "brain.nii.gz", "x.ND2", "noext", ".hidden", "a/b.c/scan.lif")] == [
-        "ome.tif",
-        "nii.gz",
-        "nd2",
-        "",
-        "",
-        "lif",
-    ]
-    constraint = RequiresInput(key=EXTENSION, operator="IN", value=["tif", "tiff", "ome.tif"])
-    assert unfulfilled([constraint], file_descriptors(SimpleNamespace(name="Cells.OME.TIF"))) == ()
-    assert unfulfilled([constraint], file_descriptors(SimpleNamespace(name="scan.nd2")))

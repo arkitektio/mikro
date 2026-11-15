@@ -3,6 +3,7 @@
 # observation; what it means is kraph's to say. `target` is the object it is about,
 # spelled as a signal or a STRUCTURE port spells it (`@mikro/arraydataset`, its id).
 fragment Metric on Metric {
+  descriptors
   id
   uuid
   key
