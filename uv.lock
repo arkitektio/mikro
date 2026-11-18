@@ -1210,14 +1210,14 @@ wheels = [
 
 [[package]]
 name = "koil"
-version = "3.3.6"
+version = "3.4.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/27/3a/c0b5fa5e69df7bc9d4f8769512aa29d472f07593bd4f0c5d922e72e3a697/koil-3.3.6.tar.gz", hash = "sha256:07cee5dc8f22effbe4c5823cefa0e1b3e7afa513154d045f4d64b16e7b428bff", size = 42903, upload-time = "2026-10-04T18:50:36.417Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/21/aa/4fec62eb889d95908f05f253a0d7b9a0fd8c927d616ee1b0333d40c894d7/koil-3.4.1.tar.gz", hash = "sha256:491fce3eb9bd804345d4f961c3a88e3d7f45a0825fc400c0fe53fb59ec20ae26", size = 57409, upload-time = "2026-11-18T14:39:05.401Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/83/04/c72f6873146546069cd3920691972869c89c21970b7712016d415e1cae68/koil-3.3.6-py3-none-any.whl", hash = "sha256:27b368019d6a7051312eceefe675fa983548f83aa776d8ea04b5196628cffbb8", size = 49234, upload-time = "2026-10-04T18:50:35.278Z" },
+    { url = "https://files.pythonhosted.org/packages/fb/bf/e83245b5f0f188871ff877e8647730654491787b9ff337f97df94875a98f/koil-3.4.1-py3-none-any.whl", hash = "sha256:8e403137818b1ee891e4f1a0b1fd4d96cc7ac9102bbcf09010906a68112d4bea", size = 64963, upload-time = "2026-11-18T14:39:04.301Z" },
 ]
 
 [[package]]
