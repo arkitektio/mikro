@@ -62,7 +62,7 @@ def test_download_file_reads_bytes_via_obstore(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr("mikro.io.download.create_s3_store", lambda *_args, **_kwargs: store)
 
     # The client is handed over explicitly; nothing ambient is involved.
-    mikro = SimpleNamespace(datalayer=SimpleNamespace(proxy=None))
+    mikro = SimpleNamespace(datalayer=SimpleNamespace(proxy=None, certificates=[]))
     result = download_file(mikro, "store-id", str(target))
 
     assert seen == {"mikro": mikro}

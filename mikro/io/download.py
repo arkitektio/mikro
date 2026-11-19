@@ -67,13 +67,13 @@ async def aget_media_credentials_and_endpoint(
 async def aopen_zarr_store(mikro: "Mikro", store_id: str, cache: int = 2**30) -> StorePath:
     """Open a zarr store for the given store ID asynchronously."""
     credentials, endpoint_url = await aget_zarr_credentials_and_endpoint(mikro, store_id)
-    return create_zarr_store_path(endpoint_url, credentials, proxy=mikro.datalayer.proxy)
+    return create_zarr_store_path(endpoint_url, credentials, proxy=mikro.datalayer.proxy, certificates=mikro.datalayer.certificates)
 
 
 def open_zarr_store(mikro: "Mikro", store_id: str, cache: int = 2**30) -> StorePath:
     """Open a zarr store for the given store ID synchronously."""
     credentials, endpoint_url = unkoil(aget_zarr_credentials_and_endpoint, mikro, store_id)
-    return create_zarr_store_path(endpoint_url, credentials, proxy=mikro.datalayer.proxy)
+    return create_zarr_store_path(endpoint_url, credentials, proxy=mikro.datalayer.proxy, certificates=mikro.datalayer.certificates)
 
 
 def _require_pyarrow() -> None:
@@ -88,7 +88,7 @@ async def aopen_parquet_filesytem(mikro: "Mikro", store_id: str) -> ParquetDatas
     _require_pyarrow()
     credentials, endpoint_url = await aget_table_credentials_and_endpoint(mikro, store_id)
     return ParquetDatasetViaObstore(
-        create_s3_store(endpoint_url, credentials, proxy=mikro.datalayer.proxy), credentials.key
+        create_s3_store(endpoint_url, credentials, proxy=mikro.datalayer.proxy, certificates=mikro.datalayer.certificates), credentials.key
     )
 
 
@@ -97,7 +97,7 @@ def open_parquet_filesystem(mikro: "Mikro", store_id: str) -> ParquetDatasetViaO
     _require_pyarrow()
     credentials, endpoint_url = unkoil(aget_table_credentials_and_endpoint, mikro, store_id)
     return ParquetDatasetViaObstore(
-        create_s3_store(endpoint_url, credentials, proxy=mikro.datalayer.proxy), credentials.key
+        create_s3_store(endpoint_url, credentials, proxy=mikro.datalayer.proxy, certificates=mikro.datalayer.certificates), credentials.key
     )
 
 
@@ -143,7 +143,7 @@ async def _awrite_object(
 ) -> str:
     """Stream the one object a grant names into ``file_name``."""
     _ensure_parent_directory(file_name)
-    store = create_s3_store(endpoint_url, credentials, proxy=mikro.datalayer.proxy)
+    store = create_s3_store(endpoint_url, credentials, proxy=mikro.datalayer.proxy, certificates=mikro.datalayer.certificates)
 
     # Stream the file asynchronously directly into the file object
     response = await obstore.get_async(store, credentials.key)
@@ -159,7 +159,7 @@ def _write_object(
 ) -> str:
     """Stream the one object a grant names into ``file_name`` synchronously."""
     _ensure_parent_directory(file_name)
-    store = create_s3_store(endpoint_url, credentials, proxy=mikro.datalayer.proxy)
+    store = create_s3_store(endpoint_url, credentials, proxy=mikro.datalayer.proxy, certificates=mikro.datalayer.certificates)
 
     # Stream the file synchronously directly into the file object
     response = obstore.get(store, credentials.key)

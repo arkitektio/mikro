@@ -17,7 +17,7 @@ dependencies = [
     "websockets>=15.0.1",
     "fakts>=6.1",
     "numcodecs>=0.16.1",
-    "obstore>=0.10.0",
+    "obstore>=0.11.0",
     "kanne>=2.5.0",
     # The service and structures are declared with arkitekt-spec (5.0: a service reads its scopes off its client; 6.1: `fits` is a reserved search variable).
     "arkitekt-spec>=6.1",
