@@ -12305,7 +12305,7 @@ interface SampleStep {
 }
 
 """
-Input type for one pyramid level: the array backing it, and how it was downsampled. Its scale factor is derived from its actual shape, never supplied
+Input type for one pyramid level: the array backing it, how it was downsampled, and -- from a writer that knows -- where it sits in level 0's grid. Without `scale` and `translation` the level is read as a resize covering all of level 0
 """
 input ScaleInput {
   level: Int!
@@ -12313,6 +12313,16 @@ input ScaleInput {
   """The array-like object to create the image from"""
   array: ArrayLike!
   scaleMethod: ScaleMethod = null
+
+  """
+  This level's absolute scale per axis, in array order: level voxel i sits at scale * i + translation in level-0 voxels. Stated with `translation` or not at all. Checked against the shapes -- the level must hold floor or ceil of level 0's extent over the scale -- and needed whenever the shapes alone mislead: trimmed halvings (36 -> 18 -> 9 -> 4 is 8, not 36/4) and strides. Omitted, the level is read as a resize: scale shape_0 / shape_level, translation (scale - 1) / 2. A categorical axis takes 1
+  """
+  scale: [Float!] = null
+
+  """
+  This level's offset per axis, in level-0 voxels and array order: where its voxel 0's centre sits. 0 for a stride (`[::2]` keeps voxel 0); (scale - 1) / 2 for a block reduction (a mean or max of 2 voxels is centred at 0.5). Stated with `scale` or not at all. A categorical axis takes 0
+  """
+  translation: [Float!] = null
 }
 
 """

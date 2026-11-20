@@ -282,6 +282,56 @@ def test_dataset_arrays_of_a_single_level_has_no_scales() -> None:
     assert data.shape == (2, 8, 8, 8)
 
 
+def _ramp(axis: str, shape: dict[str, int]) -> xr.DataArray:
+    """A float volume whose every voxel holds its own index along ``axis``.
+
+    So a level's voxel ``j`` holds exactly the level-0 position it stands for: a strided
+    sample's index, or the centre of the block a mean averaged -- the oracle for a placement.
+    """
+    dims = list(shape)
+    ramp = np.arange(shape[axis], dtype="float64").reshape([shape[d] if d == axis else 1 for d in dims])
+    return xr.DataArray(np.broadcast_to(ramp, tuple(shape.values())).copy(), dims=dims)
+
+
+@pytest.mark.parametrize("method", ["mean", "nearest"])
+@pytest.mark.parametrize("axis", ["z", "x"])
+def test_dataset_arrays_states_where_each_level_sits(method: str, axis: str) -> None:
+    """``scale * j + translation`` is the level-0 position level voxel ``j`` holds.
+
+    z is 37 long, so it trims (mean: 37 -> 18 -> 9 -> 4) or ceils (nearest: 37 -> 19 ->
+    10 -> 5) -- where the shapes alone read 37/4 or 37/5 -- and stops halving at different
+    levels than x.
+    """
+    base = _ramp(axis, {"z": 37, "y": 4, "x": 64})
+    _, scales = dataset_arrays(base, levels=6, method=method)
+    # The same levels as numbers: a ScaleInput holds its array as an upload handle.
+    pyramid = build_pyramid(base, levels=6, method=method)
+    position = list(base.dims).index(axis)
+
+    for scale in scales:
+        level = np.asarray(pyramid[scale.level])
+        held = level[tuple(slice(None) if i == position else 0 for i in range(level.ndim))]
+        expected = scale.scale[position] * np.arange(level.shape[position]) + scale.translation[position]
+        np.testing.assert_allclose(held, expected, err_msg=f"level {scale.level}")
+
+    coarsest = scales[-1]
+    if method == "mean":
+        assert coarsest.scale[0] != 37 / pyramid[-1].shape[0], "the trim is stated, not the shapes' resize"
+    else:
+        assert coarsest.translation[position] == 0.0, "a stride keeps voxel 0"
+
+
+def test_scales_from_states_nothing_unless_told() -> None:
+    """Unset, the fields are not sent at all -- so a server that predates them takes the pyramid."""
+    pyramid = build_pyramid(_volume(), levels=2, method="mean")
+    (level,) = scales_from(pyramid, "mean")
+    assert level.scale is None and level.translation is None
+    assert "scale" not in level.model_dump(by_alias=True, exclude_unset=True)
+
+    with pytest.raises(ValueError, match="one \\(scale, translation\\) per level"):
+        scales_from(pyramid, "mean", placements=[([1.0] * 4, [0.0] * 4)])
+
+
 class TestAxesFor:
     """`axes_for` builds the `AxisInput` list an ingest declares."""
 

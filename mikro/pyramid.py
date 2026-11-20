@@ -337,6 +337,33 @@ def build_pyramid(
             level.
         dims: The dimension names of a bare numpy or dask ``base``.
     """
+    pyramid, _ = _halvings(base, levels, method, axes=axes, types=types, materialize=materialize, dims=dims)
+    return pyramid
+
+
+#: Where one level sits in level 0's grid, per axis in array order: level voxel ``i`` is
+#: level-0 voxel ``scale * i + translation``. What ``ScaleInput.scale``/``translation`` state.
+Placement = tuple[list[float], list[float]]
+
+
+def _halvings(
+    base: ArrayCoercible,
+    levels: int,
+    method: Reduction,
+    *,
+    axes: Sequence[str] | None,
+    types: Mapping[str, AxisTypeName] | None,
+    materialize: bool | None,
+    dims: Sequence[str] | None,
+) -> tuple[list[Any], list[Placement]]:
+    """:func:`build_pyramid`'s levels, and where each sits in level 0's grid.
+
+    The placement is tracked *here*, where the chain is known, because the shapes cannot say
+    it: a reduction trims an odd extent (36 -> 18 -> 9 -> 4 keeps the first 32 voxels, a
+    factor of 8, where the shapes alone read 9), and a stride keeps voxel 0 where a block
+    reduction centres its voxel half a voxel in. Per axis, since ``halvable`` drops an axis
+    once it is down to one sample and the axes stop doubling at different levels.
+    """
     if levels < 1:
         raise ValueError(f"levels must be at least 1, got {levels}")
     if method not in _REDUCTIONS:
@@ -355,18 +382,31 @@ def build_pyramid(
     if materialize:
         data = _materialize(data)
 
+    # A stride keeps voxel 2i: no offset. A reduction over a pair centres it at 2i + 0.5.
+    step_offset = 0.0 if method == "nearest" else 0.5
+    rank = len(named.dims)
     pyramid = [data]
+    placements: list[Placement] = [([1.0] * rank, [0.0] * rank)]
     for _ in range(levels - 1):
         current = pyramid[-1]
         halvable = [i for i in positions if current.shape[i] >= 2]
         if not halvable:
             break  # nothing left big enough to halve
         pyramid.append(_downsample(current, halvable, method))
-    return [named.wrap(level) for level in pyramid]
+        scale, translation = (list(values) for values in placements[-1])
+        for i in halvable:
+            # Voxel j of the new level is voxel 2j + step_offset of the level above it.
+            translation[i] += scale[i] * step_offset
+            scale[i] *= 2.0
+        placements.append((scale, translation))
+    return [named.wrap(level) for level in pyramid], placements
 
 
 def scales_from(
-    pyramid: Sequence[ArrayCoercible], method: Reduction = "max"
+    pyramid: Sequence[ArrayCoercible],
+    method: Reduction = "max",
+    *,
+    placements: Sequence[Placement] | None = None,
 ) -> list[ScaleInput]:
     """The ``scales`` argument for a pyramid you already hold.
 
@@ -378,6 +418,13 @@ def scales_from(
         pyramid = build_pyramid(base, levels=8, method="mean")
         dataset = create_array_dataset(data=pyramid[0],
                                    scales=scales_from(pyramid, "mean"), ...)
+
+    ``placements`` states where each level sits in level 0's grid -- ``(scale,
+    translation)`` per level, level 0 included, as :func:`dataset_arrays` states them for
+    the pyramids it builds. Without them nothing is stated and the server reads each level
+    as a resize of level 0 (its scale level 0's shape over its own), which places a
+    trimmed or strided level slightly off on any odd-sized axis. They are never inferred
+    from the shapes here: the shapes are exactly what cannot tell those builders apart.
     """
     from mikro.api.schema import ScaleInput, ScaleMethod
 
@@ -390,8 +437,23 @@ def scales_from(
     scale_method: ScaleMethod | None = (
         ScaleMethod(recorded) if recorded is not None else None
     )
+    if placements is not None and len(placements) != len(pyramid):
+        raise ValueError(
+            f"placements has {len(placements)} entries for a pyramid of {len(pyramid)} "
+            "levels: give one (scale, translation) per level, level 0 included"
+        )
+    # Only set when stated: an unset field is not sent at all, so a server that predates
+    # placements still takes a pyramid that states none.
     return [
         ScaleInput(level=level, array=array, scale_method=scale_method)
+        if placements is None
+        else ScaleInput(
+            level=level,
+            array=array,
+            scale_method=scale_method,
+            scale=tuple(placements[level][0]),
+            translation=tuple(placements[level][1]),
+        )
         for level, array in enumerate(pyramid)
         if level > 0
     ]
@@ -413,28 +475,32 @@ def dataset_arrays(
     takes it: ``data`` *is* level 0, and ``scales`` carries only what is coarser
     than it. Passing the base in both uploads it twice.
 
-    No scale factor is supplied for any level — the server derives each one from
-    the level's actual shape against level 0's, so a pyramid whose axes do not
-    halve cleanly (36 -> 18 -> 9 -> 4) is described exactly rather than
-    plausibly. ``method`` is passed along as provenance on each level's edge.
+    Each level states where it sits in level 0's grid (``scale`` and ``translation``),
+    tracked while it is built: a reduction trims an odd extent, so 36 -> 18 -> 9 -> 4
+    is a factor of 8 whose four voxels cover the first 32, and a ``nearest`` stride
+    keeps voxel 0 where a reduction centres its voxel half a voxel in. The shapes
+    alone cannot say either, and the server checks what is stated against them.
+    Needs a server that takes stated placements. ``method`` is passed along as
+    provenance on each level's edge.
 
         data, scales = dataset_arrays(volume, levels=6, method="mean")
 
     Takes the same arguments as :func:`build_pyramid`.
     """
-    pyramid = build_pyramid(
+    pyramid, placements = _halvings(
         base,
-        levels=levels,
-        method=method,
+        levels,
+        method,
         axes=axes,
         types=types,
         materialize=materialize,
         dims=dims,
     )
-    return pyramid[0], scales_from(pyramid, method)
+    return pyramid[0], scales_from(pyramid, method, placements=placements)
 
 
 __all__ = [
+    "Placement",
     "axes_for",
     "build_pyramid",
     "canonical",

@@ -2993,10 +2993,12 @@ class RevertInput(BaseModel):
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class ScaleInput(BaseModel):
-    """Input type for one pyramid level: the array backing it, and how it was downsampled. Its scale factor is derived from its actual shape, never supplied"""
+    """Input type for one pyramid level: the array backing it, how it was downsampled, and -- from a writer that knows -- where it sits in level 0's grid. Without `scale` and `translation` the level is read as a resize covering all of level 0"""
     level: int
     array: ArrayLike = Field(description='The array-like object to create the image from')
     scale_method: ScaleMethod | None = Field(validation_alias=AliasChoices('scale_method', 'scaleMethod'), serialization_alias='scaleMethod', default=None)
+    scale: tuple[float, ...] | None = Field(default=None, description="This level's absolute scale per axis, in array order: level voxel i sits at scale * i + translation in level-0 voxels. Stated with `translation` or not at all. Checked against the shapes -- the level must hold floor or ceil of level 0's extent over the scale -- and needed whenever the shapes alone mislead: trimmed halvings (36 -> 18 -> 9 -> 4 is 8, not 36/4) and strides. Omitted, the level is read as a resize: scale shape_0 / shape_level, translation (scale - 1) / 2. A categorical axis takes 1")
+    translation: tuple[float, ...] | None = Field(default=None, description="This level's offset per axis, in level-0 voxels and array order: where its voxel 0's centre sits. 0 for a stride (`[::2]` keeps voxel 0); (scale - 1) / 2 for a block reduction (a mean or max of 2 voxels is centred at 0.5). Stated with `scale` or not at all. A categorical axis takes 0")
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class ScenePolicyInput(BaseModel):
@@ -11845,7 +11847,7 @@ Create a new dataset from array-like data with optional coordinate anchors and O
 
 Args:
     data: The `ArrayLike` scalar type represents a reference to a store previously created by the user on a datalayer (required)
-    scales: Input type for one pyramid level: the array backing it, and how it was downsampled. Its scale factor is derived from its actual shape, never supplied (required) (list) (required)
+    scales: Input type for one pyramid level: the array backing it, how it was downsampled, and -- from a writer that knows -- where it sits in level 0's grid. Without `scale` and `translation` the level is read as a resize covering all of level 0 (required) (list) (required)
     name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
     axes: Input type for one structural axis of a dataset's pixel grid: its name and its semantic kind. Units and spacings do not belong here -- they belong to a physical space, a separate coordinate system plus one edge (required) (list) (required)
     folder: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
@@ -11882,7 +11884,7 @@ Create a new dataset from array-like data with optional coordinate anchors and O
 
 Args:
     data: The `ArrayLike` scalar type represents a reference to a store previously created by the user on a datalayer (required)
-    scales: Input type for one pyramid level: the array backing it, and how it was downsampled. Its scale factor is derived from its actual shape, never supplied (required) (list) (required)
+    scales: Input type for one pyramid level: the array backing it, how it was downsampled, and -- from a writer that knows -- where it sits in level 0's grid. Without `scale` and `translation` the level is read as a resize covering all of level 0 (required) (list) (required)
     name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
     axes: Input type for one structural axis of a dataset's pixel grid: its name and its semantic kind. Units and spacings do not belong here -- they belong to a physical space, a separate coordinate system plus one edge (required) (list) (required)
     folder: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
