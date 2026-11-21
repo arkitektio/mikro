@@ -20,6 +20,7 @@ from rath.links.graphql_ws import GraphQLWSLink
 from rath.links.split import SplitLink
 
 from arkitekt_spec.declare.app import AppRegistry
+from arkitekt_spec.declare.tested import tested_against
 from arkitekt_spec.declare.widgets import SearchWidget
 
 from mikro.api.schema import (
@@ -83,17 +84,21 @@ registry = AppRegistry()
 """What mikro brings to an app: its service, and the types it can send by id."""
 
 
+TESTED = tested_against("mikro")
+"""The mikro server this release wants: the one its release job tested it against."""
+
+
 @registry.service(
     schema=_package_path("api", "schema.graphql"),
     turms=_package_path("api", "project.json"),
     # The server this release of the client is written against: what a hub made for
     # an app's tests runs. Moves with the server's major, not with this package's.
-    image="jhnnsrs/mikro:12",
+    image="jhnnsrs/mikro:15",
 )
 def mikro(
     mikro: Annotated[
         Alias,
-        Require("live.arkitekt.mikro", "Where the user's images and their metadata live"),
+        Require("live.arkitekt.mikro", "Where the user's images and their metadata live", version=TESTED),
     ],
     s3: Annotated[
         Alias,

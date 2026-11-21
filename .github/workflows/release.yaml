@@ -42,8 +42,13 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-extras --dev
 
+      # All of them, the integration tests too: they stamp the server version they ran
+      # against into the package, which is what a release then wants of its server.
       - name: Run tests
-        run: uv run pytest 
+        run: uv run pytest
+
+      - name: Check the server version the tests ran against
+        run: uv run python -m arkitekt_spec.declare.tested mikro mikro:mikro_service
 
       - name: Python Semantic Release
         id: release

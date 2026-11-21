@@ -20,7 +20,7 @@ dependencies = [
     "obstore>=0.11.0",
     "kanne>=2.5.0",
     # The service and structures are declared with arkitekt-spec (5.0: a service reads its scopes off its client; 6.1: `fits` is a reserved search variable).
-    "arkitekt-spec>=6.1",
+    "arkitekt-spec>=12.9",
 ]
 
 [project.optional-dependencies]
@@ -87,11 +87,15 @@ dev-dependencies =  [
     "xarray>=2024.11.0",
 ]
 
+# `_tested.json` is written by the integration tests (the server version they ran against)
+# and is not in git: named as an artifact, on both, it is shipped all the same.
 [tool.hatch.build.targets.sdist]
 include = ["mikro"]
+artifacts = ["mikro/_tested.json"]
 
 [tool.hatch.build.targets.wheel]
 include = ["mikro"]
+artifacts = ["mikro/_tested.json"]
 
 
 [tool.basedpyright]

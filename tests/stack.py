@@ -6,6 +6,7 @@ then mikro's, not another service's. An app that uses mikro is tested against a
 hub instead (``arkitekt.testing``), made from the image the service declares.
 """
 
+from arkitekt_spec.declare.tested import record_tested
 import os
 import socket
 from collections.abc import Generator, Sequence
@@ -176,6 +177,8 @@ def start_mikro(
             setup.up()
             setup.run("initc", command="python init.py")
             setup.check_health()
+            # What a release of this client then says it was tested against.
+            record_tested("mikro", f"http://localhost:{mikro_port}/ht")
 
             yield MikroStack(
                 deployment=setup,
