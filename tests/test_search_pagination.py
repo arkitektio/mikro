@@ -15,7 +15,9 @@ PREFIX = "paginated_folder_qwoptyz"
 @pytest.fixture(scope="module")
 def paginated_folders(deployed_app: DeployedMikro) -> list:
     """Create a known set of searchable folders to paginate over."""
-    return [deployed_app.mikro.create_folder(name=f"{PREFIX}_{i:02d}") for i in range(5)]
+    return [
+        deployed_app.mikro.create_folder(name=f"{PREFIX}_{i:02d}") for i in range(5)
+    ]
 
 
 @pytest.mark.integration

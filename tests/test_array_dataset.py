@@ -36,7 +36,6 @@ from mikro.api.schema import (
     ScaleMethod,
     SourceFileInput,
 )
-
 from mikro.scalars import ArrayLike
 
 from .conftest import DeployedMikro
@@ -114,7 +113,9 @@ def test_create_array_dataset_with_pyramid(deployed_app: DeployedMikro) -> None:
         axes=_axes(),
     )
     assert dataset.id
-    assert len(dataset.data_arrays) == len(scales) + 1, "All pyramid levels should be stored"
+    assert len(dataset.data_arrays) == len(scales) + 1, (
+        "All pyramid levels should be stored"
+    )
     assert {arr.level for arr in dataset.data_arrays} == set(range(len(scales) + 1)), (
         "Pyramid levels should be correctly labeled"
     )
@@ -135,8 +136,12 @@ def test_the_declared_layout_is_the_one_that_lands(deployed_app: DeployedMikro) 
     single planes, but it belongs to a volume, so it keeps a volume brick. Only a layout that
     travelled from the declaration through the upload can make it 32 deep.
     """
-    base = xr.DataArray(np.zeros((2, 64, 128, 128), dtype="uint16"), dims=["c", "z", "y", "x"])
-    coarse = xr.DataArray(np.zeros((2, 32, 64, 64), dtype="uint16"), dims=["c", "z", "y", "x"])
+    base = xr.DataArray(
+        np.zeros((2, 64, 128, 128), dtype="uint16"), dims=["c", "z", "y", "x"]
+    )
+    coarse = xr.DataArray(
+        np.zeros((2, 32, 64, 64), dtype="uint16"), dims=["c", "z", "y", "x"]
+    )
 
     dataset = deployed_app.mikro.create_array_dataset(
         data=base,
@@ -164,7 +169,9 @@ def test_a_caller_layout_is_the_one_that_lands(deployed_app: DeployedMikro) -> N
 
 
 @pytest.mark.integration
-def test_create_array_dataset_with_a_hand_built_scale(deployed_app: DeployedMikro) -> None:
+def test_create_array_dataset_with_a_hand_built_scale(
+    deployed_app: DeployedMikro,
+) -> None:
     """``scales`` also takes levels built any other way, as long as they are
     numbered from 1 and share the base's dims."""
     data = _make_volume()
@@ -230,7 +237,9 @@ def test_create_array_dataset_recording_the_file_it_came_from(
     with tempfile.TemporaryDirectory() as scratch:
         source = Path(scratch) / "acquisition.txt"
         source.write_bytes(b"not really a microscope file, but it is bytes")
-        uploaded = deployed_app.mikro.from_file_like(file=str(source), file_name=source.name)
+        uploaded = deployed_app.mikro.from_file_like(
+            file=str(source), file_name=source.name
+        )
 
     dataset = deployed_app.mikro.create_array_dataset(
         data=_make_volume(),
@@ -249,7 +258,10 @@ def test_a_derived_dataset_records_the_dataset_it_came_from(
     """A segmentation of a volume shares that volume's grid, so its lineage edge
     is an identity transform: same grid, different values."""
     source = deployed_app.mikro.create_array_dataset(
-        data=_make_volume(), scales=[], name="array_dataset_lineage_source", axes=_axes()
+        data=_make_volume(),
+        scales=[],
+        name="array_dataset_lineage_source",
+        axes=_axes(),
     )
 
     derived = deployed_app.mikro.create_array_dataset(
@@ -260,7 +272,9 @@ def test_a_derived_dataset_records_the_dataset_it_came_from(
         name="array_dataset_lineage_derived",
         axes=_axes(),
         derived_from=[
-            DatasetDerivedFromInput(dataset=source.id, transform=IdentityTransformInput())
+            DatasetDerivedFromInput(
+                dataset=source.id, transform=IdentityTransformInput()
+            )
         ],
     )
     assert derived.id

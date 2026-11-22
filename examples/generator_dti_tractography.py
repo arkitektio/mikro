@@ -37,13 +37,13 @@ import numpy as np
 import pandas as pd
 import trimesh
 import xarray as xr
+from arkitekt import easy
+from fabriks import build_collection
 from scipy.ndimage import gaussian_filter
 from scipy.spatial import cKDTree
 from skimage.measure import marching_cubes
 
-from arkitekt import easy
-from mikro import Unit, dataset_arrays, space_3d, mikro_service
-from mikro.mikro import Mikro
+from mikro import Unit, dataset_arrays, mikro_service, space_3d
 from mikro.api.schema import (
     AxisInput,
     AxisType,
@@ -56,7 +56,6 @@ from mikro.api.schema import (
     ScenePolicyInput,
     ValueRelation,
 )
-from fabriks import build_collection
 
 # --------------------------------------------------------------------------- #
 # Configuration
@@ -70,7 +69,12 @@ VOX_MM = 1.5
 BRAIN_RADII = (40.0, 56.0, 48.0)  # voxels, (z, y, x)
 
 # Bundles: (name, tube radius in voxels). Centerlines are built in make_bundles().
-BUNDLE_RADII = {"corpus_callosum": 4.0, "cingulum_left": 3.0, "cingulum_right": 3.0, "fornix": 2.5}
+BUNDLE_RADII = {
+    "corpus_callosum": 4.0,
+    "cingulum_left": 3.0,
+    "cingulum_right": 3.0,
+    "fornix": 2.5,
+}
 
 FA_BUNDLE = 0.85
 FA_WM = 0.2
@@ -103,7 +107,11 @@ def make_bundles() -> dict[str, dict]:
 
     def cc(t):  # left-right arc, bowing up in z: the corpus-callosum shape
         return np.column_stack(
-            [cz + 18 * np.sin(np.pi * t), cy - 6 + 4 * np.sin(2 * np.pi * t), cx - 38 + 76 * t]
+            [
+                cz + 18 * np.sin(np.pi * t),
+                cy - 6 + 4 * np.sin(2 * np.pi * t),
+                cx - 38 + 76 * t,
+            ]
         )
 
     def cingulum(side):
@@ -111,13 +119,22 @@ def make_bundles() -> dict[str, dict]:
             # tubes must not intersect, or a tracker legitimately hops bundles at
             # the crossing and the containment check below cannot hold.
             return np.column_stack(
-                [cz + 27 + 6 * np.sin(np.pi * t), cy - 40 + 80 * t, cx + side * 14 + 3 * np.sin(2 * np.pi * t)]
+                [
+                    cz + 27 + 6 * np.sin(np.pi * t),
+                    cy - 40 + 80 * t,
+                    cx + side * 14 + 3 * np.sin(2 * np.pi * t),
+                ]
             )
+
         return curve
 
     def fornix(t):  # a C-curve dipping under
         return np.column_stack(
-            [cz - 4 - 14 * np.sin(np.pi * t), cy - 26 + 52 * t, cx + 5 * np.sin(np.pi * t)]
+            [
+                cz - 4 - 14 * np.sin(np.pi * t),
+                cy - 26 + 52 * t,
+                cx + 5 * np.sin(np.pi * t),
+            ]
         )
 
     curves = {
@@ -129,8 +146,12 @@ def make_bundles() -> dict[str, dict]:
     bundles = {}
     for name, fn in curves.items():
         pts, tans = _centerline(fn)
-        bundles[name] = {"points": pts, "tangents": tans, "radius": BUNDLE_RADII[name],
-                         "tree": cKDTree(pts)}
+        bundles[name] = {
+            "points": pts,
+            "tangents": tans,
+            "radius": BUNDLE_RADII[name],
+            "tree": cKDTree(pts),
+        }
     return bundles
 
 
@@ -174,7 +195,9 @@ def make_fields(bundles: dict) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.n
 # --------------------------------------------------------------------------- #
 # Tracking
 # --------------------------------------------------------------------------- #
-def track(fa: np.ndarray, direction: np.ndarray, bundle_map: np.ndarray, bundles: dict) -> pd.DataFrame:
+def track(
+    fa: np.ndarray, direction: np.ndarray, bundle_map: np.ndarray, bundles: dict
+) -> pd.DataFrame:
     """Deterministic RK2 streamlines through the direction field.
 
     Seeds sit inside bundle tubes; each seed integrates both ways (tangents have a
@@ -212,7 +235,9 @@ def track(fa: np.ndarray, direction: np.ndarray, bundle_map: np.ndarray, bundles
     rows, track_id = [], 0
     for index, name in enumerate(names, start=1):
         seed_pool = np.column_stack(np.nonzero(bundle_map == index)).astype(np.float64)
-        chosen = seed_pool[RNG.choice(len(seed_pool), size=SEEDS_PER_BUNDLE, replace=False)]
+        chosen = seed_pool[
+            RNG.choice(len(seed_pool), size=SEEDS_PER_BUNDLE, replace=False)
+        ]
         for seed in chosen:
             backward = integrate(seed, -1.0)[::-1]
             forward = integrate(seed, +1.0)
@@ -237,7 +262,9 @@ def track(fa: np.ndarray, direction: np.ndarray, bundle_map: np.ndarray, bundles
             track_id += 1
     # Row order within a track IS the drawn path (no t column), so concat keeps
     # path order and the sort key is the track alone.
-    return pd.concat(rows, ignore_index=True).sort_values("track_id", kind="stable", ignore_index=True)
+    return pd.concat(rows, ignore_index=True).sort_values(
+        "track_id", kind="stable", ignore_index=True
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -287,7 +314,9 @@ def check(fa, direction, brain, bundles, tracks: pd.DataFrame, mesh) -> None:
         dist, _ = bundle["tree"].query(pts_mm / VOX_MM)
         worst = float(dist.max())
         if worst > bundle["radius"] + 2 * STEP_VOX:
-            raise SystemExit(f"'{name}': a streamline strayed {worst:.2f} vox from the tube")
+            raise SystemExit(
+                f"'{name}': a streamline strayed {worst:.2f} vox from the tube"
+            )
 
     alignments = []
     for _, one in tracks.groupby("track_id"):
@@ -298,15 +327,21 @@ def check(fa, direction, brain, bundles, tracks: pd.DataFrame, mesh) -> None:
         field = direction[:, idx[:, 0], idx[:, 1], idx[:, 2]].T
         norms = np.linalg.norm(field, axis=1)
         ok = norms > 0
-        alignments.append(np.abs((steps[ok] * field[ok]).sum(axis=1) / norms[ok]).mean())
+        alignments.append(
+            np.abs((steps[ok] * field[ok]).sum(axis=1) / norms[ok]).mean()
+        )
     mean_alignment = float(np.mean(alignments))
     if not mean_alignment >= 0.9:
-        raise SystemExit(f"step/field alignment {mean_alignment:.3f} < 0.9 — the tracker wandered")
+        raise SystemExit(
+            f"step/field alignment {mean_alignment:.3f} < 0.9 — the tracker wandered"
+        )
 
     verts = np.asarray(mesh.vertices)
     extent_xyz = np.array(SHAPE, dtype=np.float64)[::-1]
     if (verts < -1e-9).any() or (verts > extent_xyz + 1e-9).any():
-        raise SystemExit("glass-brain vertices leave the volume — the (x,y,z) reversal is off")
+        raise SystemExit(
+            "glass-brain vertices leave the volume — the (x,y,z) reversal is off"
+        )
 
     print(
         f"  checks pass: {n_tracks} streamlines / {len(tracks)} points, "
@@ -380,7 +415,9 @@ if __name__ == "__main__":
         scene = world.stage(name="DTI · tractography", policy=ScenePolicyInput())
 
         print("Uploading FA map…")
-        fa_xr = xr.DataArray((fa * 255).astype(np.uint8), dims=("z", "y", "x"), name="fa")
+        fa_xr = xr.DataArray(
+            (fa * 255).astype(np.uint8), dims=("z", "y", "x"), name="fa"
+        )
         fa_data, fa_scales = dataset_arrays(fa_xr, levels=LEVELS, method="mean")
         fa_ds = mikro.create_array_dataset(
             data=fa_data,
@@ -414,8 +451,14 @@ if __name__ == "__main__":
                 ColumnInput(name="z", axis_type=AxisType.SPACE, unit="millimeter"),
                 ColumnInput(name="y", axis_type=AxisType.SPACE, unit="millimeter"),
                 ColumnInput(name="x", axis_type=AxisType.SPACE, unit="millimeter"),
-                ColumnInput(name="track_id", role=ColumnRole.TRACK_ID, long_name="streamline"),
-                ColumnInput(name="fa", role=ColumnRole.ATTRIBUTE, long_name="fractional anisotropy"),
+                ColumnInput(
+                    name="track_id", role=ColumnRole.TRACK_ID, long_name="streamline"
+                ),
+                ColumnInput(
+                    name="fa",
+                    role=ColumnRole.ATTRIBUTE,
+                    long_name="fractional anisotropy",
+                ),
                 ColumnInput(name="bundle", role=ColumnRole.LABEL, long_name="bundle"),
             ],
         )
@@ -432,11 +475,18 @@ if __name__ == "__main__":
         )
         # The track id is derived onto the layer; the coordinate columns are the
         # table's TIME/SPACE columns and are checked there (no TIME: streamlines).
-        derived = (track_layer.track_id_column,
-                   *[c.name for c in sorted(table.columns, key=lambda c: c.order)
-                     if c.axis_type in (AxisType.TIME, AxisType.SPACE)])
+        derived = (
+            track_layer.track_id_column,
+            *[
+                c.name
+                for c in sorted(table.columns, key=lambda c: c.order)
+                if c.axis_type in (AxisType.TIME, AxisType.SPACE)
+            ],
+        )
         if derived != ("track_id", "z", "y", "x"):
-            raise SystemExit(f"track layer derived {derived} — the 3D declaration did not land")
+            raise SystemExit(
+                f"track layer derived {derived} — the 3D declaration did not land"
+            )
 
         print("Uploading glass brain…")
         built = build_collection({1: mesh}, levels=LEVELS, axes=["x", "y", "z"])
@@ -451,7 +501,10 @@ if __name__ == "__main__":
                     value_relation=ValueRelation.TRANSFORMED,
                 )
             ],
-            provenance_metadata={"generator": "generator_dti_tractography.py", "seed": SEED},
+            provenance_metadata={
+                "generator": "generator_dti_tractography.py",
+                "seed": SEED,
+            },
         )
         mesh_layer = mikro.create_mesh_layer(
             scene=scene.id,
@@ -462,7 +515,9 @@ if __name__ == "__main__":
             order=2,
         )
         if mesh_layer.placement != PlacementState.PLACED:
-            raise SystemExit(f"glass brain did not reach the world: {mesh_layer.placement}")
+            raise SystemExit(
+                f"glass brain did not reach the world: {mesh_layer.placement}"
+            )
 
         # The whole cast, read back through the interface: one of each kind, all placed.
         result = mikro.rath.query(LAYERS_QUERY, {"id": scene.id})
@@ -475,9 +530,13 @@ if __name__ == "__main__":
             raise SystemExit(f"unplaced layers: {unplaced}")
         vector = next(l for l in layers if l["__typename"] == "VectorLayer")
         if vector["vectorAxis"] != "v":
-            raise SystemExit(f"vector layer derived axis {vector['vectorAxis']!r}, not 'v'")
+            raise SystemExit(
+                f"vector layer derived axis {vector['vectorAxis']!r}, not 'v'"
+            )
 
         print(f"\nDone — scene '{scene.name}' ({scene.id}):")
         print(f"  FA {fa_ds.id}, PDD {pdd_ds.id} (vector layer bootstrapped)")
-        print(f"  streamlines table {table.id} ({tracks['track_id'].nunique()} tracks), layer {track_layer.id}")
+        print(
+            f"  streamlines table {table.id} ({tracks['track_id'].nunique()} tracks), layer {track_layer.id}"
+        )
         print(f"  glass brain collection {collection.id}, layer {mesh_layer.id}")

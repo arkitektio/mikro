@@ -79,15 +79,23 @@ class _Named:
     def __init__(self, array: ArrayCoercible, dims: Sequence[str] | None) -> None:
         data, own = labelled(array)
         if own is not None and dims is not None and tuple(map(str, dims)) != own:
-            raise ValueError(f"dims={list(dims)} disagrees with the array's own {list(own)}")
-        names = own if own is not None else (tuple(map(str, dims)) if dims is not None else None)
+            raise ValueError(
+                f"dims={list(dims)} disagrees with the array's own {list(own)}"
+            )
+        names = (
+            own
+            if own is not None
+            else (tuple(map(str, dims)) if dims is not None else None)
+        )
         if names is None:
             raise ValueError(
                 "A bare numpy or dask array has no dimension names: pass dims=, "
                 "e.g. dims=['z', 'y', 'x']"
             )
         if len(names) != data.ndim:
-            raise ValueError(f"{len(names)} dimension names {list(names)} for an array of shape {data.shape}")
+            raise ValueError(
+                f"{len(names)} dimension names {list(names)} for an array of shape {data.shape}"
+            )
         self.data = data
         self.dims: tuple[str, ...] = names
         # An array that already says what it is comes back as itself where nothing changed:
@@ -109,7 +117,9 @@ class _Named:
         if self._xarray:
             from mikro.scalars import _require_xarray
 
-            return _require_xarray().DataArray(data, dims=self.dims, name=self._name, attrs=self._attrs)
+            return _require_xarray().DataArray(
+                data, dims=self.dims, name=self._name, attrs=self._attrs
+            )
         return ArrayLike(data, self.dims)
 
 
@@ -228,9 +238,7 @@ def _coarsen_dims(
             f"Cannot coarsen along {unknown}: the array has dimensions {dims}"
         )
     categorical = [
-        a
-        for a in chosen
-        if _axis_type_of(a, types) not in COARSENABLE_AXIS_TYPES
+        a for a in chosen if _axis_type_of(a, types) not in COARSENABLE_AXIS_TYPES
     ]
     if categorical:
         raise ValueError(
@@ -249,7 +257,12 @@ def _downsample(data: Any, positions: Sequence[int], method: Reduction) -> Any: 
     is reduced from exactly two inputs per halved axis.
     """
     if method == "nearest":
-        out = data[tuple(slice(None, None, 2) if i in positions else slice(None) for i in range(data.ndim))]
+        out = data[
+            tuple(
+                slice(None, None, 2) if i in positions else slice(None)
+                for i in range(data.ndim)
+            )
+        ]
     else:
         reducer = _REDUCERS[method]
         if is_dask_array(data):
@@ -257,10 +270,14 @@ def _downsample(data: Any, positions: Sequence[int], method: Reduction) -> Any: 
 
             out = da.coarsen(reducer, data, {i: 2 for i in positions}, trim_excess=True)
         else:
-            trimmed = data[tuple(
-                slice(0, data.shape[i] - data.shape[i] % 2) if i in positions else slice(None)
-                for i in range(data.ndim)
-            )]
+            trimmed = data[
+                tuple(
+                    slice(0, data.shape[i] - data.shape[i] % 2)
+                    if i in positions
+                    else slice(None)
+                    for i in range(data.ndim)
+                )
+            ]
             # (z, y, x) halving y and x -> (z, y/2, 2, x/2, 2), reduced over the pairs.
             shape: list[int] = []
             pairs: list[int] = []
@@ -337,7 +354,9 @@ def build_pyramid(
             level.
         dims: The dimension names of a bare numpy or dask ``base``.
     """
-    pyramid, _ = _halvings(base, levels, method, axes=axes, types=types, materialize=materialize, dims=dims)
+    pyramid, _ = _halvings(
+        base, levels, method, axes=axes, types=types, materialize=materialize, dims=dims
+    )
     return pyramid
 
 

@@ -84,13 +84,21 @@ def join_path_of(option) -> tuple[dict, ...]:
     true of the *path*, not of its Python type -- this is the one line of mapping between
     the two, so no caller has to remember which side is which.
     """
-    return tuple({"table": step.table.id, "column": step.column.name} for step in option.join_path)
+    return tuple(
+        {"table": step.table.id, "column": step.column.name}
+        for step in option.join_path
+    )
 
 
 #: The colormaps that colour by a value's rank rather than by its place on a ramp. A
 #: categorical column takes one of these and a measure column one of the others; which
 #: applies follows from the column's declared role and is enforced server-side.
-QUALITATIVE_COLORMAPS = (ColorMap.HUES, ColorMap.DISTINCT, ColorMap.PASTEL, ColorMap.VIVID)
+QUALITATIVE_COLORMAPS = (
+    ColorMap.HUES,
+    ColorMap.DISTINCT,
+    ColorMap.PASTEL,
+    ColorMap.VIVID,
+)
 
 
 def _measure(cls, table, column, colormap, min, max, label, join_path):
@@ -98,7 +106,9 @@ def _measure(cls, table, column, colormap, min, max, label, join_path):
     # (`ColorByInputModel._window_is_a_range`), and a degenerate one where both ends are the
     # same value is legal there. A client that fronts a rule must not be stricter than it.
     if min is not None and max is not None and min > max:
-        raise ValueError(f"the colormap window on '{column}' is inverted: min={min} is above max={max}. `min` is the value mapped to the bottom of the colormap and `max` the value mapped to its top.")
+        raise ValueError(
+            f"the colormap window on '{column}' is inverted: min={min} is above max={max}. `min` is the value mapped to the bottom of the colormap and `max` the value mapped to its top."
+        )
     del cls  # the member type is the same for both layer kinds now
     return ColumnColorByInput(
         kind=ColorSourceKind.COLUMN,
@@ -126,7 +136,9 @@ def measure_color_by(
 
     For a COORDINATE or ATTRIBUTE column. Pass `min`/`max`: see the module docstring.
     """
-    return _measure(LabelColorByInput, table, column, colormap, min, max, label, join_path)
+    return _measure(
+        LabelColorByInput, table, column, colormap, min, max, label, join_path
+    )
 
 
 def categorical_color_by(
@@ -226,7 +238,8 @@ def _check_slice(lens: object) -> None:
     if "SLICE" in {getattr(member, "value", member) for member in spec}:
         return
     windows = [
-        f"{window.axis}={window.min:g}" if window.min == window.max and window.min is not None
+        f"{window.axis}={window.min:g}"
+        if window.min == window.max and window.min is not None
         else f"{window.axis}={window.min}..{window.max}"
         for window in getattr(lens, "windows", ())
     ]
@@ -302,8 +315,18 @@ def graph_filter_by(
     hides segments only, each tested by its start node's value.
     """
     if min is None and max is None:
-        raise ValueError(f"a filter on the graph attribute '{attribute}' states no bound, so it would keep everything. Give a `min`, a `max`, or both.")
-    return NetworkFilterByInput(kind=ColorSourceKind.GRAPH, attribute=attribute, target=target, min=min, max=max, exclude=exclude, label=label)
+        raise ValueError(
+            f"a filter on the graph attribute '{attribute}' states no bound, so it would keep everything. Give a `min`, a `max`, or both."
+        )
+    return NetworkFilterByInput(
+        kind=ColorSourceKind.GRAPH,
+        attribute=attribute,
+        target=target,
+        min=min,
+        max=max,
+        exclude=exclude,
+        label=label,
+    )
 
 
 def network_color_by(*args, **kwargs) -> NetworkColorByInput:
@@ -319,7 +342,12 @@ def network_color_by(*args, **kwargs) -> NetworkColorByInput:
     the server derives NODE or EDGE from the table's shape and stamps it on the stored
     entry, and refuses a caller-sent one.
     """
-    if "attribute" in kwargs or (len(args) == 1 and not kwargs.get("table") and isinstance(args[0], str) and "column" not in kwargs):
+    if "attribute" in kwargs or (
+        len(args) == 1
+        and not kwargs.get("table")
+        and isinstance(args[0], str)
+        and "column" not in kwargs
+    ):
         return graph_color_by(*args, **kwargs)
     return mesh_color_by(*args, **kwargs)
 
@@ -330,9 +358,19 @@ def network_filter_by(*args, **kwargs) -> NetworkFilterByInput:
     As with :func:`network_color_by`, a rule over a per-node or per-edge table is the
     plain column form: the server stamps ``target`` from the table's shape.
     """
-    if "attribute" in kwargs or (len(args) == 1 and isinstance(args[0], str) and "column" not in kwargs and "table" not in kwargs):
+    if "attribute" in kwargs or (
+        len(args) == 1
+        and isinstance(args[0], str)
+        and "column" not in kwargs
+        and "table" not in kwargs
+    ):
         return graph_filter_by(*args, **kwargs)
-    entry = categorical_filter_by(*args, **kwargs) if "values" in kwargs or (len(args) > 2 and not isinstance(args[2], (int, float))) else measure_filter_by(*args, **kwargs)
+    entry = (
+        categorical_filter_by(*args, **kwargs)
+        if "values" in kwargs
+        or (len(args) > 2 and not isinstance(args[2], (int, float)))
+        else measure_filter_by(*args, **kwargs)
+    )
     return NetworkFilterByInput(**entry.model_dump(by_alias=True, exclude_none=True))
 
 
@@ -352,8 +390,18 @@ def measure_filter_by(
     deciding whether an object is drawn rather than what colour it takes.
     """
     if min is None and max is None:
-        raise ValueError(f"a filter on the measure column '{column}' states no bound, so it would keep everything. Give a `min`, a `max`, or both.")
-    return LabelFilterByInput(table=table, column=column, min=min, max=max, exclude=exclude, label=label, join_path=list(join_path))
+        raise ValueError(
+            f"a filter on the measure column '{column}' states no bound, so it would keep everything. Give a `min`, a `max`, or both."
+        )
+    return LabelFilterByInput(
+        table=table,
+        column=column,
+        min=min,
+        max=max,
+        exclude=exclude,
+        label=label,
+        join_path=list(join_path),
+    )
 
 
 def categorical_filter_by(
@@ -367,8 +415,17 @@ def categorical_filter_by(
 ) -> LabelFilterByInput:
     """Draw only the objects whose categorical column is (or, with `exclude`, is not) in `values`."""
     if not values:
-        raise ValueError(f"a filter on the categorical column '{column}' names no values, so it would draw {'everything' if exclude else 'nothing'}. Name the classes it keeps.")
-    return LabelFilterByInput(table=table, column=column, values=[str(value) for value in values], exclude=exclude, label=label, join_path=list(join_path))
+        raise ValueError(
+            f"a filter on the categorical column '{column}' names no values, so it would draw {'everything' if exclude else 'nothing'}. Name the classes it keeps."
+        )
+    return LabelFilterByInput(
+        table=table,
+        column=column,
+        values=[str(value) for value in values],
+        exclude=exclude,
+        label=label,
+        join_path=list(join_path),
+    )
 
 
 def mesh_color_by(*args, **kwargs) -> MeshColorByInput:
@@ -381,12 +438,21 @@ def mesh_color_by(*args, **kwargs) -> MeshColorByInput:
     # member types behind two aliases, so an entry built once goes into either mutation. The
     # `model_dump` round trip this used to do -- and the argument-shape dispatch that went with
     # it -- were both artefacts of two field-for-field identical classes.
-    return categorical_color_by(*args, **kwargs) if kwargs.get("colormap") in QUALITATIVE_COLORMAPS else measure_color_by(*args, **kwargs)
+    return (
+        categorical_color_by(*args, **kwargs)
+        if kwargs.get("colormap") in QUALITATIVE_COLORMAPS
+        else measure_color_by(*args, **kwargs)
+    )
 
 
 def mesh_filter_by(*args, **kwargs) -> MeshFilterByInput:
     """:func:`measure_filter_by` / :func:`categorical_filter_by` over a mesh collection."""
-    entry = categorical_filter_by(*args, **kwargs) if "values" in kwargs or (len(args) > 2 and not isinstance(args[2], (int, float))) else measure_filter_by(*args, **kwargs)
+    entry = (
+        categorical_filter_by(*args, **kwargs)
+        if "values" in kwargs
+        or (len(args) > 2 and not isinstance(args[2], (int, float)))
+        else measure_filter_by(*args, **kwargs)
+    )
     return MeshFilterByInput(**entry.model_dump(by_alias=True, exclude_none=True))
 
 
@@ -428,19 +494,27 @@ def label_render(
 
     if active is not UNSET and active is not None:
         if published is None:
-            raise ValueError(f"activeColorBy={active} names an entry of a picker this call does not publish. Pass `color_bys=` alongside it, or leave `active` unset to keep the layer's current choice.")
+            raise ValueError(
+                f"activeColorBy={active} names an entry of a picker this call does not publish. Pass `color_bys=` alongside it, or leave `active` unset to keep the layer's current choice."
+            )
         if not 0 <= active < len(published):
-            raise ValueError(f"activeColorBy={active} is not an index into the {len(published)} colouring(s) published here.")
+            raise ValueError(
+                f"activeColorBy={active} is not an index into the {len(published)} colouring(s) published here."
+            )
     if active_filters is not UNSET:
         for index in active_filters:
             if filters is None or not 0 <= index < len(filters):
-                raise ValueError(f"activeFilterBys names index {index}, which is not one of the {len(filters or ())} filter(s) published here.")
+                raise ValueError(
+                    f"activeFilterBys names index {index}, which is not one of the {len(filters or ())} filter(s) published here."
+                )
 
     seen: dict[str, int] = {}
     for index, entry in enumerate(published or ()):
         mark = _fingerprint(entry)
         if mark in seen:
-            raise ValueError(f"colorBys[{index}] renders identically to colorBys[{seen[mark]}] -- same source, colormap and window. The caption is not what distinguishes two entries, so the server refuses this pair; drop one.")
+            raise ValueError(
+                f"colorBys[{index}] renders identically to colorBys[{seen[mark]}] -- same source, colormap and window. The caption is not what distinguishes two entries, so the server refuses this pair; drop one."
+            )
         seen[mark] = index
 
     # `[]` and "not named" are two different instructions and the server reads them as such:

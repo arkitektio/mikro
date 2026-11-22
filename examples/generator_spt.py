@@ -33,10 +33,9 @@ import sys
 import numpy as np
 import pandas as pd
 import xarray as xr
-
 from arkitekt import easy
+
 from mikro import Unit, create_space, dataset_arrays, mikro_service
-from mikro.mikro import Mikro
 from mikro.api.schema import (
     AxisType,
     ColorMap,
@@ -240,10 +239,14 @@ def check(particles: list[dict], obs: pd.DataFrame, movie: xr.DataArray) -> None
     # already, and a duplicated t within a track would make the path ambiguous.
     per_track = obs.groupby("track_id")["t"]
     if not (per_track.apply(lambda s: s.is_monotonic_increasing and s.is_unique)).all():
-        raise SystemExit("a track's t column is not strictly increasing — do not upload")
+        raise SystemExit(
+            "a track's t column is not strictly increasing — do not upload"
+        )
 
     if movie.shape != (FRAMES, *CAM_SHAPE):
-        raise SystemExit(f"movie is {movie.shape}, expected {(FRAMES, *CAM_SHAPE)} — transposed?")
+        raise SystemExit(
+            f"movie is {movie.shape}, expected {(FRAMES, *CAM_SHAPE)} — transposed?"
+        )
 
     at_obs = movie.values[
         obs["frame"],
@@ -269,7 +272,9 @@ def check(particles: list[dict], obs: pd.DataFrame, movie: xr.DataArray) -> None
 if __name__ == "__main__":
     dry_run = "--dry-run" in sys.argv
 
-    print(f"Simulating walkers ({FIELD[0]:.0f}x{FIELD[1]:.0f} µm field, {FRAMES} frames)…")
+    print(
+        f"Simulating walkers ({FIELD[0]:.0f}x{FIELD[1]:.0f} µm field, {FRAMES} frames)…"
+    )
     particles = simulate()
     obs = observe(particles)
     print(
@@ -289,7 +294,8 @@ if __name__ == "__main__":
 
     # Reusing a sibling generator's cached grant (see generator_smlm.py).
     with easy("neuron-overlay", mikro_service) as mikro:
-        world = create_space(mikro, 
+        world = create_space(
+            mikro,
             "SPT · field",
             {"t": Unit("second"), "y": Unit("micrometer"), "x": Unit("micrometer")},
         )
@@ -322,9 +328,17 @@ if __name__ == "__main__":
                 ColumnInput(name="y", axis_type=AxisType.SPACE, unit="micrometer"),
                 ColumnInput(name="x", axis_type=AxisType.SPACE, unit="micrometer"),
                 # TRACK_ID, not GROUP_ID: these rows have an order — they are a path.
-                ColumnInput(name="track_id", role=ColumnRole.TRACK_ID, long_name="trajectory"),
-                ColumnInput(name="frame", role=ColumnRole.ATTRIBUTE, long_name="camera frame index"),
-                ColumnInput(name="photons", role=ColumnRole.ATTRIBUTE, long_name="photon count"),
+                ColumnInput(
+                    name="track_id", role=ColumnRole.TRACK_ID, long_name="trajectory"
+                ),
+                ColumnInput(
+                    name="frame",
+                    role=ColumnRole.ATTRIBUTE,
+                    long_name="camera frame index",
+                ),
+                ColumnInput(
+                    name="photons", role=ColumnRole.ATTRIBUTE, long_name="photon count"
+                ),
                 ColumnInput(
                     name="speed",
                     role=ColumnRole.ATTRIBUTE,
@@ -364,8 +378,11 @@ if __name__ == "__main__":
         # table's TIME/SPACE columns and are checked there.
         derived = (
             track_layer.track_id_column,
-            *[c.name for c in sorted(table.columns, key=lambda c: c.order)
-              if c.axis_type in (AxisType.TIME, AxisType.SPACE)],
+            *[
+                c.name
+                for c in sorted(table.columns, key=lambda c: c.order)
+                if c.axis_type in (AxisType.TIME, AxisType.SPACE)
+            ],
         )
         if derived != ("track_id", "t", "y", "x"):
             raise SystemExit(
@@ -375,5 +392,7 @@ if __name__ == "__main__":
 
         print(f"\nDone — scene '{scene.name}' ({scene.id}):")
         print(f"  raw movie  : dataset {raw_ds.id} ({FRAMES} frames)")
-        print(f"  table      : {table.id} ({obs['track_id'].nunique()} tracks, {len(obs)} rows)")
+        print(
+            f"  table      : {table.id} ({obs['track_id'].nunique()} tracks, {len(obs)} rows)"
+        )
         print(f"  track layer: {track_layer.id} (colored by speed)")

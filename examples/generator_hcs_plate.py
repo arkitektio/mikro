@@ -31,11 +31,10 @@ import sys
 import numpy as np
 import pandas as pd
 import xarray as xr
+from arkitekt import easy
 from scipy import ndimage
 
-from arkitekt import easy
-from mikro import Unit, space_2d, mikro_service
-from mikro.mikro import Mikro
+from mikro import Unit, mikro_service, space_2d
 from mikro.api.schema import (
     AxisType,
     ColorMap,
@@ -98,11 +97,15 @@ def render_well(col: int) -> tuple[xr.DataArray, int, float]:
         r = RNG.uniform(*NUCLEUS_R_PX)
         cy = RNG.uniform(r + 2, FIELD_SHAPE[0] - r - 2)
         cx = RNG.uniform(r + 2, FIELD_SHAPE[1] - r - 2)
-        if any((cy - py) ** 2 + (cx - px) ** 2 < (r + pr + 4) ** 2 for py, px, pr in placed):
+        if any(
+            (cy - py) ** 2 + (cx - px) ** 2 < (r + pr + 4) ** 2 for py, px, pr in placed
+        ):
             continue
         placed.append((cy, cx, r))
-        image += amplitude * RNG.uniform(0.7, 1.3) * np.exp(
-            -(((yy - cy) ** 2 + (xx - cx) ** 2) / (2 * (r / 1.8) ** 2))
+        image += (
+            amplitude
+            * RNG.uniform(0.7, 1.3)
+            * np.exp(-(((yy - cy) ** 2 + (xx - cx) ** 2) / (2 * (r / 1.8) ** 2)))
         )
 
     noisy = RNG.poisson(image + BACKGROUND).astype(np.uint16)
@@ -124,7 +127,9 @@ def check(wells: list[dict]) -> None:
     # threshold has to equal the number of nuclei placed, per well.
     for well in wells:
         if well["image"].shape != FIELD_SHAPE:
-            raise SystemExit(f"{well['well']}: field {well['image'].shape} != {FIELD_SHAPE} — transposed?")
+            raise SystemExit(
+                f"{well['well']}: field {well['image'].shape} != {FIELD_SHAPE} — transposed?"
+            )
         # Thresholded against the well's own staining level, not a global constant:
         # neighbouring Gaussian tails sum to ~0.25 of the amplitude, so a global
         # threshold either merges bright wells or misses dim ones.
@@ -140,13 +145,17 @@ def check(wells: list[dict]) -> None:
     doses = np.array([w["dose_step"] for w in wells], dtype=np.float64)
     corr = float(np.corrcoef(doses, counts)[0, 1])
     if not corr <= -0.8:
-        raise SystemExit(f"dose/count correlation {corr:.2f} > -0.8 — the screen shows nothing")
+        raise SystemExit(
+            f"dose/count correlation {corr:.2f} > -0.8 — the screen shows nothing"
+        )
 
     # The grid math the table's coordinates are built from: reading order.
     for index, well in enumerate(wells):
         row, col = divmod(index, COLS)
         if (well["row"], well["col"]) != (row, col):
-            raise SystemExit(f"well {index} is ({well['row']}, {well['col']}), expected ({row}, {col})")
+            raise SystemExit(
+                f"well {index} is ({well['row']}, {well['col']}), expected ({row}, {col})"
+            )
 
     print(
         f"  checks pass: {len(wells)} wells, segmentation matches placement, "
@@ -181,8 +190,10 @@ if __name__ == "__main__":
             }
         )
     total = sum(w["cell_count"] for w in wells)
-    print(f"  {total} nuclei over {len(wells)} fields ({wells[0]['cell_count']} in A1, "
-          f"{wells[-1]['cell_count']} in {wells[-1]['well']})")
+    print(
+        f"  {total} nuclei over {len(wells)} fields ({wells[0]['cell_count']} in A1, "
+        f"{wells[-1]['cell_count']} in {wells[-1]['well']})"
+    )
 
     check(wells)
 
@@ -231,8 +242,12 @@ if __name__ == "__main__":
                     "well": [w["well"] for w in wells],
                     "row": np.array([w["row"] for w in wells], dtype=np.int64),
                     "col": np.array([w["col"] for w in wells], dtype=np.int64),
-                    "dose_step": np.array([w["dose_step"] for w in wells], dtype=np.int64),
-                    "cell_count": np.array([w["cell_count"] for w in wells], dtype=np.int64),
+                    "dose_step": np.array(
+                        [w["dose_step"] for w in wells], dtype=np.int64
+                    ),
+                    "cell_count": np.array(
+                        [w["cell_count"] for w in wells], dtype=np.int64
+                    ),
                     "mean_amplitude": [w["mean_amplitude"] for w in wells],
                 }
             ),
@@ -246,15 +261,27 @@ if __name__ == "__main__":
                 ColumnInput(name="well", role=ColumnRole.LABEL, long_name="well"),
                 ColumnInput(name="row", role=ColumnRole.ATTRIBUTE),
                 ColumnInput(name="col", role=ColumnRole.ATTRIBUTE),
-                ColumnInput(name="dose_step", role=ColumnRole.ATTRIBUTE, long_name="dose step"),
-                ColumnInput(name="cell_count", role=ColumnRole.ATTRIBUTE, long_name="nuclei per field"),
-                ColumnInput(name="mean_amplitude", role=ColumnRole.ATTRIBUTE, long_name="mean nuclear intensity"),
+                ColumnInput(
+                    name="dose_step", role=ColumnRole.ATTRIBUTE, long_name="dose step"
+                ),
+                ColumnInput(
+                    name="cell_count",
+                    role=ColumnRole.ATTRIBUTE,
+                    long_name="nuclei per field",
+                ),
+                ColumnInput(
+                    name="mean_amplitude",
+                    role=ColumnRole.ATTRIBUTE,
+                    long_name="mean nuclear intensity",
+                ),
             ],
         )
         world.register(table)  # already in stage micrometers
 
         print("Composing the scene…")
-        scene = mikro.create_scene(name="HCS · synthetic plate", coordinate_system=world.id)
+        scene = mikro.create_scene(
+            name="HCS · synthetic plate", coordinate_system=world.id
+        )
 
         for order, (well, field_ds) in enumerate(zip(wells, field_ids)):
             mikro.create_intensity_layer(
@@ -275,21 +302,34 @@ if __name__ == "__main__":
             opacity=0.9,
             order=len(wells),
             color_bys=[
-                ColumnColorByInput(table=table.id, column="cell_count", colormap=ColorMap.VIRIDIS,
-                                   min=0.0, max=float(max(w["cell_count"] for w in wells)),
-                                   label="Cell count"),
-                ColumnColorByInput(table=table.id, column="mean_amplitude", colormap=ColorMap.INFERNO,
-                                   min=0.0, max=float(BASE_AMPLITUDE), label="Staining intensity"),
+                ColumnColorByInput(
+                    table=table.id,
+                    column="cell_count",
+                    colormap=ColorMap.VIRIDIS,
+                    min=0.0,
+                    max=float(max(w["cell_count"] for w in wells)),
+                    label="Cell count",
+                ),
+                ColumnColorByInput(
+                    table=table.id,
+                    column="mean_amplitude",
+                    colormap=ColorMap.INFERNO,
+                    min=0.0,
+                    max=float(BASE_AMPLITUDE),
+                    label="Staining intensity",
+                ),
             ],
             active_color_by=0,
         )
         # The point layer draws the table's SPACE columns, checked where they live.
-        space = [c.name for c in sorted(table.columns, key=lambda c: c.order)
-                  if c.axis_type in (AxisType.SPACE,)]
+        space = [
+            c.name
+            for c in sorted(table.columns, key=lambda c: c.order)
+            if c.axis_type in (AxisType.SPACE,)
+        ]
         if space != ["y", "x"]:
             raise SystemExit(
-                f"well table declared SPACE columns {space} — "
-                f"declaration did not land"
+                f"well table declared SPACE columns {space} — declaration did not land"
             )
 
         print(f"\nDone — scene '{scene.name}' ({scene.id}):")

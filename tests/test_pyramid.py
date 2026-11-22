@@ -7,7 +7,6 @@ selection and the ``ScaleMethod`` provenance are all decided client-side, which
 is exactly why they are worth pinning down without a server.
 """
 
-
 import dask.array as da
 import numpy as np
 import pytest
@@ -18,7 +17,9 @@ from mikro.api.schema import ScaleMethod
 from mikro.vocabulary import UnknownAxisName
 
 
-def _volume(dims: list[str] = ["c", "z", "y", "x"], dtype: str = "uint16") -> xr.DataArray:
+def _volume(
+    dims: list[str] = ["c", "z", "y", "x"], dtype: str = "uint16"
+) -> xr.DataArray:
     """A small labelled volume; every axis is big enough to halve three times."""
     shape = tuple(2 if dim == "c" else 8 for dim in dims)
     data = np.arange(int(np.prod(shape)), dtype=dtype).reshape(shape)
@@ -112,7 +113,9 @@ def test_build_pyramid_stops_when_nothing_is_left_to_halve() -> None:
 def test_build_pyramid_nearest_subsamples_rather_than_reduces() -> None:
     """``nearest`` is a stride: every value in the level was already in the one
     above it, which is what makes it the only label-safe choice here."""
-    base = xr.DataArray(np.arange(8).reshape(1, 8) * np.ones((4, 1), dtype=int), dims=["y", "x"])
+    base = xr.DataArray(
+        np.arange(8).reshape(1, 8) * np.ones((4, 1), dtype=int), dims=["y", "x"]
+    )
     level_one = build_pyramid(base, levels=2, method="nearest")[1]
     assert level_one.to_numpy()[0].tolist() == [0, 2, 4, 6]
 
@@ -121,7 +124,9 @@ def test_build_pyramid_max_keeps_the_bright_pixel() -> None:
     """``max`` is the reduction that keeps a thin bright structure visible."""
     values = np.zeros((4, 4))
     values[0, 0] = 5.0
-    pyramid = build_pyramid(xr.DataArray(values, dims=["y", "x"]), levels=2, method="max")
+    pyramid = build_pyramid(
+        xr.DataArray(values, dims=["y", "x"]), levels=2, method="max"
+    )
     assert pyramid[1].to_numpy()[0, 0] == 5.0
 
 
@@ -177,9 +182,13 @@ def test_build_pyramid_materializes_a_lazy_base_once() -> None:
 
     def _lazy_base() -> xr.DataArray:
         source = da.from_array(np.random.random((8, 8, 8)), chunks=(8, 8, 8))
-        return xr.DataArray(source.map_blocks(_tracked, dtype="float64"), dims=["z", "y", "x"])
+        return xr.DataArray(
+            source.map_blocks(_tracked, dtype="float64"), dims=["z", "y", "x"]
+        )
 
-    for level in build_pyramid(_lazy_base(), levels=4, method="mean", materialize=False):
+    for level in build_pyramid(
+        _lazy_base(), levels=4, method="mean", materialize=False
+    ):
         np.asarray(level)
     without = len(calls)
 
@@ -289,7 +298,9 @@ def _ramp(axis: str, shape: dict[str, int]) -> xr.DataArray:
     sample's index, or the centre of the block a mean averaged -- the oracle for a placement.
     """
     dims = list(shape)
-    ramp = np.arange(shape[axis], dtype="float64").reshape([shape[d] if d == axis else 1 for d in dims])
+    ramp = np.arange(shape[axis], dtype="float64").reshape(
+        [shape[d] if d == axis else 1 for d in dims]
+    )
     return xr.DataArray(np.broadcast_to(ramp, tuple(shape.values())).copy(), dims=dims)
 
 
@@ -310,13 +321,20 @@ def test_dataset_arrays_states_where_each_level_sits(method: str, axis: str) -> 
 
     for scale in scales:
         level = np.asarray(pyramid[scale.level])
-        held = level[tuple(slice(None) if i == position else 0 for i in range(level.ndim))]
-        expected = scale.scale[position] * np.arange(level.shape[position]) + scale.translation[position]
+        held = level[
+            tuple(slice(None) if i == position else 0 for i in range(level.ndim))
+        ]
+        expected = (
+            scale.scale[position] * np.arange(level.shape[position])
+            + scale.translation[position]
+        )
         np.testing.assert_allclose(held, expected, err_msg=f"level {scale.level}")
 
     coarsest = scales[-1]
     if method == "mean":
-        assert coarsest.scale[0] != 37 / pyramid[-1].shape[0], "the trim is stated, not the shapes' resize"
+        assert coarsest.scale[0] != 37 / pyramid[-1].shape[0], (
+            "the trim is stated, not the shapes' resize"
+        )
     else:
         assert coarsest.translation[position] == 0.0, "a stride keeps voxel 0"
 
@@ -342,7 +360,11 @@ class TestAxesFor:
         axes = axes_for(self._data(["t", "c", "z", "y", "x"]))
         assert [a.name for a in axes] == ["t", "c", "z", "y", "x"]
         assert [a.type for a in axes] == [
-            "TIME", "CHANNEL", "SPACE", "SPACE", "SPACE",
+            "TIME",
+            "CHANNEL",
+            "SPACE",
+            "SPACE",
+            "SPACE",
         ]
 
     def test_dims_keep_the_arrays_own_order(self) -> None:
@@ -382,13 +404,18 @@ def test_numpy_and_dask_pyramids_match_what_xarray_built(method: str) -> None:
         if method == "nearest":
             nxt = current.isel({d: slice(None, None, 2) for d in halvable})
         else:
-            nxt = getattr(current.coarsen({d: 2 for d in halvable}, boundary="trim"), method)()
+            nxt = getattr(
+                current.coarsen({d: 2 for d in halvable}, boundary="trim"), method
+            )()
         reference.append(nxt.astype(source.dtype))
 
     eager = build_pyramid(source, levels=4, method=method, dims=["c", "y", "x"])
     lazy = build_pyramid(
-        da.from_array(source, chunks=(1, 5, 5)), levels=4, method=method,
-        dims=["c", "y", "x"], materialize=False,
+        da.from_array(source, chunks=(1, 5, 5)),
+        levels=4,
+        method=method,
+        dims=["c", "y", "x"],
+        materialize=False,
     )
     for want, got_numpy, got_dask in zip(reference, eager, lazy, strict=True):
         assert got_numpy.dims == got_dask.dims == ("c", "y", "x")
@@ -413,5 +440,7 @@ data, scales = dataset_arrays(np.zeros((2, 64, 64), "uint16"), levels=3, dims=["
 CreateArrayDatasetInput(name="n", data=data, scales=scales, axes=["c", "y", "x"])
 assert "pandas" not in sys.modules, "pandas was imported"
 """
-    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True)
+    result = subprocess.run(
+        [sys.executable, "-c", script], capture_output=True, text=True
+    )
     assert result.returncode == 0, result.stderr

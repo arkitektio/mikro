@@ -62,10 +62,14 @@ class Mikro(Composition, MikroApi):
         return {TASK_HEADER: token} if token else None
 
     @staticmethod
-    def _serialize(operation: type[TOperation], variables: dict[str, Any]) -> dict[str, Any]:
+    def _serialize(
+        operation: type[TOperation], variables: dict[str, Any]
+    ) -> dict[str, Any]:
         # pydantic validation + alias resolution; exclude_unset lets the server apply
         # its own defaults for what the caller never set.
-        return operation.Arguments(**variables).model_dump(by_alias=True, exclude_unset=True)
+        return operation.Arguments(**variables).model_dump(
+            by_alias=True, exclude_unset=True
+        )
 
     def _apply_middlewares(
         self, variables: dict[str, Any], operation: type[TOperation]
@@ -89,7 +93,9 @@ class Mikro(Composition, MikroApi):
         ``aprocess_variables``.
         """
         for middleware in self.rath.middlewares:
-            variables = await middleware.aprocess_variables(variables, operation, self.rath)
+            variables = await middleware.aprocess_variables(
+                variables, operation, self.rath
+            )
         return variables
 
     def execute(
@@ -103,8 +109,12 @@ class Mikro(Composition, MikroApi):
         Uses the sync middleware path (process_variables) which runs
         uploads via obstore in the calling thread.
         """
-        serialized = self._apply_middlewares(self._serialize(operation, variables), operation)
-        x = self.rath.query(operation.Meta.document, serialized, headers=self._headers(task))
+        serialized = self._apply_middlewares(
+            self._serialize(operation, variables), operation
+        )
+        x = self.rath.query(
+            operation.Meta.document, serialized, headers=self._headers(task)
+        )
         return operation.model_validate(x.data, context=self._origin())
 
     async def aexecute(
@@ -121,7 +131,9 @@ class Mikro(Composition, MikroApi):
         serialized = await self._aapply_middlewares(
             self._serialize(operation, variables), operation
         )
-        x = await self.rath.aquery(operation.Meta.document, serialized, headers=self._headers(task))
+        x = await self.rath.aquery(
+            operation.Meta.document, serialized, headers=self._headers(task)
+        )
         return operation.model_validate(x.data, context=self._origin())
 
     def subscribe(

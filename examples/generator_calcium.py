@@ -32,11 +32,10 @@ import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 import xarray as xr
+from arkitekt import easy
 from sporadik import SparseArray
 
-from arkitekt import easy
 from mikro import Unit, create_space, dataset_arrays, mikro_service
-from mikro.mikro import Mikro
 from mikro.api.schema import (
     AxisType,
     ColorMap,
@@ -103,7 +102,10 @@ def place_cells() -> tuple[np.ndarray, list[dict]]:
         r = RNG.uniform(*SOMA_RADIUS_PX)
         cy = RNG.uniform(r + 2, FIELD_SHAPE[0] - r - 2)
         cx = RNG.uniform(r + 2, FIELD_SHAPE[1] - r - 2)
-        if any((cy - c["cy"]) ** 2 + (cx - c["cx"]) ** 2 < (r + c["r"] + 3) ** 2 for c in cells):
+        if any(
+            (cy - c["cy"]) ** 2 + (cx - c["cx"]) ** 2 < (r + c["r"] + 3) ** 2
+            for c in cells
+        ):
             continue
         cell_id = len(cells) + 1
         dist2 = (yy - cy) ** 2 + (xx - cx) ** 2
@@ -181,9 +183,13 @@ def check(
     headline: list[int],
 ) -> None:
     if movie.shape != (FRAMES, *FIELD_SHAPE):
-        raise SystemExit(f"movie is {movie.shape}, expected {(FRAMES, *FIELD_SHAPE)} — transposed?")
+        raise SystemExit(
+            f"movie is {movie.shape}, expected {(FRAMES, *FIELD_SHAPE)} — transposed?"
+        )
     if len(cells) != N_CELLS or mask.max() != N_CELLS:
-        raise SystemExit(f"{len(cells)} cells, mask max {mask.max()} — expected {N_CELLS}")
+        raise SystemExit(
+            f"{len(cells)} cells, mask max {mask.max()} — expected {N_CELLS}"
+        )
 
     # The movie must carry the activity: a trace extracted the way an analysis
     # pipeline would (mean over the mask, ΔF/F against its own quiet baseline) has
@@ -197,17 +203,23 @@ def check(
         corr = float(np.corrcoef(est, dff[i])[0, 1])
         # `not >=` rather than `<`: a NaN correlation must fail, not slip through.
         if not corr >= 0.9:
-            raise SystemExit(f"cell {cell['cell_id']}: extracted trace correlates {corr:.3f} < 0.9")
+            raise SystemExit(
+                f"cell {cell['cell_id']}: extracted trace correlates {corr:.3f} < 0.9"
+            )
 
     # Ensembles must be real: within-ensemble correlation clearly above cross.
     corr = np.corrcoef(dff)
     same, cross = [], []
     for i in range(len(cells)):
         for j in range(i + 1, len(cells)):
-            (same if cells[i]["ensemble"] == cells[j]["ensemble"] else cross).append(corr[i, j])
+            (same if cells[i]["ensemble"] == cells[j]["ensemble"] else cross).append(
+                corr[i, j]
+            )
     gap = float(np.mean(same) - np.mean(cross))
     if not gap >= 0.25:  # `not >=`: a NaN gap must fail, not slip through
-        raise SystemExit(f"ensemble correlation gap {gap:.3f} < 0.25 — ensembles not visible")
+        raise SystemExit(
+            f"ensemble correlation gap {gap:.3f} < 0.25 — ensembles not visible"
+        )
 
     for frame in headline:
         active = int((dff[:, frame] > 0.3).sum())
@@ -250,7 +262,9 @@ if __name__ == "__main__":
     density = matrix.nnz / (N_CELLS * FRAMES)
     print(f"  ΔF/F matrix: {matrix.nnz:,} nonzero ({100 * density:.1f} % dense)")
     if density > 0.5:
-        raise SystemExit("ΔF/F matrix is over half dense — thresholding is not thresholding")
+        raise SystemExit(
+            "ΔF/F matrix is over half dense — thresholding is not thresholding"
+        )
 
     if dry_run:
         print("Dry run: everything local checks out, nothing uploaded.")
@@ -258,7 +272,8 @@ if __name__ == "__main__":
 
     # Reusing a sibling generator's cached grant (see generator_smlm.py).
     with easy("neuron-overlay", mikro_service) as mikro:
-        world = create_space(mikro, 
+        world = create_space(
+            mikro,
             "Calcium · field",
             {"t": Unit("second"), "y": Unit("micrometer"), "x": Unit("micrometer")},
         )
@@ -303,9 +318,17 @@ if __name__ == "__main__":
                     axis_type=AxisType.INDEX,
                     identified_by=[DatasetIdentifiesInput(dataset=labels_ds.id)],
                 ),
-                ColumnInput(name="event_rate", role=ColumnRole.ATTRIBUTE, long_name="events per second"),
-                ColumnInput(name="peak_dff", role=ColumnRole.ATTRIBUTE, long_name="peak ΔF/F"),
-                ColumnInput(name="ensemble", role=ColumnRole.LABEL, long_name="ensemble"),
+                ColumnInput(
+                    name="event_rate",
+                    role=ColumnRole.ATTRIBUTE,
+                    long_name="events per second",
+                ),
+                ColumnInput(
+                    name="peak_dff", role=ColumnRole.ATTRIBUTE, long_name="peak ΔF/F"
+                ),
+                ColumnInput(
+                    name="ensemble", role=ColumnRole.LABEL, long_name="ensemble"
+                ),
             ],
         )
 
@@ -317,8 +340,12 @@ if __name__ == "__main__":
                 "time_s": (np.arange(FRAMES) * DT).astype(np.float64),
             },
             columns=[
-                ColumnInput(name="frame", axis_type=AxisType.INDEX, long_name="frame index"),
-                ColumnInput(name="time_s", role=ColumnRole.ATTRIBUTE, long_name="time (s)"),
+                ColumnInput(
+                    name="frame", axis_type=AxisType.INDEX, long_name="frame index"
+                ),
+                ColumnInput(
+                    name="time_s", role=ColumnRole.ATTRIBUTE, long_name="time (s)"
+                ),
             ],
         )
         expression = mikro.create_sparse_dataset(
@@ -328,7 +355,11 @@ if __name__ == "__main__":
                 SparseAxisInput(
                     name="cell",
                     long_name="cell id",
-                    identified_by=[DatasetIdentifiesInput(dataset=labels_ds.id, name="cells -> ΔF/F")],
+                    identified_by=[
+                        DatasetIdentifiesInput(
+                            dataset=labels_ds.id, name="cells -> ΔF/F"
+                        )
+                    ],
                 ),
                 SparseAxisInput(
                     name="frame",
@@ -340,7 +371,9 @@ if __name__ == "__main__":
         )
 
         print("Composing the scene…")
-        scene = mikro.create_scene(name="Calcium · synthetic", coordinate_system=world.id)
+        scene = mikro.create_scene(
+            name="Calcium · synthetic", coordinate_system=world.id
+        )
 
         mikro.create_layer(
             scene=scene,
@@ -362,16 +395,31 @@ if __name__ == "__main__":
             scene=scene.id,
             render=label_render(
                 [
-                    measure_color_by(stats, "event_rate", colormap=ColorMap.VIRIDIS, min=0.0,
-                                     max=float((dff > 0.3).sum(axis=1).max() / (FRAMES * DT)),
-                                     label="Event rate"),
-                    measure_color_by(stats, "peak_dff", colormap=ColorMap.INFERNO, min=0.0,
-                                     max=float(dff.max()), label="Peak ΔF/F"),
+                    measure_color_by(
+                        stats,
+                        "event_rate",
+                        colormap=ColorMap.VIRIDIS,
+                        min=0.0,
+                        max=float((dff > 0.3).sum(axis=1).max() / (FRAMES * DT)),
+                        label="Event rate",
+                    ),
+                    measure_color_by(
+                        stats,
+                        "peak_dff",
+                        colormap=ColorMap.INFERNO,
+                        min=0.0,
+                        max=float(dff.max()),
+                        label="Peak ΔF/F",
+                    ),
                     categorical_color_by(stats, "ensemble", label="Ensemble"),
                     *(
-                        sparse_color_by(expression.lens(frame=frame), colormap=ColorMap.MAGMA,
-                                        min=0.0, max=float(dff.max()),
-                                        label=f"ΔF/F at {frame * DT:.1f} s")
+                        sparse_color_by(
+                            expression.lens(frame=frame),
+                            colormap=ColorMap.MAGMA,
+                            min=0.0,
+                            max=float(dff.max()),
+                            label=f"ΔF/F at {frame * DT:.1f} s",
+                        )
                         for frame in headline
                     ),
                 ],
@@ -382,14 +430,24 @@ if __name__ == "__main__":
             order=1,
         )
 
-        published = label_layer.label_render.color_bys if label_layer.label_render else ()
+        published = (
+            label_layer.label_render.color_bys if label_layer.label_render else ()
+        )
         expected = 3 + len(headline)
         if len(published) != expected:
-            raise SystemExit(f"label layer offers {len(published)} colourings, expected {expected}")
+            raise SystemExit(
+                f"label layer offers {len(published)} colourings, expected {expected}"
+            )
 
         print(f"\nDone — scene '{scene.name}' ({scene.id}):")
         print(f"  movie   : dataset {movie_ds.id} ({FRAMES} frames @ {RATE_HZ:.0f} Hz)")
-        print(f"  cells   : dataset {labels_ds.id} ({N_CELLS} masks), stats table {stats.id}")
-        print(f"  ΔF/F    : sparse {expression.id} ({matrix.nnz:,} nnz), frames table {frame_table.id}")
-        print(f"  pickers : {len(published)} colourings on layer {label_layer.id} "
-              f"(sparse at t = {', '.join(f'{f * DT:.1f}' for f in headline)} s)")
+        print(
+            f"  cells   : dataset {labels_ds.id} ({N_CELLS} masks), stats table {stats.id}"
+        )
+        print(
+            f"  ΔF/F    : sparse {expression.id} ({matrix.nnz:,} nnz), frames table {frame_table.id}"
+        )
+        print(
+            f"  pickers : {len(published)} colourings on layer {label_layer.id} "
+            f"(sparse at t = {', '.join(f'{f * DT:.1f}' for f in headline)} s)"
+        )

@@ -90,7 +90,9 @@ class ChunkLayout(BaseModel):
     @model_validator(mode="after")
     def _shards_group_whole_chunks(self) -> Self:
         if not self.chunks or any(extent < 1 for extent in self.chunks):
-            raise ValueError(f"chunks must be positive on every axis, got {self.chunks}.")
+            raise ValueError(
+                f"chunks must be positive on every axis, got {self.chunks}."
+            )
         if self.shards is None:
             return self
         if len(self.shards) != len(self.chunks):
@@ -195,7 +197,8 @@ def chunk_layout(
         edge = BRICK_3D if volumetric else BRICK_2D
         while (
             edge > MIN_PROFILE_EDGE
-            and profile_bytes * edge * edge * (edge if volumetric else 1) > INNER_CHUNK_BYTES
+            and profile_bytes * edge * edge * (edge if volumetric else 1)
+            > INNER_CHUNK_BYTES
         ):
             edge //= 2
         for i in plane:
@@ -242,7 +245,8 @@ def chunk_layout(
     if all(f == 1 for f in factor):
         return ChunkLayout(chunks=tuple(chunk))
     return ChunkLayout(
-        chunks=tuple(chunk), shards=tuple(extent * f for extent, f in zip(chunk, factor))
+        chunks=tuple(chunk),
+        shards=tuple(extent * f for extent, f in zip(chunk, factor)),
     )
 
 
@@ -265,6 +269,7 @@ def lay_out_pyramid(
         levels: The arrays of one dataset, level 0 first.
         axis_types: Axis type name by dimension name, see :func:`roles_for`.
     """
+
     def dims_of(level: LaidOutArray) -> list[str]:
         if level.dims is None:
             raise ValueError("A level's dimensions must be named before it is laid out")

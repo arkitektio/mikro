@@ -34,6 +34,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 import obstore
+from koil import unkoil
 from obstore.exceptions import (
     BaseError as ObstoreError,
 )
@@ -43,7 +44,6 @@ from obstore.exceptions import (
     UnauthenticatedError,
 )
 
-from koil import unkoil
 from mikro.io.errors import DownloadError
 
 if TYPE_CHECKING:
@@ -135,7 +135,9 @@ class GrantedObject:
         self._resolve = resolve
         self._proxy = proxy
         self._certificates = certificates
-        self._expires_in = expires_in or (lambda grant: getattr(grant, "expires_in", None))
+        self._expires_in = expires_in or (
+            lambda grant: getattr(grant, "expires_in", None)
+        )
         self._lock = threading.Lock()
         self._store: S3Store | None = None
         self._key: str = ""
@@ -188,14 +190,18 @@ class GrantedObject:
         # Bucket-rooted, addressing the key directly -- the shape `download_file` already
         # uses. The prefix-rooted store in `create_zarr_store_path` exists because zarr
         # walks a node's parents; a single ranged read has no parents to walk.
-        self._store = create_s3_store(endpoint_url, grant, proxy=self._proxy, certificates=self._certificates)
+        self._store = create_s3_store(
+            endpoint_url, grant, proxy=self._proxy, certificates=self._certificates
+        )
         self._key = grant.key
 
         lifetime = self._expires_in(grant)
         if lifetime is None:
             self._deadline = None
         else:
-            self._deadline = time.monotonic() + max(lifetime - REFRESH_MARGIN_SECONDS, 0.0)
+            self._deadline = time.monotonic() + max(
+                lifetime - REFRESH_MARGIN_SECONDS, 0.0
+            )
 
     def size(self) -> int:
         """The object's size in bytes, from a HEAD request."""
@@ -373,7 +379,7 @@ class RemoteFile(AbstractBufferedFile):
         raise NotImplementedError("RemoteFile is read-only")
 
 
-def _bigfile_granted_object(mikro: "Mikro", store_id: str) -> GrantedObject:
+def _bigfile_granted_object(mikro: Mikro, store_id: str) -> GrantedObject:
     """Build a :class:`GrantedObject` for a big-file store.
 
     The client is captured here: a refresh happens inside a read, and a read runs
@@ -388,11 +394,13 @@ def _bigfile_granted_object(mikro: "Mikro", store_id: str) -> GrantedObject:
     def resolve() -> tuple[S3UploadGrantLike, str]:
         return mikro.request_bigfile_access(store_id), endpoint_url
 
-    return GrantedObject(resolve, proxy=mikro.datalayer.proxy, certificates=mikro.datalayer.certificates)
+    return GrantedObject(
+        resolve, proxy=mikro.datalayer.proxy, certificates=mikro.datalayer.certificates
+    )
 
 
 def open_remote_file(
-    mikro: "Mikro",
+    mikro: Mikro,
     store_id: str,
     *,
     block_size: int | None = None,
@@ -429,7 +437,7 @@ def open_remote_file(
 
 
 async def aopen_remote_file(
-    mikro: "Mikro",
+    mikro: Mikro,
     store_id: str,
     *,
     block_size: int | None = None,
@@ -454,7 +462,7 @@ async def aopen_remote_file(
 
 
 def download_to_scratch(
-    mikro: "Mikro",
+    mikro: Mikro,
     store_id: str,
     file_name: str | None = None,
     *,

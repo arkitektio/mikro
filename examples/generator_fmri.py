@@ -33,12 +33,11 @@ import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 import xarray as xr
+from arkitekt import easy
 from scipy.stats import gamma
 from sporadik import SparseArray
 
-from arkitekt import easy
 from mikro import Unit, create_space, dataset_arrays, mikro_service
-from mikro.mikro import Mikro
 from mikro.api.schema import (
     AxisType,
     Blending,
@@ -112,7 +111,9 @@ def make_anatomy() -> tuple[np.ndarray, np.ndarray]:
     labels = np.zeros(SHAPE, dtype=np.int32)
     for region_id, (_name, offset, radius, _amp) in REGIONS.items():
         blob = (
-            (zz - (cz + offset[0])) ** 2 + (yy - (cy + offset[1])) ** 2 + (xx - (cx + offset[2])) ** 2
+            (zz - (cz + offset[0])) ** 2
+            + (yy - (cy + offset[1])) ** 2
+            + (xx - (cx + offset[2])) ** 2
         ) <= radius**2
         labels[blob & brain] = region_id
     return brain, labels
@@ -130,11 +131,14 @@ def render_bold(brain, labels, regressor) -> xr.DataArray:
     for region_id, (_n, _o, _r, amplitude) in REGIONS.items():
         response[labels == region_id] = amplitude / 100.0
 
-    series = (
-        base[None] * drift[:, None, None, None] * (1.0 + response[None] * regressor[:, None, None, None])
-        + RNG.normal(0, NOISE, (FRAMES, *SHAPE))
+    series = base[None] * drift[:, None, None, None] * (
+        1.0 + response[None] * regressor[:, None, None, None]
+    ) + RNG.normal(0, NOISE, (FRAMES, *SHAPE))
+    return xr.DataArray(
+        np.clip(series, 0, None).astype(np.uint16),
+        dims=("t", "z", "y", "x"),
+        name="bold",
     )
-    return xr.DataArray(np.clip(series, 0, None).astype(np.uint16), dims=("t", "z", "y", "x"), name="bold")
 
 
 def glm_zmap(bold: np.ndarray, regressor: np.ndarray) -> np.ndarray:
@@ -157,24 +161,32 @@ def glm_zmap(bold: np.ndarray, regressor: np.ndarray) -> np.ndarray:
 # --------------------------------------------------------------------------- #
 def check(bold, zmap, labels, brain, boxcar, regressor, headline) -> None:
     if bold.shape != (FRAMES, *SHAPE):
-        raise SystemExit(f"BOLD is {bold.shape}, expected {(FRAMES, *SHAPE)} — transposed?")
+        raise SystemExit(
+            f"BOLD is {bold.shape}, expected {(FRAMES, *SHAPE)} — transposed?"
+        )
 
     # The GLM must find what was planted, and nothing else.
     for region_id, (name, *_rest) in REGIONS.items():
         core = zmap[labels == region_id]
         if not core.min() >= 5.0:
-            raise SystemExit(f"{name}: min z {core.min():.1f} < 5 — the response did not survive")
+            raise SystemExit(
+                f"{name}: min z {core.min():.1f} < 5 — the response did not survive"
+            )
     background = zmap[brain & (labels == 0)]
     quiet = float(np.percentile(background, 99))
     if not quiet <= Z_THRESHOLD:
-        raise SystemExit(f"99th percentile background z {quiet:.2f} > {Z_THRESHOLD} — false positives")
+        raise SystemExit(
+            f"99th percentile background z {quiet:.2f} > {Z_THRESHOLD} — false positives"
+        )
 
     # The physiology: the regressor must lag the boxcar by a hemodynamic delay.
     lags = np.arange(0, 8)
     xc = [np.corrcoef(np.roll(boxcar, lag), regressor)[0, 1] for lag in lags]
     best_lag_s = float(lags[int(np.argmax(xc))] * TR)
     if not 4.0 <= best_lag_s <= 8.0:
-        raise SystemExit(f"HRF lag {best_lag_s:.0f} s outside 4-8 s — the convolution is wrong")
+        raise SystemExit(
+            f"HRF lag {best_lag_s:.0f} s outside 4-8 s — the convolution is wrong"
+        )
 
     for frame in headline:
         if regressor[frame] < 0.8:
@@ -192,7 +204,9 @@ def check(bold, zmap, labels, brain, boxcar, regressor, headline) -> None:
 if __name__ == "__main__":
     dry_run = "--dry-run" in sys.argv
 
-    print(f"Simulating the session ({FRAMES} frames @ TR {TR:.0f} s, {SHAPE} @ {VOX_MM:.0f} mm)…")
+    print(
+        f"Simulating the session ({FRAMES} frames @ TR {TR:.0f} s, {SHAPE} @ {VOX_MM:.0f} mm)…"
+    )
     boxcar, regressor = design()
     brain, labels = make_anatomy()
     bold = render_bold(brain, labels, regressor)
@@ -213,7 +227,9 @@ if __name__ == "__main__":
 
     check(bold, zmap, labels, brain, boxcar, regressor, headline)
 
-    matrix = SparseArray.from_matrix(sp.csr_matrix(np.where(psc >= 0.3, psc, 0.0).astype(np.float32)))
+    matrix = SparseArray.from_matrix(
+        sp.csr_matrix(np.where(psc >= 0.3, psc, 0.0).astype(np.float32))
+    )
     print(f"  psc matrix: {matrix.nnz} nnz of {psc.size}")
 
     if dry_run:
@@ -222,9 +238,15 @@ if __name__ == "__main__":
 
     # Reusing a sibling generator's cached grant (see generator_smlm.py).
     with easy("neuron-overlay", mikro_service) as mikro:
-        world = create_space(mikro, 
+        world = create_space(
+            mikro,
             "fMRI · head",
-            {"t": Unit("second"), "z": Unit("millimeter"), "y": Unit("millimeter"), "x": Unit("millimeter")},
+            {
+                "t": Unit("second"),
+                "z": Unit("millimeter"),
+                "y": Unit("millimeter"),
+                "x": Unit("millimeter"),
+            },
         )
 
         print("Uploading BOLD…")
@@ -245,7 +267,9 @@ if __name__ == "__main__":
             name="fMRI · activation z-map",
             axes=["z", "y", "x"],
             derived_from=[
-                bold_ds.lens().derive_projection(["z", "y", "x"], value_relation=ValueRelation.TRANSFORMED)
+                bold_ds.lens().derive_projection(
+                    ["z", "y", "x"], value_relation=ValueRelation.TRANSFORMED
+                )
             ],
         )
         labels_ds = mikro.create_array_dataset(
@@ -254,7 +278,9 @@ if __name__ == "__main__":
             name="fMRI · regions",
             axes=["z", "y", "x"],
             derived_from=[
-                bold_ds.lens().derive_projection(["z", "y", "x"], value_relation=ValueRelation.CATEGORIZED)
+                bold_ds.lens().derive_projection(
+                    ["z", "y", "x"], value_relation=ValueRelation.CATEGORIZED
+                )
             ],
         )
 
@@ -271,38 +297,67 @@ if __name__ == "__main__":
             name="fMRI · ROI stats",
             data=stats,
             columns=[
-                ColumnInput(name="region_id", axis_type=AxisType.INDEX,
-                            identified_by=[DatasetIdentifiesInput(dataset=labels_ds.id)]),
+                ColumnInput(
+                    name="region_id",
+                    axis_type=AxisType.INDEX,
+                    identified_by=[DatasetIdentifiesInput(dataset=labels_ds.id)],
+                ),
                 ColumnInput(name="name", role=ColumnRole.LABEL, long_name="region"),
-                ColumnInput(name="peak_z", role=ColumnRole.ATTRIBUTE, long_name="peak z"),
-                ColumnInput(name="amplitude_pct", role=ColumnRole.ATTRIBUTE, long_name="response amplitude (%)"),
+                ColumnInput(
+                    name="peak_z", role=ColumnRole.ATTRIBUTE, long_name="peak z"
+                ),
+                ColumnInput(
+                    name="amplitude_pct",
+                    role=ColumnRole.ATTRIBUTE,
+                    long_name="response amplitude (%)",
+                ),
             ],
         )
         frame_table = mikro.create_table_dataset(
             name="fMRI · frames",
-            data={"frame": np.arange(FRAMES, dtype=np.int64),
-                  "time_s": (np.arange(FRAMES) * TR).astype(np.float64),
-                  "task_on": (boxcar > 0).astype(np.int64)},
+            data={
+                "frame": np.arange(FRAMES, dtype=np.int64),
+                "time_s": (np.arange(FRAMES) * TR).astype(np.float64),
+                "task_on": (boxcar > 0).astype(np.int64),
+            },
             columns=[
-                ColumnInput(name="frame", axis_type=AxisType.INDEX, long_name="frame index"),
-                ColumnInput(name="time_s", role=ColumnRole.ATTRIBUTE, long_name="time (s)"),
-                ColumnInput(name="task_on", role=ColumnRole.ATTRIBUTE, long_name="task block"),
+                ColumnInput(
+                    name="frame", axis_type=AxisType.INDEX, long_name="frame index"
+                ),
+                ColumnInput(
+                    name="time_s", role=ColumnRole.ATTRIBUTE, long_name="time (s)"
+                ),
+                ColumnInput(
+                    name="task_on", role=ColumnRole.ATTRIBUTE, long_name="task block"
+                ),
             ],
         )
         psc_matrix = mikro.create_sparse_dataset(
             name="fMRI · percent signal change",
             store=matrix,
             axes=[
-                SparseAxisInput(name="region", long_name="region id",
-                                identified_by=[DatasetIdentifiesInput(dataset=labels_ds.id, name="regions -> psc")]),
-                SparseAxisInput(name="frame", long_name="frame index",
-                                identified_by=[TableIdentifiesInput(table=frame_table.id)]),
+                SparseAxisInput(
+                    name="region",
+                    long_name="region id",
+                    identified_by=[
+                        DatasetIdentifiesInput(
+                            dataset=labels_ds.id, name="regions -> psc"
+                        )
+                    ],
+                ),
+                SparseAxisInput(
+                    name="frame",
+                    long_name="frame index",
+                    identified_by=[TableIdentifiesInput(table=frame_table.id)],
+                ),
             ],
             description=f"{len(REGIONS)} regions x {FRAMES} frames, thresholded at 0.3 %",
         )
 
         print("Composing the scene…")
-        scene = mikro.create_scene(name="fMRI · block design", coordinate_system=world.id)
+        scene = mikro.create_scene(
+            name="fMRI · block design", coordinate_system=world.id
+        )
 
         # The anatomy underlay: the BOLD series itself, grey, MIP through z while
         # the time slider walks t (the timelapse-3D pattern).
@@ -335,14 +390,30 @@ if __name__ == "__main__":
             scene=scene.id,
             render=label_render(
                 [
-                    measure_color_by(table, "peak_z", colormap=ColorMap.INFERNO, min=0.0,
-                                     max=float(stats["peak_z"].max()), label="Peak z"),
-                    measure_color_by(table, "amplitude_pct", colormap=ColorMap.VIRIDIS, min=0.0,
-                                     max=float(stats["amplitude_pct"].max()), label="Amplitude"),
+                    measure_color_by(
+                        table,
+                        "peak_z",
+                        colormap=ColorMap.INFERNO,
+                        min=0.0,
+                        max=float(stats["peak_z"].max()),
+                        label="Peak z",
+                    ),
+                    measure_color_by(
+                        table,
+                        "amplitude_pct",
+                        colormap=ColorMap.VIRIDIS,
+                        min=0.0,
+                        max=float(stats["amplitude_pct"].max()),
+                        label="Amplitude",
+                    ),
                     *(
-                        sparse_color_by(psc_matrix.lens(frame=frame), colormap=ColorMap.MAGMA,
-                                        min=0.0, max=float(psc.max()),
-                                        label=f"Response at {frame * TR:.0f} s")
+                        sparse_color_by(
+                            psc_matrix.lens(frame=frame),
+                            colormap=ColorMap.MAGMA,
+                            min=0.0,
+                            max=float(psc.max()),
+                            label=f"Response at {frame * TR:.0f} s",
+                        )
                         for frame in headline
                     ),
                 ],
@@ -353,12 +424,22 @@ if __name__ == "__main__":
             order=2,
         )
         if label_layer.placement != PlacementState.PLACED:
-            raise SystemExit(f"regions did not reach the world: {label_layer.placement}")
-        published = label_layer.label_render.color_bys if label_layer.label_render else ()
+            raise SystemExit(
+                f"regions did not reach the world: {label_layer.placement}"
+            )
+        published = (
+            label_layer.label_render.color_bys if label_layer.label_render else ()
+        )
         if len(published) != 2 + len(headline):
-            raise SystemExit(f"label layer offers {len(published)} colourings, expected {2 + len(headline)}")
+            raise SystemExit(
+                f"label layer offers {len(published)} colourings, expected {2 + len(headline)}"
+            )
 
         print(f"\nDone — scene '{scene.name}' ({scene.id}):")
-        print(f"  BOLD {bold_ds.id} ({FRAMES} frames), z-map {zmap_ds.id}, regions {labels_ds.id}")
-        print(f"  ROI table {table.id}, psc sparse {psc_matrix.id} "
-              f"(picker at t = {', '.join(f'{f * TR:.0f}' for f in headline)} s)")
+        print(
+            f"  BOLD {bold_ds.id} ({FRAMES} frames), z-map {zmap_ds.id}, regions {labels_ds.id}"
+        )
+        print(
+            f"  ROI table {table.id}, psc sparse {psc_matrix.id} "
+            f"(picker at t = {', '.join(f'{f * TR:.0f}' for f in headline)} s)"
+        )

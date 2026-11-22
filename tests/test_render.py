@@ -193,7 +193,9 @@ def test_each_channel_of_a_composite_projects_independently() -> None:
 def test_composite_graph_accepts_mappings() -> None:
     """Callers that build settings programmatically hold a dict; `ChannelSpec(**d)`
     at every call site is noise, and the attribute access used to blow up."""
-    (node,) = composite_graph([{"lens": "12", "mode": ProjectionMode.MIP}]).root.children
+    (node,) = composite_graph(
+        [{"lens": "12", "mode": ProjectionMode.MIP}]
+    ).root.children
     assert node.kind == "projection"
     assert node.children[0].lens == "12"
 

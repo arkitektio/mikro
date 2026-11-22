@@ -64,16 +64,32 @@ async def aget_media_credentials_and_endpoint(
     return credentials, await mikro.datalayer.get_endpoint_url()
 
 
-async def aopen_zarr_store(mikro: "Mikro", store_id: str, cache: int = 2**30) -> StorePath:
+async def aopen_zarr_store(
+    mikro: "Mikro", store_id: str, cache: int = 2**30
+) -> StorePath:
     """Open a zarr store for the given store ID asynchronously."""
-    credentials, endpoint_url = await aget_zarr_credentials_and_endpoint(mikro, store_id)
-    return create_zarr_store_path(endpoint_url, credentials, proxy=mikro.datalayer.proxy, certificates=mikro.datalayer.certificates)
+    credentials, endpoint_url = await aget_zarr_credentials_and_endpoint(
+        mikro, store_id
+    )
+    return create_zarr_store_path(
+        endpoint_url,
+        credentials,
+        proxy=mikro.datalayer.proxy,
+        certificates=mikro.datalayer.certificates,
+    )
 
 
 def open_zarr_store(mikro: "Mikro", store_id: str, cache: int = 2**30) -> StorePath:
     """Open a zarr store for the given store ID synchronously."""
-    credentials, endpoint_url = unkoil(aget_zarr_credentials_and_endpoint, mikro, store_id)
-    return create_zarr_store_path(endpoint_url, credentials, proxy=mikro.datalayer.proxy, certificates=mikro.datalayer.certificates)
+    credentials, endpoint_url = unkoil(
+        aget_zarr_credentials_and_endpoint, mikro, store_id
+    )
+    return create_zarr_store_path(
+        endpoint_url,
+        credentials,
+        proxy=mikro.datalayer.proxy,
+        certificates=mikro.datalayer.certificates,
+    )
 
 
 def _require_pyarrow() -> None:
@@ -83,21 +99,39 @@ def _require_pyarrow() -> None:
         raise ImportError("You need to install pyarrow to use this function") from e
 
 
-async def aopen_parquet_filesytem(mikro: "Mikro", store_id: str) -> ParquetDatasetViaObstore:
+async def aopen_parquet_filesytem(
+    mikro: "Mikro", store_id: str
+) -> ParquetDatasetViaObstore:
     """Open a parquet dataset for the given store ID asynchronously."""
     _require_pyarrow()
-    credentials, endpoint_url = await aget_table_credentials_and_endpoint(mikro, store_id)
+    credentials, endpoint_url = await aget_table_credentials_and_endpoint(
+        mikro, store_id
+    )
     return ParquetDatasetViaObstore(
-        create_s3_store(endpoint_url, credentials, proxy=mikro.datalayer.proxy, certificates=mikro.datalayer.certificates), credentials.key
+        create_s3_store(
+            endpoint_url,
+            credentials,
+            proxy=mikro.datalayer.proxy,
+            certificates=mikro.datalayer.certificates,
+        ),
+        credentials.key,
     )
 
 
 def open_parquet_filesystem(mikro: "Mikro", store_id: str) -> ParquetDatasetViaObstore:
     """Open a parquet dataset for the given store ID synchronously."""
     _require_pyarrow()
-    credentials, endpoint_url = unkoil(aget_table_credentials_and_endpoint, mikro, store_id)
+    credentials, endpoint_url = unkoil(
+        aget_table_credentials_and_endpoint, mikro, store_id
+    )
     return ParquetDatasetViaObstore(
-        create_s3_store(endpoint_url, credentials, proxy=mikro.datalayer.proxy, certificates=mikro.datalayer.certificates), credentials.key
+        create_s3_store(
+            endpoint_url,
+            credentials,
+            proxy=mikro.datalayer.proxy,
+            certificates=mikro.datalayer.certificates,
+        ),
+        credentials.key,
     )
 
 
@@ -115,8 +149,12 @@ async def aopen_parquet_duckdb(
         read_parquet_relation,
     )
 
-    credentials, endpoint_url = await aget_table_credentials_and_endpoint(mikro, store_id)
-    con = create_duckdb_s3_connection(endpoint_url, credentials, mikro.datalayer.certificates)
+    credentials, endpoint_url = await aget_table_credentials_and_endpoint(
+        mikro, store_id
+    )
+    con = create_duckdb_s3_connection(
+        endpoint_url, credentials, mikro.datalayer.certificates
+    )
     relation = read_parquet_relation(con, credentials.bucket, credentials.key)
     return con, relation
 
@@ -139,11 +177,19 @@ def _ensure_parent_directory(file_name: str) -> None:
 
 
 async def _awrite_object(
-    mikro: "Mikro", credentials: BigFileAccessGrant | MediaAccessGrant, endpoint_url: str, file_name: str
+    mikro: "Mikro",
+    credentials: BigFileAccessGrant | MediaAccessGrant,
+    endpoint_url: str,
+    file_name: str,
 ) -> str:
     """Stream the one object a grant names into ``file_name``."""
     _ensure_parent_directory(file_name)
-    store = create_s3_store(endpoint_url, credentials, proxy=mikro.datalayer.proxy, certificates=mikro.datalayer.certificates)
+    store = create_s3_store(
+        endpoint_url,
+        credentials,
+        proxy=mikro.datalayer.proxy,
+        certificates=mikro.datalayer.certificates,
+    )
 
     # Stream the file asynchronously directly into the file object
     response = await obstore.get_async(store, credentials.key)
@@ -155,11 +201,19 @@ async def _awrite_object(
 
 
 def _write_object(
-    mikro: "Mikro", credentials: BigFileAccessGrant | MediaAccessGrant, endpoint_url: str, file_name: str
+    mikro: "Mikro",
+    credentials: BigFileAccessGrant | MediaAccessGrant,
+    endpoint_url: str,
+    file_name: str,
 ) -> str:
     """Stream the one object a grant names into ``file_name`` synchronously."""
     _ensure_parent_directory(file_name)
-    store = create_s3_store(endpoint_url, credentials, proxy=mikro.datalayer.proxy, certificates=mikro.datalayer.certificates)
+    store = create_s3_store(
+        endpoint_url,
+        credentials,
+        proxy=mikro.datalayer.proxy,
+        certificates=mikro.datalayer.certificates,
+    )
 
     # Stream the file synchronously directly into the file object
     response = obstore.get(store, credentials.key)
@@ -175,13 +229,17 @@ async def adownload_file(mikro: "Mikro", store_id: str, file_name: str) -> str:
     Returns:
         The local path where the file was saved.
     """
-    credentials, endpoint_url = await aget_bigfile_credentials_and_endpoint(mikro, store_id)
+    credentials, endpoint_url = await aget_bigfile_credentials_and_endpoint(
+        mikro, store_id
+    )
     return await _awrite_object(mikro, credentials, endpoint_url, file_name)
 
 
 def download_file(mikro: "Mikro", store_id: str, file_name: str) -> str:
     """Download a big file from the store synchronously (see the async twin)."""
-    credentials, endpoint_url = unkoil(aget_bigfile_credentials_and_endpoint, mikro, store_id)
+    credentials, endpoint_url = unkoil(
+        aget_bigfile_credentials_and_endpoint, mikro, store_id
+    )
     return _write_object(mikro, credentials, endpoint_url, file_name)
 
 
@@ -191,11 +249,15 @@ async def adownload_media_file(mikro: "Mikro", store_id: str, file_name: str) ->
     Returns:
         The local path where the file was saved.
     """
-    credentials, endpoint_url = await aget_media_credentials_and_endpoint(mikro, store_id)
+    credentials, endpoint_url = await aget_media_credentials_and_endpoint(
+        mikro, store_id
+    )
     return await _awrite_object(mikro, credentials, endpoint_url, file_name)
 
 
 def download_media_file(mikro: "Mikro", store_id: str, file_name: str) -> str:
     """Download a media object synchronously (see the async twin)."""
-    credentials, endpoint_url = unkoil(aget_media_credentials_and_endpoint, mikro, store_id)
+    credentials, endpoint_url = unkoil(
+        aget_media_credentials_and_endpoint, mikro, store_id
+    )
     return _write_object(mikro, credentials, endpoint_url, file_name)

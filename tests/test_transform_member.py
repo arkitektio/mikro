@@ -69,7 +69,9 @@ def test_rotation() -> None:
 def test_map_axis_takes_its_axes_by_field_name() -> None:
     """`input_axes`/`output_axes` are aliased to `inputAxes`/`outputAxes`, and
     `populate_by_name=True` is what makes the snake_case spelling work."""
-    member = _transform_member("MAP_AXIS", input_axes=["y", "x"], output_axes=["x", "y"])
+    member = _transform_member(
+        "MAP_AXIS", input_axes=["y", "x"], output_axes=["x", "y"]
+    )
     assert isinstance(member, MapAxisTransformInput)
     assert member.input_axes == ("y", "x")
     assert member.output_axes == ("x", "y")
@@ -82,8 +84,20 @@ def test_a_by_dimension_is_its_parts() -> None:
     member = _transform_member("BY_DIMENSION", parts=[pixel, times])
     assert isinstance(member, ByDimensionTransformInput)
     assert member.parts == (pixel, times)
-    assert (pixel.kind, pixel.input_axes, pixel.scale, pixel.translation, pixel.affine, pixel.field) == ("SCALE", ("y", "x"), (0.5, 2.0), None, None, None)
-    assert times.field is not None and (times.field.system, times.field.unit, times.field.min, times.field.max) == ("9", "second", 0.0, 7.5)
+    assert (
+        pixel.kind,
+        pixel.input_axes,
+        pixel.scale,
+        pixel.translation,
+        pixel.affine,
+        pixel.field,
+    ) == ("SCALE", ("y", "x"), (0.5, 2.0), None, None, None)
+    assert times.field is not None and (
+        times.field.system,
+        times.field.unit,
+        times.field.min,
+        times.field.max,
+    ) == ("9", "second", 0.0, 7.5)
 
 
 def test_a_by_dimension_needs_its_parts() -> None:
@@ -94,7 +108,9 @@ def test_a_by_dimension_needs_its_parts() -> None:
 def test_a_by_dimension_takes_no_flat_parameters() -> None:
     """The flat spelling is gone: a scale beside the parts would be a second, unnamed map."""
     with pytest.raises(ValueError, match="takes no scale="):
-        _transform_member("BY_DIMENSION", scale=[1.0], parts=[_part("IDENTITY", ["y"], ["y"])])
+        _transform_member(
+            "BY_DIMENSION", scale=[1.0], parts=[_part("IDENTITY", ["y"], ["y"])]
+        )
 
 
 def test_only_a_by_dimension_takes_parts() -> None:

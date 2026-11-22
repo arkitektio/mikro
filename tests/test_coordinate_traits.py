@@ -15,9 +15,9 @@ from mikro.api.schema import (
     CoordinateSystem,
     TransformationAffineTransformation,
     TransformationByDimensionTransformation,
-    TransformationPart,
     TransformationIdentityTransformation,
     TransformationMapAxisTransformation,
+    TransformationPart,
     TransformationRotationTransformation,
     TransformationScaleTransformation,
     TransformationSequenceTransformation,
@@ -68,7 +68,15 @@ def translation_t(id="t-trans", input=UM, output=STAGE, translation=(10.0, -5.0)
 
 def part(kind, axes, to=None, *, scale=(), translation=(), affine=(), field=None):
     """One part as the wire spells it: every parameter present, the ones its kind does not read empty."""
-    return TransformationPart(kind=kind, inputAxes=tuple(axes), outputAxes=tuple(to or axes), scale=scale, translation=translation, affine=affine, field=field)
+    return TransformationPart(
+        kind=kind,
+        inputAxes=tuple(axes),
+        outputAxes=tuple(to or axes),
+        scale=scale,
+        translation=translation,
+        affine=affine,
+        field=field,
+    )
 
 
 def by_dimension_t(input, output, *parts_, id="t-dim"):
@@ -91,7 +99,12 @@ def field_part(field, consumed=("t",), produced=("t",), *, dereference=False):
         "FIELD",
         consumed,
         produced,
-        field={"values": "SCALAR", "spatial": False, "dereference": dereference, "field": {"id": field.id}},
+        field={
+            "values": "SCALAR",
+            "spatial": False,
+            "dereference": dereference,
+            "field": {"id": field.id},
+        },
     )
 
 
@@ -207,7 +220,9 @@ class TestTransformationMatrix:
     def test_a_sequence_composes_its_steps_first_to_last(self):
         """A pyramid level: a scale, then the half-voxel translation. Order matters --
         composed the other way round the offset would be scaled too."""
-        seq = sequence_t(step("SCALE", scale=(2.0, 2.0)), step("TRANSLATION", translation=(0.5, 0.5)))
+        seq = sequence_t(
+            step("SCALE", scale=(2.0, 2.0)), step("TRANSLATION", translation=(0.5, 0.5))
+        )
         assert np.allclose(seq.apply([1.0, 3.0]), [2.5, 6.5])
         assert np.allclose(seq.apply_inverse([2.5, 6.5]), [1.0, 3.0])
 
@@ -342,23 +357,33 @@ class TestPathComposition:
             _bfs_path([unmappable], "1", "9")
 
     def test_a_sequence_is_walkable_when_every_step_has_a_matrix(self):
-        seq = sequence_t(step("SCALE", scale=(2.0, 2.0)), step("TRANSLATION", translation=(0.5, 0.5)))
+        seq = sequence_t(
+            step("SCALE", scale=(2.0, 2.0)), step("TRANSLATION", translation=(0.5, 0.5))
+        )
         (only,) = _bfs_path([seq], "1", "2")
         assert only.transformation is seq
         graph = SimpleNamespace(transformations=[seq])
-        assert np.allclose(PIX.transform_points_to(UM, [1.0, 3.0], graph=graph), [2.5, 6.5])
+        assert np.allclose(
+            PIX.transform_points_to(UM, [1.0, 3.0], graph=graph), [2.5, 6.5]
+        )
 
     def test_a_placing_field_is_walked_forwards_and_leaves_its_axes_out(self):
         """A FIELD timing a movie: t is the array's, y and x pass through -- forwards only."""
         movie = make_system("30", "movie", ["t", "y", "x"])
         world = make_system("31", "world", ["t", "y", "x"])
         times = make_system("32", "times", ["t"])
-        timed = by_dimension_t(movie, world, part("IDENTITY", ["y", "x"]), field_part(times), id="t-times")
+        timed = by_dimension_t(
+            movie, world, part("IDENTITY", ["y", "x"]), field_part(times), id="t-times"
+        )
 
         steps = _bfs_path([timed], "30", "31")
-        assert [(s.transformation.id, s.inverted) for s in steps] == [("t-times", False)]
+        assert [(s.transformation.id, s.inverted) for s in steps] == [
+            ("t-times", False)
+        ]
         composed = _compose_axis_maps(steps, movie.axis_names)
-        assert composed.output_axes == ("y", "x"), "t is the array's, so the map says nothing about it"
+        assert composed.output_axes == ("y", "x"), (
+            "t is the array's, so the map says nothing about it"
+        )
 
         with pytest.raises(ValueError, match="No composable"):
             _bfs_path([timed], "31", "30")
@@ -367,7 +392,12 @@ class TestPathComposition:
         """A mask's ids land on an INDEX axis: a key, which places nothing."""
         mask = make_system("33", "mask", ["y", "x"])
         objects = make_system("34", "objects", ["i"])
-        key = by_dimension_t(mask, objects, field_part(mask, ("y", "x"), ("i",), dereference=True), id="t-key")
+        key = by_dimension_t(
+            mask,
+            objects,
+            field_part(mask, ("y", "x"), ("i",), dereference=True),
+            id="t-key",
+        )
         with pytest.raises(ValueError, match="No composable"):
             _bfs_path([key], "33", "34")
 
@@ -391,9 +421,13 @@ CROP = make_system("23", "crop", ["c", "z", "y", "x"])
 def scene_graph():
     return SimpleNamespace(
         transformations=[
-            by_dimension_t(DRAWING, WORLD, part("IDENTITY", ["z", "y", "x"]), id="t-drawn"),
+            by_dimension_t(
+                DRAWING, WORLD, part("IDENTITY", ["z", "y", "x"]), id="t-drawn"
+            ),
             scale_t(id="t-cal", input=GRID, output=WORLD, scale=(1.0, 2.0, 0.5, 0.5)),
-            translation_t(id="t-crop", input=CROP, output=GRID, translation=(0.0, 3.0, 10.0, 20.0)),
+            translation_t(
+                id="t-crop", input=CROP, output=GRID, translation=(0.0, 3.0, 10.0, 20.0)
+            ),
         ]
     )
 
@@ -401,16 +435,27 @@ def scene_graph():
 class TestByDimensionComposition:
     def test_a_by_dimension_edge_is_walkable_both_ways(self):
         edge = by_dimension_t(DRAWING, WORLD, part("IDENTITY", ["z", "y", "x"]))
-        assert [(s.transformation.id, s.inverted) for s in _bfs_path([edge], "20", "21")] == [("t-dim", False)]
-        assert [(s.transformation.id, s.inverted) for s in _bfs_path([edge], "21", "20")] == [("t-dim", True)]
+        assert [
+            (s.transformation.id, s.inverted) for s in _bfs_path([edge], "20", "21")
+        ] == [("t-dim", False)]
+        assert [
+            (s.transformation.id, s.inverted) for s in _bfs_path([edge], "21", "20")
+        ] == [("t-dim", True)]
 
     def test_a_shape_drawn_in_a_scene_lands_on_the_voxels_of_a_crop(self):
         # (z, y, x) = (10, 8, 12) um -> voxel (5, 16, 24) -> (2, 6, 4) of the crop.
         points = [[10.0, 8.0, 12.0], [8.0, 5.0, 10.0]]
-        on_crop = DRAWING.transform_points_to(CROP, points, axes=("z", "y", "x"), graph=scene_graph())
+        on_crop = DRAWING.transform_points_to(
+            CROP, points, axes=("z", "y", "x"), graph=scene_graph()
+        )
         assert np.allclose(on_crop, [[2.0, 6.0, 4.0], [1.0, 0.0, 0.0]])
         # ... and in whatever order they are asked for.
-        assert np.allclose(DRAWING.transform_points_to(CROP, points[0], axes=("x", "z"), graph=scene_graph()), [4.0, 2.0])
+        assert np.allclose(
+            DRAWING.transform_points_to(
+                CROP, points[0], axes=("x", "z"), graph=scene_graph()
+            ),
+            [4.0, 2.0],
+        )
 
     def test_the_map_states_only_the_axes_the_path_states(self):
         mapped = DRAWING.axis_map_to(CROP, graph=scene_graph())
@@ -430,29 +475,56 @@ class TestByDimensionComposition:
         back = CROP.axis_map_to(DRAWING, graph=scene_graph())
         assert back.output_axes == ("z", "y", "x")
         assert np.allclose(back.apply([0.0, 2.0, 6.0, 4.0]), [10.0, 8.0, 12.0])
-        assert np.allclose(back.apply([2.0, 6.0, 4.0], input_axes=("z", "y", "x")), [10.0, 8.0, 12.0])
-        assert np.allclose(CROP.matrix_to(DRAWING, graph=scene_graph()) @ [7.0, 2.0, 6.0, 4.0, 1.0], [10.0, 8.0, 12.0, 1.0])
+        assert np.allclose(
+            back.apply([2.0, 6.0, 4.0], input_axes=("z", "y", "x")), [10.0, 8.0, 12.0]
+        )
+        assert np.allclose(
+            CROP.matrix_to(DRAWING, graph=scene_graph()) @ [7.0, 2.0, 6.0, 4.0, 1.0],
+            [10.0, 8.0, 12.0, 1.0],
+        )
 
     def test_points_that_lack_an_axis_the_answer_reads_are_refused(self):
         back = CROP.axis_map_to(DRAWING, graph=scene_graph())
         with pytest.raises(ValueError, match="depend on 'z'"):
             back.apply([6.0, 4.0], input_axes=("y", "x"))
-        assert np.allclose(back.apply([6.0, 4.0], input_axes=("y", "x"), output_axes=("y", "x")), [8.0, 12.0])
+        assert np.allclose(
+            back.apply([6.0, 4.0], input_axes=("y", "x"), output_axes=("y", "x")),
+            [8.0, 12.0],
+        )
 
     def test_scale_and_translation_apply_to_the_named_axes_in_that_order(self):
         yx = make_system("30", "plane", ["y", "x"])
-        edge = by_dimension_t(yx, WORLD, part("AFFINE", ["y", "x"], affine=((2.0, 0.0, 1.0), (0.0, 4.0, -1.0))))
+        edge = by_dimension_t(
+            yx,
+            WORLD,
+            part("AFFINE", ["y", "x"], affine=((2.0, 0.0, 1.0), (0.0, 4.0, -1.0))),
+        )
         graph = SimpleNamespace(transformations=[edge])
-        assert np.allclose(yx.transform_points_to(WORLD, [3.0, 5.0], axes=("y", "x"), graph=graph), [7.0, 19.0])
+        assert np.allclose(
+            yx.transform_points_to(WORLD, [3.0, 5.0], axes=("y", "x"), graph=graph),
+            [7.0, 19.0],
+        )
         back = WORLD.axis_map_to(yx, graph=graph)
         assert np.allclose(back.apply([7.0, 19.0], input_axes=("y", "x")), [3.0, 5.0])
 
     def test_an_affine_is_written_over_the_named_axes_and_may_rename_them(self):
         uv = make_system("31", "sheared", ["u", "v"])
-        edge = by_dimension_t(uv, WORLD, part("AFFINE", ["u", "v"], ["x", "y"], affine=((1.0, 1.0, 2.0), (0.0, 2.0, 0.0))))
+        edge = by_dimension_t(
+            uv,
+            WORLD,
+            part(
+                "AFFINE",
+                ["u", "v"],
+                ["x", "y"],
+                affine=((1.0, 1.0, 2.0), (0.0, 2.0, 0.0)),
+            ),
+        )
         graph = SimpleNamespace(transformations=[edge])
         # x = u + v + 2, y = 2v
-        assert np.allclose(uv.transform_points_to(WORLD, [3.0, 4.0], axes=("y", "x"), graph=graph), [8.0, 9.0])
+        assert np.allclose(
+            uv.transform_points_to(WORLD, [3.0, 4.0], axes=("y", "x"), graph=graph),
+            [8.0, 9.0],
+        )
         back = WORLD.axis_map_to(uv, graph=graph)
         assert np.allclose(back.apply([8.0, 9.0], input_axes=("y", "x")), [3.0, 4.0])
 
@@ -468,11 +540,21 @@ class TestByDimensionComposition:
             )
 
         nm, um = with_units("40", "nanometer"), with_units("41", "micrometer")
-        graph = SimpleNamespace(transformations=[by_dimension_t(nm, um, part("IDENTITY", ["z"]), part("SCALE", ["x"], scale=(1.0,)))])
+        graph = SimpleNamespace(
+            transformations=[
+                by_dimension_t(
+                    nm, um, part("IDENTITY", ["z"]), part("SCALE", ["x"], scale=(1.0,))
+                )
+            ]
+        )
         # z is an IDENTITY part -- the same position, said twice -- so it is converted; x is a
         # SCALE part, whose numbers are the edge's own.
-        assert np.allclose(nm.transform_points_to(um, [500.0, 7.0], graph=graph), [0.5, 7.0])
-        assert np.allclose(um.transform_points_to(nm, [0.5, 7.0], graph=graph), [500.0, 7.0])
+        assert np.allclose(
+            nm.transform_points_to(um, [500.0, 7.0], graph=graph), [0.5, 7.0]
+        )
+        assert np.allclose(
+            um.transform_points_to(nm, [0.5, 7.0], graph=graph), [500.0, 7.0]
+        )
 
 
 def make_dataset(axis_names):
@@ -535,7 +617,11 @@ class TestRegister:
         transform = self.place(["c", "y", "x"])["transform"]
         assert transform.kind == "BY_DIMENSION"
         (shared,) = transform.parts
-        assert (shared.kind, shared.input_axes, shared.output_axes) == ("IDENTITY", ("y", "x"), ("y", "x")), "no numbers: the same positions, said twice"
+        assert (shared.kind, shared.input_axes, shared.output_axes) == (
+            "IDENTITY",
+            ("y", "x"),
+            ("y", "x"),
+        ), "no numbers: the same positions, said twice"
 
     def test_offsets_are_positional_against_the_named_axes(self):
         (shared,) = self.place(["z", "y", "x"], x=288.0, y=144.0)["transform"].parts
@@ -585,7 +671,9 @@ class TestRegisterScale:
     is the claim. Both vectors are positional against the shared axes, so the one
     thing worth pinning down is that they stay aligned with each other."""
 
-    def register(self, world_axes=("z", "y", "x"), dataset_axes=("c", "z", "y", "x"), **kw):
+    def register(
+        self, world_axes=("z", "y", "x"), dataset_axes=("c", "z", "y", "x"), **kw
+    ):
         seen = {}
 
         def fake(**kwargs):
@@ -604,7 +692,11 @@ class TestRegisterScale:
         assert transform.kind == "BY_DIMENSION"
         (shared,) = transform.parts
         assert (shared.kind, shared.input_axes) == ("AFFINE", ("z", "y", "x"))
-        assert shared.affine == ((1.0, 0.0, 0.0, 0.0), (0.0, 0.2, 0.0, 0.0), (0.0, 0.0, 0.2, 10.0))
+        assert shared.affine == (
+            (1.0, 0.0, 0.0, 0.0),
+            (0.0, 0.2, 0.0, 0.0),
+            (0.0, 0.0, 0.2, 10.0),
+        )
 
     def test_an_unnamed_axis_scales_by_one(self):
         (shared,) = self.register(scale={"x": 0.2}).parts
@@ -821,7 +913,9 @@ class TestCalibrationCoercion:
             _as_calibration("x", ("micrometer", 0.2))
 
     @pytest.mark.parametrize("bad", [(0.5, 1.0), "micrometer", (0.5,), None, 0.5])
-    def test_anything_that_is_not_a_factor_and_a_unit_is_refused(self, bad: object) -> None:
+    def test_anything_that_is_not_a_factor_and_a_unit_is_refused(
+        self, bad: object
+    ) -> None:
         from mikro.traits import _as_calibration
 
         with pytest.raises(TypeError, match="axis 'z'"):

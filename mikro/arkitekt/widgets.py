@@ -48,7 +48,9 @@ query %(operation)s(
 """
 
 
-def _lenses_by_annotation(widget: str, operation: str, filter_key: str, argument: str, kind: LensKind) -> str:
+def _lenses_by_annotation(
+    widget: str, operation: str, filter_key: str, argument: str, kind: LensKind
+) -> str:
     if not _NAME.match(argument) or argument in RESERVED_SEARCH_VARIABLES:
         raise ValueError(
             f"{widget}({argument!r}): name the annotation argument of the action. It becomes a variable of the "
@@ -72,7 +74,9 @@ def reachable_lenses_query(argument: str, kind: LensKind = LensKind.ARRAY) -> st
     Returns:
         The query, as text.
     """
-    return _lenses_by_annotation("reachable_from", "SearchReachableLenses", "reachableFrom", argument, kind)
+    return _lenses_by_annotation(
+        "reachable_from", "SearchReachableLenses", "reachableFrom", argument, kind
+    )
 
 
 def overlapping_lenses_query(argument: str, kind: LensKind = LensKind.ARRAY) -> str:
@@ -85,10 +89,14 @@ def overlapping_lenses_query(argument: str, kind: LensKind = LensKind.ARRAY) -> 
     Returns:
         The query, as text.
     """
-    return _lenses_by_annotation("overlapping", "SearchOverlappingLenses", "overlapsAnnotation", argument, kind)
+    return _lenses_by_annotation(
+        "overlapping", "SearchOverlappingLenses", "overlapsAnnotation", argument, kind
+    )
 
 
-def reachable_from(argument: str, *, kind: LensKind = LensKind.ARRAY) -> AssignWidgetInput:
+def reachable_from(
+    argument: str, *, kind: LensKind = LensKind.ARRAY
+) -> AssignWidgetInput:
     """The widget of a lens argument that is picked after an annotation argument, loosely.
 
     Once that annotation is chosen, only the lenses it reaches through the
@@ -129,4 +137,6 @@ def overlapping(argument: str, *, kind: LensKind = LensKind.ARRAY) -> AssignWidg
     Returns:
         The widget, to put in the argument's ``Annotated``.
     """
-    return StructurePicker(overlapping_lenses_query(argument, kind), "mikro", [argument])
+    return StructurePicker(
+        overlapping_lenses_query(argument, kind), "mikro", [argument]
+    )

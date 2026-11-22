@@ -31,13 +31,17 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list) -> None:
 # to a live mikro source tree, it mounts that tree over the published image so the tests
 # see the current schema instead of the last-pushed one. Absent (CI, anyone else), the
 # published image is the schema under test, as before.
-_local_override = os.path.join(os.path.dirname(__file__), "integration", "docker-compose.local.yml")
+_local_override = os.path.join(
+    os.path.dirname(__file__), "integration", "docker-compose.local.yml"
+)
 
 
 @pytest.fixture(scope="session")
 def mikro_stack() -> Generator[MikroStack, None, None]:
     """Mikro, started once for the test session."""
-    with start_mikro([_local_override] if os.path.exists(_local_override) else []) as stack:
+    with start_mikro(
+        [_local_override] if os.path.exists(_local_override) else []
+    ) as stack:
         yield stack
 
 

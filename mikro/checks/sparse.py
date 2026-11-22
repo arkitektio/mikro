@@ -136,7 +136,11 @@ def check_axes(axes: Sequence[SparseAxisInput]) -> None:
     # keyed. The server's own predicate is over every identification on every axis, and the
     # kinds that key are the kinds that author an edge (`AUTHORS_EDGE` on the server's
     # identification inputs).
-    if not any(_enum_value(entry.kind) != "TABLE" for axis in axes for entry in _identifications(axis)):
+    if not any(
+        _enum_value(entry.kind) != "TABLE"
+        for axis in axes
+        for entry in _identifications(axis)
+    ):
         raise SparseDeclarationError(
             "Every axis is identified by a table, so nothing keys this matrix: no FIELD edge "
             "is authored, no layer can reach it, and no colouring over it could ever be "
@@ -145,7 +149,11 @@ def check_axes(axes: Sequence[SparseAxisInput]) -> None:
         )
 
     for axis in axes:
-        tables = [entry for entry in _identifications(axis) if _enum_value(entry.kind) == "TABLE"]
+        tables = [
+            entry
+            for entry in _identifications(axis)
+            if _enum_value(entry.kind) == "TABLE"
+        ]
         if len(tables) > 1:
             raise SparseDeclarationError(
                 f"Axis {axis.name!r} is identified by more than one table. An axis enumerates "

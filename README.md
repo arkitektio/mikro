@@ -135,7 +135,15 @@ from mikro import Unit, canonical, dataset_arrays, space_2d
 from mikro.api.schema import CoordinateAnchorInput, ScenePolicyInput
 
 
-def upload(mikro, frame: np.ndarray, name: str, space, x_um: float, y_um: float, pixel_um: float):
+def upload(
+    mikro,
+    frame: np.ndarray,
+    name: str,
+    space,
+    x_um: float,
+    y_um: float,
+    pixel_um: float,
+):
     # 1. Name the axes. `canonical` puts them in the order the server wants (c, y, x).
     image = canonical(frame, dims=("y", "x", "c")[: frame.ndim])
 
@@ -157,7 +165,9 @@ def upload(mikro, frame: np.ndarray, name: str, space, x_um: float, y_um: float,
 
 space = space_2d(mikro, "tile scan", unit=Unit("micrometer"))
 for x_um, y_um, frame in tiles:
-    upload(mikro, frame, f"tile {x_um:.0f} {y_um:.0f}", space, x_um, y_um, pixel_um=0.65)
+    upload(
+        mikro, frame, f"tile {x_um:.0f} {y_um:.0f}", space, x_um, y_um, pixel_um=0.65
+    )
 
 # One scene over the space: every tile at its position.
 space.stage(name="tile scan", policy=ScenePolicyInput(nchildren=len(tiles)))
@@ -176,13 +186,13 @@ An action that returns the image returns a lens, not the dataset: `return datase
 ### Working with data
 
 ```python
-data = dataset.data               # level 0, a lazy dask array in dataset.axis_names order
-named = dataset.xarray_data       # the same, as an xarray.DataArray (needs mikro[xarray])
-coarse = dataset.level_data(2)    # a coarser pyramid level
+data = dataset.data  # level 0, a lazy dask array in dataset.axis_names order
+named = dataset.xarray_data  # the same, as an xarray.DataArray (needs mikro[xarray])
+coarse = dataset.level_data(2)  # a coarser pyramid level
 levels = dataset.multi_scale_data()
-window = dataset.lens(z=(0, 5))   # an ArrayLens: an immutable selection over the dataset
-window.data                       # cut to the lens' slices; window.xarray_data with names
-whole = dataset.lens()            # the dataset's whole lens: read, never made
+window = dataset.lens(z=(0, 5))  # an ArrayLens: an immutable selection over the dataset
+window.data  # cut to the lens' slices; window.xarray_data with names
+whole = dataset.lens()  # the dataset's whole lens: read, never made
 ```
 
 A lens is one row per container and selection, so the same selection asked for twice is the same
@@ -205,11 +215,14 @@ exactly one unit-carrying axis, and a layer is drawn where the edge into that sp
 ```python
 from mikro.api.schema import AxisType, PhysicalAxisInput
 
-chart = mikro.create_chart(name="ΔF/F", axis=PhysicalAxisInput(name="t", type=AxisType.TIME, unit=Unit("second")))
-chart.world.register(traces, scale={"t": 0.05})        # a (cell, t) array, 50 ms per sample
+chart = mikro.create_chart(
+    name="ΔF/F",
+    axis=PhysicalAxisInput(name="t", type=AxisType.TIME, unit=Unit("second")),
+)
+chart.world.register(traces, scale={"t": 0.05})  # a (cell, t) array, 50 ms per sample
 
 layer = mikro.create_trace_chart_layer(chart=chart.id, lens=traces.lens().id)
-layer.along_axis, layer.series_axis                    # ("t", "cell"): one line per cell
+layer.along_axis, layer.series_axis  # ("t", "cell"): one line per cell
 ```
 
 `create_series_chart_layer` draws a table's value column, `create_annotation_chart_layer` makes a
@@ -230,11 +243,20 @@ type the server identifies carries its structure as `__identifier__`.
 ```python
 from mikro.api.schema import MetricFilter, MetricInput, MetricTargetFilter
 
-mikro.create_metric(target=dataset, key="my_app/mean_intensity", magnitude=812.4, unit="dimensionless")
-mikro.create_metric(target=annotation, key="segmenter_v2/class", code="segmenter_v2/class_3")
+mikro.create_metric(
+    target=dataset, key="my_app/mean_intensity", magnitude=812.4, unit="dimensionless"
+)
+mikro.create_metric(
+    target=annotation, key="segmenter_v2/class", code="segmenter_v2/class_3"
+)
 
 # Up to 5000 in one transaction. The batch sends no signal; mikro's change feed still has every one.
-mikro.create_metrics(metrics=[MetricInput(target=dataset, key="my_app/area", magnitude=a, unit="µm**2") for a in areas])
+mikro.create_metrics(
+    metrics=[
+        MetricInput(target=dataset, key="my_app/area", magnitude=a, unit="µm**2")
+        for a in areas
+    ]
+)
 ```
 
 Inside a `MetricInput` the object is coerced all the same, but a type checker sees the field as

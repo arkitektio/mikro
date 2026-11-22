@@ -21,7 +21,9 @@ def test_every_repeated_generated_class_is_identical() -> None:
             body = [ast.unparse(s) for s in node.body if not isinstance(s, ast.Expr)]
             bodies.setdefault(node.name, []).append(body)
 
-    differing = [name for name, defs in bodies.items() if any(d != defs[0] for d in defs)]
+    differing = [
+        name for name, defs in bodies.items() if any(d != defs[0] for d in defs)
+    ]
 
     assert differing == [], (
         f"{differing} are generated more than once with different fields; alias the field "
@@ -45,7 +47,9 @@ def test_a_mesh_layer_with_a_collection_and_pickers_parses() -> None:
     collection = schema.LayerCollection.model_validate(
         {"__typename": "MeshCollection", "id": "7", "name": None, "label": "meshes/7"}
     )
-    color_by_field = schema.LayerMeshLayer.model_fields["color_bys"].annotation.__args__[0]
+    color_by_field = schema.LayerMeshLayer.model_fields[
+        "color_bys"
+    ].annotation.__args__[0]
     color_by = color_by_field.model_validate(fields)
 
     assert (collection.name, collection.label) == (None, "meshes/7")

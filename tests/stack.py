@@ -6,7 +6,6 @@ then mikro's, not another service's. An app that uses mikro is tested against a
 hub instead (``arkitekt.testing``), made from the image the service declares.
 """
 
-from arkitekt_spec.declare.tested import record_tested
 import os
 import socket
 from collections.abc import Generator, Sequence
@@ -14,7 +13,9 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
-from graphql import OperationType
+from arkitekt_spec.declare.tested import record_tested
+from dokker import Deployment, testing
+from dokker.log_watcher import LogWatcher
 from rath.links.aiohttp import AIOHttpLink
 from rath.links.auth import ComposedAuthLink
 from rath.links.compose import compose
@@ -23,14 +24,11 @@ from rath.links.file import FileExtraction
 from rath.links.graphql_ws import GraphQLWSLink
 from rath.links.split import SplitLink
 
+from graphql import OperationType
 from mikro.datalayer import DataLayer
 from mikro.middleware.upload import UploadMiddleware
 from mikro.mikro import Mikro
 from mikro.rath import MikroRath
-
-from dokker import Deployment, testing
-from dokker.log_watcher import LogWatcher
-
 
 #: The stack: mikro, its database, redis and object storage.
 COMPOSE_FILE = Path(__file__).parent / "integration" / "docker-compose.yml"
@@ -120,7 +118,9 @@ class MikroStack:
                 link=compose(
                     FileExtraction(),
                     DictingLink(),
-                    ComposedAuthLink(token_loader=token_loader, token_refresher=token_loader),
+                    ComposedAuthLink(
+                        token_loader=token_loader, token_refresher=token_loader
+                    ),
                     SplitLink(
                         left=AIOHttpLink(endpoint_url=self.http_url),
                         right=GraphQLWSLink(ws_endpoint_url=self.ws_url),
@@ -171,8 +171,12 @@ def start_mikro(
             setup.pull()
             setup.inspect()
 
-            mikro_port = setup.spec.find_service("mikro").get_port_for_internal(80).published
-            rustfs_port = setup.spec.find_service("rustfs").get_port_for_internal(9000).published
+            mikro_port = (
+                setup.spec.find_service("mikro").get_port_for_internal(80).published
+            )
+            rustfs_port = (
+                setup.spec.find_service("rustfs").get_port_for_internal(9000).published
+            )
 
             setup.up()
             setup.run("initc", command="python init.py")
@@ -188,4 +192,3 @@ def start_mikro(
                 mikro_watcher=watcher,
                 rustfs_watcher=rustfs_watcher,
             )
-

@@ -62,7 +62,7 @@ def _canonical_axes(axes: Sequence[PhysicalAxisInput]) -> list[PhysicalAxisInput
 
 
 def create_space(
-    mikro: "Mikro",
+    mikro: Mikro,
     name: str,
     axes: AxisSpec,
     *,
@@ -129,7 +129,9 @@ def create_space(
         axis_inputs = list(axes)
 
     if not axis_inputs:
-        raise ValueError(f"A coordinate system needs at least one axis, {name!r} has none")
+        raise ValueError(
+            f"A coordinate system needs at least one axis, {name!r} has none"
+        )
 
     return mikro.create_coordinate_system(
         name=name,
@@ -141,7 +143,7 @@ def create_space(
 
 
 def space_2d(
-    mikro: "Mikro",
+    mikro: Mikro,
     name: str = "space",
     *,
     unit: Unit = Unit("micrometer"),
@@ -167,7 +169,7 @@ def space_2d(
 
 
 def space_3d(
-    mikro: "Mikro",
+    mikro: Mikro,
     name: str = "space",
     *,
     unit: Unit = Unit("micrometer"),
@@ -197,7 +199,7 @@ def space_3d(
 
 
 def timelapse_3d(
-    mikro: "Mikro",
+    mikro: Mikro,
     name: str = "space",
     *,
     unit: Unit = Unit("micrometer"),

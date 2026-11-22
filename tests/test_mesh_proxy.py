@@ -91,7 +91,9 @@ def endpoint() -> Any:
     server.close()
 
 
-def test_a_plain_http_store_without_proxy_reaches_the_endpoint(endpoint: Answer404) -> None:
+def test_a_plain_http_store_without_proxy_reaches_the_endpoint(
+    endpoint: Answer404,
+) -> None:
     """allow_http survives: the request is sent (and answered 404), not refused locally."""
     store = create_s3_store(endpoint.url, GRANT)
 
@@ -171,7 +173,9 @@ def _links(client: Any) -> tuple[Any, Any]:
     return split.left, split.right
 
 
-def test_the_builder_puts_the_alias_proxy_on_both_links(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_the_builder_puts_the_alias_proxy_on_both_links(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(mikro_arkitekt, "AIOHttpLink", RecordingHttpLink)
     monkeypatch.setattr(mikro_arkitekt, "GraphQLWSLink", RecordingWsLink)
     proxy = "http://127.0.0.1:41234"
@@ -188,7 +192,9 @@ def test_the_builder_puts_the_alias_proxy_on_both_links(monkeypatch: pytest.Monk
 
 def test_the_builder_passes_no_proxy_when_the_alias_has_none() -> None:
     """A direct (not mesh) alias builds links and a datalayer without a proxy."""
-    client = mikro_arkitekt.mikro._function(mikro=_alias(), s3=_alias(), tokens=Tokens())
+    client = mikro_arkitekt.mikro._function(
+        mikro=_alias(), s3=_alias(), tokens=Tokens()
+    )
 
     http, ws = _links(client)
     assert http.endpoint_url == "http://mesh-host:9000/graphql"

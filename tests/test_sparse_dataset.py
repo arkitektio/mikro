@@ -39,7 +39,9 @@ from mikro.inputs.picker import label_render, sparse_color_by
 from mikro.traits import SparseDatasetTrait
 
 pytest.importorskip("scipy", reason="the store cases need a real CSR matrix")
-pytest.importorskip("sporadik", reason="the sparse wire format is an extra: pip install 'mikro[sparse]'")
+pytest.importorskip(
+    "sporadik", reason="the sparse wire format is an extra: pip install 'mikro[sparse]'"
+)
 
 import scipy.sparse as sp
 
@@ -86,7 +88,11 @@ def test_a_declaration_that_disagrees_with_the_matrix_is_refused_before_the_uplo
         CreateSparseDatasetInput(
             name="expression",
             store=[matrix()],
-            axes=[axis("object", keyed()), axis("gene", referenced()), axis("extra", referenced("3"))],
+            axes=[
+                axis("object", keyed()),
+                axis("gene", referenced()),
+                axis("extra", referenced("3")),
+            ],
         )
 
 
@@ -137,9 +143,7 @@ def test_a_store_that_is_not_a_matrix_is_left_to_the_scalar():
 def test_a_qualitative_colormap_is_refused_on_a_sparse_colouring():
     """A slice is a value per object, and nothing stores categories sparsely."""
     with pytest.raises(ValidationError, match="qualitative"):
-        SparseColorByInput(
-            kind="SPARSE", lens="1", colormap=ColorMap.DISTINCT
-        )
+        SparseColorByInput(kind="SPARSE", lens="1", colormap=ColorMap.DISTINCT)
 
 
 def test_the_colour_rule_survives_the_discriminated_union():
@@ -152,9 +156,7 @@ def test_the_colour_rule_survives_the_discriminated_union():
     """
     with pytest.raises(ValidationError, match="qualitative"):
         LabelRenderInput(
-            colorBys=[
-                {"kind": "SPARSE", "lens": "1", "colormap": "DISTINCT"}
-            ]
+            colorBys=[{"kind": "SPARSE", "lens": "1", "colormap": "DISTINCT"}]
         )
 
 

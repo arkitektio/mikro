@@ -51,7 +51,9 @@ def test_render_builders_emit_rgba() -> None:
     graph = channel_graph(color=(0, 255, 255))
     assert graph.root.children[0].transfer.color == (0, 255, 255, 255)
 
-    assert [node.transfer.color for node in rgb_graph(("10", "11", "12")).root.children] == [
+    assert [
+        node.transfer.color for node in rgb_graph(("10", "11", "12")).root.children
+    ] == [
         (255, 0, 0, 255),
         (0, 255, 0, 255),
         (0, 0, 255, 255),

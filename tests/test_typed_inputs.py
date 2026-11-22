@@ -23,7 +23,9 @@ def test_a_bare_axis_name_may_be_any_hashable() -> None:
     """A str, a str-valued enum member, or an AxisInput itself."""
     assert AxisInput.model_validate("t").type == AxisType.TIME
     assert AxisInput.model_validate(Dim.Z).name == "z"
-    assert AxisInput.model_validate(AxisInput(name="c", type=AxisType.CHANNEL)).name == "c"
+    assert (
+        AxisInput.model_validate(AxisInput(name="c", type=AxisType.CHANNEL)).name == "c"
+    )
 
 
 class Source(HasNamedAxes):
@@ -59,7 +61,9 @@ def test_a_value_relation_may_be_given_by_its_value() -> None:
 
 def test_the_value_relation_names_are_the_enum_values() -> None:
     """The Literal mirrors the generated enum; a regen that adds a member fails here."""
-    assert set(get_args(ValueRelationName)) == {member.value for member in ValueRelation}
+    assert set(get_args(ValueRelationName)) == {
+        member.value for member in ValueRelation
+    }
 
 
 def test_staging_a_dataset_fetched_without_its_grid_says_why() -> None:

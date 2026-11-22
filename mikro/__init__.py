@@ -58,5 +58,3 @@ __all__ = [
 from .arkitekt import mikro as mikro_service  # noqa: E402
 
 __all__ += ["mikro_service"]
-
-

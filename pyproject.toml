@@ -61,7 +61,6 @@ dev-dependencies =  [
     "autoflake>=1.7.7,<2",
     "aiohttp>=3.8.3,<4",
     "pytest-aiohttp>=1.0.4,<2",
-    "ruff>0.11",
     "turms>=3.0",
     "cryptography>=44.0.3",
     "pyjwt>=2.10.1",
@@ -76,7 +75,6 @@ dev-dependencies =  [
     "rekuest>=6",
     "pyarrow>=24",
     "duckdb>=1.5.3",
-    "basedpyright>=1.21",
     # The sparse wire format. An extra for callers (see `[project.optional-dependencies]`),
     # but a dev dependency here, because `SporadikLike.validate` -- and therefore every test
     # of the sparse declaration path -- cannot run without it. It was absent, which is why
@@ -97,45 +95,6 @@ artifacts = ["mikro/_tested.json"]
 include = ["mikro"]
 artifacts = ["mikro/_tested.json"]
 
-
-[tool.basedpyright]
-include = ["mikro"]
-exclude = ["**/__pycache__", "tests"]
-typeCheckingMode = "standard"
-
-[tool.ruff.lint]
-extend-select = ["ANN", "D1", "UP"]
-extend-ignore = ["UP037", "UP038", "UP042"]
-
-[tool.ruff.lint.per-file-ignores]
-"mikro/api/schema.py" = ["UP035"]
-[tool.ruff]
-# Exclude a variety of commonly ignored directories.
-exclude = [
-    ".bzr",
-    ".direnv",
-    ".eggs",
-    ".git",
-    ".hg",
-    ".mypy_cache",
-    ".nox",
-    ".pants.d",
-    ".pytype",
-    ".ruff_cache",
-    ".svn",
-    ".tox",
-    ".venv",
-    "__pypackages__",
-    "_build",
-    "buck-out",
-    "build",
-    "dist",
-    "node_modules",
-    "venv",
-]
-
-# Same as Black.
-line-length = 100
 
 [tool.pytest.ini_options]
 markers = [
@@ -200,3 +159,9 @@ build-backend = "hatchling.build"
 source = "vcs"
 fallback-version = "0.0.0"
 
+
+[dependency-groups]
+dev = [
+    "ruff==0.17.6",
+    "basedpyright==1.40.2",
+]

@@ -29,19 +29,29 @@ def _cube(*dims: str) -> xr.DataArray:
 
 def test_matching_axes_and_scales_pass() -> None:
     """The ordinary case: every dimension named once, every level the same dimensions."""
-    check_dims_match_axes(_cube("z", "y", "x"), [_Axis("x"), _Axis("y"), _Axis("z")], [_Scale(1, _cube("z", "y", "x"))])
+    check_dims_match_axes(
+        _cube("z", "y", "x"),
+        [_Axis("x"), _Axis("y"), _Axis("z")],
+        [_Scale(1, _cube("z", "y", "x"))],
+    )
 
 
 def test_an_axis_the_array_does_not_have_is_refused() -> None:
     """An axis with no dimension behind it is refused, and the message names both sides."""
-    with pytest.raises(ArrayDeclarationError, match="do not match the data array dimensions"):
-        check_dims_match_axes(_cube("y", "x"), [_Axis("z"), _Axis("y"), _Axis("x")], None)
+    with pytest.raises(
+        ArrayDeclarationError, match="do not match the data array dimensions"
+    ):
+        check_dims_match_axes(
+            _cube("y", "x"), [_Axis("z"), _Axis("y"), _Axis("x")], None
+        )
 
 
 def test_a_scale_with_other_dimensions_is_refused() -> None:
     """A coarser level cannot carry a dimension level 0 does not."""
     with pytest.raises(ArrayDeclarationError, match="Scale level 1"):
-        check_dims_match_axes(_cube("y", "x"), [_Axis("y"), _Axis("x")], [_Scale(1, _cube("c", "y", "x"))])
+        check_dims_match_axes(
+            _cube("y", "x"), [_Axis("y"), _Axis("x")], [_Scale(1, _cube("c", "y", "x"))]
+        )
 
 
 def test_the_trait_delegates_here() -> None:
@@ -51,7 +61,12 @@ def test_the_trait_delegates_here() -> None:
     from mikro.api.schema import AxisInput, AxisType, CreateArrayDatasetInput
 
     with pytest.raises(ValidationError, match="do not match the data array dimensions"):
-        CreateArrayDatasetInput(name="x", data=_cube("y", "x"), axes=[AxisInput(name="z", type=AxisType.SPACE)], scales=[])
+        CreateArrayDatasetInput(
+            name="x",
+            data=_cube("y", "x"),
+            axes=[AxisInput(name="z", type=AxisType.SPACE)],
+            scales=[],
+        )
 
 
 def test_a_bare_array_is_named_by_its_axes_in_order() -> None:
@@ -60,7 +75,9 @@ def test_a_bare_array_is_named_by_its_axes_in_order() -> None:
 
     from mikro.api.schema import CreateArrayDatasetInput
 
-    model = CreateArrayDatasetInput(name="x", data=np.zeros((3, 4, 5)), axes=["c", "y", "x"])
+    model = CreateArrayDatasetInput(
+        name="x", data=np.zeros((3, 4, 5)), axes=["c", "y", "x"]
+    )
     assert model.data.dims == ("c", "y", "x")
 
     with pytest.raises(ValidationError, match="3 dimensions, but 2 axes"):

@@ -41,7 +41,9 @@ def collection() -> konnektion.NetworkCollection:
         nodes = [np.array(origin, dtype=float)]
         edges = []
         for step in range(1, 12):
-            nodes.append(np.array(origin, dtype=float) + np.array([step * 5.0, step * 2.0, step]))
+            nodes.append(
+                np.array(origin, dtype=float) + np.array([step * 5.0, step * 2.0, step])
+            )
             edges.append([step - 1, step])
         # one branch, so the thing is a tree rather than a chain
         nodes.append(np.array(origin, dtype=float) + np.array([25.0, -18.0, 6.0]))
@@ -109,7 +111,9 @@ def test_a_mesh_collection_is_refused_and_the_message_says_which_format_it_is() 
     fabriks = pytest.importorskip("fabriks")
     trimesh = pytest.importorskip("trimesh")
 
-    box = trimesh.creation.box(extents=[10.0, 10.0, 10.0]).apply_translation([30.0, 30.0, 30.0])
+    box = trimesh.creation.box(extents=[10.0, 10.0, 10.0]).apply_translation(
+        [30.0, 30.0, 30.0]
+    )
     mesh = fabriks.build_collection({1: box}, axes=("x", "y", "z"))
 
     with pytest.raises(ValueError, match="MeshCollection"):
@@ -148,13 +152,17 @@ def test_the_whole_tree_lands_under_the_granted_prefix(
         DataLayer(endpoint_url="http://s3.test"),
     )
 
-    assert returned == credentials.store, "the store id replaces the collection in the variables"
+    assert returned == credentials.store, (
+        "the store id replaces the collection in the variables"
+    )
 
     paths = written_paths(store)
     assert paths, "nothing was written"
     assert all(path.startswith(f"{GRANT_KEY}/") for path in paths), paths
     assert not any("//" in path for path in paths), paths
-    assert f"{GRANT_KEY}/konnektion.json" in paths, "the manifest is the completion protocol"
+    assert f"{GRANT_KEY}/konnektion.json" in paths, (
+        "the manifest is the completion protocol"
+    )
 
     reopened = konnektion.open_collection(store, GRANT_KEY)
     assert reopened.grid.cell_size == tuple(CELL_SIZE)
@@ -182,10 +190,14 @@ def test_the_manifest_is_written_last(
         def list(self, prefix: str | None = None) -> Any:  # noqa: ANN401
             return store.list(prefix)
 
-    monkeypatch.setattr("mikro.io.obstore.create_s3_store", lambda *_, **__: Recording())
+    monkeypatch.setattr(
+        "mikro.io.obstore.create_s3_store", lambda *_, **__: Recording()
+    )
 
     store_konnektion_collection(
-        KonnektionLike.validate(collection), grant(), DataLayer(endpoint_url="http://s3.test")
+        KonnektionLike.validate(collection),
+        grant(),
+        DataLayer(endpoint_url="http://s3.test"),
     )
 
     assert order[-1].endswith("konnektion.json"), order
@@ -216,4 +228,3 @@ def test_a_failed_write_is_reported_as_an_upload_error(
             grant(),
             DataLayer(endpoint_url="http://s3.test"),
         )
-

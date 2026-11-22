@@ -111,8 +111,15 @@ def test_the_labels_of_the_data_array_survive() -> None:
 
 @pytest.mark.parametrize(
     ("name", "expected"),
-    [("t", "TIME"), ("time", "TIME"), ("c", "CHANNEL"), ("channel", "CHANNEL"),
-     ("z", "SPACE"), ("y", "SPACE"), ("x", "SPACE")],
+    [
+        ("t", "TIME"),
+        ("time", "TIME"),
+        ("c", "CHANNEL"),
+        ("channel", "CHANNEL"),
+        ("z", "SPACE"),
+        ("y", "SPACE"),
+        ("x", "SPACE"),
+    ],
 )
 def test_a_bare_axis_name_infers_its_type(name: str, expected: str) -> None:
     """``axes=["c", "z", "y", "x"]`` is enough for the common case; anything the
@@ -137,7 +144,10 @@ def test_an_unconventional_axis_is_fine_when_its_type_is_stated() -> None:
 
 def test_bare_axis_names_are_accepted_by_the_mutation_input() -> None:
     model = CreateArrayDatasetInput(
-        data=_data(["c", "z", "y", "x"]), scales=(), name="ds", axes=["c", "z", "y", "x"]
+        data=_data(["c", "z", "y", "x"]),
+        scales=(),
+        name="ds",
+        axes=["c", "z", "y", "x"],
     )
     assert [axis.type for axis in model.axes] == ["CHANNEL", "SPACE", "SPACE", "SPACE"]
 
@@ -210,9 +220,7 @@ def test_an_anchor_can_be_pinned_at_an_explicit_position() -> None:
     array = xr.DataArray(np.random.random((2, 4, 4)), dims=["t", "y", "x"])
     anchor = CoordinateAnchorInput.histogram_anchor(array.isel(t=1), at={"t": 1})
 
-    assert anchor.axis_anchors == (
-        type(anchor.axis_anchors[0])(axis="t", value=1),
-    )
+    assert anchor.axis_anchors == (type(anchor.axis_anchors[0])(axis="t", value=1),)
     assert anchor.value_histogram is not None
 
 

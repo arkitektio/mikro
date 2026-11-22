@@ -27,7 +27,12 @@ from mikro.api.schema import (
     SparseAxisInput,
     TableIdentifiesInput,
 )
-from mikro.checks.sparse import MIN_RANK, SparseDeclarationError, check_against_store, check_axes
+from mikro.checks.sparse import (
+    MIN_RANK,
+    SparseDeclarationError,
+    check_against_store,
+    check_axes,
+)
 
 
 class Layout:
@@ -74,7 +79,11 @@ def test_a_rank_three_declaration_is_accepted():
     is where ``indexed_axis`` stops being derivable from the encoding -- so a check written
     against "csr means axis 0" would pass rank two and be wrong here.
     """
-    axes = [axis("cell", mask()), axis("metabolite", table("2")), axis("adduct", table("3"))]
+    axes = [
+        axis("cell", mask()),
+        axis("metabolite", table("2")),
+        axis("adduct", table("3")),
+    ]
     check_axes(axes)
     check_against_store(axes, {0: Layout((5000, 400, 3))})
 
@@ -116,7 +125,6 @@ def test_an_axis_declared_twice_is_refused():
         check_axes([axis("gene", mask()), axis("gene", table())])
 
 
-
 def test_a_matrix_nothing_keys_is_refused():
     """Every axis referenced by a table means no FIELD edge, so no layer can ever reach it."""
     with pytest.raises(SparseDeclarationError, match="nothing keys this matrix"):
@@ -136,7 +144,9 @@ def test_more_axes_than_the_matrix_has_is_refused():
     that disagrees places every lookup one position out and raises nothing.
     """
     axes = [axis("object", mask()), axis("gene", table("2")), axis("extra", table("3"))]
-    with pytest.raises(SparseDeclarationError, match=r"3 axes .* but the matrix has shape"):
+    with pytest.raises(
+        SparseDeclarationError, match=r"3 axes .* but the matrix has shape"
+    ):
         check_against_store(axes, {0: Layout((1000, 300))})
 
 

@@ -43,7 +43,11 @@ def name_bare_dims(levels: Iterable[Any], axes: Iterable[Any]) -> None:  # noqa:
         level.dims = axis_names
 
 
-def check_dims_match_axes(data: Any, axes: Iterable[Any], scales: Iterable[Any] | None) -> None:  # noqa: ANN401
+def check_dims_match_axes(
+    data: Any,  # noqa: ANN401
+    axes: Iterable[Any],
+    scales: Iterable[Any] | None,
+) -> None:
     """Refuse axes that do not name the array's dimensions, or scales that do not share them.
 
     Args:

@@ -11,11 +11,9 @@ from typing import Any
 import pytest
 from pydantic import BaseModel, ConfigDict
 
-
-from mikro.mikro import TASK_HEADER
 from mikro.datalayer import DataLayer
 from mikro.errors import NoMikroFound
-from mikro.mikro import Mikro
+from mikro.mikro import TASK_HEADER, Mikro
 from mikro.traits import HasDownloadAccessor, HasZarrStoreAccessor, MikroFetchable
 
 
@@ -30,9 +28,13 @@ class FakeRath:
 
     def _answer(self) -> Any:
         self.calls += 1
-        return SimpleNamespace(data={"store": {"id": "store-1", "nested": {"id": "n-1"}}})
+        return SimpleNamespace(
+            data={"store": {"id": "store-1", "nested": {"id": "n-1"}}}
+        )
 
-    def query(self, document: str, variables: dict[str, Any], headers: Any = None) -> Any:
+    def query(
+        self, document: str, variables: dict[str, Any], headers: Any = None
+    ) -> Any:
         return self._answer()
 
     async def aquery(
@@ -49,14 +51,10 @@ class FakeApp:
         self.rath = FakeRath(name)
         self.datalayer = DataLayer(endpoint_url=f"http://{name}.invalid")
         # A real client over fakes: `client_of` only follows an origin that is one.
-        self.mikro = Mikro.model_construct(
-            rath=self.rath, datalayer=self.datalayer
-        )
+        self.mikro = Mikro.model_construct(rath=self.rath, datalayer=self.datalayer)
 
     def get(self, key: type) -> Any:
         return self.mikro if key is Mikro else None
-
-
 
 
 class Nested(HasZarrStoreAccessor):
@@ -94,7 +92,9 @@ def apps() -> tuple[FakeApp, FakeApp]:
 # --------------------------------------------------------------------------- #
 
 
-def test_execute_goes_through_the_client_it_is_handed(apps: tuple[FakeApp, FakeApp]) -> None:
+def test_execute_goes_through_the_client_it_is_handed(
+    apps: tuple[FakeApp, FakeApp],
+) -> None:
     """What is current plays no part: the client is an argument."""
     a, b = apps
 
@@ -150,7 +150,8 @@ def opened(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
 
     monkeypatch.setattr("mikro.io.download.unkoil", fake_unkoil)
     monkeypatch.setattr(
-        "mikro.io.download.create_zarr_store_path", lambda *args, **kwargs: "a-store-path"
+        "mikro.io.download.create_zarr_store_path",
+        lambda *args, **kwargs: "a-store-path",
     )
     return seen
 
@@ -205,9 +206,7 @@ def test_download_accessor_goes_through_its_objects_client(
         return file_name
 
     monkeypatch.setattr("mikro.io.download.download_file", fake_download)
-    big = Big.model_validate(
-        {"id": "1", "key": "file.bin"}, context=a.mikro._origin()
-    )
+    big = Big.model_validate({"id": "1", "key": "file.bin"}, context=a.mikro._origin())
 
     assert big.download() == "file.bin"
 
@@ -239,12 +238,6 @@ def test_the_client_has_exactly_its_fields() -> None:
     }
 
 
-
-
-
-
-
-
 async def _expand_store_through(app: FakeApp, current: FakeApp, fetch: Any) -> Any:
     """Expand one ``Store`` argument the way an actor does.
 
@@ -257,11 +250,10 @@ async def _expand_store_through(app: FakeApp, current: FakeApp, fetch: Any) -> A
     pytest.importorskip("arkitekt_spec.declare.app")
     from typing import Annotated
 
-    from fakts import Alias, Require
-
+    from arkitekt_runtime.structures.serialization.actor import expand_inputs
     from arkitekt_spec.declare.app import AppRegistry
     from arkitekt_spec.declare.definition.define import prepare_definition
-    from arkitekt_runtime.structures.serialization.actor import expand_inputs
+    from fakts import Alias, Require
 
     class StoreClient:
         """The mikro client, as far as expanding the test store goes."""
@@ -290,7 +282,10 @@ async def _expand_store_through(app: FakeApp, current: FakeApp, fetch: Any) -> A
     wire = {"store": {"__identifier": "@mikro/teststore", "object": "store-1"}}
 
     expanded = await expand_inputs(
-        definition, wire, structure_registry=registry, shelver=None  # type: ignore[arg-type]
+        definition,
+        wire,
+        structure_registry=registry,
+        shelver=None,  # type: ignore[arg-type]
     )
     expanded["store"].zarr_store  # touched while the OTHER app is current
     return expanded["store"]
@@ -340,8 +335,6 @@ class HeaderRath(FakeRath):
         return self._answer()
 
 
-
-
 # --------------------------------------------------------------------------- #
 # The task a call is for: ambient, or named at the call
 # --------------------------------------------------------------------------- #
@@ -353,7 +346,9 @@ async def test_the_ambient_task_is_stamped_without_a_view() -> None:
     from rath.task import task_scope
 
     rath = HeaderRath("shared")
-    client = Mikro.model_construct(rath=rath, datalayer=DataLayer(endpoint_url="http://x.invalid"))
+    client = Mikro.model_construct(
+        rath=rath, datalayer=DataLayer(endpoint_url="http://x.invalid")
+    )
 
     await client.aexecute(GetStore, {"id": "store-1"})
     with task_scope(SimpleNamespace(token="token-1")):
@@ -369,7 +364,9 @@ async def test_a_task_named_at_the_call_beats_the_ambient_one() -> None:
     from rath.task import task_scope
 
     rath = HeaderRath("shared")
-    client = Mikro.model_construct(rath=rath, datalayer=DataLayer(endpoint_url="http://x.invalid"))
+    client = Mikro.model_construct(
+        rath=rath, datalayer=DataLayer(endpoint_url="http://x.invalid")
+    )
 
     with task_scope(SimpleNamespace(token="ambient")):
         await client.aexecute(
@@ -385,7 +382,9 @@ async def test_a_task_without_a_token_stamps_no_header_at_all() -> None:
     from rath.task import task_scope
 
     rath = HeaderRath("shared")
-    client = Mikro.model_construct(rath=rath, datalayer=DataLayer(endpoint_url="http://x.invalid"))
+    client = Mikro.model_construct(
+        rath=rath, datalayer=DataLayer(endpoint_url="http://x.invalid")
+    )
 
     with task_scope(SimpleNamespace(token=None)):
         await client.aexecute(GetStore, {"id": "store-1"})

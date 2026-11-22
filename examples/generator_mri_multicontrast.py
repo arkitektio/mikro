@@ -28,11 +28,10 @@ import sys
 import numpy as np
 import pandas as pd
 import xarray as xr
+from arkitekt import easy
 from scipy.ndimage import gaussian_filter
 
-from arkitekt import easy
 from mikro import Calibration, Unit, dataset_arrays, mikro_service
-from mikro.mikro import Mikro
 from mikro.api.schema import (
     AxisType,
     BootstrapLayerKind,
@@ -112,7 +111,8 @@ def render_exam(tissues: np.ndarray) -> xr.DataArray:
         lookup = np.array([LOOKUP[contrast][t] for t in range(4)], dtype=np.float64)
         clean = lookup[tissues] * bias
         noisy = np.sqrt(
-            (clean + RNG.normal(0, NOISE, SHAPE)) ** 2 + RNG.normal(0, NOISE, SHAPE) ** 2
+            (clean + RNG.normal(0, NOISE, SHAPE)) ** 2
+            + RNG.normal(0, NOISE, SHAPE) ** 2
         )  # Rician-ish, the way magnitude MRI noise actually behaves
         volumes.append(noisy)
     return xr.DataArray(
@@ -125,15 +125,25 @@ def render_exam(tissues: np.ndarray) -> xr.DataArray:
 # --------------------------------------------------------------------------- #
 def check(tissues: np.ndarray, exam: xr.DataArray, stats: pd.DataFrame) -> None:
     if exam.shape != (len(CONTRASTS), *SHAPE):
-        raise SystemExit(f"exam is {exam.shape}, expected {(len(CONTRASTS), *SHAPE)} — transposed?")
+        raise SystemExit(
+            f"exam is {exam.shape}, expected {(len(CONTRASTS), *SHAPE)} — transposed?"
+        )
 
     by_name = stats.set_index("name")
     # The physics orderings, recovered from the RENDERED volumes (via the stats
     # frame, which is measured off them): a broken lookup or a transposed tissue
     # map cannot pass this.
-    if not (by_name.loc["WM", "mean_t1"] > by_name.loc["GM", "mean_t1"] > by_name.loc["CSF", "mean_t1"]):
+    if not (
+        by_name.loc["WM", "mean_t1"]
+        > by_name.loc["GM", "mean_t1"]
+        > by_name.loc["CSF", "mean_t1"]
+    ):
         raise SystemExit("T1 ordering WM > GM > CSF does not hold")
-    if not (by_name.loc["CSF", "mean_t2"] > by_name.loc["GM", "mean_t2"] > by_name.loc["WM", "mean_t2"]):
+    if not (
+        by_name.loc["CSF", "mean_t2"]
+        > by_name.loc["GM", "mean_t2"]
+        > by_name.loc["WM", "mean_t2"]
+    ):
         raise SystemExit("T2 ordering CSF > GM > WM does not hold")
     if not (by_name.loc["CSF", "mean_flair"] < 0.4 * by_name.loc["WM", "mean_flair"]):
         raise SystemExit("FLAIR does not suppress CSF")
@@ -194,7 +204,9 @@ if __name__ == "__main__":
             scales=scales,
             name="MRI · T1/T2/FLAIR exam",
             axes=["c", "z", "y", "x"],
-            anchors=CoordinateAnchorInput.histogram_anchors(exam),  # already a list: one per channel
+            anchors=CoordinateAnchorInput.histogram_anchors(
+                exam
+            ),  # already a list: one per channel
         )
         physical = source.calibrate(
             {
@@ -220,7 +232,9 @@ if __name__ == "__main__":
             axes=["z", "y", "x"],
             # The rank-4 -> rank-3 hop: BY_DIMENSION naming the three shared axes.
             derived_from=[
-                source.lens().derive_projection(["z", "y", "x"], value_relation=ValueRelation.CATEGORIZED)
+                source.lens().derive_projection(
+                    ["z", "y", "x"], value_relation=ValueRelation.CATEGORIZED
+                )
             ],
         )
 
@@ -236,10 +250,26 @@ if __name__ == "__main__":
                 ),
                 ColumnInput(name="name", role=ColumnRole.LABEL, long_name="tissue"),
                 ColumnInput(name="voxels", role=ColumnRole.ATTRIBUTE),
-                ColumnInput(name="volume_mm3", role=ColumnRole.ATTRIBUTE, long_name="volume (mm³)"),
-                ColumnInput(name="mean_t1", role=ColumnRole.ATTRIBUTE, long_name="mean T1 signal"),
-                ColumnInput(name="mean_t2", role=ColumnRole.ATTRIBUTE, long_name="mean T2 signal"),
-                ColumnInput(name="mean_flair", role=ColumnRole.ATTRIBUTE, long_name="mean FLAIR signal"),
+                ColumnInput(
+                    name="volume_mm3",
+                    role=ColumnRole.ATTRIBUTE,
+                    long_name="volume (mm³)",
+                ),
+                ColumnInput(
+                    name="mean_t1",
+                    role=ColumnRole.ATTRIBUTE,
+                    long_name="mean T1 signal",
+                ),
+                ColumnInput(
+                    name="mean_t2",
+                    role=ColumnRole.ATTRIBUTE,
+                    long_name="mean T2 signal",
+                ),
+                ColumnInput(
+                    name="mean_flair",
+                    role=ColumnRole.ATTRIBUTE,
+                    long_name="mean FLAIR signal",
+                ),
             ],
         )
 
@@ -249,12 +279,30 @@ if __name__ == "__main__":
             render=label_render(
                 [
                     categorical_color_by(table, "name", label="Tissue"),
-                    measure_color_by(table, "mean_t1", colormap=ColorMap.VIRIDIS, min=0.0,
-                                     max=float(stats["mean_t1"].max()), label="Mean T1"),
-                    measure_color_by(table, "mean_t2", colormap=ColorMap.INFERNO, min=0.0,
-                                     max=float(stats["mean_t2"].max()), label="Mean T2"),
-                    measure_color_by(table, "volume_mm3", colormap=ColorMap.PLASMA, min=0.0,
-                                     max=float(stats["volume_mm3"].max()), label="Volume"),
+                    measure_color_by(
+                        table,
+                        "mean_t1",
+                        colormap=ColorMap.VIRIDIS,
+                        min=0.0,
+                        max=float(stats["mean_t1"].max()),
+                        label="Mean T1",
+                    ),
+                    measure_color_by(
+                        table,
+                        "mean_t2",
+                        colormap=ColorMap.INFERNO,
+                        min=0.0,
+                        max=float(stats["mean_t2"].max()),
+                        label="Mean T2",
+                    ),
+                    measure_color_by(
+                        table,
+                        "volume_mm3",
+                        colormap=ColorMap.PLASMA,
+                        min=0.0,
+                        max=float(stats["volume_mm3"].max()),
+                        label="Volume",
+                    ),
                 ],
                 active=0,
                 background=0,
@@ -263,17 +311,27 @@ if __name__ == "__main__":
             order=len(CONTRASTS),
         )
         if label_layer.placement != PlacementState.PLACED:
-            raise SystemExit(f"segmentation did not reach the world: {label_layer.placement}")
+            raise SystemExit(
+                f"segmentation did not reach the world: {label_layer.placement}"
+            )
 
         result = mikro.rath.query(LAYERS_QUERY, {"id": scene.id})
         layers = result.data["scene"]["layers"]
         kinds = sorted(layer["__typename"] for layer in layers)
         if kinds != ["IntensityLayer"] * len(CONTRASTS) + ["LabelLayer"]:
-            raise SystemExit(f"scene holds {kinds} — expected one MIP per contrast + labels")
+            raise SystemExit(
+                f"scene holds {kinds} — expected one MIP per contrast + labels"
+            )
         if any(layer["placement"] != "PLACED" for layer in layers):
             raise SystemExit(f"unplaced layers: {layers}")
 
-        published = label_layer.label_render.color_bys if label_layer.label_render else ()
+        published = (
+            label_layer.label_render.color_bys if label_layer.label_render else ()
+        )
         print(f"\nDone — scene '{scene.name}' ({scene.id}):")
-        print(f"  exam {source.id} ({len(CONTRASTS)} contrasts), segmentation {labels_ds.id}")
-        print(f"  stats table {table.id}, label layer {label_layer.id} ({len(published)} colourings)")
+        print(
+            f"  exam {source.id} ({len(CONTRASTS)} contrasts), segmentation {labels_ds.id}"
+        )
+        print(
+            f"  stats table {table.id}, label layer {label_layer.id} ({len(published)} colourings)"
+        )

@@ -68,7 +68,9 @@ def _localization_columns() -> list[ColumnInput]:
             ColumnInput(name=axis, axis_type=AxisType.SPACE, unit="micrometer")
             for axis in ("z", "y", "x")
         ),
-        ColumnInput(name="photons", role=ColumnRole.ATTRIBUTE, long_name="photon count"),
+        ColumnInput(
+            name="photons", role=ColumnRole.ATTRIBUTE, long_name="photon count"
+        ),
     ]
 
 
@@ -178,7 +180,9 @@ def test_the_input_wraps_a_dataframe_as_parquet() -> None:
     assert isinstance(model.data, ParquetLike)
     assert model.data.value.equals(frame)
     # The space is the axis-typed columns, in the file's column order.
-    assert [column.name for column in model.columns if column.axis_type is not None] == ["z", "y", "x"]
+    assert [
+        column.name for column in model.columns if column.axis_type is not None
+    ] == ["z", "y", "x"]
 
 
 def test_the_input_takes_a_measurement_table_with_no_axis_columns() -> None:
@@ -205,7 +209,11 @@ def test_the_input_carries_the_mask_a_table_is_keyed_by() -> None:
             ColumnInput(
                 name="object_id",
                 axis_type=AxisType.INDEX,
-                identified_by=[DatasetIdentifiesInput(kind="DATASET", dataset="17", name="object ids -> measurements")],
+                identified_by=[
+                    DatasetIdentifiesInput(
+                        kind="DATASET", dataset="17", name="object ids -> measurements"
+                    )
+                ],
             ),
             *_MEASUREMENT_COLUMNS[1:],
         ],
@@ -242,7 +250,9 @@ def test_the_input_rejects_something_that_is_not_parquet_like() -> None:
     with pytest.raises(ValidationError):
         CreateTableDatasetInput(name="nope", data=object(), columns=[])
     with pytest.raises(ValidationError):
-        CreateTableDatasetInput(name="nope", data={"x": [1, 2], "y": [1, 2, 3]}, columns=[])
+        CreateTableDatasetInput(
+            name="nope", data={"x": [1, 2], "y": [1, 2, 3]}, columns=[]
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -299,9 +309,10 @@ def test_parquet_like_is_idempotent() -> None:
 def test_every_table_gets_its_own_upload_key() -> None:
     """The key is what the upload middleware stores the object under, so two
     tables in one mutation must not collide."""
-    assert ParquetLike.validate(_measurements()).key != ParquetLike.validate(
-        _measurements()
-    ).key
+    assert (
+        ParquetLike.validate(_measurements()).key
+        != ParquetLike.validate(_measurements()).key
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -348,7 +359,9 @@ def test_an_arrow_table_is_written_to_a_scratch_file() -> None:
 def test_a_record_batch_reader_is_written_batch_by_batch() -> None:
     frame = _measurements()
     table = pa.Table.from_pandas(frame)
-    reader = pa.RecordBatchReader.from_batches(table.schema, table.to_batches(max_chunksize=2))
+    reader = pa.RecordBatchReader.from_batches(
+        table.schema, table.to_batches(max_chunksize=2)
+    )
 
     payload, scratch = _parquet_payload(reader)
     try:
@@ -411,31 +424,48 @@ def test_create_a_measurement_table(deployed_app: DeployedMikro) -> None:
 
 
 @pytest.mark.integration
-def test_a_point_layer_draws_a_table_through_a_lens(deployed_app: DeployedMikro) -> None:
+def test_a_point_layer_draws_a_table_through_a_lens(
+    deployed_app: DeployedMikro,
+) -> None:
     """A table lens keeps the rows inside its windows, and a layer names it or its table."""
-    from mikro import space_3d
     from mikro.api.schema import LensKind, WindowInput
 
     mikro = deployed_app.mikro
     table = mikro.create_table_dataset(
-        name="localizations_windowed", data=_localizations(), columns=_localization_columns()
+        name="localizations_windowed",
+        data=_localizations(),
+        columns=_localization_columns(),
     )
-    axis = next(column.name for column in _localization_columns() if column.axis_type is not None)
+    axis = next(
+        column.name
+        for column in _localization_columns()
+        if column.axis_type is not None
+    )
 
-    window = mikro.create_table_lens(table_dataset=table.id, windows=[WindowInput(axis=axis, min=0.0, max=10.0)])
+    window = mikro.create_table_lens(
+        table_dataset=table.id, windows=[WindowInput(axis=axis, min=0.0, max=10.0)]
+    )
     assert window.kind == LensKind.TABLE
     assert [(w.axis, w.min, w.max) for w in window.windows] == [(axis, 0.0, 10.0)]
-    again = mikro.create_table_lens(table_dataset=table.id, windows=[WindowInput(axis=axis, min=0, max=10)])
+    again = mikro.create_table_lens(
+        table_dataset=table.id, windows=[WindowInput(axis=axis, min=0, max=10)]
+    )
     assert again.id == window.id, "The same windows are the same lens"
 
-    scene = mikro.create_scene(name="windowed points", coordinate_system=table.coordinate_system.id)
+    scene = mikro.create_scene(
+        name="windowed points", coordinate_system=table.coordinate_system.id
+    )
     windowed = mikro.create_point_layer(scene=scene.id, lens=window.id)
     whole = mikro.create_point_layer(scene=scene.id, lens=table.lens().id)
 
     assert str(windowed.table_lens.id) == str(window.id)
-    assert str(windowed.table_dataset.id) == str(table.id), "The table is the lens' container"
+    assert str(windowed.table_dataset.id) == str(table.id), (
+        "The table is the lens' container"
+    )
     assert [(w.axis, w.max) for w in windowed.table_lens.windows] == [(axis, 10.0)]
-    assert not whole.table_lens.windows, "A layer named by its table draws through the whole lens"
+    assert not whole.table_lens.windows, (
+        "A layer named by its table draws through the whole lens"
+    )
     assert whole.table_lens.id != window.id
 
 
@@ -492,7 +522,9 @@ def test_a_table_is_keyed_by_the_mask_it_measures(deployed_app: DeployedMikro) -
     """
     labels = np.zeros((4, 16, 16), dtype="uint16")
     for object_id in range(1, 9):
-        labels[object_id % 4, object_id : object_id + 2, object_id : object_id + 2] = object_id
+        labels[object_id % 4, object_id : object_id + 2, object_id : object_id + 2] = (
+            object_id
+        )
 
     mask = deployed_app.mikro.create_array_dataset(
         data=xr.DataArray(labels, dims=["z", "y", "x"]),
@@ -508,7 +540,13 @@ def test_a_table_is_keyed_by_the_mask_it_measures(deployed_app: DeployedMikro) -
             ColumnInput(
                 name="object_id",
                 axis_type=AxisType.INDEX,
-                identified_by=[DatasetIdentifiesInput(kind="DATASET", dataset=mask.id, name="object ids -> measurements")],
+                identified_by=[
+                    DatasetIdentifiesInput(
+                        kind="DATASET",
+                        dataset=mask.id,
+                        name="object ids -> measurements",
+                    )
+                ],
             ),
             *_MEASUREMENT_COLUMNS[1:],
         ],

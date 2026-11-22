@@ -107,7 +107,9 @@ def hue_ramp(index: int, total: int) -> tuple[int, int, int]:
     return (int(r * 255), int(g * 255), int(b * 255))
 
 
-def fallback_color(index: int, total: int, offset: int = 0) -> tuple[int, int, int, int]:
+def fallback_color(
+    index: int, total: int, offset: int = 0
+) -> tuple[int, int, int, int]:
     """The colour for a channel the file said nothing useful about.
 
     The palette while it lasts, an evenly spaced hue once there are more channels than
@@ -329,7 +331,9 @@ def rgb_graph(
     hand-build the three specs, which is what the converters were doing.
     """
     if len(lenses) != 3:
-        raise ValueError(f"An RGB graph needs exactly three channel lenses, got {len(lenses)}")
+        raise ValueError(
+            f"An RGB graph needs exactly three channel lenses, got {len(lenses)}"
+        )
     colors: tuple[RGBAColor, RGBAColor, RGBAColor] = (
         (255, 0, 0),
         (0, 255, 0),

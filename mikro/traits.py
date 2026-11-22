@@ -14,6 +14,7 @@ If you want to add your own traits to the graphql type, you can do so by adding 
 from __future__ import annotations
 
 import os
+import shutil
 from collections import deque
 from collections.abc import Generator, Hashable, Mapping, Sequence
 from contextlib import contextmanager
@@ -38,26 +39,25 @@ import numpy as np
 from dask.array.core import from_zarr  # type: ignore
 from numpy.typing import NDArray
 from pydantic import BaseModel, model_validator
-from rath.scalars import ID, IDCoercible
 from rath.origin import ContextBound
+from rath.scalars import ID, IDCoercible
 from rath.traits import FederationFetchable
 from rath.turms.utils import get_attributes_or_error
 from zarr.storage import StorePath
 
-from .client import client_of
-from .scalars import ArrayCoercible, _require_xarray, labelled
-from mikro.checks.arrays import check_dims_match_axes
-from mikro.checks.arrays import name_bare_dims
-from mikro.checks.arrays import check_layouts_agree
+from mikro.checks.arrays import (
+    check_dims_match_axes,
+    check_layouts_agree,
+    name_bare_dims,
+)
+from mikro.checks.sparse import check_against_store, check_axes
+from mikro.checks.tables import TableDeclarationError, file_columns_of, resolve_columns
 from mikro.io.chunking import lay_out_pyramid
 from mikro.io.scheduling import compute_numpy
-from mikro.checks.sparse import check_against_store
-from mikro.checks.sparse import check_axes
-from mikro.checks.tables import TableDeclarationError
-from mikro.checks.tables import file_columns_of
-from mikro.checks.tables import resolve_columns
 from mikro.scalars import axis_name
-import shutil
+
+from .client import client_of
+from .scalars import ArrayCoercible, _require_xarray, labelled
 from .vocabulary import (
     COMPOSABLE_KINDS,
     MATRIX_KINDS,
@@ -102,7 +102,6 @@ if TYPE_CHECKING:
         ArrayLens,
         Axis,
         AxisInput,
-        DimensionPartInput,
         AxisType,
         Chart,
         ChartMark,
@@ -111,6 +110,7 @@ if TYPE_CHECKING:
         CoordinateSystem,
         CreateTransformationMutationCreateTransformationBase,
         DerivedFromInput,
+        DimensionPartInput,
         GetCoordinateGraphQueryCoordinateGraph,
         MeshLens,
         NetworkLens,
@@ -121,9 +121,9 @@ if TYPE_CHECKING:
         SparseLens,
         TableLens,
         TransformInput,
-        WindowInput,
         ValueHistogramInput,
         ValueRelation,
+        WindowInput,
     )
     from mikro.io.obstore import ParquetDatasetViaObstore
     from mikro.mikro import Mikro
@@ -220,9 +220,7 @@ class HasNamedAxes:
         not what it is called.
         """
         wanted = enum_value(axis_type)
-        return tuple(
-            name for name, found, _ in self.axis_table if found == wanted
-        )
+        return tuple(name for name, found, _ in self.axis_table if found == wanted)
 
     def carried_axes(self, dims: Sequence[Hashable]) -> list[AxisInput]:
         """AxisInput for a derived array's dims, types carried from this source.
@@ -241,7 +239,9 @@ class HasNamedAxes:
         return [
             AxisInput(
                 name=name,
-                type=AxisType(types[name] if name in types else default_axis_type(name)),
+                type=AxisType(
+                    types[name] if name in types else default_axis_type(name)
+                ),
             )
             for name in names
         ]
@@ -259,7 +259,7 @@ class MikroFetchable(ContextBound, FederationFetchable):
     """
 
     @classmethod
-    def fetch_origin(cls, client: "Mikro") -> dict:
+    def fetch_origin(cls, client: Mikro) -> dict:
         """Bind what is fetched by id to its client, as any other result is.
 
         Without it an object expanded through ``_entities`` would have its rath
@@ -377,7 +377,9 @@ class HasDownloadAccessor(ContextBound):
         from mikro.io.download import download_file
 
         store_id, key = get_attributes_or_error(self, "id", "key")
-        return download_file(client_of(self), store_id, file_name or key.rsplit("/", 1)[-1])
+        return download_file(
+            client_of(self), store_id, file_name or key.rsplit("/", 1)[-1]
+        )
 
     @contextmanager
     def open(
@@ -456,7 +458,9 @@ class HasMediaDownloadAccessor(ContextBound):
         from mikro.io.download import download_media_file
 
         store_id, key = get_attributes_or_error(self, "id", "key")
-        return download_media_file(client_of(self), store_id, file_name or key.rsplit("/", 1)[-1])
+        return download_media_file(
+            client_of(self), store_id, file_name or key.rsplit("/", 1)[-1]
+        )
 
 
 class FileTrait:
@@ -547,7 +551,7 @@ class DataArrayTrait:
     """A trait for dataset-like objects that can be downloaded"""
 
     @property
-    def data(self) -> "da.Array":
+    def data(self) -> da.Array:
         """This pyramid level's array, lazily, as a dask array."""
         store: HasZarrStoreAccessor = get_attributes_or_error(self, "store")
         return from_zarr(store.zarr_store)
@@ -608,9 +612,9 @@ class DatasetTrait(HasNamedAxes):
         self,
         *,
         name: str | None = None,
-        policy: "ScenePolicyInput | None" = None,
-        mikro: "Mikro | None" = None,
-    ) -> "Scene":
+        policy: ScenePolicyInput | None = None,
+        mikro: Mikro | None = None,
+    ) -> Scene:
         """Stage this dataset: a renderable scene over its own pixel grid.
 
         ``dataset.intrinsic_system.stage(...)``, without the ``None`` the schema allows
@@ -627,7 +631,7 @@ class DatasetTrait(HasNamedAxes):
             )
         return intrinsic.stage(name=name, policy=policy, mikro=mikro)
 
-    def level_data(self, level: int = 0) -> "da.Array":
+    def level_data(self, level: int = 0) -> da.Array:
         """One pyramid level of this dataset, lazily, as a dask array in ``axis_names`` order.
 
         Level 0 is the full-resolution array; higher levels are coarser.
@@ -641,24 +645,29 @@ class DatasetTrait(HasNamedAxes):
             f"{sorted(a.level for a in arrays)}"
         )
 
-    def multi_scale_data(self) -> "list[da.Array]":
+    def multi_scale_data(self) -> list[da.Array]:
         """Every pyramid level of this dataset as dask arrays, finest first."""
         arrays = get_attributes_or_error(self, "data_arrays")
-        return [from_zarr(array.store.zarr_store) for array in sorted(arrays, key=lambda a: a.level)]
+        return [
+            from_zarr(array.store.zarr_store)
+            for array in sorted(arrays, key=lambda a: a.level)
+        ]
 
     @property
-    def data(self) -> "da.Array":
+    def data(self) -> da.Array:
         """This dataset's full-resolution array, lazily, as a dask array in ``axis_names`` order."""
         return self.level_data(0)
 
     @property
-    def xarray_data(self) -> "xr.DataArray":
+    def xarray_data(self) -> xr.DataArray:
         """This dataset's full-resolution array as an ``xarray.DataArray`` with its axes named.
 
         Needs the ``mikro[xarray]`` extra.
         """
         xr = _require_xarray()
-        return xr.DataArray(self.data, dims=list(get_attributes_or_error(self, "axis_names")))
+        return xr.DataArray(
+            self.data, dims=list(get_attributes_or_error(self, "axis_names"))
+        )
 
     def calibrate(
         self,
@@ -669,7 +678,7 @@ class DatasetTrait(HasNamedAxes):
         translation: Sequence[float] | None = None,
         affine: Sequence[Sequence[float]] | None = None,
         epoch: datetime | None = None,
-        mikro: "Mikro | None" = None,
+        mikro: Mikro | None = None,
     ) -> CoordinateSystem:
         """Give this dataset a physical size: a coordinate system carrying the
         units, and the edge registering the dataset's pixel grid into it.
@@ -715,7 +724,9 @@ class DatasetTrait(HasNamedAxes):
                     f"The calibration must cover every intrinsic axis exactly: "
                     f"intrinsic axes are {intrinsic_names}, got {sorted(axes)}"
                 )
-            resolved = {name: _as_calibration(name, value) for name, value in axes.items()}
+            resolved = {
+                name: _as_calibration(name, value) for name, value in axes.items()
+            }
             factors = [float(resolved[a.name].factor) for a in intrinsic_axes]
             calibrated_axes = [
                 PhysicalAxisInput(
@@ -771,7 +782,7 @@ class DatasetTrait(HasNamedAxes):
 
     def lens(
         self,
-        mikro: "Mikro | None" = None,
+        mikro: Mikro | None = None,
         **selections: AxisSelection,
     ) -> ArrayLens:
         """The lens over this dataset that pythonic per-axis selections describe.
@@ -817,7 +828,7 @@ class DatasetTrait(HasNamedAxes):
         *,
         name: str | None = None,
         validity: PlacementValidity | None = None,
-        mikro: "Mikro | None" = None,
+        mikro: Mikro | None = None,
     ) -> CreatedTransformation:
         """Register this label dataset's voxels as the key into `table`: a BY_DIMENSION with a FIELD part.
 
@@ -885,7 +896,9 @@ class DatasetTrait(HasNamedAxes):
 
 
 def _window_inputs(
-    container: object, selections: Mapping[str, WindowSelection], names: "Sequence[str] | None" = None
+    container: object,
+    selections: Mapping[str, WindowSelection],
+    names: Sequence[str] | None = None,
 ) -> list[WindowInput]:
     """The windows a container's ``lens()`` keywords describe, refused by axis name.
 
@@ -900,30 +913,53 @@ def _window_inputs(
     windows: list[WindowInput] = []
     for axis, selection in selections.items():
         if axis_names is not None and axis not in axis_names:
-            raise ValueError(f"Invalid axis {axis!r} for a container with axes {list(axis_names)}")
+            raise ValueError(
+                f"Invalid axis {axis!r} for a container with axes {list(axis_names)}"
+            )
         low, high = normalize_window(axis, selection)
         windows.append(WindowInput(axis=axis, min=low, max=high))
     return windows
 
 
 #: DuckDB type names a gate may bound: the numbers.
-_NUMERIC_DTYPES = ("TINYINT", "SMALLINT", "INTEGER", "BIGINT", "HUGEINT", "UTINYINT", "USMALLINT", "UINTEGER", "UBIGINT", "FLOAT", "DOUBLE", "REAL")
+_NUMERIC_DTYPES = (
+    "TINYINT",
+    "SMALLINT",
+    "INTEGER",
+    "BIGINT",
+    "HUGEINT",
+    "UTINYINT",
+    "USMALLINT",
+    "UINTEGER",
+    "UBIGINT",
+    "FLOAT",
+    "DOUBLE",
+    "REAL",
+)
 
 
-def _windowable_names(table: object) -> "list[str] | None":
+def _windowable_names(table: object) -> list[str] | None:
     """What a table lens may window: its axes (coordinate columns) and its numeric columns, a gate. None when the fragment carries neither."""
     axis_names = getattr(table, "axis_names", None)
     columns = getattr(table, "columns", None)
     if axis_names is None or columns is None:
         return None
-    numeric = [column.name for column in columns if column.axis_type is None and (column.dtype.upper() in _NUMERIC_DTYPES or column.dtype.upper().startswith("DECIMAL"))]
+    numeric = [
+        column.name
+        for column in columns
+        if column.axis_type is None
+        and (
+            column.dtype.upper() in _NUMERIC_DTYPES
+            or column.dtype.upper().startswith("DECIMAL")
+        )
+    ]
     return [*axis_names, *numeric]
 
 
 class TableDatasetLensTrait:
     """The lens over a table dataset: what a point, track or series layer draws."""
 
-    def lens(self, mikro: "Mikro | None" = None, **windows: WindowSelection) -> TableLens:
+    def lens(self, mikro: Mikro | None = None, **windows: WindowSelection) -> TableLens:
         """The lens keeping these windows of the table's columns.
 
         With no windows it is the table's whole lens, which is what a layer over
@@ -945,11 +981,11 @@ class TableDatasetLensTrait:
         *,
         group: str | None = None,
         bins: int | None = None,
-        lens: "TableLens | str | None" = None,
-        mark: "ChartMark | None" = None,
+        lens: TableLens | str | None = None,
+        mark: ChartMark | None = None,
         name: str | None = None,
-        mikro: "Mikro | None" = None,
-    ) -> "Chart":
+        mikro: Mikro | None = None,
+    ) -> Chart:
         """A chart of this table's values, in one call: points at ``(x, y[, z])``, or the distribution of ``x``.
 
         ``table.plot("area", "volume")`` draws each row at its area and volume -- a scatter;
@@ -963,20 +999,36 @@ class TableDatasetLensTrait:
 
         kind = ChartLayerKind.POINTS if y is not None else ChartLayerKind.DISTRIBUTION
         if kind is ChartLayerKind.POINTS and (group is not None or bins is not None):
-            raise ValueError("`group` and `bins` belong to a distribution (no `y`); a scatter reads x, y and z.")
+            raise ValueError(
+                "`group` and `bins` belong to a distribution (no `y`); a scatter reads x, y and z."
+            )
         if kind is ChartLayerKind.DISTRIBUTION and z is not None:
-            raise ValueError("A distribution summarises one column; give `y` for a scatter with depth `z`.")
+            raise ValueError(
+                "A distribution summarises one column; give `y` for a scatter with depth `z`."
+            )
         settings: dict[str, object] = {}
-        for key, value in (("lens", getattr(lens, "id", lens)), ("y_column", y), ("z_column", z), ("group_column", group), ("bins", bins), ("mark", mark), ("name", name)):
+        for key, value in (
+            ("lens", getattr(lens, "id", lens)),
+            ("y_column", y),
+            ("z_column", z),
+            ("group_column", group),
+            ("bins", bins),
+            ("mark", mark),
+            ("name", name),
+        ):
             if value is not None:
                 settings[key] = value
-        return client_of(self, mikro).create_table_plot(table=get_attributes_or_error(self, "id"), kind=kind, x_column=x, **settings)
+        return client_of(self, mikro).create_table_plot(
+            table=get_attributes_or_error(self, "id"), kind=kind, x_column=x, **settings
+        )
 
 
 class SparseDatasetTrait:
     """The lens over a sparse dataset: a slice of it is what a picker reads."""
 
-    def lens(self, mikro: "Mikro | None" = None, **windows: WindowSelection) -> SparseLens:
+    def lens(
+        self, mikro: Mikro | None = None, **windows: WindowSelection
+    ) -> SparseLens:
         """The lens keeping these windows of the matrix's axes.
 
         A number pins one position, and pinning one on every axis the matrix
@@ -1012,7 +1064,7 @@ class SparseDatasetTrait:
 class MeshCollectionTrait:
     """The lens over a mesh collection: what a mesh layer draws."""
 
-    def lens(self, mikro: "Mikro | None" = None, **windows: WindowSelection) -> MeshLens:
+    def lens(self, mikro: Mikro | None = None, **windows: WindowSelection) -> MeshLens:
         """The lens keeping these windows of the collection's own space.
 
         With no windows it is the collection's whole lens:
@@ -1027,7 +1079,9 @@ class MeshCollectionTrait:
 class NetworkCollectionTrait:
     """The lens over a network collection: what a network layer draws."""
 
-    def lens(self, mikro: "Mikro | None" = None, **windows: WindowSelection) -> NetworkLens:
+    def lens(
+        self, mikro: Mikro | None = None, **windows: WindowSelection
+    ) -> NetworkLens:
         """The lens keeping these windows of the collection's own space.
 
         With no windows it is the collection's whole lens:
@@ -1062,11 +1116,16 @@ class CreateADatasetTrait:
         scales = getattr(self, "scales", None)
         # The declaration is the one place that sees the axis types and every level at once,
         # which is what a layout has to be chosen from: see `mikro.io.chunking`.
-        levels = [data, *(scale.array for scale in sorted(scales or (), key=lambda s: s.level))]
+        levels = [
+            data,
+            *(scale.array for scale in sorted(scales or (), key=lambda s: s.level)),
+        ]
         name_bare_dims(levels, axes)
         check_dims_match_axes(data, axes, scales)
 
-        axis_types = {axis.name: str(getattr(axis.type, "value", axis.type)) for axis in axes}
+        axis_types = {
+            axis.name: str(getattr(axis.type, "value", axis.type)) for axis in axes
+        }
         lay_out_pyramid(levels, axis_types)
         check_layouts_agree(levels, axis_types)
         return self
@@ -1203,7 +1262,11 @@ class SparseAxisInputTrait(BaseModel):
                     f"(a nucleus mask and a cell mask). Write "
                     f"{key}=[{type(entries).__name__}(...)]."
                 )
-            if entries is not None and not isinstance(entries, (str, bytes)) and not entries:
+            if (
+                entries is not None
+                and not isinstance(entries, (str, bytes))
+                and not entries
+            ):
                 raise ValueError(
                     f"`{key}` is empty. An axis of a sparse matrix is positions and nothing "
                     "else, so one that does not say what they are is one no source could ever "
@@ -1244,7 +1307,9 @@ class SparseColorByInputTrait(BaseModel):
         # than the server is the one thing a client-side check must not be.
         low, high = getattr(self, "min", None), getattr(self, "max", None)
         if low is not None and high is not None and low > high:
-            raise ValueError(f"the colormap window is inverted: min={low} is above max={high}.")
+            raise ValueError(
+                f"the colormap window is inverted: min={low} is above max={high}."
+            )
         return self
 
 
@@ -1278,7 +1343,9 @@ class GraphColorByInputTrait(BaseModel):
         # than the server is the one thing a client-side check must not be.
         low, high = getattr(self, "min", None), getattr(self, "max", None)
         if low is not None and high is not None and low > high:
-            raise ValueError(f"the colormap window is inverted: min={low} is above max={high}.")
+            raise ValueError(
+                f"the colormap window is inverted: min={low} is above max={high}."
+            )
         return self
 
 
@@ -1373,7 +1440,10 @@ class MetricTargetInputTrait(BaseModel):
                 f"A metric target is an annotation or a dataset, or a MetricTargetInput, "
                 f"not a {type(value).__name__}, which no structure identifies"
             )
-        return {"identifier": identifier, "object": get_attributes_or_error(value, "id")}
+        return {
+            "identifier": identifier,
+            "object": get_attributes_or_error(value, "id"),
+        }
 
 
 class ValueHistogramInputTrait(BaseModel):
@@ -1511,7 +1581,9 @@ class CoordinateAnchorInputTrait(BaseModel):
                 "or an array that carries them"
             )
         if len(names) != data.ndim:
-            raise ValueError(f"{len(names)} dimension names {names} for an array of shape {data.shape}")
+            raise ValueError(
+                f"{len(names)} dimension names {names} for an array of shape {data.shape}"
+            )
         if axis not in names:
             return [cls.histogram_anchor(data, dims=names, bins=bins)]
         position = names.index(axis)
@@ -1536,7 +1608,7 @@ class Lensable(HasNamedAxes):
         return getattr(self, "coordinate_system", None)
 
     @property
-    def data(self) -> "da.Array":
+    def data(self) -> da.Array:
         """The dataset's array cut to this lens' slices, lazily, as a dask array.
 
         Its dimensions are the dataset's, in ``dataset.axis_names`` order; a slice narrows
@@ -1560,14 +1632,16 @@ class Lensable(HasNamedAxes):
         return store.data[tuple(cut)]
 
     @property
-    def xarray_data(self) -> "xr.DataArray":
+    def xarray_data(self) -> xr.DataArray:
         """:attr:`data` as an ``xarray.DataArray`` with the dataset's axes named.
 
         Needs the ``mikro[xarray]`` extra.
         """
         xr = _require_xarray()
         store: DatasetTrait = get_attributes_or_error(self, "dataset")
-        return xr.DataArray(self.data, dims=list(get_attributes_or_error(store, "axis_names")))
+        return xr.DataArray(
+            self.data, dims=list(get_attributes_or_error(store, "axis_names"))
+        )
 
     def draw(
         self,
@@ -1636,21 +1710,25 @@ class Lensable(HasNamedAxes):
             # lens', so it is created with the lens' axes and an identity edge
             # back to it: the shapes are drawn on that very grid, without the
             # two systems being made one.
-            collection = client_of(self).create_annotation_collection(
-                name=name or f"Drawings on {coordinate_system.name}",
-                axes=[
-                    AxisInput(
-                        name=axis.name, type=axis.type, long_name=axis.long_name
-                    )
-                    for axis in coordinate_system.axes
-                ],
-                derived_from=[
-                    CoordinateSystemDerivedFromInput(
-                        coordinate_system=coordinate_system.id,
-                        transform=IdentityTransformInput(),
-                    )
-                ],
-            ).id
+            collection = (
+                client_of(self)
+                .create_annotation_collection(
+                    name=name or f"Drawings on {coordinate_system.name}",
+                    axes=[
+                        AxisInput(
+                            name=axis.name, type=axis.type, long_name=axis.long_name
+                        )
+                        for axis in coordinate_system.axes
+                    ],
+                    derived_from=[
+                        CoordinateSystemDerivedFromInput(
+                            coordinate_system=coordinate_system.id,
+                            transform=IdentityTransformInput(),
+                        )
+                    ],
+                )
+                .id
+            )
 
         return client_of(self).create_annotation(
             collection=collection,
@@ -1671,7 +1749,7 @@ class Lensable(HasNamedAxes):
         affine: Sequence[Sequence[float]] | None = None,
         input_axes: Sequence[str] | None = None,
         output_axes: Sequence[str] | None = None,
-        parts: Sequence["DimensionPartInput"] | None = None,
+        parts: Sequence[DimensionPartInput] | None = None,
         value_relation: ValueRelation | ValueRelationName | None = None,
         reason: str | None = None,
     ) -> DerivedFromInput:
@@ -1720,7 +1798,9 @@ class Lensable(HasNamedAxes):
         return LensDerivedFromInput(
             lens=get_attributes_or_error(self, "id"),
             transform=transform,
-            value_relation=ValueRelation(value_relation) if value_relation is not None else None,
+            value_relation=ValueRelation(value_relation)
+            if value_relation is not None
+            else None,
         )
 
     def derive_identity(
@@ -1772,7 +1852,11 @@ class Lensable(HasNamedAxes):
         projection keeps ``["y", "x"]``. *Where* the kept axes sit along the
         dropped ones is the lens' business: slice the lens, don't restate it here.
         """
-        return self.derive(kind="BY_DIMENSION", parts=[_part("IDENTITY", axes, axes)], value_relation=value_relation)
+        return self.derive(
+            kind="BY_DIMENSION",
+            parts=[_part("IDENTITY", axes, axes)],
+            value_relation=value_relation,
+        )
 
 
 def _normalize_kind(kind: ResolvedTransformKind | Enum) -> ResolvedTransformKind:
@@ -1951,7 +2035,7 @@ def _part(
     unit: str | None = None,
     min: float | None = None,
     max: float | None = None,
-) -> "DimensionPartInput":
+) -> DimensionPartInput:
     """One part of a BY_DIMENSION: `input_axes` onto `output_axes`, by one kind.
 
     Each kind reads only its own parameter -- SCALE `scale`, TRANSLATION
@@ -1966,9 +2050,15 @@ def _part(
         input_axes=tuple(input_axes),
         output_axes=tuple(output_axes),
         scale=None if scale is None else tuple(float(s) for s in scale),
-        translation=None if translation is None else tuple(float(t) for t in translation),
-        affine=None if affine is None else tuple(tuple(float(v) for v in row) for row in affine),
-        field=None if field is None else FieldInput(system=field, unit=unit, min=min, max=max),
+        translation=None
+        if translation is None
+        else tuple(float(t) for t in translation),
+        affine=None
+        if affine is None
+        else tuple(tuple(float(v) for v in row) for row in affine),
+        field=None
+        if field is None
+        else FieldInput(system=field, unit=unit, min=min, max=max),
     )
 
 
@@ -1981,7 +2071,7 @@ def _transform_member(
     input_axes: Sequence[str] | None = None,
     output_axes: Sequence[str] | None = None,
     reason: str | None = None,
-    parts: Sequence["DimensionPartInput"] | None = None,
+    parts: Sequence[DimensionPartInput] | None = None,
 ) -> TransformInput:
     """Build the tagged member input for a transformation ``kind``.
 
@@ -2010,7 +2100,9 @@ def _transform_member(
         )
 
     if parts is not None and normalized != "BY_DIMENSION":
-        raise ValueError(f"A {normalized} transformation takes no parts: only a BY_DIMENSION maps its axes part by part")
+        raise ValueError(
+            f"A {normalized} transformation takes no parts: only a BY_DIMENSION maps its axes part by part"
+        )
 
     def require(name: str, value: _Given | None) -> _Given:
         """The value, or a refusal naming the parameter the kind needs."""
@@ -2045,10 +2137,18 @@ def _transform_member(
             output_axes=list(require("output_axes", output_axes)),
         )
     if normalized == "BY_DIMENSION":
-        given = {"scale": scale, "translation": translation, "affine": affine, "input_axes": input_axes, "output_axes": output_axes}
+        given = {
+            "scale": scale,
+            "translation": translation,
+            "affine": affine,
+            "input_axes": input_axes,
+            "output_axes": output_axes,
+        }
         stray = [name for name, value in given.items() if value is not None]
         if stray:
-            raise ValueError(f"A BY_DIMENSION maps its axes in its parts, so it takes no {stray[0]}=: pass parts=[_part(...)] instead")
+            raise ValueError(
+                f"A BY_DIMENSION maps its axes in its parts, so it takes no {stray[0]}=: pass parts=[_part(...)] instead"
+            )
         return schema.ByDimensionTransformInput(parts=list(require("parts", parts)))
     if normalized == "UNMAPPABLE":
         if reason is None:
@@ -2105,7 +2205,9 @@ class AxisMap:
         missing = [axis for axis in self.input_axes if axis not in given]
         for axis in missing:
             reading = [
-                out for out, row in zip(wanted, rows) if row[self.input_axes.index(axis)] != 0.0
+                out
+                for out, row in zip(wanted, rows)
+                if row[self.input_axes.index(axis)] != 0.0
             ]
             if reading:
                 raise ValueError(
@@ -2138,7 +2240,9 @@ def _pass_through_factor(source: object, target: object) -> float | None:
     if is_arbitrary_unit(source) or is_arbitrary_unit(target):
         return 1.0
     try:
-        return float(get_current_registry().Quantity(1.0, str(source)).to(str(target)).magnitude)
+        return float(
+            get_current_registry().Quantity(1.0, str(source)).to(str(target)).magnitude
+        )
     except Exception:
         return None
 
@@ -2151,11 +2255,11 @@ def _units_in_order(system: CoordinateSystemTrait) -> dict[str, object]:
 def _field_parts(
     source: object,
     space: object,
-    field: "Mapping[str, DatasetTrait]",
+    field: Mapping[str, DatasetTrait],
     units: Mapping[str, str],
     source_axes: Sequence[str],
     space_axes: Sequence[str],
-) -> list["DimensionPartInput"]:
+) -> list[DimensionPartInput]:
     """The FIELD parts `register(field=...)` describes -- one axis each, read from a 1-D array -- their values read once and checked.
 
     The server records the range as declared and never reads the array, so this
@@ -2164,26 +2268,50 @@ def _field_parts(
     parts = []
     for axis, dataset in field.items():
         if axis not in source_axes or axis not in space_axes:
-            raise ValueError(f"field names '{axis}', which {getattr(source, 'name', 'the source')} {list(source_axes)} and the space {list(space_axes)} do not both have")
+            raise ValueError(
+                f"field names '{axis}', which {getattr(source, 'name', 'the source')} {list(source_axes)} and the space {list(space_axes)} do not both have"
+            )
 
         values = compute_numpy(dataset.data, dtype=float)
         if values.ndim != 1:
-            raise ValueError(f"A field is one value per position, so it is rank one, but '{getattr(dataset, 'name', '?')}' has shape {values.shape}")
+            raise ValueError(
+                f"A field is one value per position, so it is rank one, but '{getattr(dataset, 'name', '?')}' has shape {values.shape}"
+            )
         if values.size < 2 or not bool(np.all(np.diff(values) > 0)):
-            raise ValueError(f"A field's values strictly increase, but '{getattr(dataset, 'name', '?')}' does not: {values[:8]}")
+            raise ValueError(
+                f"A field's values strictly increase, but '{getattr(dataset, 'name', '?')}' does not: {values[:8]}"
+            )
 
-        unit = units.get(axis) or next((a.unit for a in getattr(space, "axes", ()) or () if a.name == axis), None)
+        unit = units.get(axis) or next(
+            (a.unit for a in getattr(space, "axes", ()) or () if a.name == axis), None
+        )
         if not unit:
-            raise ValueError(f"Name the unit of the field's values for '{axis}' (field_units={{'{axis}': ...}}): the space's axis states none")
+            raise ValueError(
+                f"Name the unit of the field's values for '{axis}' (field_units={{'{axis}': ...}}): the space's axis states none"
+            )
 
         system = getattr(dataset, "intrinsic_system", None)
         if system is None:
-            raise ValueError(f"'{getattr(dataset, 'name', '?')}' was fetched without its intrinsicSystem, so its space cannot be named")
-        parts.append(_part("FIELD", [axis], [axis], field=system.id, unit=str(unit), min=float(values[0]), max=float(values[-1])))
+            raise ValueError(
+                f"'{getattr(dataset, 'name', '?')}' was fetched without its intrinsicSystem, so its space cannot be named"
+            )
+        parts.append(
+            _part(
+                "FIELD",
+                [axis],
+                [axis],
+                field=system.id,
+                unit=str(unit),
+                min=float(values[0]),
+                max=float(values[-1]),
+            )
+        )
     return parts
 
 
-def _shared_part(axes: Sequence[str], factors: Sequence[float] | None, offsets: Sequence[float]) -> "DimensionPartInput":
+def _shared_part(
+    axes: Sequence[str], factors: Sequence[float] | None, offsets: Sequence[float]
+) -> DimensionPartInput:
     """The one part a registration states over the axes the two spaces share: the kind its numbers are.
 
     No numbers is an IDENTITY -- the same positions, said twice; a factor alone a SCALE, an
@@ -2201,7 +2329,11 @@ def _shared_part(axes: Sequence[str], factors: Sequence[float] | None, offsets: 
         "AFFINE",
         axes,
         axes,
-        affine=[[factors[row] if column == row else 0.0 for column in range(len(axes))] + [offsets[row]] for row in range(len(axes))],
+        affine=[
+            [factors[row] if column == row else 0.0 for column in range(len(axes))]
+            + [offsets[row]]
+            for row in range(len(axes))
+        ],
     )
 
 
@@ -2225,7 +2357,10 @@ def _edge_axis_map(step: PathStep) -> AxisMap:
             f"Transformation {getattr(t, 'id', '?')} ({kind}) was fetched without its "
             "input and output coordinate systems, so its axes cannot be named"
         )
-    in_names, out_names = _axis_names_in_order(input_system), _axis_names_in_order(output_system)
+    in_names, out_names = (
+        _axis_names_in_order(input_system),
+        _axis_names_in_order(output_system),
+    )
     in_units, out_units = _units_in_order(input_system), _units_in_order(output_system)
 
     if kind != "BY_DIMENSION":
@@ -2239,10 +2374,17 @@ def _edge_axis_map(step: PathStep) -> AxisMap:
         if kind == "IDENTITY" and in_names == out_names:
             # Every axis of an identity passes through, so each is converted
             # between the units its two ends give it, or dropped if it cannot be.
-            factors = [_pass_through_factor(in_units[a], out_units[a]) for a in in_names]
+            factors = [
+                _pass_through_factor(in_units[a], out_units[a]) for a in in_names
+            ]
             kept = [i for i, factor in enumerate(factors) if factor is not None]
             matrix = np.vstack(
-                [np.diag([factors[i] or 0.0 for i in range(len(in_names))] + [1.0])[kept], matrix[-1:]]
+                [
+                    np.diag([factors[i] or 0.0 for i in range(len(in_names))] + [1.0])[
+                        kept
+                    ],
+                    matrix[-1:],
+                ]
             )
             out_names = [out_names[i] for i in kept]
         if not step.inverted:
@@ -2264,10 +2406,21 @@ def _edge_axis_map(step: PathStep) -> AxisMap:
 
     parts = list(getattr(t, "parts", ()) or ())
     if step.inverted:
-        fields = [list(part.output_axes) for part in parts if _normalize_kind(part.kind) == "FIELD"]
+        fields = [
+            list(part.output_axes)
+            for part in parts
+            if _normalize_kind(part.kind) == "FIELD"
+        ]
         if fields:
-            raise ValueError(f"Transformation {getattr(t, 'id', '?')} (BY_DIMENSION) reads {fields} from an array and is walked forwards only")
-        in_names, out_names, in_units, out_units = out_names, in_names, out_units, in_units
+            raise ValueError(
+                f"Transformation {getattr(t, 'id', '?')} (BY_DIMENSION) reads {fields} from an array and is walked forwards only"
+            )
+        in_names, out_names, in_units, out_units = (
+            out_names,
+            in_names,
+            out_units,
+            in_units,
+        )
 
     rows: list[np.ndarray] = []
     stated: list[str] = []
@@ -2278,7 +2431,9 @@ def _edge_axis_map(step: PathStep) -> AxisMap:
         acts_in, acts_out = list(part.input_axes), list(part.output_axes)
         if step.inverted:
             acts_in, acts_out = acts_out, acts_in
-        strangers = [a for a in acts_in if a not in in_names] + [a for a in acts_out if a not in out_names]
+        strangers = [a for a in acts_in if a not in in_names] + [
+            a for a in acts_out if a not in out_names
+        ]
         if strangers:
             raise ValueError(
                 f"Transformation {getattr(t, 'id', '?')} (BY_DIMENSION) has a {part_kind} part naming axes {strangers} "
@@ -2297,11 +2452,15 @@ def _edge_axis_map(step: PathStep) -> AxisMap:
         block = _part_matrix(part, part_kind)
         if step.inverted:
             if block.shape[0] != block.shape[1]:
-                raise ValueError(f"Transformation {getattr(t, 'id', '?')} (BY_DIMENSION) has a {part_kind} part that changes rank and cannot be walked backwards")
+                raise ValueError(
+                    f"Transformation {getattr(t, 'id', '?')} (BY_DIMENSION) has a {part_kind} part that changes rank and cannot be walked backwards"
+                )
             try:
                 block = np.linalg.inv(block)
             except np.linalg.LinAlgError as e:
-                raise ValueError(f"Transformation {getattr(t, 'id', '?')} (BY_DIMENSION) has a singular {part_kind} part and cannot be walked backwards") from e
+                raise ValueError(
+                    f"Transformation {getattr(t, 'id', '?')} (BY_DIMENSION) has a singular {part_kind} part and cannot be walked backwards"
+                ) from e
         for index, out_axis in enumerate(acts_out):
             row = np.zeros(len(in_names) + 1)
             for column, in_axis in enumerate(acts_in):
@@ -2312,7 +2471,11 @@ def _edge_axis_map(step: PathStep) -> AxisMap:
     order = [axis for axis in out_names if axis in stated]
     bottom = np.zeros(len(in_names) + 1)
     bottom[-1] = 1.0
-    return AxisMap(tuple(in_names), tuple(order), np.vstack([*[rows[stated.index(axis)] for axis in order], bottom]))
+    return AxisMap(
+        tuple(in_names),
+        tuple(order),
+        np.vstack([*[rows[stated.index(axis)] for axis in order], bottom]),
+    )
 
 
 def _part_matrix(part: object, kind: str) -> NDArray[np.float64]:
@@ -2326,11 +2489,15 @@ def _part_matrix(part: object, kind: str) -> NDArray[np.float64]:
     elif kind == "TRANSLATION":
         block[:n_in, n_in] = [float(v) for v in part.translation]  # type: ignore[attr-defined]
     if n_out != n_in:
-        raise ValueError(f"A {kind} part maps its axes one for one, but this one names {n_in} onto {n_out}")
+        raise ValueError(
+            f"A {kind} part maps its axes one for one, but this one names {n_in} onto {n_out}"
+        )
     return block
 
 
-def _compose_axis_maps(steps: Sequence[PathStep], source_axes: Sequence[str]) -> AxisMap:
+def _compose_axis_maps(
+    steps: Sequence[PathStep], source_axes: Sequence[str]
+) -> AxisMap:
     """Compose a path into one `AxisMap` over the source system's axes.
 
     By substitution, axis name by axis name, so a path may change rank on the
@@ -2529,7 +2696,9 @@ def _step_matrix(step: object, ndim_in: int | None) -> NDArray[np.float64]:
             )
         return np.eye(ndim_in + 1)
     if kind == "SCALE":
-        return np.diag([float(s) for s in get_attributes_or_error(step, "scale")] + [1.0])
+        return np.diag(
+            [float(s) for s in get_attributes_or_error(step, "scale")] + [1.0]
+        )
     if kind == "TRANSLATION":
         translation = get_attributes_or_error(step, "translation")
         n = len(translation)
@@ -2540,7 +2709,9 @@ def _step_matrix(step: object, ndim_in: int | None) -> NDArray[np.float64]:
         return _homogeneous_from_rows(
             np.asarray(get_attributes_or_error(step, "affine"), dtype=float), ndim_in
         )
-    raise NotImplementedError(f"A SEQUENCE step of kind {kind} has no closed-form matrix")
+    raise NotImplementedError(
+        f"A SEQUENCE step of kind {kind} has no closed-form matrix"
+    )
 
 
 def _bfs_path(
@@ -2584,7 +2755,11 @@ def _bfs_path(
             continue
         in_id, out_id = str(input_system.id), str(output_system.id)
         adjacency.setdefault(in_id, []).append((PathStep(t, False), out_id))
-        if all(_normalize_kind(part.kind) != "FIELD" and len(part.input_axes) == len(part.output_axes) for part in parts):
+        if all(
+            _normalize_kind(part.kind) != "FIELD"
+            and len(part.input_axes) == len(part.output_axes)
+            for part in parts
+        ):
             adjacency.setdefault(out_id, []).append((PathStep(t, True), in_id))
 
     if start_id == target_id:
@@ -2665,7 +2840,7 @@ class SceneTrait:
             "world sees it"
         )
 
-    def clear(self, mikro: "Mikro | None" = None) -> Scene:
+    def clear(self, mikro: Mikro | None = None) -> Scene:
         """Delete every layer of this scene, keeping the scene itself.
 
         A pure view-state reset: no coordinate system, registration or dataset
@@ -2679,9 +2854,11 @@ class SceneTrait:
         """
         pass
 
-        return client_of(self, mikro).clear_scene(id=get_attributes_or_error(self, "id"))
+        return client_of(self, mikro).clear_scene(
+            id=get_attributes_or_error(self, "id")
+        )
 
-    def delete(self, mikro: "Mikro | None" = None) -> ID:
+    def delete(self, mikro: Mikro | None = None) -> ID:
         """Delete this scene.
 
         Its world survives — a scene adopts a space, never owns it. Sweep the
@@ -2695,7 +2872,9 @@ class SceneTrait:
         """
         pass
 
-        return client_of(self, mikro).delete_scene(id=get_attributes_or_error(self, "id"))
+        return client_of(self, mikro).delete_scene(
+            id=get_attributes_or_error(self, "id")
+        )
 
 
 class GridTrait:
@@ -2715,9 +2894,11 @@ class GridTrait:
         """The space whose members this grid lays out: rows, then columns. Adopted, never owned."""
         return get_attributes_or_error(self, "world_coordinate_system")
 
-    def delete(self, mikro: "Mikro | None" = None) -> ID:
+    def delete(self, mikro: Mikro | None = None) -> ID:
         """Delete this grid and its layers. Nothing a layer drew is touched, and the world survives."""
-        return client_of(self, mikro).delete_grid(id=get_attributes_or_error(self, "id"))
+        return client_of(self, mikro).delete_grid(
+            id=get_attributes_or_error(self, "id")
+        )
 
 
 class ChartTrait:
@@ -2744,7 +2925,7 @@ class ChartTrait:
         """
         return get_attributes_or_error(self, "world_coordinate_system")
 
-    def delete(self, mikro: "Mikro | None" = None) -> ID:
+    def delete(self, mikro: Mikro | None = None) -> ID:
         """Delete this chart and its layers.
 
         Nothing a layer drew is touched, and the world survives.
@@ -2755,7 +2936,9 @@ class ChartTrait:
         Returns:
             The id of the deleted chart.
         """
-        return client_of(self, mikro).delete_chart(id=get_attributes_or_error(self, "id"))
+        return client_of(self, mikro).delete_chart(
+            id=get_attributes_or_error(self, "id")
+        )
 
 
 class CoordinateSystemTrait:
@@ -2783,11 +2966,11 @@ class CoordinateSystemTrait:
         source: Registrable,
         *,
         scale: Mapping[str, float] | Sequence[float] | None = None,
-        field: "Mapping[str, DatasetTrait] | None" = None,
+        field: Mapping[str, DatasetTrait] | None = None,
         field_units: Mapping[str, str] | None = None,
         name: str | None = None,
         validity: PlacementValidity | None = None,
-        mikro: "Mikro | None" = None,
+        mikro: Mikro | None = None,
         **offsets: float,
     ) -> CreatedTransformation:
         """Register `source` into this space, scaled and translated.
@@ -2863,13 +3046,17 @@ class CoordinateSystemTrait:
         axis_names = _axis_names_in_order(space)
         my_names = _axis_names_in_order(self)
 
-        fields = _field_parts(source, self, field or {}, field_units or {}, axis_names, my_names)
+        fields = _field_parts(
+            source, self, field or {}, field_units or {}, axis_names, my_names
+        )
 
         # In the source's own axis order: the part's parameters are positional
         # against its axes, so the two lists have to agree. An axis a field gives
         # is not among them: the array, not a factor, is its map.
         looked_up = {axis for part in fields for axis in part.input_axes}
-        shared = [axis for axis in axis_names if axis in my_names and axis not in looked_up]
+        shared = [
+            axis for axis in axis_names if axis in my_names and axis not in looked_up
+        ]
         if not shared and not fields:
             raise ValueError(
                 f"{getattr(source, 'name', source)} has axes {axis_names} and the "
@@ -2882,7 +3069,9 @@ class CoordinateSystemTrait:
         named = set(offsets) | (set(scale) if isinstance(scale, Mapping) else set())
         both = sorted(named & looked_up)
         if both:
-            raise ValueError(f"{both} is given by `field`, so it takes no scale or offset: an axis has one map")
+            raise ValueError(
+                f"{both} is given by `field`, so it takes no scale or offset: an axis has one map"
+            )
         unplaceable = sorted(named - set(shared))
         if unplaceable:
             raise ValueError(
@@ -2906,7 +3095,15 @@ class CoordinateSystemTrait:
                     f"to say which is which."
                 )
 
-        parts = [_shared_part(shared, factors, [float(offsets.get(axis, 0.0)) for axis in shared])] if shared else []
+        parts = (
+            [
+                _shared_part(
+                    shared, factors, [float(offsets.get(axis, 0.0)) for axis in shared]
+                )
+            ]
+            if shared
+            else []
+        )
         return space.transform_to(
             self,
             kind="BY_DIMENSION",
@@ -2970,7 +3167,7 @@ class CoordinateSystemTrait:
         mesh_collection: IDCoercible | None = None,
         annotation_collection: IDCoercible | None = None,
         coordinate_system: IDCoercible | None = None,
-        mikro: "Mikro | None" = None,
+        mikro: Mikro | None = None,
     ) -> tuple[ID, ...]:
         """Un-register a source from this space, by naming the source.
 
@@ -3020,7 +3217,7 @@ class CoordinateSystemTrait:
         *,
         name: str | None = None,
         policy: ScenePolicyInput | None = None,
-        mikro: "Mikro | None" = None,
+        mikro: Mikro | None = None,
     ) -> Scene:
         """Bootstrap a renderable scene over this space.
 
@@ -3056,7 +3253,7 @@ class CoordinateSystemTrait:
         *,
         name: str | None = None,
         policy: ChartPolicyInput | None = None,
-        mikro: "Mikro | None" = None,
+        mikro: Mikro | None = None,
     ) -> Chart:
         """Bootstrap a chart over this space, drawing what is laid along its axis.
 
@@ -3083,7 +3280,7 @@ class CoordinateSystemTrait:
             name=name if name is not None else UNSET,
         )
 
-    def clear(self, mikro: "Mikro | None" = None) -> tuple[ID, ...]:
+    def clear(self, mikro: Mikro | None = None) -> tuple[ID, ...]:
         """Delete every registration *into* this space, returning the edge ids.
 
         The space itself survives, so do the scenes composing over it (their
@@ -3148,9 +3345,9 @@ class CoordinateSystemTrait:
         input_axes: Sequence[str] | None = None,
         output_axes: Sequence[str] | None = None,
         reason: str | None = None,
-        parts: Sequence["DimensionPartInput"] | None = None,
+        parts: Sequence[DimensionPartInput] | None = None,
         validity: PlacementValidity | None = None,
-        mikro: "Mikro | None" = None,
+        mikro: Mikro | None = None,
     ) -> CreatedTransformation:
         """Create a transformation edge from this system to `other`.
 
@@ -3222,7 +3419,7 @@ class CoordinateSystemTrait:
         )
 
     def graph(
-        self, max_depth: int | None = None, mikro: "Mikro | None" = None
+        self, max_depth: int | None = None, mikro: Mikro | None = None
     ) -> GetCoordinateGraphQueryCoordinateGraph:
         """Fetch the coordinate graph reachable from this system.
 
@@ -3246,7 +3443,7 @@ class CoordinateSystemTrait:
         *,
         max_depth: int | None = None,
         graph: GetCoordinateGraphQueryCoordinateGraph | None = None,
-        mikro: "Mikro | None" = None,
+        mikro: Mikro | None = None,
     ) -> list[PathStep]:
         """The shortest composable path of transformation edges to `other`.
 
@@ -3270,7 +3467,7 @@ class CoordinateSystemTrait:
         *,
         max_depth: int | None = None,
         graph: GetCoordinateGraphQueryCoordinateGraph | None = None,
-        mikro: "Mikro | None" = None,
+        mikro: Mikro | None = None,
     ) -> AxisMap:
         """The path to `other` composed into one map, keyed by axis name.
 
@@ -3287,7 +3484,7 @@ class CoordinateSystemTrait:
         *,
         max_depth: int | None = None,
         graph: GetCoordinateGraphQueryCoordinateGraph | None = None,
-        mikro: "Mikro | None" = None,
+        mikro: Mikro | None = None,
     ) -> NDArray[np.float64]:
         """The composed homogeneous matrix mapping points of this system into
         `other`, found via the coordinate graph.
@@ -3299,7 +3496,11 @@ class CoordinateSystemTrait:
         if not steps:
             return np.eye(self.ndim + 1)
         composed = _compose_axis_maps(steps, self.axis_names)
-        target = _axis_names_in_order(steps[-1].transformation.input if steps[-1].inverted else steps[-1].transformation.output)
+        target = _axis_names_in_order(
+            steps[-1].transformation.input
+            if steps[-1].inverted
+            else steps[-1].transformation.output
+        )
         unstated = [axis for axis in target if axis not in composed.output_axes]
         if unstated:
             raise ValueError(
@@ -3317,7 +3518,7 @@ class CoordinateSystemTrait:
         axes: Sequence[str] | None = None,
         max_depth: int | None = None,
         graph: GetCoordinateGraphQueryCoordinateGraph | None = None,
-        mikro: "Mikro | None" = None,
+        mikro: Mikro | None = None,
     ) -> NDArray[np.float64]:
         """Map points given in this system's axis order into `other`.
 
@@ -3328,7 +3529,9 @@ class CoordinateSystemTrait:
         channels).
         """
         if axes is None:
-            matrix = self.matrix_to(other, max_depth=max_depth, graph=graph, mikro=mikro)
+            matrix = self.matrix_to(
+                other, max_depth=max_depth, graph=graph, mikro=mikro
+            )
             return _apply_homogeneous(matrix, points)
         mapped = self.axis_map_to(other, max_depth=max_depth, graph=graph, mikro=mikro)
         return mapped.apply(points, output_axes=axes)

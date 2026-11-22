@@ -4,5 +4,3 @@ class MikroError(Exception):
 
 class NoMikroFound(MikroError):
     """Caused when no Mikro is found."""
-
-

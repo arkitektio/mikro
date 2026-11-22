@@ -40,8 +40,12 @@ def collection() -> fabriks.MeshCollection:
     """Two boxes that disagree under a permutation of the axes, cut into a small octree."""
     return fabriks.build_collection(
         {
-            7: trimesh.creation.box(extents=[90.0, 50.0, 30.0]).apply_translation([70.0, 60.0, 25.0]),
-            3: trimesh.creation.box(extents=[20.0, 12.0, 8.0]).apply_translation([30.0, 25.0, 15.0]),
+            7: trimesh.creation.box(extents=[90.0, 50.0, 30.0]).apply_translation(
+                [70.0, 60.0, 25.0]
+            ),
+            3: trimesh.creation.box(extents=[20.0, 12.0, 8.0]).apply_translation(
+                [30.0, 25.0, 15.0]
+            ),
         },
         cell_size=CELL_SIZE,
         levels=LEVELS,
@@ -74,7 +78,9 @@ def written_paths(store: MemoryStore) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-def test_a_built_collection_is_what_the_scalar_accepts(collection: fabriks.MeshCollection) -> None:
+def test_a_built_collection_is_what_the_scalar_accepts(
+    collection: fabriks.MeshCollection,
+) -> None:
     """The whole collection goes on the wire, and the upload link needs a key to track it by."""
     coerced = FabriksLike.validate(collection)
 
@@ -104,7 +110,9 @@ def test_a_bare_catalog_table_is_refused_and_the_message_says_what_to_build(
     with pytest.raises(ValueError, match="MeshCollection") as raised:
         FabriksLike.validate(collection.cell_catalog)
 
-    assert "fabriks.build_collection" in str(raised.value), "the error should name the way out"
+    assert "fabriks.build_collection" in str(raised.value), (
+        "the error should name the way out"
+    )
 
 
 def test_the_input_type_coerces_a_collection_on_the_way_in(
@@ -145,10 +153,11 @@ def test_the_default_codec_needs_no_decoder_on_either_side(
     assert collection.encoding.compression == "NONE"
 
 
-def test_the_ids_it_was_given_are_the_ids_it_writes(collection: fabriks.MeshCollection) -> None:
+def test_the_ids_it_was_given_are_the_ids_it_writes(
+    collection: fabriks.MeshCollection,
+) -> None:
     """Object ids are a label volume's instance ids, so they are carried, never renumbered."""
     assert set(collection.object_catalog.column("object_id").to_pylist()) == {3, 7}
-
 
 
 # ---------------------------------------------------------------------------
@@ -170,16 +179,22 @@ def test_the_whole_tree_lands_under_the_granted_prefix(
 
     credentials = grant()
     returned = store_fabriks_collection(
-        FabriksLike.validate(collection), credentials, DataLayer(endpoint_url="http://s3.test")
+        FabriksLike.validate(collection),
+        credentials,
+        DataLayer(endpoint_url="http://s3.test"),
     )
 
-    assert returned == credentials.store, "the store id is what replaces the collection in the variables"
+    assert returned == credentials.store, (
+        "the store id is what replaces the collection in the variables"
+    )
 
     paths = written_paths(store)
     assert paths, "nothing was written"
     assert all(path.startswith(f"{GRANT_KEY}/") for path in paths), paths
     assert not any("//" in path for path in paths), paths
-    assert f"{GRANT_KEY}/fabriks.json" in paths, "the manifest is the completion protocol"
+    assert f"{GRANT_KEY}/fabriks.json" in paths, (
+        "the manifest is the completion protocol"
+    )
 
     # The parts carry the codec this library states rather than the writer's default: the
     # server refuses anything the scene viewer cannot decode at the finish, and ZSTD is what
@@ -190,7 +205,9 @@ def test_the_whole_tree_lands_under_the_granted_prefix(
     import pyarrow.parquet as pq
 
     part = next(path for path in paths if path.endswith(".parquet"))
-    footer = pq.ParquetFile(io.BytesIO(bytes(obstore.get(store, part).bytes()))).metadata
+    footer = pq.ParquetFile(
+        io.BytesIO(bytes(obstore.get(store, part).bytes()))
+    ).metadata
     assert footer.row_group(0).column(0).compression == "ZSTD"
 
     # The server reads the grid and the encoding off the artifact rather than being told, so
@@ -224,10 +241,14 @@ def test_the_manifest_is_written_last(
         def list(self, prefix: str | None = None) -> Any:  # noqa: ANN401
             return store.list(prefix)
 
-    monkeypatch.setattr("mikro.io.obstore.create_s3_store", lambda *_, **__: Recording())
+    monkeypatch.setattr(
+        "mikro.io.obstore.create_s3_store", lambda *_, **__: Recording()
+    )
 
     store_fabriks_collection(
-        FabriksLike.validate(collection), grant(), DataLayer(endpoint_url="http://s3.test")
+        FabriksLike.validate(collection),
+        grant(),
+        DataLayer(endpoint_url="http://s3.test"),
     )
 
     assert order[-1].endswith("fabriks.json"), order
@@ -254,7 +275,9 @@ def test_a_failed_write_is_reported_as_an_upload_error(
 
     with pytest.raises(UploadError, match=GRANT_KEY):
         store_fabriks_collection(
-            FabriksLike.validate(collection), grant(), DataLayer(endpoint_url="http://s3.test")
+            FabriksLike.validate(collection),
+            grant(),
+            DataLayer(endpoint_url="http://s3.test"),
         )
 
 
@@ -271,7 +294,9 @@ class StubRath:
         self.documents: list[str] = []
         self.variables: list[dict[str, Any]] = []
 
-    def query(self, document: str, variables: dict[str, Any], **_: Any) -> SimpleNamespace:  # noqa: ANN401
+    def query(
+        self, document: str, variables: dict[str, Any], **_: Any
+    ) -> SimpleNamespace:  # noqa: ANN401
         """Answer by which mutation was asked for, the way the server would."""
         self.documents.append(document)
         self.variables.append(variables)
@@ -302,7 +327,11 @@ class StubRath:
                         "bucket": "a-bucket",
                         "path": f"s3://a-bucket/{GRANT_KEY}",
                         "specVersion": fabriks.SPEC_VERSION,
-                        "grid": {"cellSize": list(CELL_SIZE), "levels": LEVELS, "sortKey": "MORTON"},
+                        "grid": {
+                            "cellSize": list(CELL_SIZE),
+                            "levels": LEVELS,
+                            "sortKey": "MORTON",
+                        },
                         "encoding": {},
                         "axes": ["x", "y", "z"],
                         "counts": {"objects": 2},
@@ -310,7 +339,9 @@ class StubRath:
                     }
                 }
             )
-        raise AssertionError(f"the middleware asked for something unexpected: {document[:80]}")
+        raise AssertionError(
+            f"the middleware asked for something unexpected: {document[:80]}"
+        )
 
 
 def test_the_middleware_replaces_a_collection_with_the_store_it_uploaded_to(
@@ -323,7 +354,9 @@ def test_the_middleware_replaces_a_collection_with_the_store_it_uploaded_to(
     of the two-step protocol were made, since a tree written but never finished is a prefix the
     server will not register.
     """
-    monkeypatch.setattr("mikro.io.obstore.create_s3_store", lambda *_, **__: MemoryStore())
+    monkeypatch.setattr(
+        "mikro.io.obstore.create_s3_store", lambda *_, **__: MemoryStore()
+    )
 
     middleware = UploadMiddleware(datalayer=DataLayer(endpoint_url="http://s3.test"))
     middleware._cached_datalayer_url = "http://s3.test"  # else it resolves through koil
@@ -332,12 +365,14 @@ def test_the_middleware_replaces_a_collection_with_the_store_it_uploaded_to(
     variables = {"input": {"version": "v1", "store": FabriksLike.validate(collection)}}
     processed = middleware.process_variables(variables, None, rath)  # type: ignore[arg-type]
 
-    assert processed["input"]["store"] == "42", "the collection should be replaced by its store id"
+    assert processed["input"]["store"] == "42", (
+        "the collection should be replaced by its store id"
+    )
     assert processed["input"]["version"] == "v1", "nothing else should be touched"
 
     asked = [
-        "request" if "requestFabriksUpload" in document else "finish" for document in rath.documents
+        "request" if "requestFabriksUpload" in document else "finish"
+        for document in rath.documents
     ]
     assert asked == ["request", "finish"], asked
     assert rath.variables[-1]["input"] == {"storeId": "42", "valid": True}
-

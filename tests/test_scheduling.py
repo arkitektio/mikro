@@ -36,7 +36,9 @@ def _lazy(side: int, depth: int = 4) -> xr.DataArray:
 
 def _write(index: int, side: int) -> None:
     array = _lazy(side)
-    write_array_to_zarr(StorePath(ZarrObjectStore(MemoryStore()), f"a{index}"), array.data, array.dims)
+    write_array_to_zarr(
+        StorePath(ZarrObjectStore(MemoryStore()), f"a{index}"), array.data, array.dims
+    )
 
 
 def test_writes_from_long_lived_threads_add_no_pools_or_threads() -> None:
@@ -70,7 +72,9 @@ def test_a_computation_never_runs_more_tasks_than_it_was_allowed() -> None:
         return i
 
     limit = min(3, pool_size())
-    results = dask.compute(*[dask.delayed(task)(i) for i in range(12)], scheduler=dask_scheduler(limit))
+    results = dask.compute(
+        *[dask.delayed(task)(i) for i in range(12)], scheduler=dask_scheduler(limit)
+    )
     assert list(results) == list(range(12))
     assert peak <= limit
 
@@ -85,15 +89,21 @@ def test_a_task_that_computes_dask_itself_does_not_deadlock() -> None:
     # whose every thread is one of them.
     tasks = [dask.delayed(nested)(i) for i in range(pool_size() * 2)]
     done: list[tuple[float, ...]] = []
-    worker = threading.Thread(target=lambda: done.append(dask.compute(*tasks, scheduler=dask_scheduler())))
+    worker = threading.Thread(
+        target=lambda: done.append(dask.compute(*tasks, scheduler=dask_scheduler()))
+    )
     worker.start()
     worker.join(timeout=60)
-    assert not worker.is_alive(), "nested dask computation deadlocked on the shared pool"
+    assert not worker.is_alive(), (
+        "nested dask computation deadlocked on the shared pool"
+    )
     assert done and all(value == 256.0 for value in done[0])
 
 
 def test_tasks_see_the_callers_context() -> None:
-    marker: contextvars.ContextVar[str] = contextvars.ContextVar("marker", default="unset")
+    marker: contextvars.ContextVar[str] = contextvars.ContextVar(
+        "marker", default="unset"
+    )
     marker.set("caller")
     (seen,) = dask.compute(dask.delayed(marker.get)(), scheduler=dask_scheduler())
     assert seen == "caller"
@@ -121,4 +131,6 @@ def test_compute_numpy_passes_numpy_and_xarray_through() -> None:
     plain = np.arange(6).reshape(2, 3)
     assert compute_numpy(plain) is plain or np.array_equal(compute_numpy(plain), plain)
     labelled = xr.DataArray(plain, dims=["y", "x"])
-    np.testing.assert_array_equal(compute_numpy(labelled, dtype=float), plain.astype(float))
+    np.testing.assert_array_equal(
+        compute_numpy(labelled, dtype=float), plain.astype(float)
+    )

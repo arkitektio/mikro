@@ -1,6 +1,5 @@
 import pytest
 
-
 from .conftest import DeployedMikro
 
 
@@ -33,7 +32,9 @@ def test_get_folder(deployed_app: DeployedMikro) -> None:
 def test_update_folder(deployed_app: DeployedMikro) -> None:
     """Rename a folder and verify the change is persisted."""
     created = deployed_app.mikro.create_folder(name="folder_before_rename")
-    updated = deployed_app.mikro.update_folder(id=created.id, name="folder_after_rename")
+    updated = deployed_app.mikro.update_folder(
+        id=created.id, name="folder_after_rename"
+    )
     assert updated.id == created.id, "Updating should keep the same ID"
     assert updated.name == "folder_after_rename"
 

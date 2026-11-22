@@ -93,7 +93,9 @@ def test_a_profile_axis_is_kept_whole() -> None:
 
 def test_declared_types_win_over_names_and_unknown_names_are_pinned() -> None:
     """The declaration decides; the bare-name convention only fills what it leaves out."""
-    assert roles_for(["a", "b", "tile"], {"a": "SPACE", "b": "SPACE", "tile": "INDEX"}) == (
+    assert roles_for(
+        ["a", "b", "tile"], {"a": "SPACE", "b": "SPACE", "tile": "INDEX"}
+    ) == (
         AxisRole.SPACE,
         AxisRole.SPACE,
         AxisRole.COLLAPSED,
@@ -122,7 +124,9 @@ def test_a_shard_is_whole_chunks_inside_the_budget(
     for size, chunk, shard in zip(shape, layout.chunks, layout.shards):
         assert chunk <= size, "an inner chunk never exceeds the array"
         assert shard % chunk == 0
-        assert shard - size < chunk, "a shard overhangs the array by less than one chunk"
+        assert shard - size < chunk, (
+            "a shard overhangs the array by less than one chunk"
+        )
     assert itemsize * int(np.prod(layout.shards)) <= SHARD_BYTES
 
 
@@ -144,7 +148,10 @@ def test_every_level_is_cut_for_the_view_level_0_decides() -> None:
     ]
     roles = roles_for(levels[0][0])
     volumetric = is_volumetric(levels[0][1], roles)
-    layouts = [chunk_layout(shape, roles_for(dims), 2, volumetric=volumetric) for dims, shape in levels]
+    layouts = [
+        chunk_layout(shape, roles_for(dims), 2, volumetric=volumetric)
+        for dims, shape in levels
+    ]
 
     assert [layout.chunks for layout in layouts] == [
         (1, 1, 64, 64, 64),
@@ -211,7 +218,9 @@ def test_levels_that_chunk_time_differently_are_refused() -> None:
 
     coarse = ArrayLike(_stack(3, 32, 64), layout=ChunkLayout(chunks=(3, 32, 64, 64)))
 
-    with pytest.raises(ValidationError, match="chunked the same on every level") as refusal:
+    with pytest.raises(
+        ValidationError, match="chunked the same on every level"
+    ) as refusal:
         _dataset_input(_stack(3, 64, 128), scales=(ScaleInput(level=1, array=coarse),))
     assert isinstance(refusal.value.errors()[0]["ctx"]["error"], ArrayDeclarationError)
 
@@ -224,7 +233,8 @@ def test_each_level_is_budgeted_by_its_own_dtype() -> None:
         return xr.DataArray(np.zeros((1, 1, yx, yx), dtype=dtype), dims=list("tzyx"))
 
     declared = _dataset_input(
-        stack("uint8", 8192), scales=(ScaleInput(level=1, array=stack("float64", 4096)),)
+        stack("uint8", 8192),
+        scales=(ScaleInput(level=1, array=stack("float64", 4096)),),
     )
 
     coarse = declared.scales[0].array.layout

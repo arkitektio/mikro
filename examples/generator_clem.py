@@ -33,11 +33,10 @@ import sys
 import numpy as np
 import pandas as pd
 import xarray as xr
+from arkitekt import easy
 from scipy.ndimage import gaussian_filter
 
-from arkitekt import easy
-from mikro import Unit, space_2d, dataset_arrays, mikro_service
-from mikro.mikro import Mikro
+from mikro import Unit, dataset_arrays, mikro_service, space_2d
 from mikro.api.schema import (
     AxisType,
     Blending,
@@ -109,7 +108,10 @@ def make_truth():
     Everything is defined in world micrometers so both instruments can sample it —
     which is the entire premise of CLEM."""
     seeds = np.column_stack(
-        [RNG.uniform(0, EM_FIELD[0], N_MEMBRANE_SEEDS), RNG.uniform(0, EM_FIELD[1], N_MEMBRANE_SEEDS)]
+        [
+            RNG.uniform(0, EM_FIELD[0], N_MEMBRANE_SEEDS),
+            RNG.uniform(0, EM_FIELD[1], N_MEMBRANE_SEEDS),
+        ]
     )
     mitos = [
         {
@@ -122,7 +124,10 @@ def make_truth():
         for _ in range(N_MITO)
     ]
     fiducials = np.column_stack(
-        [RNG.uniform(1.0, EM_FIELD[0] - 1.0, N_FIDUCIALS), RNG.uniform(1.0, EM_FIELD[1] - 1.0, N_FIDUCIALS)]
+        [
+            RNG.uniform(1.0, EM_FIELD[0] - 1.0, N_FIDUCIALS),
+            RNG.uniform(1.0, EM_FIELD[1] - 1.0, N_FIDUCIALS),
+        ]
     )
     return seeds, mitos, fiducials
 
@@ -152,7 +157,9 @@ def mito_mask(wy: np.ndarray, wx: np.ndarray, mitos: list[dict]) -> np.ndarray:
     return np.clip(occ, 0.0, 1.0)
 
 
-def bead_spots(wy: np.ndarray, wx: np.ndarray, fiducials: np.ndarray, sigma_um: float) -> np.ndarray:
+def bead_spots(
+    wy: np.ndarray, wx: np.ndarray, fiducials: np.ndarray, sigma_um: float
+) -> np.ndarray:
     spots = np.zeros(wy.shape)
     for fy, fx in fiducials:
         spots += np.exp(-((wy - fy) ** 2 + (wx - fx) ** 2) / (2 * sigma_um**2))
@@ -175,10 +182,14 @@ def render_em(seeds, mitos, fiducials) -> xr.DataArray:
     image += 18.0 * occ * RNG.standard_normal(EM_SHAPE)  # internal texture
     image -= 150.0 * np.clip(bead_spots(wy, wx, fiducials, 0.04), 0.0, 1.0)
     image += 8.0 * RNG.standard_normal(EM_SHAPE)  # grain
-    return xr.DataArray(np.clip(image, 0, 255).astype(np.uint8), dims=("y", "x"), name="em")
+    return xr.DataArray(
+        np.clip(image, 0, 255).astype(np.uint8), dims=("y", "x"), name="em"
+    )
 
 
-def render_lm(affine, seeds, mitos, fiducials) -> tuple[xr.DataArray, xr.DataArray, np.ndarray]:
+def render_lm(
+    affine, seeds, mitos, fiducials
+) -> tuple[xr.DataArray, xr.DataArray, np.ndarray]:
     """The LM view, channel by channel, each LM pixel sampled through the affine.
 
     Returns (mito channel, cyto channel, mito ground truth on the LM grid) — the
@@ -190,9 +201,12 @@ def render_lm(affine, seeds, mitos, fiducials) -> tuple[xr.DataArray, xr.DataArr
 
     mito = gaussian_filter(2200.0 * occ + 3500.0 * beads, psf_px) + 60.0
     # Cytoplasm: everywhere the specimen is, fading at membranes, plus the beads.
-    cyto = gaussian_filter(
-        900.0 * (1.0 - 0.6 * membrane_ridge(wy, wx, seeds)) + 3500.0 * beads, psf_px
-    ) + 60.0
+    cyto = (
+        gaussian_filter(
+            900.0 * (1.0 - 0.6 * membrane_ridge(wy, wx, seeds)) + 3500.0 * beads, psf_px
+        )
+        + 60.0
+    )
 
     to_da = lambda a, name: xr.DataArray(
         RNG.poisson(a).astype(np.uint16), dims=("y", "x"), name=name
@@ -215,7 +229,9 @@ def check(affine, em, lm_mito, lm_truth, fiducials) -> None:
 
     # Cross-modal content: the LM mito channel must BE the mito truth as seen
     # through the PSF — high correlation on the LM grid.
-    corr = float(np.corrcoef(lm_mito.values.ravel().astype(float), lm_truth.ravel())[0, 1])
+    corr = float(
+        np.corrcoef(lm_mito.values.ravel().astype(float), lm_truth.ravel())[0, 1]
+    )
     if not corr >= 0.8:
         raise SystemExit(f"LM mito channel correlates {corr:.3f} < 0.8 with truth")
 
@@ -247,7 +263,9 @@ def check(affine, em, lm_mito, lm_truth, fiducials) -> None:
         if patch.min() > 120:
             raise SystemExit(f"no EM bead at world ({fy:.2f}, {fx:.2f})")
 
-    print(f"  checks pass: |det| exact, LM/truth r = {corr:.2f}, all beads found in both modalities")
+    print(
+        f"  checks pass: |det| exact, LM/truth r = {corr:.2f}, all beads found in both modalities"
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -260,11 +278,15 @@ if __name__ == "__main__":
     seeds, mitos, fiducials = make_truth()
     affine = lm_affine()
 
-    print(f"Rendering EM ({EM_SHAPE[0]}x{EM_SHAPE[1]} @ {EM_PX * 1000:.0f} nm) "
-          f"and LM ({LM_SHAPE[0]}x{LM_SHAPE[1]} @ {LM_PX * 1000:.0f} nm, {THETA_DEG:.0f}° rotated)…")
+    print(
+        f"Rendering EM ({EM_SHAPE[0]}x{EM_SHAPE[1]} @ {EM_PX * 1000:.0f} nm) "
+        f"and LM ({LM_SHAPE[0]}x{LM_SHAPE[1]} @ {LM_PX * 1000:.0f} nm, {THETA_DEG:.0f}° rotated)…"
+    )
     em = render_em(seeds, mitos, fiducials)
     lm_mito, lm_cyto, lm_truth = render_lm(affine, seeds, mitos, fiducials)
-    print(f"  EM {em.shape} {em.dtype} (~{em.nbytes / 1e6:.1f} MB), LM 2x {lm_mito.shape}")
+    print(
+        f"  EM {em.shape} {em.dtype} (~{em.nbytes / 1e6:.1f} MB), LM 2x {lm_mito.shape}"
+    )
 
     check(affine, em, lm_mito, lm_truth, fiducials)
 
@@ -313,8 +335,13 @@ if __name__ == "__main__":
         print("Uploading fiducials…")
         beads = mikro.create_table_dataset(
             name="CLEM · fiducials",
-            data=pd.DataFrame({"y": fiducials[:, 0], "x": fiducials[:, 1],
-                               "bead": np.arange(1, N_FIDUCIALS + 1, dtype=np.int64)}),
+            data=pd.DataFrame(
+                {
+                    "y": fiducials[:, 0],
+                    "x": fiducials[:, 1],
+                    "bead": np.arange(1, N_FIDUCIALS + 1, dtype=np.int64),
+                }
+            ),
             description="Bead positions in specimen micrometers, visible in both modalities.",
             columns=[
                 ColumnInput(name="y", axis_type=AxisType.SPACE, unit="micrometer"),
@@ -328,26 +355,49 @@ if __name__ == "__main__":
         scene = mikro.create_scene(name="CLEM · synthetic", coordinate_system=world.id)
 
         mikro.create_intensity_layer(
-            lens=em_ds.lens(), scene=scene, colormap=ColorMap.GREY,
-            clim_min=0.0, clim_max=255.0, blending=Blending.NORMAL, order=0,
+            lens=em_ds.lens(),
+            scene=scene,
+            colormap=ColorMap.GREY,
+            clim_min=0.0,
+            clim_max=255.0,
+            blending=Blending.NORMAL,
+            order=0,
         )
-        for order, (lm_ds, colormap) in enumerate(zip(lm_ids, (ColorMap.GREEN, ColorMap.MAGENTA)), start=1):
+        for order, (lm_ds, colormap) in enumerate(
+            zip(lm_ids, (ColorMap.GREEN, ColorMap.MAGENTA)), start=1
+        ):
             mikro.create_intensity_layer(
-                lens=lm_ds.lens(), scene=scene, colormap=colormap,
-                clim_min=100.0, clim_max=float(np.percentile(lm_mito.values, 99.8)),
-                blending=Blending.ADDITIVE, opacity=0.7, order=order,
+                lens=lm_ds.lens(),
+                scene=scene,
+                colormap=colormap,
+                clim_min=100.0,
+                clim_max=float(np.percentile(lm_mito.values, 99.8)),
+                blending=Blending.ADDITIVE,
+                opacity=0.7,
+                order=order,
             )
         point_layer = mikro.create_point_layer(
-            scene=scene, lens=beads.lens().id, point_size=0.25, colormap=ColorMap.YELLOW,
-            opacity=0.9, order=3,
+            scene=scene,
+            lens=beads.lens().id,
+            point_size=0.25,
+            colormap=ColorMap.YELLOW,
+            opacity=0.9,
+            order=3,
         )
         # A point layer no longer reports its position columns: they are the table's
         # SPACE columns, so the declaration is checked where it lives.
-        space = [c.name for c in sorted(beads.columns, key=lambda c: c.order)
-                 if c.axis_type == AxisType.SPACE]
+        space = [
+            c.name
+            for c in sorted(beads.columns, key=lambda c: c.order)
+            if c.axis_type == AxisType.SPACE
+        ]
         if space != ["y", "x"]:
-            raise SystemExit(f"fiducial table declaration did not land (SPACE columns {space})")
+            raise SystemExit(
+                f"fiducial table declaration did not land (SPACE columns {space})"
+            )
 
         print(f"\nDone — scene '{scene.name}' ({scene.id}):")
-        print(f"  EM {em_ds.id}, LM {', '.join(d.id for d in lm_ids)} (AFFINE-registered, {THETA_DEG:.0f}°)")
+        print(
+            f"  EM {em_ds.id}, LM {', '.join(d.id for d in lm_ids)} (AFFINE-registered, {THETA_DEG:.0f}°)"
+        )
         print(f"  fiducials table {beads.id}, point layer {point_layer.id}")

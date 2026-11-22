@@ -37,7 +37,6 @@ from skimage.draw import ellipse
 from skimage.measure import regionprops_table
 
 from mikro import Unit, create_space, dataset_arrays, mikro_service
-from mikro.mikro import Mikro
 from mikro.api.schema import (
     AxisType,
     Blending,
@@ -53,6 +52,7 @@ from mikro.api.schema import (
     ValueRelation,
 )
 from mikro.inputs.picker import categorical_color_by, label_render, measure_color_by
+from mikro.mikro import Mikro
 
 # --------------------------------------------------------------------------- #
 # Configuration
@@ -111,8 +111,16 @@ def draw_field() -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, list[d
         cx = (col + 0.5) * pitch_x + RNG.uniform(-0.08, 0.08) * pitch_x
         condition = "ctrl" if cx < FIELD_SHAPE[1] / 2 else "drug"
         phenotype = PHENOTYPES[RNG.choice(3, p=MIX[condition])]
-        (major_mu, major_sd), (ratio_mu, ratio_sd), nucleus_ratio, dapi_level, actin_level = SHAPES[phenotype]
-        major = float(np.clip(RNG.normal(major_mu, major_sd), 8.0, 0.46 * min(pitch_y, pitch_x)))
+        (
+            (major_mu, major_sd),
+            (ratio_mu, ratio_sd),
+            nucleus_ratio,
+            dapi_level,
+            actin_level,
+        ) = SHAPES[phenotype]
+        major = float(
+            np.clip(RNG.normal(major_mu, major_sd), 8.0, 0.46 * min(pitch_y, pitch_x))
+        )
         minor = float(np.clip(major * RNG.normal(ratio_mu, ratio_sd), 6.0, major))
         angle = float(RNG.uniform(0.0, np.pi))
 
@@ -120,16 +128,33 @@ def draw_field() -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, list[d
         rr, cc = ellipse(cy, cx, major, minor, shape=FIELD_SHAPE, rotation=angle)
         mask[rr, cc] = cell_id
         nucleus_r = minor * nucleus_ratio
-        nr, nc = ellipse(cy, cx, nucleus_r * (1.15 if phenotype == "migrating" else 1.0), nucleus_r, shape=FIELD_SHAPE, rotation=angle)
+        nr, nc = ellipse(
+            cy,
+            cx,
+            nucleus_r * (1.15 if phenotype == "migrating" else 1.0),
+            nucleus_r,
+            shape=FIELD_SHAPE,
+            rotation=angle,
+        )
         nuclei[nr, nc] = cell_id
 
         jitter = RNG.normal(1.0, 0.06)
         dapi[nr, nc] = dapi_level * jitter
         actin[rr, cc] = actin_level * jitter
-        cells.append({"cell_id": cell_id, "phenotype": phenotype, "condition": condition, "drawn_area_px": len(rr), "ellipse_area_px": np.pi * major * minor})
+        cells.append(
+            {
+                "cell_id": cell_id,
+                "phenotype": phenotype,
+                "condition": condition,
+                "drawn_area_px": len(rr),
+                "ellipse_area_px": np.pi * major * minor,
+            }
+        )
 
     # A migrating cell's actin piles up at its edge: a ring, brighter than its body.
-    migrating = np.isin(mask, [c["cell_id"] for c in cells if c["phenotype"] == "migrating"])
+    migrating = np.isin(
+        mask, [c["cell_id"] for c in cells if c["phenotype"] == "migrating"]
+    )
     edge = migrating & ~ndimage.binary_erosion(migrating, iterations=3)
     actin[edge] *= 1.6
 
@@ -140,13 +165,28 @@ def draw_field() -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, list[d
     return stain(dapi, 1.4), stain(actin, 1.8), mask, nuclei, cells
 
 
-def measure(dapi: np.ndarray, actin: np.ndarray, mask: np.ndarray, nuclei: np.ndarray, cells: list[dict]) -> pd.DataFrame:
+def measure(
+    dapi: np.ndarray,
+    actin: np.ndarray,
+    mask: np.ndarray,
+    nuclei: np.ndarray,
+    cells: list[dict],
+) -> pd.DataFrame:
     """One row per cell of the mask: its shape, its nucleus, its mean staining."""
     props = pd.DataFrame(
         regionprops_table(
             mask.astype(np.int32),
             intensity_image=np.stack([dapi, actin], axis=-1).astype(np.float64),
-            properties=("label", "area", "perimeter", "axis_major_length", "axis_minor_length", "eccentricity", "solidity", "intensity_mean"),
+            properties=(
+                "label",
+                "area",
+                "perimeter",
+                "axis_major_length",
+                "axis_minor_length",
+                "eccentricity",
+                "solidity",
+                "intensity_mean",
+            ),
         )
     ).set_index("label")
     nuclear_px = np.bincount(nuclei.ravel(), minlength=mask.max() + 1)
@@ -196,8 +236,15 @@ def kmeans(points: np.ndarray, k: int, iterations: int = 100) -> np.ndarray:
     centres = np.array(centres)
     labels = np.zeros(len(points), dtype=np.int64)
     for _ in range(iterations):
-        labels = np.argmin(((points[:, None, :] - centres[None]) ** 2).sum(axis=2), axis=1)
-        moved = np.array([points[labels == j].mean(axis=0) if np.any(labels == j) else centres[j] for j in range(k)])
+        labels = np.argmin(
+            ((points[:, None, :] - centres[None]) ** 2).sum(axis=2), axis=1
+        )
+        moved = np.array(
+            [
+                points[labels == j].mean(axis=0) if np.any(labels == j) else centres[j]
+                for j in range(k)
+            ]
+        )
         if np.allclose(moved, centres):
             break
         centres = moved
@@ -210,7 +257,10 @@ def agreement(found: np.ndarray, truth: np.ndarray) -> float:
     best = 0.0
     for perm in itertools.permutations(range(1, len(names) + 1)):
         mapping = dict(zip(perm, names))
-        best = max(best, float(np.mean([mapping.get(int(c)) == t for c, t in zip(found, truth)])))
+        best = max(
+            best,
+            float(np.mean([mapping.get(int(c)) == t for c, t in zip(found, truth)])),
+        )
     return best
 
 
@@ -230,24 +280,50 @@ def main() -> None:
 
     # --- local checks ---------------------------------------------------------
     if FIELD_SHAPE[0] == FIELD_SHAPE[1]:
-        raise SystemExit("the field must be non-square, or a y/x transpose goes unnoticed")
+        raise SystemExit(
+            "the field must be non-square, or a y/x transpose goes unnoticed"
+        )
     if len(measurements) != len(cells):
-        raise SystemExit(f"the mask holds {len(measurements)} cells, {len(cells)} were drawn")
+        raise SystemExit(
+            f"the mask holds {len(measurements)} cells, {len(cells)} were drawn"
+        )
     drawn = pd.DataFrame(cells).set_index("cell_id").loc[measurements["cell_id"]]
     measured_px = measurements["area_um2"].to_numpy() / PIXEL_UM**2
     if not np.allclose(measured_px, drawn["drawn_area_px"].to_numpy()):
-        raise SystemExit("cells overlap: a mask region is smaller than the ellipse drawn for it")
-    area_error = float(np.max(np.abs(measured_px - drawn["ellipse_area_px"].to_numpy()) / drawn["ellipse_area_px"].to_numpy()))
+        raise SystemExit(
+            "cells overlap: a mask region is smaller than the ellipse drawn for it"
+        )
+    area_error = float(
+        np.max(
+            np.abs(measured_px - drawn["ellipse_area_px"].to_numpy())
+            / drawn["ellipse_area_px"].to_numpy()
+        )
+    )
     if area_error > 0.05:
-        raise SystemExit(f"measured areas are off the ellipses' (pi a b) by up to {area_error:.1%}")
+        raise SystemExit(
+            f"measured areas are off the ellipses' (pi a b) by up to {area_error:.1%}"
+        )
     if explained[:2].sum() < 0.60:
-        raise SystemExit(f"PC1+PC2 explain only {explained[:2].sum():.0%} of the variance")
+        raise SystemExit(
+            f"PC1+PC2 explain only {explained[:2].sum():.0%} of the variance"
+        )
     if accuracy < 0.90:
-        raise SystemExit(f"k-means agrees with the phenotypes for only {accuracy:.0%} of the cells")
+        raise SystemExit(
+            f"k-means agrees with the phenotypes for only {accuracy:.0%} of the cells"
+        )
     counts = measurements["phenotype"].value_counts().to_dict()
-    print(f"  {len(measurements)} cells: " + ", ".join(f"{counts.get(p, 0)} {p}" for p in PHENOTYPES))
-    print(f"  PC1..PC{N_COMPONENTS} explain " + ", ".join(f"{v:.0%}" for v in explained) + f" (PC1+PC2 {explained[:2].sum():.0%})")
-    print(f"  k-means (k={K}) matches the phenotypes for {accuracy:.0%} of the cells; areas within {area_error:.1%} of pi a b")
+    print(
+        f"  {len(measurements)} cells: "
+        + ", ".join(f"{counts.get(p, 0)} {p}" for p in PHENOTYPES)
+    )
+    print(
+        f"  PC1..PC{N_COMPONENTS} explain "
+        + ", ".join(f"{v:.0%}" for v in explained)
+        + f" (PC1+PC2 {explained[:2].sum():.0%})"
+    )
+    print(
+        f"  k-means (k={K}) matches the phenotypes for {accuracy:.0%} of the cells; areas within {area_error:.1%} of pi a b"
+    )
 
     if dry_run:
         print("Dry run: everything local checks out, nothing uploaded.")
@@ -257,7 +333,18 @@ def main() -> None:
     from arkitekt import easy
 
     with easy("cell-morphology", mikro_service) as mikro:
-        upload(mikro, dapi, actin, mask, measurements, scores, explained, loadings, clusters, accuracy)
+        upload(
+            mikro,
+            dapi,
+            actin,
+            mask,
+            measurements,
+            scores,
+            explained,
+            loadings,
+            clusters,
+            accuracy,
+        )
 
 
 def upload(
@@ -273,14 +360,22 @@ def upload(
     accuracy: float,
 ) -> None:
     """The image, the mask, both tables and their links, the scene and the charts -- and the round trip."""
-    world = create_space(mikro, "Cell morphology · field", {"y": Unit("micrometer"), "x": Unit("micrometer")})
+    world = create_space(
+        mikro,
+        "Cell morphology · field",
+        {"y": Unit("micrometer"), "x": Unit("micrometer")},
+    )
     scale = {"y": PIXEL_UM, "x": PIXEL_UM}
 
     print("Uploading the channels and the mask…")
     channels = {}
     for name, image in (("DAPI", dapi), ("actin", actin)):
-        data, scales = dataset_arrays(xr.DataArray(image, dims=("y", "x"), name=name), levels=3, method="mean")
-        channels[name] = mikro.create_array_dataset(data=data, scales=scales, name=f"Cell morphology · {name}", axes=["y", "x"])
+        data, scales = dataset_arrays(
+            xr.DataArray(image, dims=("y", "x"), name=name), levels=3, method="mean"
+        )
+        channels[name] = mikro.create_array_dataset(
+            data=data, scales=scales, name=f"Cell morphology · {name}", axes=["y", "x"]
+        )
         world.register(channels[name], scale=scale)
     mask_ds = mikro.create_array_dataset(
         data=xr.DataArray(mask, dims=("y", "x")),
@@ -297,17 +392,43 @@ def upload(
         data=measurements,
         columns=[
             # The key: a mask id is a row, so the label layer's picker reads these columns.
-            ColumnInput(name="cell_id", axis_type=AxisType.INDEX, long_name="cell", identified_by=[DatasetIdentifiesInput(dataset=mask_ds.id)]),
-            *(ColumnInput(name=name, role=ColumnRole.ATTRIBUTE, unit=unit, long_name=long) if unit else ColumnInput(name=name, role=ColumnRole.ATTRIBUTE, long_name=long) for name, unit, long in FEATURES),
-            ColumnInput(name="phenotype", role=ColumnRole.LABEL, long_name="phenotype (simulated truth)"),
-            ColumnInput(name="condition", role=ColumnRole.ATTRIBUTE, long_name="condition"),
+            ColumnInput(
+                name="cell_id",
+                axis_type=AxisType.INDEX,
+                long_name="cell",
+                identified_by=[DatasetIdentifiesInput(dataset=mask_ds.id)],
+            ),
+            *(
+                ColumnInput(
+                    name=name, role=ColumnRole.ATTRIBUTE, unit=unit, long_name=long
+                )
+                if unit
+                else ColumnInput(name=name, role=ColumnRole.ATTRIBUTE, long_name=long)
+                for name, unit, long in FEATURES
+            ),
+            ColumnInput(
+                name="phenotype",
+                role=ColumnRole.LABEL,
+                long_name="phenotype (simulated truth)",
+            ),
+            ColumnInput(
+                name="condition", role=ColumnRole.ATTRIBUTE, long_name="condition"
+            ),
         ],
     )
     if [axis.name for axis in table.coordinate_system.axes] != ["cell_id"]:
-        raise SystemExit(f"the measurements' space is {[a.name for a in table.coordinate_system.axes]}, not its frame (cell_id)")
+        raise SystemExit(
+            f"the measurements' space is {[a.name for a in table.coordinate_system.axes]}, not its frame (cell_id)"
+        )
 
     print("Uploading the PCA, derived row for row…")
-    loading_text = "; ".join(f"PC{i + 1} ({explained[i]:.0%}): " + ", ".join(f"{name} {loadings[i, j]:+.2f}" for j, (name, _, _) in enumerate(FEATURES)) for i in range(N_COMPONENTS))
+    loading_text = "; ".join(
+        f"PC{i + 1} ({explained[i]:.0%}): "
+        + ", ".join(
+            f"{name} {loadings[i, j]:+.2f}" for j, (name, _, _) in enumerate(FEATURES)
+        )
+        for i in range(N_COMPONENTS)
+    )
     pca_table = mikro.create_table_dataset(
         name="Cell morphology · PCA",
         description=f"PCA of the z-scored measurements and a k-means clustering (k={K}) of PC1-PC3. {loading_text}",
@@ -320,19 +441,41 @@ def upload(
         ),
         columns=[
             # Keyed to the mask too, so the scene can colour each cell by its cluster.
-            ColumnInput(name="cell_id", axis_type=AxisType.INDEX, long_name="cell", identified_by=[DatasetIdentifiesInput(dataset=mask_ds.id)]),
-            *(ColumnInput(name=f"pc{i + 1}", role=ColumnRole.ATTRIBUTE, long_name=f"principal component {i + 1}") for i in range(N_COMPONENTS)),
-            ColumnInput(name="cluster", role=ColumnRole.GROUP_ID, long_name="k-means cluster"),
+            ColumnInput(
+                name="cell_id",
+                axis_type=AxisType.INDEX,
+                long_name="cell",
+                identified_by=[DatasetIdentifiesInput(dataset=mask_ds.id)],
+            ),
+            *(
+                ColumnInput(
+                    name=f"pc{i + 1}",
+                    role=ColumnRole.ATTRIBUTE,
+                    long_name=f"principal component {i + 1}",
+                )
+                for i in range(N_COMPONENTS)
+            ),
+            ColumnInput(
+                name="cluster", role=ColumnRole.GROUP_ID, long_name="k-means cluster"
+            ),
         ],
         # The link: the same rows, new numbers. Placed in the measurements' world by it.
         derived_from=[
-            TableDatasetDerivedFromInput(table_dataset=table.id, transform=IdentityTransformInput(), value_relation=ValueRelation.TRANSFORMED)
+            TableDatasetDerivedFromInput(
+                table_dataset=table.id,
+                transform=IdentityTransformInput(),
+                value_relation=ValueRelation.TRANSFORMED,
+            )
         ],
     )
 
     print("Composing the scene…")
-    scene = mikro.create_scene(name="Cell morphology · field", coordinate_system=world.id)
-    for order, (name, colormap) in enumerate((("DAPI", ColorMap.GREY), ("actin", ColorMap.MAGENTA))):
+    scene = mikro.create_scene(
+        name="Cell morphology · field", coordinate_system=world.id
+    )
+    for order, (name, colormap) in enumerate(
+        (("DAPI", ColorMap.GREY), ("actin", ColorMap.MAGENTA))
+    ):
         image = dapi if name == "DAPI" else actin
         mikro.create_intensity_layer(
             lens=channels[name].lens(),
@@ -346,8 +489,22 @@ def upload(
     color_bys = [
         categorical_color_by(table, "phenotype", label="Phenotype (truth)"),
         categorical_color_by(pca_table, "cluster", label="k-means cluster"),
-        measure_color_by(pca_table, "pc1", colormap=ColorMap.VIRIDIS, min=float(scores[:, 0].min()), max=float(scores[:, 0].max()), label="PC1"),
-        measure_color_by(table, "area_um2", colormap=ColorMap.INFERNO, min=0.0, max=float(measurements["area_um2"].max()), label="Area"),
+        measure_color_by(
+            pca_table,
+            "pc1",
+            colormap=ColorMap.VIRIDIS,
+            min=float(scores[:, 0].min()),
+            max=float(scores[:, 0].max()),
+            label="PC1",
+        ),
+        measure_color_by(
+            table,
+            "area_um2",
+            colormap=ColorMap.INFERNO,
+            min=0.0,
+            max=float(measurements["area_um2"].max()),
+            label="Area",
+        ),
     ]
     label_layer = mikro.create_label_layer(
         lens=mask_ds.lens().id,
@@ -358,45 +515,85 @@ def upload(
     )
     published = label_layer.label_render.color_bys if label_layer.label_render else ()
     if len(published) != len(color_bys):
-        raise SystemExit(f"the label layer offers {len(published)} colourings, {len(color_bys)} were given")
+        raise SystemExit(
+            f"the label layer offers {len(published)} colourings, {len(color_bys)} were given"
+        )
 
     print("Plotting…")
-    scatter = pca_table.plot("pc1", "pc2", "cluster", name="PCA · PC1 vs PC2 by cluster")
+    scatter = pca_table.plot(
+        "pc1", "pc2", "cluster", name="PCA · PC1 vs PC2 by cluster"
+    )
 
     side_by_side = mikro.create_chart(
         name="Cell morphology · measurements & PCA",
         coordinate_system=table.coordinate_system.id,
         layout=ChartLayout.STACKED,
     )
-    mikro.create_points_chart_layer(chart=side_by_side.id, lens=table.lens().id, x_column="area_um2", y_column="eccentricity", name="Area vs eccentricity")
-    mikro.create_points_chart_layer(chart=side_by_side.id, lens=pca_table.lens().id, x_column="pc1", y_column="pc2", z_column="cluster", name="PC1 vs PC2")
+    mikro.create_points_chart_layer(
+        chart=side_by_side.id,
+        lens=table.lens().id,
+        x_column="area_um2",
+        y_column="eccentricity",
+        name="Area vs eccentricity",
+    )
+    mikro.create_points_chart_layer(
+        chart=side_by_side.id,
+        lens=pca_table.lens().id,
+        x_column="pc1",
+        y_column="pc2",
+        z_column="cluster",
+        name="PC1 vs PC2",
+    )
 
-    per_phenotype = table.plot("area_um2", group="phenotype", bins=30, name="Area per phenotype")
-    mikro.update_distribution_chart_layer(per_phenotype.layers[0].id, mark=ChartMark.BOX)
+    per_phenotype = table.plot(
+        "area_um2", group="phenotype", bins=30, name="Area per phenotype"
+    )
+    mikro.update_distribution_chart_layer(
+        per_phenotype.layers[0].id, mark=ChartMark.BOX
+    )
 
     q75 = float(np.percentile(measurements["area_um2"], 75))
     gate = table.lens(area_um2=(q75, None))
-    large = table.plot("area_um2", "eccentricity", lens=gate, name="Large cells (area ≥ q75)")
+    large = table.plot(
+        "area_um2", "eccentricity", lens=gate, name="Large cells (area ≥ q75)"
+    )
 
     # --- round trip -----------------------------------------------------------
     shared = mikro.get_chart(side_by_side.id)
     if shared.layout != ChartLayout.STACKED:
         raise SystemExit(f"the shared chart reads back as {shared.layout}, not STACKED")
     for layer in shared.layers:
-        if layer.placement != PlacementState.PLACED or not (layer.as_affine and layer.as_affine.total):
-            raise SystemExit(f"layer '{layer.name}' is {layer.placement} in the measurements' world: the derivation did not place the PCA rows")
+        if layer.placement != PlacementState.PLACED or not (
+            layer.as_affine and layer.as_affine.total
+        ):
+            raise SystemExit(
+                f"layer '{layer.name}' is {layer.placement} in the measurements' world: the derivation did not place the PCA rows"
+            )
     boxed = mikro.get_chart(per_phenotype.id).layers[0]
     if boxed.mark != ChartMark.BOX:
         raise SystemExit(f"the distribution reads back as {boxed.mark}, not BOX")
     for chart in (scatter, shared, per_phenotype, large):
-        if chart.axis is not None or any(layer.typename not in ("PointsChartLayer", "DistributionChartLayer") for layer in mikro.get_chart(chart.id).layers):
-            raise SystemExit(f"chart '{chart.name}' should draw cells by their values, over their rows (no axis)")
+        if chart.axis is not None or any(
+            layer.typename not in ("PointsChartLayer", "DistributionChartLayer")
+            for layer in mikro.get_chart(chart.id).layers
+        ):
+            raise SystemExit(
+                f"chart '{chart.name}' should draw cells by their values, over their rows (no axis)"
+            )
 
     print(f"\nDone — scene '{scene.name}' ({scene.id}):")
-    print(f"  channels   : DAPI {channels['DAPI'].id}, actin {channels['actin'].id}; mask {mask_ds.id} ({len(measurements)} cells)")
-    print(f"  tables     : measurements {table.id} -> PCA {pca_table.id} (derived row for row; k-means matches {accuracy:.0%})")
-    print(f"  label layer: {label_layer.id}, {len(published)} colourings (active: k-means cluster)")
-    print(f"  charts     : PCA {scatter.id}, side by side {shared.id}, per phenotype {per_phenotype.id}, large cells {large.id}")
+    print(
+        f"  channels   : DAPI {channels['DAPI'].id}, actin {channels['actin'].id}; mask {mask_ds.id} ({len(measurements)} cells)"
+    )
+    print(
+        f"  tables     : measurements {table.id} -> PCA {pca_table.id} (derived row for row; k-means matches {accuracy:.0%})"
+    )
+    print(
+        f"  label layer: {label_layer.id}, {len(published)} colourings (active: k-means cluster)"
+    )
+    print(
+        f"  charts     : PCA {scatter.id}, side by side {shared.id}, per phenotype {per_phenotype.id}, large cells {large.id}"
+    )
 
 
 if __name__ == "__main__":

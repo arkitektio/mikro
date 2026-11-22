@@ -30,29 +30,12 @@ from __future__ import annotations
 
 import sys
 
+import konnektion
 import numpy as np
 import pandas as pd
 import xarray as xr
-
-import konnektion
 from arkitekt import easy
-from mikro import Unit, dataset_arrays, space_3d, mikro_service
-from mikro.mikro import Mikro
-from mikro.api.schema import (
-    AxisInput,
-    AxisType,
-    ColorMap,
-    ColumnInput,
-    ColumnRole,
-    CoordinateAnchorInput,
-    GraphTarget,
-    NetworkCollectionIdentifiesInput,
-    PlacementState,
-    ProjectionMode,
-    ValueRelation,
-)
 from fabriks import build_collection
-from mikro.inputs.picker import graph_color_by, graph_filter_by, measure_color_by, network_filter_by
 
 # One ground truth, two scripts: the phantom, tracker, mesh and their checks come
 # from the TrackLayer sibling. Its module level holds only constants, so the
@@ -69,13 +52,35 @@ from generator_dti_tractography import (
     track,
 )
 
+from mikro import Unit, dataset_arrays, mikro_service, space_3d
+from mikro.api.schema import (
+    AxisInput,
+    AxisType,
+    ColorMap,
+    ColumnInput,
+    ColumnRole,
+    CoordinateAnchorInput,
+    NetworkCollectionIdentifiesInput,
+    PlacementState,
+    ProjectionMode,
+    ValueRelation,
+)
+from mikro.inputs.picker import (
+    graph_color_by,
+    graph_filter_by,
+    measure_color_by,
+    network_filter_by,
+)
+
 COLLECTION_AXES = ("x", "y", "z")  # konnektion's frame; the array's is (z, y, x)
 
 
 # --------------------------------------------------------------------------- #
 # Streamlines -> one konnektion object per streamline
 # --------------------------------------------------------------------------- #
-def to_networks(tracks: pd.DataFrame) -> tuple[dict[int, konnektion.Network], pd.DataFrame]:
+def to_networks(
+    tracks: pd.DataFrame,
+) -> tuple[dict[int, konnektion.Network], pd.DataFrame]:
     """Each streamline as a chain: nodes in (x, y, z) VOXEL coordinates, edges
     between consecutive points, per-node ``fa`` in the vocabulary, radius from FA.
 
@@ -102,7 +107,9 @@ def to_networks(tracks: pd.DataFrame) -> tuple[dict[int, konnektion.Network], pd
             root=0,
             attributes={"fa": fa},
         )
-        length_mm = float(np.linalg.norm(np.diff(pts_vox, axis=0), axis=1).sum() * VOX_MM)
+        length_mm = float(
+            np.linalg.norm(np.diff(pts_vox, axis=0), axis=1).sum() * VOX_MM
+        )
         rows.append(
             {
                 "object_id": object_id,
@@ -115,19 +122,27 @@ def to_networks(tracks: pd.DataFrame) -> tuple[dict[int, konnektion.Network], pd
     return objects, pd.DataFrame(rows)
 
 
-def check_networks(objects: dict[int, konnektion.Network], tracks: pd.DataFrame) -> None:
+def check_networks(
+    objects: dict[int, konnektion.Network], tracks: pd.DataFrame
+) -> None:
     """The conversion must be lossless: node counts per object equal the point
     counts per track, and the vocabulary rides one value per node."""
     per_track = tracks.groupby("track_id").size()
     for track_id, count in per_track.items():
         net = objects[int(track_id) + 1]
         if len(net.nodes) != count or len(net.edges) != count - 1:
-            raise SystemExit(f"track {track_id}: {count} points became "
-                             f"{len(net.nodes)} nodes / {len(net.edges)} edges")
+            raise SystemExit(
+                f"track {track_id}: {count} points became "
+                f"{len(net.nodes)} nodes / {len(net.edges)} edges"
+            )
         if len(net.attributes["fa"]) != len(net.nodes):
-            raise SystemExit(f"track {track_id}: fa vocabulary is not one value per node")
-    print(f"  network conversion lossless: {len(objects)} chains, "
-          f"{sum(len(n.nodes) for n in objects.values())} nodes")
+            raise SystemExit(
+                f"track {track_id}: fa vocabulary is not one value per node"
+            )
+    print(
+        f"  network conversion lossless: {len(objects)} chains, "
+        f"{sum(len(n.nodes) for n in objects.values())} nodes"
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -156,7 +171,9 @@ if __name__ == "__main__":
     built = konnektion.build_collection(objects, axes=COLLECTION_AXES)
     store = konnektion.MemoryStore()
     built.write(store, "check")
-    report = konnektion.verify(konnektion.open_collection(store, "check"), tier="topology")
+    report = konnektion.verify(
+        konnektion.open_collection(store, "check"), tier="topology"
+    )
     if not report.ok:
         raise SystemExit(f"the collection does not verify:\n{report}")
     print(f"  verify: {str(report).splitlines()[0]}")
@@ -170,7 +187,9 @@ if __name__ == "__main__":
         world = space_3d(mikro, "DTI · head (network)", unit=Unit("millimeter"))
 
         print("Uploading FA map…")
-        fa_xr = xr.DataArray((fa * 255).astype(np.uint8), dims=("z", "y", "x"), name="fa")
+        fa_xr = xr.DataArray(
+            (fa * 255).astype(np.uint8), dims=("z", "y", "x"), name="fa"
+        )
         fa_data, fa_scales = dataset_arrays(fa_xr, levels=LEVELS, method="mean")
         fa_ds = mikro.create_array_dataset(
             data=fa_data,
@@ -183,7 +202,9 @@ if __name__ == "__main__":
 
         # No vector layer this time, so no bootstrap dance: every layer is authored.
         print("Composing the scene…")
-        scene = mikro.create_scene(name="DTI · tractography (network)", coordinate_system=world.id)
+        scene = mikro.create_scene(
+            name="DTI · tractography (network)", coordinate_system=world.id
+        )
         mikro.create_volume_layer(
             lens=fa_ds.lens(),
             scene=scene.id,
@@ -226,12 +247,20 @@ if __name__ == "__main__":
                 ColumnInput(
                     name="object_id",
                     axis_type=AxisType.INDEX,
-                    identified_by=[NetworkCollectionIdentifiesInput(network_collection=collection.id)],
+                    identified_by=[
+                        NetworkCollectionIdentifiesInput(
+                            network_collection=collection.id
+                        )
+                    ],
                 ),
                 ColumnInput(name="bundle", role=ColumnRole.LABEL, long_name="bundle"),
                 ColumnInput(name="n_points", role=ColumnRole.ATTRIBUTE),
-                ColumnInput(name="length_mm", role=ColumnRole.ATTRIBUTE, long_name="length (mm)"),
-                ColumnInput(name="mean_fa", role=ColumnRole.ATTRIBUTE, long_name="mean FA"),
+                ColumnInput(
+                    name="length_mm", role=ColumnRole.ATTRIBUTE, long_name="length (mm)"
+                ),
+                ColumnInput(
+                    name="mean_fa", role=ColumnRole.ATTRIBUTE, long_name="mean FA"
+                ),
             ],
         )
 
@@ -244,31 +273,54 @@ if __name__ == "__main__":
             opacity=0.95,
             order=2,
             color_bys=[
-                graph_color_by("fa", colormap=ColorMap.INFERNO, min=0.0, max=1.0,
-                               label="FA (per point)"),
+                graph_color_by(
+                    "fa",
+                    colormap=ColorMap.INFERNO,
+                    min=0.0,
+                    max=1.0,
+                    label="FA (per point)",
+                ),
                 graph_color_by("radius", label="Calibre"),
-                measure_color_by(table.id, "mean_fa", colormap=ColorMap.VIRIDIS, min=0.0,
-                                 max=1.0, label="Mean FA (per streamline)"),
-                measure_color_by(table.id, "length_mm", colormap=ColorMap.PLASMA, min=0.0,
-                                 max=float(streamline_stats["length_mm"].max()),
-                                 label="Streamline length"),
+                measure_color_by(
+                    table.id,
+                    "mean_fa",
+                    colormap=ColorMap.VIRIDIS,
+                    min=0.0,
+                    max=1.0,
+                    label="Mean FA (per streamline)",
+                ),
+                measure_color_by(
+                    table.id,
+                    "length_mm",
+                    colormap=ColorMap.PLASMA,
+                    min=0.0,
+                    max=float(streamline_stats["length_mm"].max()),
+                    label="Streamline length",
+                ),
             ],
             active_color_by=0,
             filter_bys=[
                 graph_filter_by("fa", min=0.5, label="High-FA cores"),
-                network_filter_by(table.id, "length_mm",
-                                  min=float(streamline_stats["length_mm"].median()),
-                                  label="Long streamlines"),
+                network_filter_by(
+                    table.id,
+                    "length_mm",
+                    min=float(streamline_stats["length_mm"].median()),
+                    label="Long streamlines",
+                ),
             ],
         )
         if network_layer.placement != PlacementState.PLACED:
-            raise SystemExit(f"the streamlines did not reach the world: {network_layer.placement}")
+            raise SystemExit(
+                f"the streamlines did not reach the world: {network_layer.placement}"
+            )
         published = network_layer.network_color_bys
         if len(published) != 4:
             raise SystemExit(f"layer offers {len(published)} colourings, expected 4")
 
         print("Uploading glass brain…")
-        built_mesh = build_collection({1: mesh}, levels=LEVELS, axes=list(COLLECTION_AXES))
+        built_mesh = build_collection(
+            {1: mesh}, levels=LEVELS, axes=list(COLLECTION_AXES)
+        )
         mesh_collection = mikro.create_mesh_collection(
             name=f"v20260901-dti-glass-brain-network-seed{SEED}",
             store=built_mesh,
@@ -290,9 +342,13 @@ if __name__ == "__main__":
             order=1,
         )
         if mesh_layer.placement != PlacementState.PLACED:
-            raise SystemExit(f"glass brain did not reach the world: {mesh_layer.placement}")
+            raise SystemExit(
+                f"glass brain did not reach the world: {mesh_layer.placement}"
+            )
 
         print(f"\nDone — scene '{scene.name}' ({scene.id}):")
-        print(f"  FA {fa_ds.id}, streamline collection {collection.id} "
-              f"({len(objects)} objects), layer {network_layer.id}")
+        print(
+            f"  FA {fa_ds.id}, streamline collection {collection.id} "
+            f"({len(objects)} objects), layer {network_layer.id}"
+        )
         print(f"  stats table {table.id}, glass brain {mesh_collection.id}")

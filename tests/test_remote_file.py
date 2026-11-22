@@ -148,7 +148,9 @@ def test_a_small_header_read_costs_few_requests(stored, monkeypatch) -> None:
 
 
 def test_cache_false_passes_reads_through(stored) -> None:
-    handle = RemoteFile(GrantedObject.from_store(store=stored[0], key=stored[1]), cache=False)
+    handle = RemoteFile(
+        GrantedObject.from_store(store=stored[0], key=stored[1]), cache=False
+    )
     assert handle.read(10) == PAYLOAD[:10]
 
 
@@ -240,7 +242,9 @@ def test_persistent_denial_is_reported_not_retried_forever(stored, monkeypatch) 
         lambda *a, **k: (_ for _ in ()).throw(PermissionDeniedError("nope")),
     )
 
-    handle = RemoteFile(GrantedObject(lambda: (_grant(key), "http://x")), size=len(PAYLOAD))
+    handle = RemoteFile(
+        GrantedObject(lambda: (_grant(key), "http://x")), size=len(PAYLOAD)
+    )
 
     with pytest.raises(DownloadError):
         handle.read(16)
@@ -343,7 +347,9 @@ def test_accessor_open_passes_the_cache_policy_through(stored, monkeypatch) -> N
     store, key = stored
     seen: dict[str, object] = {}
 
-    def capture(mikro, store_id, *, block_size=None, cache=True, max_cached_blocks=32, **kwargs):
+    def capture(
+        mikro, store_id, *, block_size=None, cache=True, max_cached_blocks=32, **kwargs
+    ):
         seen.update(
             store_id=store_id,
             block_size=block_size,
@@ -384,17 +390,19 @@ def _real_file(name: str = "acquisition.tif") -> File:
     carries `FileTrait`, its store is a frozen `BigFileStore`, and the field names have
     to line up for any of this to work in production.
     """
-    return _bound(File(
-        descriptors={},
-        id="file-id",
-        name=name,
-        store=BigFileStore(
-            id="store-id",
-            key="a3f9c2e1",
-            bucket="bucket",
-            path="bucket/a3f9c2e1",
-        ),
-    ))
+    return _bound(
+        File(
+            descriptors={},
+            id="file-id",
+            name=name,
+            store=BigFileStore(
+                id="store-id",
+                key="a3f9c2e1",
+                bucket="bucket",
+                path="bucket/a3f9c2e1",
+            ),
+        )
+    )
 
 
 def test_as_path_yields_a_real_file_and_removes_it(tmp_path, monkeypatch) -> None:
@@ -448,7 +456,9 @@ def test_as_path_falls_back_to_the_key(tmp_path, monkeypatch) -> None:
         assert os.path.basename(path) == "big.bin"
 
 
-def test_download_to_scratch_honours_the_scratch_environment(tmp_path, monkeypatch) -> None:
+def test_download_to_scratch_honours_the_scratch_environment(
+    tmp_path, monkeypatch
+) -> None:
     """Not the working directory, and not TMPDIR when MIKRO_SCRATCH_DIR says otherwise.
 
     The variable is the only lever a caller has over where a multi-gigabyte download
@@ -620,7 +630,9 @@ def test_cache_policy_maps_the_flag(stored) -> None:
     store, key = stored
 
     def cache_of(**kwargs):
-        return type(RemoteFile(GrantedObject.from_store(store, key), **kwargs).cache).__name__
+        return type(
+            RemoteFile(GrantedObject.from_store(store, key), **kwargs).cache
+        ).__name__
 
     assert cache_of() == "BlockCache"
     assert cache_of(cache=True) == "BlockCache"
@@ -638,8 +650,14 @@ def test_a_media_store_downloads_through_a_media_grant(monkeypatch) -> None:
         captured.update(store_id=store_id, file_name=file_name)
         return file_name
 
-    monkeypatch.setattr("mikro.io.download.download_media_file", fake_download_media_file)
-    store = _bound(MediaStore(id="media-id", key="snapshot.png", bucket="media", path="media/snapshot.png"))
+    monkeypatch.setattr(
+        "mikro.io.download.download_media_file", fake_download_media_file
+    )
+    store = _bound(
+        MediaStore(
+            id="media-id", key="snapshot.png", bucket="media", path="media/snapshot.png"
+        )
+    )
 
     assert store.download() == "snapshot.png"
     assert captured == {"store_id": "media-id", "file_name": "snapshot.png"}

@@ -32,11 +32,10 @@ import sys
 import numpy as np
 import pandas as pd
 import xarray as xr
+from arkitekt import easy
 from scipy.ndimage import gaussian_filter
 
-from arkitekt import easy
 from mikro import Unit, create_space, dataset_arrays, mikro_service
-from mikro.mikro import Mikro
 from mikro.api.schema import (
     AxisType,
     ColorMap,
@@ -119,7 +118,9 @@ def emitter_positions() -> np.ndarray:
     for _ in range(3):
         center = random_point()
         radius = RNG.uniform(0.4, 0.8)
-        angles = np.linspace(0.0, 2 * np.pi, int(radius * 2 * np.pi * 60), endpoint=False)
+        angles = np.linspace(
+            0.0, 2 * np.pi, int(radius * 2 * np.pi * 60), endpoint=False
+        )
         ring = center + radius * np.stack([np.sin(angles), np.cos(angles)], axis=1)
         pieces.append(np.clip(ring, MARGIN / 2, np.array(FIELD) - MARGIN / 2))
 
@@ -147,7 +148,10 @@ def blink(emitters: np.ndarray) -> pd.DataFrame:
 
     photons = RNG.lognormal(np.log(PHOTON_MEAN), 0.45, size=len(emitter_id))
     sigma = PSF_SIGMA * PRECISION_FACTOR / np.sqrt(photons)
-    measured = emitters[emitter_id] + RNG.normal(0.0, 1.0, size=(len(emitter_id), 2)) * sigma[:, None]
+    measured = (
+        emitters[emitter_id]
+        + RNG.normal(0.0, 1.0, size=(len(emitter_id), 2)) * sigma[:, None]
+    )
 
     frame = pd.DataFrame(
         {
@@ -164,7 +168,10 @@ def blink(emitters: np.ndarray) -> pd.DataFrame:
     # An error can carry a dim localization off the field; those rows a real fitter
     # would also drop, and keeping them would fail the in-field check below.
     inside = (
-        (frame["y"] >= 0) & (frame["y"] < FIELD[0]) & (frame["x"] >= 0) & (frame["x"] < FIELD[1])
+        (frame["y"] >= 0)
+        & (frame["y"] < FIELD[0])
+        & (frame["x"] >= 0)
+        & (frame["x"] < FIELD[1])
     )
     return frame[inside].reset_index(drop=True)
 
@@ -222,8 +229,14 @@ def sr_render(locs: pd.DataFrame) -> tuple[xr.DataArray, np.ndarray]:
 # --------------------------------------------------------------------------- #
 # Self-checks — everything that can be wrong locally, checked locally
 # --------------------------------------------------------------------------- #
-def check(locs: pd.DataFrame, movie: xr.DataArray, sr: xr.DataArray, counts: np.ndarray) -> None:
-    if not ((locs[["y", "x"]] >= 0).all().all() and (locs["y"] < FIELD[0]).all() and (locs["x"] < FIELD[1]).all()):
+def check(
+    locs: pd.DataFrame, movie: xr.DataArray, sr: xr.DataArray, counts: np.ndarray
+) -> None:
+    if not (
+        (locs[["y", "x"]] >= 0).all().all()
+        and (locs["y"] < FIELD[0]).all()
+        and (locs["x"] < FIELD[1]).all()
+    ):
         raise SystemExit("localizations fall outside the field — do not upload")
 
     # The transpose canary: the field is non-square, so a (y, x) swap anywhere
@@ -234,7 +247,9 @@ def check(locs: pd.DataFrame, movie: xr.DataArray, sr: xr.DataArray, counts: np.
     bin_y = np.minimum((locs["y"] / SR_PX).astype(int), SR_SHAPE[0] - 1)
     bin_x = np.minimum((locs["x"] / SR_PX).astype(int), SR_SHAPE[1] - 1)
     if not (counts[bin_y, bin_x] > 0).all():
-        raise SystemExit("a localization's own SR bin is empty — histogram axes disagree")
+        raise SystemExit(
+            "a localization's own SR bin is empty — histogram axes disagree"
+        )
 
     # The movie must actually contain the blinks: the time-mean at emitter pixels
     # has to stand clear of the background.
@@ -267,12 +282,16 @@ if __name__ == "__main__":
 
     print(f"Blinking over {FRAMES} frames…")
     locs = blink(emitters)
-    print(f"  {len(locs)} localizations, median precision {locs['sigma'].median() * 1000:.0f} nm")
+    print(
+        f"  {len(locs)} localizations, median precision {locs['sigma'].median() * 1000:.0f} nm"
+    )
 
     print("Rendering the raw movie and the reconstruction…")
     movie = raw_movie(locs)
     sr, counts = sr_render(locs)
-    print(f"  raw {movie.shape} {movie.dtype} (~{movie.nbytes / 1e6:.0f} MB), SR {sr.shape} {sr.dtype}")
+    print(
+        f"  raw {movie.shape} {movie.dtype} (~{movie.nbytes / 1e6:.0f} MB), SR {sr.shape} {sr.dtype}"
+    )
 
     check(locs, movie, sr, counts)
 
@@ -287,7 +306,8 @@ if __name__ == "__main__":
         # One world for all of it. Each grid's pixel size is a fact about its
         # registration edge, not about the space — which is the only way a 100 nm
         # movie, a 10 nm render and a table in micrometers share one frame.
-        world = create_space(mikro, 
+        world = create_space(
+            mikro,
             "SMLM · field",
             {"t": Unit("second"), "y": Unit("micrometer"), "x": Unit("micrometer")},
         )
@@ -329,8 +349,14 @@ if __name__ == "__main__":
                 # The two axis columns, in (y, x) order — this order IS the table's space.
                 ColumnInput(name="y", axis_type=AxisType.SPACE, unit="micrometer"),
                 ColumnInput(name="x", axis_type=AxisType.SPACE, unit="micrometer"),
-                ColumnInput(name="frame", role=ColumnRole.ATTRIBUTE, long_name="camera frame index"),
-                ColumnInput(name="photons", role=ColumnRole.ATTRIBUTE, long_name="photon count"),
+                ColumnInput(
+                    name="frame",
+                    role=ColumnRole.ATTRIBUTE,
+                    long_name="camera frame index",
+                ),
+                ColumnInput(
+                    name="photons", role=ColumnRole.ATTRIBUTE, long_name="photon count"
+                ),
                 ColumnInput(
                     name="sigma",
                     role=ColumnRole.ATTRIBUTE,
@@ -339,7 +365,11 @@ if __name__ == "__main__":
                 ),
                 # GROUP_ID, not TRACK_ID: the blinks of one emitter are a cluster,
                 # not a trajectory — their frames carry no path.
-                ColumnInput(name="emitter_id", role=ColumnRole.GROUP_ID, long_name="ground-truth emitter"),
+                ColumnInput(
+                    name="emitter_id",
+                    role=ColumnRole.GROUP_ID,
+                    long_name="ground-truth emitter",
+                ),
             ],
         )
         # Already in micrometers, so the edge is an identity over (y, x).
@@ -409,15 +439,21 @@ if __name__ == "__main__":
             active_color_by=0,
             filter_bys=[
                 LabelFilterByInput(
-                    table=table.id, column="photons", min=PHOTON_CUT, label="Bright only"
+                    table=table.id,
+                    column="photons",
+                    min=PHOTON_CUT,
+                    label="Bright only",
                 )
             ],
         )
 
         # A point layer draws the table's SPACE columns; it no longer reports them, so
         # the declaration is checked on the table, where it lives.
-        space = [c.name for c in sorted(table.columns, key=lambda c: c.order)
-                  if c.axis_type in (AxisType.SPACE,)]
+        space = [
+            c.name
+            for c in sorted(table.columns, key=lambda c: c.order)
+            if c.axis_type in (AxisType.SPACE,)
+        ]
         if space != ["y", "x"]:
             raise SystemExit(
                 f"table declared SPACE columns {space} instead of ['y', 'x'] — "

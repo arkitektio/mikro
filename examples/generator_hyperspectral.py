@@ -31,10 +31,9 @@ import sys
 
 import numpy as np
 import xarray as xr
-
 from arkitekt import easy
-from mikro import Unit, create_space, mikro_service
-from mikro.mikro import Mikro
+
+from mikro import Unit, create_space, dataset_arrays, mikro_service
 from mikro.api.schema import (
     AxisInput,
     AxisType,
@@ -47,7 +46,6 @@ from mikro.api.schema import (
     ScaleInput,
     TransferFunctionInput,
 )
-from mikro import dataset_arrays
 
 # --------------------------------------------------------------------------- #
 # Configuration
@@ -94,7 +92,10 @@ def abundance_maps() -> np.ndarray:
 
     # Blobs.
     for _ in range(12):
-        cy, cx = RNG.uniform(10, FIELD_SHAPE[0] - 10), RNG.uniform(10, FIELD_SHAPE[1] - 10)
+        cy, cx = (
+            RNG.uniform(10, FIELD_SHAPE[0] - 10),
+            RNG.uniform(10, FIELD_SHAPE[1] - 10),
+        )
         r = RNG.uniform(6, 11)
         maps[0] += np.exp(-(((yy - cy) ** 2 + (xx - cx) ** 2) / (2 * (r / 2) ** 2)))
 
@@ -108,7 +109,10 @@ def abundance_maps() -> np.ndarray:
 
     # Rings.
     for _ in range(9):
-        cy, cx = RNG.uniform(15, FIELD_SHAPE[0] - 15), RNG.uniform(15, FIELD_SHAPE[1] - 15)
+        cy, cx = (
+            RNG.uniform(15, FIELD_SHAPE[0] - 15),
+            RNG.uniform(15, FIELD_SHAPE[1] - 15),
+        )
         r = RNG.uniform(8, 16)
         dist = np.sqrt((yy - cy) ** 2 + (xx - cx) ** 2)
         maps[2] += np.exp(-((dist - r) ** 2) / (2 * 1.6**2))
@@ -119,7 +123,10 @@ def abundance_maps() -> np.ndarray:
 def emission_spectra() -> np.ndarray:
     """Unit-sum emission spectrum per fluorophore — ``(3, l)``."""
     spectra = np.stack(
-        [np.exp(-((LAMBDAS - peak) ** 2) / (2 * sigma**2)) for _, peak, sigma, _ in FLUOROPHORES]
+        [
+            np.exp(-((LAMBDAS - peak) ** 2) / (2 * sigma**2))
+            for _, peak, sigma, _ in FLUOROPHORES
+        ]
     )
     return spectra / spectra.sum(axis=1, keepdims=True)
 
@@ -135,7 +142,9 @@ def render_cube(maps: np.ndarray, spectra: np.ndarray, af: np.ndarray) -> xr.Dat
     expected = np.tensordot(spectra.T, maps, axes=(1, 0)) * BRIGHTNESS
     expected += af[:, None, None] * BRIGHTNESS * AF_LEVEL
     return xr.DataArray(
-        RNG.poisson(expected).astype(np.uint16), dims=("l", "y", "x"), name="lambda_stack"
+        RNG.poisson(expected).astype(np.uint16),
+        dims=("l", "y", "x"),
+        name="lambda_stack",
     )
 
 
@@ -228,13 +237,17 @@ def check(
     intensity: np.ndarray,
 ) -> None:
     if cube.shape != (N_BINS, *FIELD_SHAPE):
-        raise SystemExit(f"cube is {cube.shape}, expected {(N_BINS, *FIELD_SHAPE)} — transposed?")
+        raise SystemExit(
+            f"cube is {cube.shape}, expected {(N_BINS, *FIELD_SHAPE)} — transposed?"
+        )
 
     # The unmixing must recover the ground truth, or the spectra/maps disagree.
     for i, (name, *_rest) in enumerate(FLUOROPHORES):
         corr = float(np.corrcoef(maps[i].ravel(), estimated[i].ravel())[0, 1])
         if corr < 0.95:
-            raise SystemExit(f"unmixed '{name}' correlates {corr:.3f} < 0.95 with truth")
+            raise SystemExit(
+                f"unmixed '{name}' correlates {corr:.3f} < 0.95 with truth"
+            )
 
     # The spectral phasor must (a) separate the three fluorophores and (b) order
     # them by wavelength: the phase angle is the centre of mass, so redder emission
@@ -246,18 +259,24 @@ def check(
     for i in range(len(FLUOROPHORES)):
         sel = pure & (dominant == i)
         if sel.sum() < 50:
-            raise SystemExit(f"fewer than 50 pure pixels for fluorophore {i} — regenerate")
+            raise SystemExit(
+                f"fewer than 50 pure pixels for fluorophore {i} — regenerate"
+            )
         centers.append((float(g[sel].mean()), float(s[sel].mean())))
         phases.append(float(np.angle(g[sel].mean() + 1j * s[sel].mean()) % (2 * np.pi)))
     for i in range(len(centers)):
         for j in range(i + 1, len(centers)):
-            dist = float(np.hypot(centers[i][0] - centers[j][0], centers[i][1] - centers[j][1]))
+            dist = float(
+                np.hypot(centers[i][0] - centers[j][0], centers[i][1] - centers[j][1])
+            )
             if dist < 0.15:
                 raise SystemExit(
                     f"phasor centres {i} and {j} are {dist:.3f} apart — spectra not separated"
                 )
     if not (phases[0] < phases[1] < phases[2]):
-        raise SystemExit(f"phasor phases {phases} do not increase with emission wavelength")
+        raise SystemExit(
+            f"phasor phases {phases} do not increase with emission wavelength"
+        )
 
     print(
         f"  checks pass: unmixing r>0.95 for all three, phasor centres separated, "
@@ -294,12 +313,19 @@ if __name__ == "__main__":
         # One world with a real wavelength axis. The 5 nm bin width AND the 500 nm
         # origin live on the cube's registration edge (scale + offset), which is what
         # makes the scene's `l` read in absolute nanometers.
-        world = create_space(mikro, 
+        world = create_space(
+            mikro,
             "Hyperspectral · field",
             [
-                PhysicalAxisInput(name="l", type=AxisType.SPECTRUM, unit=Unit("nanometer")),
-                PhysicalAxisInput(name="y", type=AxisType.SPACE, unit=Unit("micrometer")),
-                PhysicalAxisInput(name="x", type=AxisType.SPACE, unit=Unit("micrometer")),
+                PhysicalAxisInput(
+                    name="l", type=AxisType.SPECTRUM, unit=Unit("nanometer")
+                ),
+                PhysicalAxisInput(
+                    name="y", type=AxisType.SPACE, unit=Unit("micrometer")
+                ),
+                PhysicalAxisInput(
+                    name="x", type=AxisType.SPACE, unit=Unit("micrometer")
+                ),
             ],
         )
 
@@ -307,7 +333,11 @@ if __name__ == "__main__":
         pyramid = spectral_pyramid(cube, LEVELS)
         cube_ds = mikro.create_array_dataset(
             data=pyramid[0],
-            scales=[ScaleInput(level=i, array=level) for i, level in enumerate(pyramid) if i > 0],
+            scales=[
+                ScaleInput(level=i, array=level)
+                for i, level in enumerate(pyramid)
+                if i > 0
+            ],
             name="Hyperspectral · lambda stack (500-655 nm)",
             # `l` is not an inferable name, so the type is stated.
             axes=[
@@ -331,14 +361,20 @@ if __name__ == "__main__":
             dataset=cube_ds,
             axis="l",
             harmonic=HARMONIC,
-            profile=[float(v) for v in np.asarray(cube.data).sum(axis=(1, 2))],  # the spectrum
+            profile=[
+                float(v) for v in np.asarray(cube.data).sum(axis=(1, 2))
+            ],  # the spectrum
             **density,
         )
-        print(f"  harmonic {histogram.harmonic}, {histogram.bins}² grid over {histogram.total:,} px")
+        print(
+            f"  harmonic {histogram.harmonic}, {histogram.bins}² grid over {histogram.total:,} px"
+        )
 
         print("Uploading unmixed abundances…")
         unmixed = xr.DataArray(estimated, dims=("c", "y", "x"), name="unmixed")
-        unmixed_data, unmixed_scales = dataset_arrays(unmixed, levels=LEVELS, method="max")
+        unmixed_data, unmixed_scales = dataset_arrays(
+            unmixed, levels=LEVELS, method="max"
+        )
         unmixed_ds = mikro.create_array_dataset(
             data=unmixed_data,
             scales=unmixed_scales,
@@ -349,7 +385,9 @@ if __name__ == "__main__":
         world.register(unmixed_ds, scale={"y": PIXEL_UM, "x": PIXEL_UM})
 
         print("Composing the scene…")
-        scene = mikro.create_scene(name="Hyperspectral · synthetic", coordinate_system=world.id)
+        scene = mikro.create_scene(
+            name="Hyperspectral · synthetic", coordinate_system=world.id
+        )
 
         # The spectral phasor overlay: phase = spectral centre of mass, mapped over
         # the emission window, faded out where too few photons back it.
@@ -385,5 +423,7 @@ if __name__ == "__main__":
             )
 
         print(f"\nDone — scene '{scene.name}' ({scene.id}):")
-        print(f"  lambda stack: dataset {cube_ds.id} ({N_BINS} bins, phasor histogram {histogram.id})")
+        print(
+            f"  lambda stack: dataset {cube_ds.id} ({N_BINS} bins, phasor histogram {histogram.id})"
+        )
         print(f"  unmixed     : dataset {unmixed_ds.id} (3 channels)")

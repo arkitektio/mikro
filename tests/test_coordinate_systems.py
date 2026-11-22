@@ -22,7 +22,6 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from mikro.mikro import Mikro
 from mikro import canonical, create_space, dataset_arrays, space_3d
 from mikro.api.schema import (
     AnnotationKind,
@@ -39,6 +38,7 @@ from mikro.api.schema import (
     TransformKind,
     ValueRelation,
 )
+from mikro.mikro import Mikro
 
 from .conftest import DeployedMikro
 
@@ -108,7 +108,9 @@ def _anchors(data: xr.DataArray) -> list[CoordinateAnchorInput]:
     ``CoordinateAnchorInputTrait`` and so is typed as returning the trait rather
     than the generated model it is actually mixed into.
     """
-    return cast(list[CoordinateAnchorInput], CoordinateAnchorInput.histogram_anchors(data))
+    return cast(
+        list[CoordinateAnchorInput], CoordinateAnchorInput.histogram_anchors(data)
+    )
 
 
 def _edge(
@@ -149,7 +151,9 @@ class Placed(NamedTuple):
 @pytest.fixture(scope="module")
 def registered_dataset(mikro: Mikro, deployed_app: DeployedMikro) -> Placed:
     """One world, one dataset in it -- uploaded once for the tests below."""
-    world = space_3d(deployed_app.mikro, "registered world (micrometers)", unit="micrometer")
+    world = space_3d(
+        deployed_app.mikro, "registered world (micrometers)", unit="micrometer"
+    )
     data = _volume(seed=0)
     dataset = _upload(mikro, data, "coordsys_registered")
     world.register(dataset, scale={d: VOXEL_UM for d in ("z", "y", "x")})
@@ -157,7 +161,9 @@ def registered_dataset(mikro: Mikro, deployed_app: DeployedMikro) -> Placed:
 
 
 @pytest.fixture(scope="module")
-def derived_dataset(mikro: Mikro, registered_dataset: Placed) -> tuple[ArrayDataset, ArrayDataset]:
+def derived_dataset(
+    mikro: Mikro, registered_dataset: Placed
+) -> tuple[ArrayDataset, ArrayDataset]:
     """A thresholded child hung off the source's lens by an identity edge.
 
     ``isel(c=0)`` drops the singleton channel axis so the threshold walks the
@@ -205,8 +211,12 @@ def test_space_3d_creates_a_physical_space(deployed_app: DeployedMikro) -> None:
 @pytest.mark.integration
 def test_a_reference_hands_back_the_same_space(deployed_app: DeployedMikro) -> None:
     """Two callers naming one frame get one space: a URI is global, a plain key the app's own."""
-    first = space_3d(deployed_app.mikro, "MNI152", unit="millimeter", reference="nifti:mni152")
-    again = space_3d(deployed_app.mikro, "MNI152 again", unit="millimeter", reference="nifti:mni152")
+    first = space_3d(
+        deployed_app.mikro, "MNI152", unit="millimeter", reference="nifti:mni152"
+    )
+    again = space_3d(
+        deployed_app.mikro, "MNI152 again", unit="millimeter", reference="nifti:mni152"
+    )
 
     assert again.id == first.id
     assert again.name == "MNI152", "the existing space comes back as it is"
@@ -218,13 +228,17 @@ def test_a_reference_hands_back_the_same_space(deployed_app: DeployedMikro) -> N
 
 
 @pytest.mark.integration
-def test_register_places_a_dataset_in_the_world(mikro: Mikro, deployed_app: DeployedMikro) -> None:
+def test_register_places_a_dataset_in_the_world(
+    mikro: Mikro, deployed_app: DeployedMikro
+) -> None:
     """`register` authors one BY_DIMENSION edge over the axes the spaces share.
 
     The channel axis is deliberately not claimed: it is not a position, and a
     physical space has no business naming it.
     """
-    world = space_3d(deployed_app.mikro, "placement world (micrometers)", unit="micrometer")
+    world = space_3d(
+        deployed_app.mikro, "placement world (micrometers)", unit="micrometer"
+    )
     dataset = _upload(mikro, _volume(seed=1), "coordsys_placed")
 
     world.register(dataset, scale={d: VOXEL_UM for d in ("z", "y", "x")})
@@ -255,11 +269,17 @@ def test_register_places_a_dataset_in_the_world(mikro: Mikro, deployed_app: Depl
     # A BY_DIMENSION is its parts: the voxel size handed to `register` comes back as
     # one SCALE part over the axes it names.
     (part,) = edge.parts
-    assert (part.kind, tuple(part.input_axes), tuple(part.scale)) == ("SCALE", ("z", "y", "x"), (0.2, 0.2, 0.2))
+    assert (part.kind, tuple(part.input_axes), tuple(part.scale)) == (
+        "SCALE",
+        ("z", "y", "x"),
+        (0.2, 0.2, 0.2),
+    )
 
 
 @pytest.mark.integration
-def test_register_reads_an_uneven_time_axis_from_a_field(mikro: Mikro, deployed_app: DeployedMikro) -> None:
+def test_register_reads_an_uneven_time_axis_from_a_field(
+    mikro: Mikro, deployed_app: DeployedMikro
+) -> None:
     """An event-triggered movie: y,x scaled, t read from the instants its frames were taken at.
 
     One edge says both. The looked-up axis is not among the named ones -- the array, not a
@@ -274,7 +294,9 @@ def test_register_reads_an_uneven_time_axis_from_a_field(mikro: Mikro, deployed_
         {"t": Unit("second"), "y": Unit("micrometer"), "x": Unit("micrometer")},
     )
     movie = mikro.create_array_dataset(
-        data=xr.DataArray(np.zeros((len(instants), 16, 16), dtype="float32"), dims=("t", "y", "x")),
+        data=xr.DataArray(
+            np.zeros((len(instants), 16, 16), dtype="float32"), dims=("t", "y", "x")
+        ),
         scales=[],
         name="coordsys_event_movie",
         axes=["t", "y", "x"],
@@ -291,26 +313,54 @@ def test_register_reads_an_uneven_time_axis_from_a_field(mikro: Mikro, deployed_
     graph = deployed_app.mikro.get_coordinate_graph(coordinate_system=world.id)
     edge = _edge(graph, movie.intrinsic_system.id, world.id)
     assert edge.kind == TransformKind.BY_DIMENSION
-    assert tuple(edge.input_axes) == ("y", "x", "t"), "the edge's axes are its parts', in part order"
+    assert tuple(edge.input_axes) == ("y", "x", "t"), (
+        "the edge's axes are its parts', in part order"
+    )
     scale, field = edge.parts
-    assert (scale.kind, tuple(scale.input_axes), tuple(scale.scale)) == ("SCALE", ("y", "x"), (0.5, 0.5))
-    assert (field.kind, tuple(field.input_axes), tuple(field.output_axes)) == ("FIELD", ("t",), ("t",))
+    assert (scale.kind, tuple(scale.input_axes), tuple(scale.scale)) == (
+        "SCALE",
+        ("y", "x"),
+        (0.5, 0.5),
+    )
+    assert (field.kind, tuple(field.input_axes), tuple(field.output_axes)) == (
+        "FIELD",
+        ("t",),
+        ("t",),
+    )
     assert field.field is not None
     assert (field.field.unit, field.field.min, field.field.max) == ("second", 0.0, 7.5)
-    assert (field.field.values, field.field.spatial, field.field.dereference) == ("SCALAR", False, False)
+    assert (field.field.values, field.field.spatial, field.field.dereference) == (
+        "SCALAR",
+        False,
+        False,
+    )
     assert str(field.field.field.id) == str(times.intrinsic_system.id)
 
 
 @pytest.mark.integration
-def test_a_field_that_does_not_increase_is_refused_before_the_server(mikro: Mikro, deployed_app: DeployedMikro) -> None:
+def test_a_field_that_does_not_increase_is_refused_before_the_server(
+    mikro: Mikro, deployed_app: DeployedMikro
+) -> None:
     """The server never reads the array, so the client is where 'strictly increasing' is checked."""
     from kanne.scalars import Unit
 
-    world = create_space(deployed_app.mikro, "bad event world", {"t": Unit("second"), "y": Unit("micrometer"), "x": Unit("micrometer")})
-    movie = mikro.create_array_dataset(
-        data=xr.DataArray(np.zeros((3, 8, 8), dtype="float32"), dims=("t", "y", "x")), scales=[], name="coordsys_bad_movie", axes=["t", "y", "x"]
+    world = create_space(
+        deployed_app.mikro,
+        "bad event world",
+        {"t": Unit("second"), "y": Unit("micrometer"), "x": Unit("micrometer")},
     )
-    times = mikro.create_array_dataset(data=xr.DataArray(np.array([0.0, 2.0, 1.0]), dims=("t",)), scales=[], name="coordsys_bad_times", axes=["t"])
+    movie = mikro.create_array_dataset(
+        data=xr.DataArray(np.zeros((3, 8, 8), dtype="float32"), dims=("t", "y", "x")),
+        scales=[],
+        name="coordsys_bad_movie",
+        axes=["t", "y", "x"],
+    )
+    times = mikro.create_array_dataset(
+        data=xr.DataArray(np.array([0.0, 2.0, 1.0]), dims=("t",)),
+        scales=[],
+        name="coordsys_bad_times",
+        axes=["t"],
+    )
 
     with pytest.raises(ValueError, match="strictly increase"):
         world.register(movie, field={"t": times})
@@ -352,13 +402,17 @@ def test_histogram_anchors_splits_on_the_channel_axis(
 
 
 @pytest.mark.integration
-def test_stage_composes_registered_datasets(mikro: Mikro, deployed_app: DeployedMikro) -> None:
+def test_stage_composes_registered_datasets(
+    mikro: Mikro, deployed_app: DeployedMikro
+) -> None:
     """A scene composes over a space; what can be drawn was decided by `register`.
 
     Both datasets are registered before staging -- staging in between would
     simply miss the second one.
     """
-    world = space_3d(deployed_app.mikro, "staged world (micrometers)", unit="micrometer")
+    world = space_3d(
+        deployed_app.mikro, "staged world (micrometers)", unit="micrometer"
+    )
     for index in (4, 5):
         dataset = _upload(mikro, _volume(seed=index), f"coordsys_staged_{index}")
         world.register(dataset, scale={d: VOXEL_UM for d in ("z", "y", "x")})
@@ -373,7 +427,9 @@ def test_stage_composes_registered_datasets(mikro: Mikro, deployed_app: Deployed
     assert str(scene.world_coordinate_system.id) == str(world.id), (
         "The scene adopts the space it was staged from as its world"
     )
-    assert str(deployed_app.mikro.get_scene(id=scene.id).id) == str(scene.id), "Scene should round-trip"
+    assert str(deployed_app.mikro.get_scene(id=scene.id).id) == str(scene.id), (
+        "Scene should round-trip"
+    )
 
 
 @pytest.mark.integration
@@ -428,7 +484,9 @@ def test_lens_reads_back_the_volume(registered_dataset: Placed) -> None:
 
 
 @pytest.mark.integration
-def test_a_lens_is_named_by_the_position_it_pins(mikro: Mikro, registered_dataset: Placed) -> None:
+def test_a_lens_is_named_by_the_position_it_pins(
+    mikro: Mikro, registered_dataset: Placed
+) -> None:
     """Naming plane 1 names every lens through it, the crop of it too; a lens of ranges has nothing to name."""
     dataset = registered_dataset.dataset
     plane = dataset.lens(z=1)
@@ -437,7 +495,9 @@ def test_a_lens_is_named_by_the_position_it_pins(mikro: Mikro, registered_datase
     named = mikro.set_position_label(lens=plane.id, label="focal plane")
     assert named.name == "focal plane"
     assert mikro.get_lens(crop.id).name == "focal plane", "the crop pins plane 1 too"
-    assert dataset.lens(z=1, y=(0, 8)).name == "focal plane", "and a lens cut later is born named"
+    assert dataset.lens(z=1, y=(0, 8)).name == "focal plane", (
+        "and a lens cut later is born named"
+    )
 
     with pytest.raises(Exception, match="annotation"):
         mikro.set_position_label(lens=dataset.lens(x=(0, 8)).id, label="a region")
@@ -447,7 +507,9 @@ def test_a_lens_is_named_by_the_position_it_pins(mikro: Mikro, registered_datase
 
 
 @pytest.mark.integration
-def test_a_selection_is_one_lens_however_often_it_is_asked_for(mikro: Mikro, registered_dataset: Placed) -> None:
+def test_a_selection_is_one_lens_however_often_it_is_asked_for(
+    mikro: Mikro, registered_dataset: Placed
+) -> None:
     """A lens is a row per dataset and selection, and the whole one is read, not made."""
     dataset = registered_dataset.dataset
 
@@ -462,7 +524,10 @@ def test_a_selection_is_one_lens_however_often_it_is_asked_for(mikro: Mikro, reg
     assert crop.id != whole.id
     assert crop.id == dataset.lens(x=slice(0, 8), z=(0, 2)).id
     # Read back in the server's one spelling: dataset axis order, a step always there.
-    assert [(s.axis, s.start, s.stop, s.step) for s in crop.slices] == [("z", 0, 2, 1), ("x", 0, 8, 1)]
+    assert [(s.axis, s.start, s.stop, s.step) for s in crop.slices] == [
+        ("z", 0, 2, 1),
+        ("x", 0, 8, 1),
+    ]
     assert tuple(crop.shape) == (1, 2, registered_dataset.data.shape[2], 8)
     assert np.array_equal(
         crop.xarray_data.compute().to_numpy(),
@@ -471,11 +536,15 @@ def test_a_selection_is_one_lens_however_often_it_is_asked_for(mikro: Mikro, reg
 
     last = dataset.lens(z=-1)
     assert tuple(last.shape)[1] == 1
-    assert [(s.axis, s.start) for s in last.slices] == [("z", registered_dataset.data.shape[1] - 1)]
+    assert [(s.axis, s.start) for s in last.slices] == [
+        ("z", registered_dataset.data.shape[1] - 1)
+    ]
 
 
 @pytest.mark.integration
-def test_a_lens_fetched_by_id_comes_back_as_its_kind(mikro: Mikro, registered_dataset: Placed) -> None:
+def test_a_lens_fetched_by_id_comes_back_as_its_kind(
+    mikro: Mikro, registered_dataset: Placed
+) -> None:
     """`lens(id)` answers with any kind; an array lens is one you can read pixels off."""
     from mikro.api.schema import ArrayLens, LensKind
 
@@ -493,12 +562,16 @@ def test_a_scene_is_staged_from_a_lens(
 ) -> None:
     """A crop is staged from the lens: every layer draws through it. Which axis faces the screen is the viewer's, stated by no layer."""
     crop = registered_dataset.dataset.lens(z=(0, 2))
-    scene = mikro.create_scene_from_lens(lens=crop.id, nominate=False, name="a staged crop")
+    scene = mikro.create_scene_from_lens(
+        lens=crop.id, nominate=False, name="a staged crop"
+    )
 
     layers = mikro.layers(filters=LayerFilter(scene=scene.id))
     assert layers, "One layer per channel"
     for layer in layers:
-        assert str(layer.lens.id) == str(crop.id), "Every layer draws through the staged lens"
+        assert str(layer.lens.id) == str(crop.id), (
+            "Every layer draws through the staged lens"
+        )
         assert not hasattr(layer, "render_axes")
 
 
@@ -515,7 +588,9 @@ def test_draw_annotates_the_lens(mikro: Mikro, registered_dataset: Placed) -> No
     assert surface is not None, "A lens frames some coordinate system"
 
     vectors = np.array([[0.0, 0.0, 0.0], [2.0, 8.0, 8.0]])
-    annotation = lens.draw(kind=AnnotationKind.RECTANGLE, vectors=vectors, name="a rectangle")
+    annotation = lens.draw(
+        kind=AnnotationKind.RECTANGLE, vectors=vectors, name="a rectangle"
+    )
 
     assert annotation.id, "Annotation should have an ID"
     assert annotation.kind == AnnotationKind.RECTANGLE
@@ -528,14 +603,18 @@ def test_draw_annotates_the_lens(mikro: Mikro, registered_dataset: Placed) -> No
         "The drawing space mirrors the axes of the surface it was drawn on"
     )
 
-    edge = _edge(mikro.get_coordinate_graph(coordinate_system=drawing.id), drawing.id, surface.id)
+    edge = _edge(
+        mikro.get_coordinate_graph(coordinate_system=drawing.id), drawing.id, surface.id
+    )
     assert edge.kind == TransformKind.IDENTITY, (
         "Same axes, same voxels: the drawing sits exactly on the surface"
     )
 
 
 @pytest.mark.integration
-def test_a_path_drawn_on_a_scene_maps_onto_the_voxels_of_a_crop(mikro: Mikro, registered_dataset: Placed) -> None:
+def test_a_path_drawn_on_a_scene_maps_onto_the_voxels_of_a_crop(
+    mikro: Mikro, registered_dataset: Placed
+) -> None:
     """A shape drawn on a scene is in the world's units, and the graph carries it onto a lens.
 
     The scene's drawing space copies the world's space axes and is registered
@@ -546,11 +625,15 @@ def test_a_path_drawn_on_a_scene_maps_onto_the_voxels_of_a_crop(mikro: Mikro, re
     """
     scene = registered_dataset.world.stage(name="a scene to draw on")
     in_um = np.array([[0.4, 1.0, 1.2], [0.6, 1.6, 2.0]])
-    annotation = mikro.create_annotation(kind=AnnotationKind.PATH, vectors=in_um, scene=scene.id, name="a path")
+    annotation = mikro.create_annotation(
+        kind=AnnotationKind.PATH, vectors=in_um, scene=scene.id, name="a path"
+    )
 
     drawing = annotation.coordinate_system
     assert drawing is not None
-    assert [axis.name for axis in drawing.axes] == ["z", "y", "x"], "A scene is drawn on in space"
+    assert [axis.name for axis in drawing.axes] == ["z", "y", "x"], (
+        "A scene is drawn on in space"
+    )
 
     crop = registered_dataset.dataset.lens(z=(1, 4), y=(2, 16), x=(4, 16))
     surface = crop.coordinate_system

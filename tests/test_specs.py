@@ -27,7 +27,6 @@ from arkitekt_spec.declare.descriptors import unfulfilled
 
 from mikro.arkitekt import specs
 from mikro.arkitekt.specs import (
-    DTYPE,
     VALUE_KIND,
     Image,
     LabelMask,
@@ -100,19 +99,25 @@ class TestDescriptors:
 
 def requires(spec: Any) -> list[RequiresInput]:
     """What a spec puts on an argument port."""
-    return [marker for marker in get_args(spec)[1:] if isinstance(marker, RequiresInput)]
+    return [
+        marker for marker in get_args(spec)[1:] if isinstance(marker, RequiresInput)
+    ]
 
 
 def provides(spec: Any) -> list[ProvidesInput]:
     """What a spec puts on a return port."""
-    return [marker for marker in get_args(spec)[1:] if isinstance(marker, ProvidesInput)]
+    return [
+        marker for marker in get_args(spec)[1:] if isinstance(marker, ProvidesInput)
+    ]
 
 
 class TestSpecs:
     def test_a_volume_is_a_Volume_and_not_an_Image(self) -> None:
         described = descriptors_of(VOLUME)
         assert unfulfilled(requires(Volume), described) == ()
-        assert unfulfilled(requires(Image), described) == ("@mikro/n_space_axes EQUALS 2 (actual 3)",)
+        assert unfulfilled(requires(Image), described) == (
+            "@mikro/n_space_axes EQUALS 2 (actual 3)",
+        )
 
     def test_every_unmet_constraint_is_reported_not_just_the_first(self) -> None:
         failures = unfulfilled(requires(RGBImage), descriptors_of(VOLUME))
@@ -120,20 +125,24 @@ class TestSpecs:
         assert "@mikro/n_channels EQUALS 3" in failures[-1]
 
     def test_a_multichannel_volume_is_not_single_channel(self) -> None:
-        assert unfulfilled(requires(SingleChannelVolume), descriptors_of(MULTICHANNEL)) == (
-            "@mikro/n_channels LTE 1 (actual 3)",
-        )
+        assert unfulfilled(
+            requires(SingleChannelVolume), descriptors_of(MULTICHANNEL)
+        ) == ("@mikro/n_channels LTE 1 (actual 3)",)
 
     def test_provenance_is_tested_only_when_stated(self) -> None:
         described = descriptors_of(VOLUME)
         assert unfulfilled(provides(LabelMask), described) == ()
-        (failure,) = unfulfilled(provides(LabelMask), {**described, VALUE_KIND: "continuous"})
+        (failure,) = unfulfilled(
+            provides(LabelMask), {**described, VALUE_KIND: "continuous"}
+        )
         assert "@mikro/value_kind EQUALS 'categorical' (actual 'continuous')" in failure
 
     def test_every_spec_says_the_same_on_both_sides_of_a_port(self) -> None:
         """An argument keeps the Requires and a return the Provides, so a spec that
         stated a constraint on one side only would mean something else there."""
-        names = [name for name in specs.__all__ if name[0].isupper() and not name.isupper()]
+        names = [
+            name for name in specs.__all__ if name[0].isupper() and not name.isupper()
+        ]
         assert len(names) == 20
         for name in names:
             spec = getattr(specs, name)

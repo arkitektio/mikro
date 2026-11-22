@@ -25,7 +25,7 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping
 from enum import Enum
-from typing import TypeVar, cast, overload, Final, Literal, NamedTuple
+from typing import Final, Literal, NamedTuple, TypeVar, cast, overload
 
 from kanne.scalars import Unit
 
@@ -165,7 +165,9 @@ MATRIX_KINDS: Final[frozenset[ResolvedTransformKind]] = frozenset(
 #: space, so a path that could not cross it would stop at the first scene. One with a
 #: FIELD part composes forwards only, unless the part is a key (a mask's ids): the axes
 #: its array gives are left out of the matrix.
-COMPOSABLE_KINDS: Final[frozenset[ResolvedTransformKind]] = MATRIX_KINDS | frozenset({"BY_DIMENSION"})
+COMPOSABLE_KINDS: Final[frozenset[ResolvedTransformKind]] = MATRIX_KINDS | frozenset(
+    {"BY_DIMENSION"}
+)
 
 
 # --- Pyramids ---------------------------------------------------------------
@@ -199,7 +201,9 @@ AxisSelection = (
 SliceBounds = tuple[int | None, int | None, int | None]
 
 
-def _forward(axis: str, start: int | None, stop: int | None, step: int | None) -> SliceBounds:
+def _forward(
+    axis: str, start: int | None, stop: int | None, step: int | None
+) -> SliceBounds:
     """The bounds, refused when their step runs backwards or nowhere."""
     if step is not None and step <= 0:
         raise ValueError(
@@ -261,8 +265,13 @@ def normalize_window(axis: str, selection: WindowSelection) -> WindowBounds:
     if isinstance(selection, (tuple, list)) and len(selection) == 2:
         low, high = selection
         if low is not None and high is not None and low > high:
-            raise ValueError(f"Invalid window for axis {axis!r}: min={low} is above max={high}")
-        return (None if low is None else float(low), None if high is None else float(high))
+            raise ValueError(
+                f"Invalid window for axis {axis!r}: min={low} is above max={high}"
+            )
+        return (
+            None if low is None else float(low),
+            None if high is None else float(high),
+        )
     raise TypeError(
         f"Invalid window for axis {axis!r}: {selection!r}. Pass a number to pin one "
         "position, or a (min, max) pair"
@@ -379,7 +388,9 @@ _REFUSED_ARROW_PREFIXES: Final[Mapping[str, str]] = {
 }
 
 _DECIMAL128 = re.compile(r"^decimal128\((\d+), (\d+)\)$")
-_DICTIONARY_VALUES = re.compile(r"^dictionary<values=(.+), indices=[^,]+, ordered=\d+>$")
+_DICTIONARY_VALUES = re.compile(
+    r"^dictionary<values=(.+), indices=[^,]+, ordered=\d+>$"
+)
 
 
 class UnknownArrowType(ValueError):
@@ -449,7 +460,9 @@ def duckdb_type(arrow_type: object) -> str:
 #: enum tuple would come from :mod:`mikro.api.schema`, which imports ``traits`` back.
 #: ``use_enum_values=True`` means a field holds the value anyway, so nothing is lost.
 #: :data:`mikro.inputs.picker.QUALITATIVE_COLORMAPS` is the same set as members.
-QUALITATIVE_COLORMAP_VALUES: Final[frozenset[str]] = frozenset({"HUES", "DISTINCT", "PASTEL", "VIVID"})
+QUALITATIVE_COLORMAP_VALUES: Final[frozenset[str]] = frozenset(
+    {"HUES", "DISTINCT", "PASTEL", "VIVID"}
+)
 
 
 __all__ = [
@@ -486,12 +499,12 @@ _ValueT = TypeVar("_ValueT", bound=str)
 # The non-None overload is declared first on purpose: these fields are often typed `Any` by the
 # generated models, and an `Any` argument resolves to whichever overload matches first.
 @overload
-def enum_value(value: "Enum | _ValueT") -> _ValueT: ...
+def enum_value(value: Enum | _ValueT) -> _ValueT: ...
 @overload
 def enum_value(value: None) -> None: ...
 
 
-def enum_value(value: "Enum | _ValueT | None") -> "_ValueT | None":
+def enum_value(value: Enum | _ValueT | None) -> _ValueT | None:
     """The plain value of a field the generated models declare as an enum.
 
     ``None`` passes through: a field the query did not select is absent rather than empty, and

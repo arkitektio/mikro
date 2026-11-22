@@ -105,8 +105,12 @@ class TestNormalizeSelection:
         assert normalize_selection("c", -1) == (-1, None, None)
         assert normalize_selection("c", -2) == (-2, -1, None)
 
-    @pytest.mark.parametrize("selection", [slice(None, None, -1), (8, 0, -2), (0, 8, 0)])
-    def test_a_step_that_does_not_run_forwards_is_refused(self, selection: object) -> None:
+    @pytest.mark.parametrize(
+        "selection", [slice(None, None, -1), (8, 0, -2), (0, 8, 0)]
+    )
+    def test_a_step_that_does_not_run_forwards_is_refused(
+        self, selection: object
+    ) -> None:
         with pytest.raises(ValueError, match="Invalid step .* for axis 'x'"):
             normalize_selection("x", selection)  # type: ignore[arg-type]
 

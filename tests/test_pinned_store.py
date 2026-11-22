@@ -49,16 +49,23 @@ def _hub_certificate() -> tuple[str, bytes]:
         .not_valid_after(now + datetime.timedelta(days=30))
         .add_extension(
             x509.SubjectAlternativeName(
-                [x509.DNSName("localhost"), x509.IPAddress(ipaddress.ip_address("127.0.0.1"))]
+                [
+                    x509.DNSName("localhost"),
+                    x509.IPAddress(ipaddress.ip_address("127.0.0.1")),
+                ]
             ),
             critical=False,
         )
-        .add_extension(x509.ExtendedKeyUsage([ExtendedKeyUsageOID.SERVER_AUTH]), critical=False)
+        .add_extension(
+            x509.ExtendedKeyUsage([ExtendedKeyUsageOID.SERVER_AUTH]), critical=False
+        )
         .sign(key, hashes.SHA256())
     )
     pem = certificate.public_bytes(serialization.Encoding.PEM).decode()
     key_pem = key.private_bytes(
-        serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption(),
     )
     return pem, key_pem
 
@@ -90,7 +97,9 @@ def hub(tmp_path: Path) -> Iterator[tuple[int, str]]:
                         if not chunk:
                             break
                         data += chunk
-                    conn.sendall(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+                    conn.sendall(
+                        b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                    )
             except (ssl.SSLError, OSError):
                 continue  # a client that refused the certificate
 

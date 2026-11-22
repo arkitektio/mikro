@@ -7,10 +7,10 @@ Custom scalars for mikro
 from __future__ import annotations
 
 import io
-from enum import Enum
 import mimetypes
 import uuid
 from collections.abc import Hashable, Mapping, Sequence
+from enum import Enum
 from pathlib import Path
 from typing import IO, TYPE_CHECKING, Any, ClassVar, Literal, Protocol, TypeAlias
 
@@ -22,8 +22,8 @@ from pydantic_core import CoreSchema, core_schema
 if TYPE_CHECKING:
     import dask.array as da
     import pandas as pd
-    import xarray as xr
     import pyarrow as pa
+    import xarray as xr
     from fabriks import MeshCollection
     from konnektion import NetworkCollection
 
@@ -37,9 +37,7 @@ ThreeDVectorCoercible: TypeAlias = list[float] | OneDArray | list[int]
 
 
 if TYPE_CHECKING:
-    ArrayCoercible: TypeAlias = (
-        "ArrayLike | xr.DataArray | da.Array | NDArray[Any] | list[float] | list[list[float]]"
-    )
+    ArrayCoercible: TypeAlias = "ArrayLike | xr.DataArray | da.Array | NDArray[Any] | list[float] | list[list[float]]"
 else:
     # At runtime only a name: the real union names xarray and dask types, and neither is
     # imported to build it.
@@ -58,12 +56,11 @@ def axis_name(name: AxisName) -> str:
         name = name.value
     return str(name)
 
+
 ImageFileCoercible: TypeAlias = str | bytes | Path | io.BufferedReader
 """ A type alias for image file-like structures."""
 
-ParquetCoercible: TypeAlias = (
-    "Mapping[str, Any] | pd.DataFrame | str | Path | pa.Table | pa.RecordBatchReader | ParquetLike"
-)
+ParquetCoercible: TypeAlias = "Mapping[str, Any] | pd.DataFrame | str | Path | pa.Table | pa.RecordBatchReader | ParquetLike"
 """ A type alias for parquet-like structures: a dict of ``{column: values}``, an
 in-memory DataFrame, a path to a parquet file already on disk, or a pyarrow
 ``Table``/``RecordBatchReader``."""
@@ -115,7 +112,9 @@ class SparseDatasetTarget(Protocol):
     def id(self) -> str: ...
 
 
-MetricTargetCoercible: TypeAlias = AnnotationTarget | ArrayDatasetTarget | TableDatasetTarget | SparseDatasetTarget
+MetricTargetCoercible: TypeAlias = (
+    AnnotationTarget | ArrayDatasetTarget | TableDatasetTarget | SparseDatasetTarget
+)
 """ What a metric's target accepts besides a ``MetricTargetInput``: the object itself, as fetched."""
 
 
@@ -233,7 +232,9 @@ class Micrometers(float):
         handler: GetCoreSchemaHandler,
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_before_validator_function(cls.validate, handler(float))
+        return core_schema.no_info_before_validator_function(
+            cls.validate, handler(float)
+        )
 
     @classmethod
     def validate(cls, v: MicrometersCoercible) -> Micrometers:
@@ -265,7 +266,9 @@ class ThreeDVector(list[float]):
             v = v.tolist()
 
         assert isinstance(v, list)
-        assert len(v) in (2, 3), f"A vertex has two or three space components, but got {len(v)}."
+        assert len(v) in (2, 3), (
+            f"A vertex has two or three space components, but got {len(v)}."
+        )
         return cls(v)
 
     def as_vector(self) -> OneDArray:
@@ -298,7 +301,9 @@ class ArrayLike:
         if dims is None:
             dims = own
         elif own is not None and tuple(axis_name(d) for d in dims) != own:
-            raise ValueError(f"dims={list(dims)} disagrees with the array's own {list(own)}")
+            raise ValueError(
+                f"dims={list(dims)} disagrees with the array's own {list(own)}"
+            )
         data = unwrapped
         self.data = data
         self.dims: tuple[str, ...] | None = (
@@ -344,7 +349,9 @@ class ArrayLike:
         handler: GetCoreSchemaHandler,
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_after_validator_function(cls.validate, handler(object))
+        return core_schema.no_info_after_validator_function(
+            cls.validate, handler(object)
+        )
 
     @classmethod
     def validate(cls, v: ArrayCoercible) -> ArrayLike:
@@ -399,7 +406,9 @@ class ParquetLike:
         handler: GetCoreSchemaHandler,
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_after_validator_function(cls.validate, handler(object))
+        return core_schema.no_info_after_validator_function(
+            cls.validate, handler(object)
+        )
 
     @classmethod
     def validate(cls, v: ParquetCoercible) -> ParquetLike:
@@ -465,7 +474,9 @@ def _sporadik() -> Any:  # noqa: ANN401 - the module object
     """
     try:
         import sporadik
-    except ModuleNotFoundError as missing:  # pragma: no cover - depends on the environment
+    except (
+        ModuleNotFoundError
+    ) as missing:  # pragma: no cover - depends on the environment
         raise ModuleNotFoundError(
             "A sparse dataset is written in the `sporadik` wire format, which is an optional extra here: "
             "pip install 'mikro[sparse]'. Nothing else in this client needs it, which is why it is not "
@@ -525,7 +536,9 @@ class SporadikLike:
         handler: GetCoreSchemaHandler,
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_after_validator_function(cls.validate, handler(object))
+        return core_schema.no_info_after_validator_function(
+            cls.validate, handler(object)
+        )
 
     @classmethod
     def validate(cls, v: SporadikCoercible) -> SporadikLike:
@@ -592,7 +605,9 @@ class FabriksLike:
         handler: GetCoreSchemaHandler,
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_after_validator_function(cls.validate, handler(object))
+        return core_schema.no_info_after_validator_function(
+            cls.validate, handler(object)
+        )
 
     @classmethod
     def validate(cls, v: FabriksCoercible) -> FabriksLike:
@@ -666,7 +681,9 @@ class SparseMatrixLike(Protocol):
         ...
 
 
-SporadikCoercible: TypeAlias = "SparseMatrixLike | list[SparseMatrixLike] | SporadikLike"
+SporadikCoercible: TypeAlias = (
+    "SparseMatrixLike | list[SparseMatrixLike] | SporadikLike"
+)
 """What :class:`SporadikLike` accepts: a `scipy.sparse` CSR or CSC matrix, a list of them for an
 array of rank three or more, or one already wrapped."""
 
@@ -713,7 +730,9 @@ class KonnektionLike:
         handler: GetCoreSchemaHandler,
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_after_validator_function(cls.validate, handler(object))
+        return core_schema.no_info_after_validator_function(
+            cls.validate, handler(object)
+        )
 
     @classmethod
     def validate(cls, v: KonnektionCoercible) -> KonnektionLike:
@@ -786,7 +805,9 @@ class ImageFileLike:
         handler: GetCoreSchemaHandler,
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_after_validator_function(cls.validate, handler(object))
+        return core_schema.no_info_after_validator_function(
+            cls.validate, handler(object)
+        )
 
     @classmethod
     def validate(cls, v: FileCoercible) -> ImageFileLike:
@@ -837,10 +858,12 @@ class KulisseLike:
         handler: GetCoreSchemaHandler,
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_after_validator_function(cls.validate, handler(object))
+        return core_schema.no_info_after_validator_function(
+            cls.validate, handler(object)
+        )
 
     @classmethod
-    def validate(cls, v: "KulisseCoercible") -> "KulisseLike":
+    def validate(cls, v: KulisseCoercible) -> KulisseLike:
         """Read a path, a binary file or bytes into the model's bytes."""
         if isinstance(v, KulisseLike):
             return v
@@ -851,7 +874,9 @@ class KulisseLike:
             return cls(bytes(v))
         if isinstance(v, io.BufferedReader):
             return cls(v.read(), name=str(v.name))
-        raise ValueError(f"A kulisse model is a path, a file opened in binary mode or bytes, not {type(v)}.")
+        raise ValueError(
+            f"A kulisse model is a path, a file opened in binary mode or bytes, not {type(v)}."
+        )
 
     def __repr__(self) -> str:
         """Return a string representation of the KulisseLike scalar."""
@@ -883,7 +908,9 @@ class FileLike:
         handler: GetCoreSchemaHandler,
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_after_validator_function(cls.validate, handler(object))
+        return core_schema.no_info_after_validator_function(
+            cls.validate, handler(object)
+        )
 
     @classmethod
     def validate(cls, v: FileCoercible) -> FileLike:

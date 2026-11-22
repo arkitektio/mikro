@@ -85,7 +85,11 @@ def dask_scheduler(num_workers: int | None = None) -> Callable[..., Any] | str:
         return "sync"
     from dask.local import get_async
 
-    limit = pool_size() if num_workers is None else max(1, min(int(num_workers), pool_size()))
+    limit = (
+        pool_size()
+        if num_workers is None
+        else max(1, min(int(num_workers), pool_size()))
+    )
     return partial(get_async, _submit, limit)
 
 

@@ -123,7 +123,12 @@ def test_a_type_the_server_could_not_describe_is_refused_before_the_upload(frame
     that cannot be right, and both are otherwise found *after* the upload.
     """
     ok = frame.astype({"label": "category"})
-    assert [column.dtype for column in declare(ok).columns] == ["BIGINT", "DOUBLE", "VARCHAR", "BOOLEAN"]
+    assert [column.dtype for column in declare(ok).columns] == [
+        "BIGINT",
+        "DOUBLE",
+        "VARCHAR",
+        "BOOLEAN",
+    ]
 
     with pytest.raises(ValidationError, match="float32"):
         declare(frame.assign(f16=pd.array([1.0, 2.0, 3.0], dtype="float16")))
@@ -144,7 +149,12 @@ def test_every_column_of_the_file_is_declared_whether_the_caller_names_it_or_not
         ("label", "VARCHAR"),
         ("at_edge", "BOOLEAN"),
     ]
-    assert [column.unit for column in got.columns] == [None, "micrometer**3", None, None]
+    assert [column.unit for column in got.columns] == [
+        None,
+        "micrometer**3",
+        None,
+        None,
+    ]
     assert all(column.role is None for column in got.columns)
 
 
@@ -159,7 +169,12 @@ def test_the_caller_s_columns_are_a_subset_in_any_order(frame):
         ],
     )
 
-    assert [column.name for column in got.columns] == ["object_id", "volume_um3", "label", "at_edge"]
+    assert [column.name for column in got.columns] == [
+        "object_id",
+        "volume_um3",
+        "label",
+        "at_edge",
+    ]
     assert got.columns[0].description == "the segmentation's instance id"
     assert got.columns[3].long_name == "touches the field boundary"
 
@@ -172,13 +187,19 @@ def test_a_column_may_be_declared_without_its_dtype(frame):
     assert got.columns[2].dtype == "VARCHAR"
     # And it reaches the wire, rather than being dropped as unset.
     payload = got.model_dump(by_alias=True, exclude_unset=True)
-    assert payload["columns"][2] == {"name": "label", "dtype": "VARCHAR", "role": "LABEL"}
+    assert payload["columns"][2] == {
+        "name": "label",
+        "dtype": "VARCHAR",
+        "role": "LABEL",
+    }
 
 
 def test_a_stated_dtype_is_still_checked(frame):
     """Optional is not unchecked: an assertion about the data is worth checking, and this is
     the cheap side to check it on."""
-    with pytest.raises(ValidationError, match="declared BIGINT and this frame writes VARCHAR"):
+    with pytest.raises(
+        ValidationError, match="declared BIGINT and this frame writes VARCHAR"
+    ):
         declare(frame, columns=[ColumnInput(name="label", dtype="BIGINT")])
 
 
@@ -189,7 +210,12 @@ def test_a_matrix_wide_file_is_refused_and_told_where_it_belongs():
     A caller who hits this has a real object -- an expression matrix, an intensity matrix --
     and needs to know there is somewhere for it to go and roughly what that looks like.
     """
-    wide = pa.table({f"gene_{index}": pa.array([0.0], type=pa.float32()) for index in range(MAX_COLUMNS + 1)})
+    wide = pa.table(
+        {
+            f"gene_{index}": pa.array([0.0], type=pa.float32())
+            for index in range(MAX_COLUMNS + 1)
+        }
+    )
 
     with pytest.raises(ValidationError) as raised:
         declare(wide)
@@ -199,7 +225,12 @@ def test_a_matrix_wide_file_is_refused_and_told_where_it_belongs():
     assert "create_sparse_dataset" in message
     assert "one axis with one picker entry" in message
 
-    narrow = pa.table({f"gene_{index}": pa.array([0.0], type=pa.float32()) for index in range(MAX_COLUMNS)})
+    narrow = pa.table(
+        {
+            f"gene_{index}": pa.array([0.0], type=pa.float32())
+            for index in range(MAX_COLUMNS)
+        }
+    )
     assert len(declare(narrow).columns) == MAX_COLUMNS
 
 
@@ -219,7 +250,9 @@ def test_an_anonymous_index_is_refused(frame):
         declare(unnamed)
 
 
-@pytest.mark.parametrize("source", ["dict", "dataframe", "arrow_table", "schema", "path"])
+@pytest.mark.parametrize(
+    "source", ["dict", "dataframe", "arrow_table", "schema", "path"]
+)
 def test_every_parquet_like_thing_gives_the_same_answer(frame, source, tmp_path):
     """A `Table` big enough to matter must not be converted twice to describe it -- and a
     dict of columns is the shortest way to say a small table, so it answers the same.
@@ -239,23 +272,28 @@ def test_every_parquet_like_thing_gives_the_same_answer(frame, source, tmp_path)
         "path": path,
     }[source]
 
-    assert [(field.name, duckdb_type(field.type)) for field in arrow_schema_of(value)] == [
-        (field.name, duckdb_type(field.type)) for field in table.schema
-    ]
+    assert [
+        (field.name, duckdb_type(field.type)) for field in arrow_schema_of(value)
+    ] == [(field.name, duckdb_type(field.type)) for field in table.schema]
 
 
 def test_a_dict_of_columns_needs_no_file_at_all(frame, tmp_path):
     """The point of the dict: nothing is staged, nothing is written, nothing is unlinked."""
     got = declare({"i": [1, 2, 3], "name": ["a", "b", "c"]})
 
-    assert [(column.name, column.dtype) for column in got.columns] == [("i", "BIGINT"), ("name", "VARCHAR")]
+    assert [(column.name, column.dtype) for column in got.columns] == [
+        ("i", "BIGINT"),
+        ("name", "VARCHAR"),
+    ]
     assert list(tmp_path.iterdir()) == []
 
 
 # --- what the caller declares -----------------------------------------------
 
 
-def test_a_declared_column_that_is_not_in_the_frame_is_refused_with_the_near_miss(frame):
+def test_a_declared_column_that_is_not_in_the_frame_is_refused_with_the_near_miss(
+    frame,
+):
     with pytest.raises(ValidationError) as raised:
         declare(frame, columns=[ColumnInput(name="volume_um2", unit="micrometer**2")])
     assert "volume_um3" in str(raised.value), "the near miss is named"
@@ -264,31 +302,65 @@ def test_a_declared_column_that_is_not_in_the_frame_is_refused_with_the_near_mis
 def test_an_axis_column_carries_its_own_prose(frame):
     """One declaration: the column that is an axis says everything about itself in one place,
     so there is no second list for a unit or a longName to be silently dropped from."""
-    got = declare(frame, columns=[ColumnInput(name="object_id", axis_type=AxisType.INDEX, long_name="instance id")])
+    got = declare(
+        frame,
+        columns=[
+            ColumnInput(
+                name="object_id", axis_type=AxisType.INDEX, long_name="instance id"
+            )
+        ],
+    )
 
-    assert [column.name for column in got.columns] == ["object_id", "volume_um3", "label", "at_edge"]
+    assert [column.name for column in got.columns] == [
+        "object_id",
+        "volume_um3",
+        "label",
+        "at_edge",
+    ]
     assert got.columns[0].axis_type == AxisType.INDEX.value
-    assert got.columns[0].role is None, "COORDINATE follows from `axisType`, not from a role"
+    assert got.columns[0].role is None, (
+        "COORDINATE follows from `axisType`, not from a role"
+    )
     assert got.columns[0].long_name == "instance id"
 
 
 def test_a_column_declared_twice_is_refused(frame):
     with pytest.raises(ValidationError, match="more than once"):
-        declare(frame, columns=[ColumnInput(name="label"), ColumnInput(name="label", role=ColumnRole.LABEL)])
+        declare(
+            frame,
+            columns=[
+                ColumnInput(name="label"),
+                ColumnInput(name="label", role=ColumnRole.LABEL),
+            ],
+        )
 
 
 def test_an_axis_type_beside_a_role_is_refused(frame):
     """An axis column IS a COORDINATE by the fact of `axisType`; a role beside it is the same
     question answered twice, and the old two-list shape silently preferred one answer."""
     with pytest.raises(ValidationError, match="both `axis_type` and `role`"):
-        declare(frame, columns=[ColumnInput(name="object_id", axis_type=AxisType.INDEX, role=ColumnRole.ID)])
+        declare(
+            frame,
+            columns=[
+                ColumnInput(
+                    name="object_id", axis_type=AxisType.INDEX, role=ColumnRole.ID
+                )
+            ],
+        )
 
 
 def test_an_index_axis_carries_no_unit(frame):
     """It enumerates: the distance between object 3 and object 4 is not a small number, it is
     not a number."""
     with pytest.raises(ValidationError, match="no metric to state a unit in"):
-        declare(frame, columns=[ColumnInput(name="object_id", axis_type=AxisType.INDEX, unit="micrometer")])
+        declare(
+            frame,
+            columns=[
+                ColumnInput(
+                    name="object_id", axis_type=AxisType.INDEX, unit="micrometer"
+                )
+            ],
+        )
 
 
 def test_a_space_axis_may_not_say_what_it_enumerates(frame):
@@ -296,10 +368,27 @@ def test_a_space_axis_may_not_say_what_it_enumerates(frame):
     enumerates = [TableIdentifiesInput(kind="TABLE", table="7")]
 
     with pytest.raises(ValidationError, match="positions rather than ids"):
-        declare(frame, columns=[ColumnInput(name="volume_um3", axis_type=AxisType.SPACE, unit="micrometer**3", identified_by=enumerates)])
+        declare(
+            frame,
+            columns=[
+                ColumnInput(
+                    name="volume_um3",
+                    axis_type=AxisType.SPACE,
+                    unit="micrometer**3",
+                    identified_by=enumerates,
+                )
+            ],
+        )
 
     # Accepted -- the product-space case -- and the identification reaches the input intact.
-    got = declare(frame, columns=[ColumnInput(name="object_id", axis_type=AxisType.INDEX, identified_by=enumerates)])
+    got = declare(
+        frame,
+        columns=[
+            ColumnInput(
+                name="object_id", axis_type=AxisType.INDEX, identified_by=enumerates
+            )
+        ],
+    )
     assert got.columns[0].identified_by[0].table == "7"
 
 
@@ -308,7 +397,13 @@ def test_a_data_column_may_reference_a_table(frame):
     plain data column is a foreign key, authors no edge, and makes the column no axis."""
     got = declare(
         frame,
-        columns=[ColumnInput(name="object_id", role=ColumnRole.ID, identified_by=[TableIdentifiesInput(kind="TABLE", table="7")])],
+        columns=[
+            ColumnInput(
+                name="object_id",
+                role=ColumnRole.ID,
+                identified_by=[TableIdentifiesInput(kind="TABLE", table="7")],
+            )
+        ],
     )
     assert got.columns[0].axis_type is None
     assert got.columns[0].identified_by[0].table == "7"
@@ -351,7 +446,11 @@ def test_the_axis_order_is_the_files_column_order(frame):
             for name in ("x", "y", "z")
         ],
     )
-    assert [column.name for column in got.columns if column.axis_type is not None] == ["z", "y", "x"]
+    assert [column.name for column in got.columns if column.axis_type is not None] == [
+        "z",
+        "y",
+        "x",
+    ]
 
 
 def test_spatial_columns_in_ascending_order_are_refused():
@@ -364,37 +463,62 @@ def test_spatial_columns_in_ascending_order_are_refused():
     with pytest.raises(ValidationError, match="reverse of the array convention"):
         declare(
             spatial,
-            columns=[ColumnInput(name=name, axis_type=AxisType.SPACE, unit="nanometer") for name in ("x", "y", "z")],
+            columns=[
+                ColumnInput(name=name, axis_type=AxisType.SPACE, unit="nanometer")
+                for name in ("x", "y", "z")
+            ],
         )
 
 
 def test_a_table_axis_is_a_position_an_instant_an_enumeration_or_a_channel(frame):
     with pytest.raises(ValidationError, match="a table's axes are"):
-        declare(frame, columns=[ColumnInput(name="object_id", axis_type=AxisType.SPECTRUM)])
+        declare(
+            frame, columns=[ColumnInput(name="object_id", axis_type=AxisType.SPECTRUM)]
+        )
 
 
 def test_a_channel_coordinate_is_unitless(frame):
     """A long-form table's channel enumerates: there is no distance from channel 0 to channel 1."""
     with pytest.raises(ValidationError, match="CHANNEL axis"):
-        declare(frame, columns=[ColumnInput(name="object_id", axis_type=AxisType.CHANNEL, unit="nanometer")])
+        declare(
+            frame,
+            columns=[
+                ColumnInput(
+                    name="object_id", axis_type=AxisType.CHANNEL, unit="nanometer"
+                )
+            ],
+        )
 
 
 def test_varies_over_names_a_channel_coordinate(frame):
     with pytest.raises(ValidationError, match="not a CHANNEL coordinate"):
-        declare(frame, columns=[ColumnInput(name="object_id", axis_type=AxisType.INDEX), ColumnInput(name="volume_um3", varies_over=["object_id"])])
+        declare(
+            frame,
+            columns=[
+                ColumnInput(name="object_id", axis_type=AxisType.INDEX),
+                ColumnInput(name="volume_um3", varies_over=["object_id"]),
+            ],
+        )
 
 
 def test_a_coordinate_role_is_spelled_axis_type(frame):
     """The server refuses this too: COORDINATE follows from `axisType`, it is not a role."""
     with pytest.raises(ValidationError, match="say so with `axis_type`"):
-        declare(frame, columns=[ColumnInput(name="object_id", role=ColumnRole.COORDINATE)])
+        declare(
+            frame, columns=[ColumnInput(name="object_id", role=ColumnRole.COORDINATE)]
+        )
 
 
 def test_a_unit_belongs_on_something_measured(frame):
     """An id, a label or a colour is not measured, so a unit on one says nothing. The server
     refuses it after the upload; this refuses it before."""
     with pytest.raises(ValidationError, match="is not\\s+measured"):
-        declare(frame, columns=[ColumnInput(name="label", role=ColumnRole.LABEL, unit="micrometer")])
+        declare(
+            frame,
+            columns=[
+                ColumnInput(name="label", role=ColumnRole.LABEL, unit="micrometer")
+            ],
+        )
 
 
 def test_a_table_holds_at_most_one_id_column(frame):

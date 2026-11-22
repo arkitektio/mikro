@@ -70,7 +70,10 @@ def test_mikro_imports_with_arkitekt_unavailable() -> None:
         "print('ok')\n"
     )
     result = subprocess.run(
-        [sys.executable, "-c", script], capture_output=True, text=True, cwd=PACKAGE.parent
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+        cwd=PACKAGE.parent,
     )
 
     assert result.returncode == 0, result.stderr

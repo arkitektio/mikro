@@ -63,7 +63,9 @@ if TYPE_CHECKING:
 #: The axis types a table's coordinate column may have. A table's axes are its
 #: frame: positions, instants, an enumeration, or -- for a long-form table, one row per
 #: (object, channel) -- a channel. SPECTRUM and MICROTIME are not drawn from a table yet.
-TABLE_AXIS_TYPES: Final[frozenset[str]] = frozenset({"SPACE", "TIME", "INDEX", "CHANNEL"})
+TABLE_AXIS_TYPES: Final[frozenset[str]] = frozenset(
+    {"SPACE", "TIME", "INDEX", "CHANNEL"}
+)
 
 #: The coordinate types that enumerate, and so have no unit.
 _UNITLESS_AXIS_TYPES: Final[frozenset[str]] = frozenset({"INDEX", "CHANNEL"})
@@ -290,7 +292,9 @@ def _check_declarations(
     side of several hundred megabytes.
     """
     if len(by_name) != len(columns):
-        raise TableDeclarationError(_duplicates("columns", [column.name for column in columns]))
+        raise TableDeclarationError(
+            _duplicates("columns", [column.name for column in columns])
+        )
 
     for declared in by_name:
         if declared not in present:
@@ -302,7 +306,9 @@ def _check_declarations(
             )
 
     for column in columns:
-        axis_type = _enum_value(column.axis_type) if column.axis_type is not None else None
+        axis_type = (
+            _enum_value(column.axis_type) if column.axis_type is not None else None
+        )
         role = _enum_value(column.role)
 
         if axis_type is not None:
@@ -355,7 +361,8 @@ def _check_declarations(
         no_edge = [
             entry
             for entry in (column.identified_by or ())
-            if _enum_value(getattr(entry, "kind", None)) in ("TABLE", "NETWORK_COLLECTION_NODES")
+            if _enum_value(getattr(entry, "kind", None))
+            in ("TABLE", "NETWORK_COLLECTION_NODES")
         ]
         if axis_type in ("SPACE", "TIME") and no_edge:
             raise TableDeclarationError(
@@ -365,7 +372,8 @@ def _check_declarations(
                 "if its values really are ids -- declare the column an INDEX axis."
             )
         if axis_type is None and any(
-            _enum_value(getattr(entry, "kind", None)) == "NETWORK_COLLECTION_NODES" for entry in no_edge
+            _enum_value(getattr(entry, "kind", None)) == "NETWORK_COLLECTION_NODES"
+            for entry in no_edge
         ):
             raise TableDeclarationError(
                 f"Column {column.name!r} is identified by a network collection's nodes but is "
@@ -422,14 +430,20 @@ def _check_varies_over(columns: Sequence[ColumnInput]) -> None:
     In a ``(cell, c, volume, mean)`` table a per-cell ``volume`` varies over nothing and is
     read once per cell; a per-channel ``mean`` varies over ``c``. The server refuses the same.
     """
-    channels = {column.name for column in columns if column.axis_type is not None and _enum_value(column.axis_type) == "CHANNEL"}
+    channels = {
+        column.name
+        for column in columns
+        if column.axis_type is not None and _enum_value(column.axis_type) == "CHANNEL"
+    }
     for column in columns:
         varies = getattr(column, "varies_over", None)
         if varies is None:
             continue
         repeated = sorted({name for name in varies if list(varies).count(name) > 1})
         if repeated:
-            raise TableDeclarationError(f"Column {column.name!r} names {repeated} more than once in `varies_over`.")
+            raise TableDeclarationError(
+                f"Column {column.name!r} names {repeated} more than once in `varies_over`."
+            )
         unknown = [name for name in varies if name not in channels]
         if unknown:
             raise TableDeclarationError(

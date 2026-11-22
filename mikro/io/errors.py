@@ -8,5 +8,3 @@ class UploadError(IoError):
 
 class DownloadError(IoError):
     """Error while downloading from the DataLayer"""
-
-
