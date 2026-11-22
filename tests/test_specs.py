@@ -42,14 +42,16 @@ from mikro.arkitekt.specs import (
 from mikro.traits import axis_types
 
 
-def candidate(names, shape, types=None):
+def candidate(
+    names: list[str], shape: tuple[int, ...], types: list[str] | None = None
+) -> SimpleNamespace:
     """A stand-in for a Lens: axis names, a shape, and optionally typed axes."""
     system = None
     if types is not None:
         system = SimpleNamespace(
             axes=[
                 SimpleNamespace(order=i, name=n, type=t)
-                for i, (n, t) in enumerate(zip(names, types))
+                for i, (n, t) in enumerate(zip(names, types, strict=False))
             ]
         )
     return SimpleNamespace(
@@ -97,14 +99,14 @@ class TestDescriptors:
         assert descriptors_of(candidate(["y", "x"], (4, 4))) == {}
 
 
-def requires(spec: Any) -> list[RequiresInput]:
+def requires(spec: object) -> list[RequiresInput]:
     """What a spec puts on an argument port."""
     return [
         marker for marker in get_args(spec)[1:] if isinstance(marker, RequiresInput)
     ]
 
 
-def provides(spec: Any) -> list[ProvidesInput]:
+def provides(spec: object) -> list[ProvidesInput]:
     """What a spec puts on a return port."""
     return [
         marker for marker in get_args(spec)[1:] if isinstance(marker, ProvidesInput)

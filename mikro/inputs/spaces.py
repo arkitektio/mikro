@@ -40,6 +40,10 @@ if TYPE_CHECKING:
     )
     from mikro.mikro import Mikro
 
+#: The default units of the space builders below.
+_MICROMETER = Unit("micrometer")
+_SECOND = Unit("second")
+
 #: How `create_space` will take its axes: name-to-unit, or the inputs themselves.
 AxisSpec = Mapping[str, Unit] | Sequence["PhysicalAxisInput"]
 
@@ -146,7 +150,7 @@ def space_2d(
     mikro: Mikro,
     name: str = "space",
     *,
-    unit: Unit = Unit("micrometer"),
+    unit: Unit = _MICROMETER,
     axes: Sequence[str] = ("y", "x"),
     reference: str | None = None,
 ) -> CoordinateSystem:
@@ -172,7 +176,7 @@ def space_3d(
     mikro: Mikro,
     name: str = "space",
     *,
-    unit: Unit = Unit("micrometer"),
+    unit: Unit = _MICROMETER,
     axes: Sequence[str] = ("z", "y", "x"),
     reference: str | None = None,
 ) -> CoordinateSystem:
@@ -202,8 +206,8 @@ def timelapse_3d(
     mikro: Mikro,
     name: str = "space",
     *,
-    unit: Unit = Unit("micrometer"),
-    time_unit: Unit = Unit("second"),
+    unit: Unit = _MICROMETER,
+    time_unit: Unit = _SECOND,
     axes: Sequence[str] = ("z", "y", "x"),
     epoch: datetime | None = None,
     reference: str | None = None,

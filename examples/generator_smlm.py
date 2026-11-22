@@ -85,7 +85,7 @@ PHOTON_CUT = 800.0  # the offered-but-inactive "bright only" filter threshold
 # --------------------------------------------------------------------------- #
 # Ground truth: filaments and rings, emitters sampled along them
 # --------------------------------------------------------------------------- #
-def bezier(p0, p1, p2, n: int) -> np.ndarray:
+def bezier(p0: np.ndarray, p1: np.ndarray, p2: np.ndarray, n: int) -> np.ndarray:
     """``n`` points along a quadratic Bézier — ``(n, 2)`` in (y, x)."""
     t = np.linspace(0.0, 1.0, n)[:, None]
     return (1 - t) ** 2 * p0 + 2 * (1 - t) * t * p1 + t**2 * p2
@@ -195,7 +195,7 @@ def raw_movie(locs: pd.DataFrame) -> xr.DataArray:
     frames = locs["frame"].to_numpy()
     photons = locs["photons"].to_numpy()
 
-    for frame, yc, xc, n_ph in zip(frames, y_px, x_px, photons):
+    for frame, yc, xc, n_ph in zip(frames, y_px, x_px, photons, strict=True):
         iy, ix = int(round(yc)), int(round(xc))
         gy = np.exp(-((win + iy - yc) ** 2) / (2 * sigma_px**2))
         gx = np.exp(-((win + ix - xc) ** 2) / (2 * sigma_px**2))

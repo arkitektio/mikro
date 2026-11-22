@@ -585,7 +585,7 @@ def test_a_declared_schema_that_does_not_match_the_data_is_rejected(
     never was: it compared names only, and never dtypes. The flag is gone because the server
     reads the file on every create, so the check is not something a caller can decline.
     """
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         deployed_app.mikro.create_table_dataset(
             name="mismatched",
             data=_measurements(),

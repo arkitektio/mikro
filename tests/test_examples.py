@@ -28,7 +28,8 @@ in ``tests/integration/configs`` exist for them.
 
 import runpy
 import sys
-from contextlib import contextmanager
+from collections.abc import Callable, Iterator
+from contextlib import AbstractContextManager, contextmanager
 from pathlib import Path
 
 import pytest
@@ -64,9 +65,11 @@ SCRIPTS = [
 ]
 
 
-def _stub_easy_for(mikro: object):  # noqa: ANN202
+def _stub_easy_for(mikro: object) -> Callable[..., AbstractContextManager[object]]:
     @contextmanager
-    def _stub_easy(identifier: object = None, *services: object, **kwargs: object):
+    def _stub_easy(
+        identifier: object = None, *services: object, **kwargs: object
+    ) -> Iterator[object]:
         """Stand-in for ``arkitekt.easy``: a run handing out the deployment's client."""
         yield mikro
 

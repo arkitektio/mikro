@@ -102,7 +102,7 @@ def lm_pixel_world_coords(affine: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 # --------------------------------------------------------------------------- #
 # Ground truth, as functions over world coordinates
 # --------------------------------------------------------------------------- #
-def make_truth():
+def make_truth() -> tuple[np.ndarray, list[dict[str, float]], np.ndarray]:
     """The specimen: membrane seeds, mitochondria ellipses, fiducial beads.
 
     Everything is defined in world micrometers so both instruments can sample it —
@@ -169,7 +169,9 @@ def bead_spots(
 # --------------------------------------------------------------------------- #
 # The two renders
 # --------------------------------------------------------------------------- #
-def render_em(seeds, mitos, fiducials) -> xr.DataArray:
+def render_em(
+    seeds: np.ndarray, mitos: list[dict[str, float]], fiducials: np.ndarray
+) -> xr.DataArray:
     """The EM view: bright cytoplasm, dark membranes, darker textured mitochondria,
     and fiducial beads as small very dark disks."""
     yy, xx = np.mgrid[0 : EM_SHAPE[0], 0 : EM_SHAPE[1]].astype(np.float64)
@@ -188,7 +190,10 @@ def render_em(seeds, mitos, fiducials) -> xr.DataArray:
 
 
 def render_lm(
-    affine, seeds, mitos, fiducials
+    affine: np.ndarray,
+    seeds: np.ndarray,
+    mitos: list[dict[str, float]],
+    fiducials: np.ndarray,
 ) -> tuple[xr.DataArray, xr.DataArray, np.ndarray]:
     """The LM view, channel by channel, each LM pixel sampled through the affine.
 
@@ -217,7 +222,13 @@ def render_lm(
 # --------------------------------------------------------------------------- #
 # Self-checks
 # --------------------------------------------------------------------------- #
-def check(affine, em, lm_mito, lm_truth, fiducials) -> None:
+def check(
+    affine: np.ndarray,
+    em: xr.DataArray,
+    lm_mito: xr.DataArray,
+    lm_truth: np.ndarray,
+    fiducials: np.ndarray,
+) -> None:
     if em.shape != EM_SHAPE or lm_mito.shape != LM_SHAPE:
         raise SystemExit("a render came out the wrong shape — transposed?")
 
@@ -364,7 +375,7 @@ if __name__ == "__main__":
             order=0,
         )
         for order, (lm_ds, colormap) in enumerate(
-            zip(lm_ids, (ColorMap.GREEN, ColorMap.MAGENTA)), start=1
+            zip(lm_ids, (ColorMap.GREEN, ColorMap.MAGENTA), strict=True), start=1
         ):
             mikro.create_intensity_layer(
                 lens=lm_ds.lens(),

@@ -119,7 +119,9 @@ def make_anatomy() -> tuple[np.ndarray, np.ndarray]:
     return brain, labels
 
 
-def render_bold(brain, labels, regressor) -> xr.DataArray:
+def render_bold(
+    brain: np.ndarray, labels: np.ndarray, regressor: np.ndarray
+) -> xr.DataArray:
     """The acquisition: baseline + task response + drift + noise, uint16."""
     times = np.arange(FRAMES) * TR
     drift = 1.0 + (DRIFT_PCT / 100.0) * (
@@ -159,7 +161,15 @@ def glm_zmap(bold: np.ndarray, regressor: np.ndarray) -> np.ndarray:
 # --------------------------------------------------------------------------- #
 # Self-checks
 # --------------------------------------------------------------------------- #
-def check(bold, zmap, labels, brain, boxcar, regressor, headline) -> None:
+def check(
+    bold: xr.DataArray,
+    zmap: np.ndarray,
+    labels: np.ndarray,
+    brain: np.ndarray,
+    boxcar: np.ndarray,
+    regressor: np.ndarray,
+    headline: list[int],
+) -> None:
     if bold.shape != (FRAMES, *SHAPE):
         raise SystemExit(
             f"BOLD is {bold.shape}, expected {(FRAMES, *SHAPE)} — transposed?"

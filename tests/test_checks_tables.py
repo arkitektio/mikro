@@ -14,6 +14,9 @@ resolution and every refusal now live, and a refusal arrives as pydantic's
 ``ValidationError`` wrapping ours.
 """
 
+from collections.abc import Iterable
+from pathlib import Path
+
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -33,6 +36,7 @@ from mikro.checks.tables import (
     arrow_schema_of,
     file_columns_of,
 )
+from mikro.scalars import ParquetCoercible
 from mikro.vocabulary import UnknownArrowType, duckdb_type
 
 
@@ -49,7 +53,9 @@ def frame() -> pd.DataFrame:
     )
 
 
-def declare(data, columns=()) -> CreateTableDatasetInput:
+def declare(
+    data: ParquetCoercible, columns: Iterable[ColumnInput] = ()
+) -> CreateTableDatasetInput:
     """The call under test, minus the name nothing here is about."""
     return CreateTableDatasetInput(name="t", data=data, columns=list(columns))
 
@@ -73,7 +79,9 @@ def declare(data, columns=()) -> CreateTableDatasetInput:
         (pa.timestamp("us", tz="UTC"), "TIMESTAMP WITH TIME ZONE"),
     ],
 )
-def test_the_duckdb_name_is_what_duckdb_actually_says(arrow, duck, tmp_path):
+def test_the_duckdb_name_is_what_duckdb_actually_says(
+    arrow: pa.DataType, duck: str, tmp_path: Path
+) -> None:
     """And it is checked against DuckDB, not against the table it came from.
 
     The point of the mapping is that it predicts another process's answer, so a
@@ -103,7 +111,9 @@ def test_the_duckdb_name_is_what_duckdb_actually_says(arrow, duck, tmp_path):
         (pa.struct([("a", pa.int64())]), "Flatten it into one column per field"),
     ],
 )
-def test_a_type_with_no_stable_answer_is_refused_not_guessed(arrow, because):
+def test_a_type_with_no_stable_answer_is_refused_not_guessed(
+    arrow: pa.DataType, because: str
+) -> None:
     """The refusals are the load-bearing half.
 
     `default_axis_type` is the precedent: guessing at an unlisted name is how a
@@ -115,7 +125,9 @@ def test_a_type_with_no_stable_answer_is_refused_not_guessed(arrow, because):
     assert because in str(raised.value)
 
 
-def test_a_type_the_server_could_not_describe_is_refused_before_the_upload(frame):
+def test_a_type_the_server_could_not_describe_is_refused_before_the_upload(
+    frame: pd.DataFrame,
+) -> None:
     """The vocabulary's job: predict what the server will read back, or refuse to guess.
 
     A float16 column reads back as FLOAT on DuckDB 1.5 and as BLOB on the 1.2 the server runs,
@@ -137,7 +149,9 @@ def test_a_type_the_server_could_not_describe_is_refused_before_the_upload(frame
 # --- what the file supplies -------------------------------------------------
 
 
-def test_every_column_of_the_file_is_declared_whether_the_caller_names_it_or_not(frame):
+def test_every_column_of_the_file_is_declared_whether_the_caller_names_it_or_not(
+    frame: pd.DataFrame,
+) -> None:
     """The server checks the declaration against the Parquet: same names, same order, same
     types. That is a fact about the file, so it is derived rather than asked for -- and a
     column nobody says anything about is an ATTRIBUTE of the type the file records."""
@@ -158,7 +172,7 @@ def test_every_column_of_the_file_is_declared_whether_the_caller_names_it_or_not
     assert all(column.role is None for column in got.columns)
 
 
-def test_the_caller_s_columns_are_a_subset_in_any_order(frame):
+def test_the_caller_s_columns_are_a_subset_in_any_order(frame: pd.DataFrame) -> None:
     """`columns` is what the file cannot say, for the columns it is true of. It is not the
     file's list and does not have to look like it -- the file's order is imposed here."""
     got = declare(
@@ -179,7 +193,7 @@ def test_the_caller_s_columns_are_a_subset_in_any_order(frame):
     assert got.columns[3].long_name == "touches the field boundary"
 
 
-def test_a_column_may_be_declared_without_its_dtype(frame):
+def test_a_column_may_be_declared_without_its_dtype(frame: pd.DataFrame) -> None:
     """Which is the ordinary case. `dtype` is DuckDB's vocabulary and a DataFrame speaks
     pandas', so writing it by hand is transcription with one specific way to be wrong."""
     got = declare(frame, columns=[ColumnInput(name="label", role=ColumnRole.LABEL)])
@@ -194,7 +208,7 @@ def test_a_column_may_be_declared_without_its_dtype(frame):
     }
 
 
-def test_a_stated_dtype_is_still_checked(frame):
+def test_a_stated_dtype_is_still_checked(frame: pd.DataFrame) -> None:
     """Optional is not unchecked: an assertion about the data is worth checking, and this is
     the cheap side to check it on."""
     with pytest.raises(
@@ -203,7 +217,7 @@ def test_a_stated_dtype_is_still_checked(frame):
         declare(frame, columns=[ColumnInput(name="label", dtype="BIGINT")])
 
 
-def test_a_matrix_wide_file_is_refused_and_told_where_it_belongs():
+def test_a_matrix_wide_file_is_refused_and_told_where_it_belongs() -> None:
     """The refusal is about shape rather than size, so it says so at length.
 
     The same argument the server makes, made here so the caller meets it before the upload.
@@ -234,7 +248,9 @@ def test_a_matrix_wide_file_is_refused_and_told_where_it_belongs():
     assert len(declare(narrow).columns) == MAX_COLUMNS
 
 
-def test_an_index_that_would_not_be_written_at_all_is_refused(frame):
+def test_an_index_that_would_not_be_written_at_all_is_refused(
+    frame: pd.DataFrame,
+) -> None:
     """A `RangeIndex` is start/stop/step metadata rather than data, and on pandas 3 any
     evenly spaced integer index is inferred to be one -- which object ids running 1..N are.
     So `frame.set_index("object_id")` writes a Parquet with no `object_id` column."""
@@ -242,7 +258,7 @@ def test_an_index_that_would_not_be_written_at_all_is_refused(frame):
         declare(frame.set_index("object_id"))
 
 
-def test_an_anonymous_index_is_refused(frame):
+def test_an_anonymous_index_is_refused(frame: pd.DataFrame) -> None:
     """The opposite problem: it gains the file a `__index_level_0__` column that exists in
     no frame, and that no declaration can sensibly describe."""
     unnamed = frame.set_index(pd.Index([10, 20, 31]))
@@ -253,7 +269,9 @@ def test_an_anonymous_index_is_refused(frame):
 @pytest.mark.parametrize(
     "source", ["dict", "dataframe", "arrow_table", "schema", "path"]
 )
-def test_every_parquet_like_thing_gives_the_same_answer(frame, source, tmp_path):
+def test_every_parquet_like_thing_gives_the_same_answer(
+    frame: pd.DataFrame, source: str, tmp_path: Path
+) -> None:
     """A `Table` big enough to matter must not be converted twice to describe it -- and a
     dict of columns is the shortest way to say a small table, so it answers the same.
 
@@ -277,7 +295,9 @@ def test_every_parquet_like_thing_gives_the_same_answer(frame, source, tmp_path)
     ] == [(field.name, duckdb_type(field.type)) for field in table.schema]
 
 
-def test_a_dict_of_columns_needs_no_file_at_all(frame, tmp_path):
+def test_a_dict_of_columns_needs_no_file_at_all(
+    frame: pd.DataFrame, tmp_path: Path
+) -> None:
     """The point of the dict: nothing is staged, nothing is written, nothing is unlinked."""
     got = declare({"i": [1, 2, 3], "name": ["a", "b", "c"]})
 
@@ -292,14 +312,14 @@ def test_a_dict_of_columns_needs_no_file_at_all(frame, tmp_path):
 
 
 def test_a_declared_column_that_is_not_in_the_frame_is_refused_with_the_near_miss(
-    frame,
-):
+    frame: pd.DataFrame,
+) -> None:
     with pytest.raises(ValidationError) as raised:
         declare(frame, columns=[ColumnInput(name="volume_um2", unit="micrometer**2")])
     assert "volume_um3" in str(raised.value), "the near miss is named"
 
 
-def test_an_axis_column_carries_its_own_prose(frame):
+def test_an_axis_column_carries_its_own_prose(frame: pd.DataFrame) -> None:
     """One declaration: the column that is an axis says everything about itself in one place,
     so there is no second list for a unit or a longName to be silently dropped from."""
     got = declare(
@@ -324,7 +344,7 @@ def test_an_axis_column_carries_its_own_prose(frame):
     assert got.columns[0].long_name == "instance id"
 
 
-def test_a_column_declared_twice_is_refused(frame):
+def test_a_column_declared_twice_is_refused(frame: pd.DataFrame) -> None:
     with pytest.raises(ValidationError, match="more than once"):
         declare(
             frame,
@@ -335,7 +355,7 @@ def test_a_column_declared_twice_is_refused(frame):
         )
 
 
-def test_an_axis_type_beside_a_role_is_refused(frame):
+def test_an_axis_type_beside_a_role_is_refused(frame: pd.DataFrame) -> None:
     """An axis column IS a COORDINATE by the fact of `axisType`; a role beside it is the same
     question answered twice, and the old two-list shape silently preferred one answer."""
     with pytest.raises(ValidationError, match="both `axis_type` and `role`"):
@@ -349,7 +369,7 @@ def test_an_axis_type_beside_a_role_is_refused(frame):
         )
 
 
-def test_an_index_axis_carries_no_unit(frame):
+def test_an_index_axis_carries_no_unit(frame: pd.DataFrame) -> None:
     """It enumerates: the distance between object 3 and object 4 is not a small number, it is
     not a number."""
     with pytest.raises(ValidationError, match="no metric to state a unit in"):
@@ -363,7 +383,7 @@ def test_an_index_axis_carries_no_unit(frame):
         )
 
 
-def test_a_space_axis_may_not_say_what_it_enumerates(frame):
+def test_a_space_axis_may_not_say_what_it_enumerates(frame: pd.DataFrame) -> None:
     """A position in nanometres and a row id are different things."""
     enumerates = [TableIdentifiesInput(kind="TABLE", table="7")]
 
@@ -392,7 +412,7 @@ def test_a_space_axis_may_not_say_what_it_enumerates(frame):
     assert got.columns[0].identified_by[0].table == "7"
 
 
-def test_a_data_column_may_reference_a_table(frame):
+def test_a_data_column_may_reference_a_table(frame: pd.DataFrame) -> None:
     """The retired `references`, spelled the one remaining way: a TABLE identification on a
     plain data column is a foreign key, authors no edge, and makes the column no axis."""
     got = declare(
@@ -409,7 +429,7 @@ def test_a_data_column_may_reference_a_table(frame):
     assert got.columns[0].identified_by[0].table == "7"
 
 
-def test_a_column_identified_by_two_tables_is_refused(frame):
+def test_a_column_identified_by_two_tables_is_refused(frame: pd.DataFrame) -> None:
     """Fan-in is meaningful only for the kinds that author an edge.
 
     Two masks keying one axis are two edges, each standing on its own. Two tables would be two
@@ -433,7 +453,7 @@ def test_a_column_identified_by_two_tables_is_refused(frame):
         )
 
 
-def test_the_axis_order_is_the_files_column_order(frame):
+def test_the_axis_order_is_the_files_column_order(frame: pd.DataFrame) -> None:
     """A table has no byte order, so there is no list to reorder its space with: the axes are
     the axis-typed columns as the file runs, however the caller orders the declaration."""
     spatial = pd.DataFrame({"z": [1.0], "y": [2.0], "x": [3.0], "photons": [4.0]})
@@ -453,7 +473,7 @@ def test_the_axis_order_is_the_files_column_order(frame):
     ]
 
 
-def test_spatial_columns_in_ascending_order_are_refused():
+def test_spatial_columns_in_ascending_order_are_refused() -> None:
     """x is the *last* spatial axis and y the one before it, by position and never by name,
     so a frame whose columns run `(x, y, z)` renders fully transposed rather than failing.
     Nothing on the server can catch it -- a table's axis names are free-form -- so only a
@@ -470,14 +490,16 @@ def test_spatial_columns_in_ascending_order_are_refused():
         )
 
 
-def test_a_table_axis_is_a_position_an_instant_an_enumeration_or_a_channel(frame):
+def test_a_table_axis_is_a_position_an_instant_an_enumeration_or_a_channel(
+    frame: pd.DataFrame,
+) -> None:
     with pytest.raises(ValidationError, match="a table's axes are"):
         declare(
             frame, columns=[ColumnInput(name="object_id", axis_type=AxisType.SPECTRUM)]
         )
 
 
-def test_a_channel_coordinate_is_unitless(frame):
+def test_a_channel_coordinate_is_unitless(frame: pd.DataFrame) -> None:
     """A long-form table's channel enumerates: there is no distance from channel 0 to channel 1."""
     with pytest.raises(ValidationError, match="CHANNEL axis"):
         declare(
@@ -490,7 +512,7 @@ def test_a_channel_coordinate_is_unitless(frame):
         )
 
 
-def test_varies_over_names_a_channel_coordinate(frame):
+def test_varies_over_names_a_channel_coordinate(frame: pd.DataFrame) -> None:
     with pytest.raises(ValidationError, match="not a CHANNEL coordinate"):
         declare(
             frame,
@@ -501,7 +523,7 @@ def test_varies_over_names_a_channel_coordinate(frame):
         )
 
 
-def test_a_coordinate_role_is_spelled_axis_type(frame):
+def test_a_coordinate_role_is_spelled_axis_type(frame: pd.DataFrame) -> None:
     """The server refuses this too: COORDINATE follows from `axisType`, it is not a role."""
     with pytest.raises(ValidationError, match="say so with `axis_type`"):
         declare(
@@ -509,7 +531,7 @@ def test_a_coordinate_role_is_spelled_axis_type(frame):
         )
 
 
-def test_a_unit_belongs_on_something_measured(frame):
+def test_a_unit_belongs_on_something_measured(frame: pd.DataFrame) -> None:
     """An id, a label or a colour is not measured, so a unit on one says nothing. The server
     refuses it after the upload; this refuses it before."""
     with pytest.raises(ValidationError, match="is not\\s+measured"):
@@ -521,7 +543,7 @@ def test_a_unit_belongs_on_something_measured(frame):
         )
 
 
-def test_a_table_holds_at_most_one_id_column(frame):
+def test_a_table_holds_at_most_one_id_column(frame: pd.DataFrame) -> None:
     with pytest.raises(ValidationError, match="at most one ID column"):
         declare(
             frame,
@@ -532,7 +554,7 @@ def test_a_table_holds_at_most_one_id_column(frame):
         )
 
 
-def test_the_frame_s_own_account_is_readable_on_its_own(frame):
+def test_the_frame_s_own_account_is_readable_on_its_own(frame: pd.DataFrame) -> None:
     """`file_columns_of` is the seam the trait uses, and is worth being able to ask directly
     -- a caller checking a frame before building a declaration for it."""
     assert file_columns_of(frame) == [

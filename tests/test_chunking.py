@@ -28,7 +28,7 @@ def _layout(dims: str, shape: tuple[int, ...], itemsize: int) -> ChunkLayout:
 
 def _by_dim(dims: str, extents: tuple[int, ...] | None) -> dict[str, int]:
     assert extents is not None
-    return dict(zip(dims, extents))
+    return dict(zip(dims, extents, strict=True))
 
 
 def test_a_plane_is_cut_into_plane_bricks_with_its_channels_in_one_shard() -> None:
@@ -121,7 +121,7 @@ def test_a_shard_is_whole_chunks_inside_the_budget(
     layout = _layout(dims, shape, itemsize)
     assert layout.shards is not None
 
-    for size, chunk, shard in zip(shape, layout.chunks, layout.shards):
+    for size, chunk, shard in zip(shape, layout.chunks, layout.shards, strict=True):
         assert chunk <= size, "an inner chunk never exceeds the array"
         assert shard % chunk == 0
         assert shard - size < chunk, (

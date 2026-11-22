@@ -3,7 +3,9 @@
 These construct the generated fragment models directly — no server needed.
 """
 
+from collections.abc import Callable, Sequence
 from types import SimpleNamespace
+from typing import Any, TypedDict
 
 import numpy as np
 import pytest
@@ -11,8 +13,12 @@ from kanne.scalars import Unit
 
 from mikro.api.schema import (
     UNSET,
+    ArrayDataset,
     Axis,
+    ByDimensionTransformInput,
     CoordinateSystem,
+    PhysicalAxisInput,
+    Scene,
     TransformationAffineTransformation,
     TransformationByDimensionTransformation,
     TransformationIdentityTransformation,
@@ -26,6 +32,7 @@ from mikro.api.schema import (
 )
 from mikro.traits import (
     PathStep,
+    Registrable,
     _bfs_path,
     _compose_axis_maps,
     _infer_transform_kind,
@@ -49,13 +56,23 @@ UM = make_system("2", "microns", ["y", "x"])
 STAGE = make_system("3", "stage", ["y", "x"])
 
 
-def scale_t(id="t-scale", input=PIX, output=UM, scale=(0.5, 2.0)):
+def scale_t(
+    id: str = "t-scale",
+    input: CoordinateSystem = PIX,
+    output: CoordinateSystem = UM,
+    scale: tuple[float, ...] = (0.5, 2.0),
+) -> TransformationScaleTransformation:
     return TransformationScaleTransformation(
         id=id, kind="SCALE", version=0, input=input, output=output, scale=scale
     )
 
 
-def translation_t(id="t-trans", input=UM, output=STAGE, translation=(10.0, -5.0)):
+def translation_t(
+    id: str = "t-trans",
+    input: CoordinateSystem = UM,
+    output: CoordinateSystem = STAGE,
+    translation: tuple[float, ...] = (10.0, -5.0),
+) -> TransformationTranslationTransformation:
     return TransformationTranslationTransformation(
         id=id,
         kind="TRANSLATION",
@@ -66,7 +83,16 @@ def translation_t(id="t-trans", input=UM, output=STAGE, translation=(10.0, -5.0)
     )
 
 
-def part(kind, axes, to=None, *, scale=(), translation=(), affine=(), field=None):
+def part(
+    kind: str,
+    axes: Sequence[str],
+    to: Sequence[str] | None = None,
+    *,
+    scale: tuple[float, ...] = (),
+    translation: tuple[float, ...] = (),
+    affine: tuple[tuple[float, ...], ...] = (),
+    field: dict[str, object] | None = None,
+) -> TransformationPart:
     """One part as the wire spells it: every parameter present, the ones its kind does not read empty."""
     return TransformationPart(
         kind=kind,
@@ -79,7 +105,12 @@ def part(kind, axes, to=None, *, scale=(), translation=(), affine=(), field=None
     )
 
 
-def by_dimension_t(input, output, *parts_, id="t-dim"):
+def by_dimension_t(
+    input: CoordinateSystem,
+    output: CoordinateSystem,
+    *parts_: TransformationPart,
+    id: str = "t-dim",
+) -> TransformationByDimensionTransformation:
     """A BY_DIMENSION of `parts_`, the edge's own axes their concatenation."""
     return TransformationByDimensionTransformation(
         id=id,
@@ -93,7 +124,13 @@ def by_dimension_t(input, output, *parts_, id="t-dim"):
     )
 
 
-def field_part(field, consumed=("t",), produced=("t",), *, dereference=False):
+def field_part(
+    field: CoordinateSystem,
+    consumed: tuple[str, ...] = ("t",),
+    produced: tuple[str, ...] = ("t",),
+    *,
+    dereference: bool = False,
+) -> TransformationPart:
     """A FIELD part reading `consumed` from `field`'s array, giving `produced`."""
     return part(
         "FIELD",
@@ -108,20 +145,30 @@ def field_part(field, consumed=("t",), produced=("t",), *, dereference=False):
     )
 
 
-def step(kind, scale=(), translation=(), affine=()):
+def step(
+    kind: str,
+    scale: tuple[float, ...] = (),
+    translation: tuple[float, ...] = (),
+    affine: tuple[tuple[float, ...], ...] = (),
+) -> dict[str, object]:
     """One step of a SEQUENCE as the wire spells it: every parameter present, the ones
     its kind does not read empty."""
     return {"kind": kind, "scale": scale, "translation": translation, "affine": affine}
 
 
-def sequence_t(*steps, id="t-seq", input=PIX, output=UM):
+def sequence_t(
+    *steps: dict[str, object],
+    id: str = "t-seq",
+    input: CoordinateSystem = PIX,
+    output: CoordinateSystem = UM,
+) -> TransformationSequenceTransformation:
     return TransformationSequenceTransformation(
         id=id, kind="SEQUENCE", version=0, input=input, output=output, steps=steps
     )
 
 
 class TestTransformationMatrix:
-    def test_scale_matrix_and_apply(self):
+    def test_scale_matrix_and_apply(self) -> None:
         t = scale_t()
         expected = np.diag([0.5, 2.0, 1.0])
         assert np.allclose(t.as_matrix(), expected)
@@ -129,11 +176,11 @@ class TestTransformationMatrix:
         # single point keeps its shape
         assert np.allclose(t.apply([2.0, 3.0]), [1.0, 6.0])
 
-    def test_translation_matrix(self):
+    def test_translation_matrix(self) -> None:
         t = translation_t()
         assert np.allclose(t.apply([1.0, 1.0]), [11.0, -4.0])
 
-    def test_affine_matrix_with_translation_column(self):
+    def test_affine_matrix_with_translation_column(self) -> None:
         t = TransformationAffineTransformation(
             id="t-aff",
             kind="AFFINE",
@@ -146,7 +193,7 @@ class TestTransformationMatrix:
         assert matrix.shape == (3, 3)
         assert np.allclose(t.apply([1.0, 1.0]), [3.0, 2.0])
 
-    def test_rotation_square_matrix_heuristic(self):
+    def test_rotation_square_matrix_heuristic(self) -> None:
         # a square N x N orthonormal matrix (no translation column) — the
         # input system is selected, so the shape heuristic applies
         t = TransformationRotationTransformation(
@@ -162,7 +209,7 @@ class TestTransformationMatrix:
         assert np.allclose(matrix[:2, 2], [0.0, 0.0])
         assert np.allclose(t.apply([1.0, 0.0]), [0.0, 1.0])
 
-    def test_identity_needs_a_system(self):
+    def test_identity_needs_a_system(self) -> None:
         t = TransformationIdentityTransformation(
             id="t-id", kind="IDENTITY", version=0, input=PIX, output=PIX
         )
@@ -175,12 +222,12 @@ class TestTransformationMatrix:
         with pytest.raises(ValueError, match="dimensionality"):
             bare.as_matrix()
 
-    def test_inverse_round_trip(self):
+    def test_inverse_round_trip(self) -> None:
         t = scale_t()
         point = np.array([3.0, 7.0])
         assert np.allclose(t.apply_inverse(t.apply(point)), point)
 
-    def test_non_square_inverse_raises(self):
+    def test_non_square_inverse_raises(self) -> None:
         t = TransformationAffineTransformation(
             id="t-drop",
             kind="AFFINE",
@@ -192,7 +239,7 @@ class TestTransformationMatrix:
         with pytest.raises(ValueError, match="3 -> 2"):
             t.inverse_matrix()
 
-    def test_map_axis_permutation(self):
+    def test_map_axis_permutation(self) -> None:
         yx = make_system("5", "yx", ["y", "x"])
         xy = make_system("6", "xy", ["x", "y"])
         t = TransformationMapAxisTransformation(
@@ -206,7 +253,7 @@ class TestTransformationMatrix:
         )
         assert np.allclose(t.apply([1.0, 2.0]), [2.0, 1.0])
 
-    def test_map_axis_needs_systems(self):
+    def test_map_axis_needs_systems(self) -> None:
         t = TransformationMapAxisTransformation.model_construct(
             id="t-map2",
             kind="MAP_AXIS",
@@ -217,7 +264,7 @@ class TestTransformationMatrix:
         with pytest.raises(ValueError, match="coordinate systems"):
             t.as_matrix()
 
-    def test_a_sequence_composes_its_steps_first_to_last(self):
+    def test_a_sequence_composes_its_steps_first_to_last(self) -> None:
         """A pyramid level: a scale, then the half-voxel translation. Order matters --
         composed the other way round the offset would be scaled too."""
         seq = sequence_t(
@@ -226,31 +273,31 @@ class TestTransformationMatrix:
         assert np.allclose(seq.apply([1.0, 3.0]), [2.5, 6.5])
         assert np.allclose(seq.apply_inverse([2.5, 6.5]), [1.0, 3.0])
 
-    def test_a_sequence_step_may_be_an_affine_or_an_identity(self):
+    def test_a_sequence_step_may_be_an_affine_or_an_identity(self) -> None:
         seq = sequence_t(
             step("IDENTITY"),
             step("AFFINE", affine=((2.0, 0.0, 1.0), (0.0, 3.0, -1.0))),
         )
         assert np.allclose(seq.apply([1.0, 1.0]), [3.0, 2.0])
 
-    def test_a_sequence_without_steps_has_no_matrix(self):
+    def test_a_sequence_without_steps_has_no_matrix(self) -> None:
         with pytest.raises(ValueError, match="no steps"):
             sequence_t().as_matrix()
 
-    def test_unmappable_has_no_matrix(self):
+    def test_unmappable_has_no_matrix(self) -> None:
         unmappable = TransformationUnmappableTransformation(
             id="t-un", kind="UNMAPPABLE", version=0, input=PIX, output=UM
         )
         with pytest.raises(NotImplementedError, match="no matrix"):
             unmappable.as_matrix()
 
-    def test_wrong_point_dimension(self):
+    def test_wrong_point_dimension(self) -> None:
         with pytest.raises(ValueError, match="dimension"):
             scale_t().apply([1.0, 2.0, 3.0])
 
 
 class TestCoordinateSystemHelpers:
-    def test_axis_helpers(self):
+    def test_axis_helpers(self) -> None:
         system = CoordinateSystem(
             id="7",
             name="sys",
@@ -269,7 +316,7 @@ class TestCoordinateSystemHelpers:
 
 
 class TestCalibrateValidation:
-    def make_dataset(self, intrinsic):
+    def make_dataset(self, intrinsic: CoordinateSystem | None) -> ArrayDataset:
         from mikro.api.schema import ArrayDataset
 
         return ArrayDataset(
@@ -283,43 +330,43 @@ class TestCalibrateValidation:
             dataArrays=(),
         )
 
-    def test_requires_intrinsic_system(self):
+    def test_requires_intrinsic_system(self) -> None:
         with pytest.raises(ValueError, match="intrinsic"):
             self.make_dataset(None).calibrate(
                 {"y": Calibration(0.1, Unit("µm")), "x": Calibration(0.1, Unit("µm"))}
             )
 
-    def test_mapping_must_cover_every_axis(self):
+    def test_mapping_must_cover_every_axis(self) -> None:
         with pytest.raises(ValueError, match="every intrinsic axis"):
             self.make_dataset(PIX).calibrate({"y": Calibration(0.1, Unit("µm"))})
 
-    def test_list_form_needs_exactly_one_of_scale_or_affine(self):
+    def test_list_form_needs_exactly_one_of_scale_or_affine(self) -> None:
         with pytest.raises(ValueError, match="exactly"):
             self.make_dataset(PIX).calibrate([])
 
 
 class TestInferTransformKind:
-    def test_each_parameter_maps_to_its_kind(self):
+    def test_each_parameter_maps_to_its_kind(self) -> None:
         assert _infer_transform_kind(None, None, [[1.0, 0.0]], None)[0] == "AFFINE"
         assert _infer_transform_kind([1.0], None, None, None)[0] == "SCALE"
         assert _infer_transform_kind(None, [1.0], None, None)[0] == "TRANSLATION"
         assert _infer_transform_kind(None, None, None, ["x"])[0] == "MAP_AXIS"
         assert _infer_transform_kind(None, None, None, None)[0] == "IDENTITY"
 
-    def test_scale_and_translation_fold_into_affine(self):
+    def test_scale_and_translation_fold_into_affine(self) -> None:
         kind, scale, translation, affine = _infer_transform_kind(
             [2.0, 3.0], [1.0, -1.0], None, None
         )
         assert kind == "AFFINE" and scale is None and translation is None
         assert np.allclose(affine, [[2.0, 0.0, 1.0], [0.0, 3.0, -1.0]])
 
-    def test_affine_conflicts_with_scale(self):
+    def test_affine_conflicts_with_scale(self) -> None:
         with pytest.raises(ValueError, match="not both"):
             _infer_transform_kind([1.0], None, [[1.0]], None)
 
 
 class TestPathComposition:
-    def test_path_with_inverted_edge(self):
+    def test_path_with_inverted_edge(self) -> None:
         # PIX -> UM (scale), STAGE -> UM (translation): the path PIX -> STAGE
         # must traverse the second edge inverted.
         edges = [scale_t(), translation_t(input=STAGE, output=UM)]
@@ -332,7 +379,7 @@ class TestPathComposition:
         expected = np.linalg.inv(edges[1].as_matrix()) @ edges[0].as_matrix()
         assert np.allclose(matrix, expected)
 
-    def test_path_via_trait_with_prefetched_graph(self):
+    def test_path_via_trait_with_prefetched_graph(self) -> None:
         graph = SimpleNamespace(
             transformations=[scale_t(), translation_t(input=UM, output=STAGE)]
         )
@@ -343,12 +390,12 @@ class TestPathComposition:
         )
         assert np.allclose(matrix @ [2.0, 4.0, 1.0], [11.0, 3.0, 1.0])
 
-    def test_self_path_is_identity(self):
+    def test_self_path_is_identity(self) -> None:
         graph = SimpleNamespace(transformations=[])
         assert PIX.path_to(PIX, graph=graph) == []
         assert np.allclose(PIX.matrix_to(PIX, graph=graph), np.eye(3))
 
-    def test_unwalkable_edges_are_excluded(self):
+    def test_unwalkable_edges_are_excluded(self) -> None:
         far = make_system("9", "far", ["y", "x"])
         unmappable = TransformationUnmappableTransformation(
             id="t-un", kind="UNMAPPABLE", version=0, input=PIX, output=far
@@ -356,7 +403,7 @@ class TestPathComposition:
         with pytest.raises(ValueError, match="No composable transformation path"):
             _bfs_path([unmappable], "1", "9")
 
-    def test_a_sequence_is_walkable_when_every_step_has_a_matrix(self):
+    def test_a_sequence_is_walkable_when_every_step_has_a_matrix(self) -> None:
         seq = sequence_t(
             step("SCALE", scale=(2.0, 2.0)), step("TRANSLATION", translation=(0.5, 0.5))
         )
@@ -367,7 +414,7 @@ class TestPathComposition:
             PIX.transform_points_to(UM, [1.0, 3.0], graph=graph), [2.5, 6.5]
         )
 
-    def test_a_placing_field_is_walked_forwards_and_leaves_its_axes_out(self):
+    def test_a_placing_field_is_walked_forwards_and_leaves_its_axes_out(self) -> None:
         """A FIELD timing a movie: t is the array's, y and x pass through -- forwards only."""
         movie = make_system("30", "movie", ["t", "y", "x"])
         world = make_system("31", "world", ["t", "y", "x"])
@@ -388,7 +435,7 @@ class TestPathComposition:
         with pytest.raises(ValueError, match="No composable"):
             _bfs_path([timed], "31", "30")
 
-    def test_a_key_is_never_walked(self):
+    def test_a_key_is_never_walked(self) -> None:
         """A mask's ids land on an INDEX axis: a key, which places nothing."""
         mask = make_system("33", "mask", ["y", "x"])
         objects = make_system("34", "objects", ["i"])
@@ -401,7 +448,7 @@ class TestPathComposition:
         with pytest.raises(ValueError, match="No composable"):
             _bfs_path([key], "33", "34")
 
-    def test_dimension_mismatch_names_the_edge(self):
+    def test_dimension_mismatch_names_the_edge(self) -> None:
         zyx = make_system("8", "zyx", ["z", "y", "x"])
         bad = scale_t(id="t-bad", input=UM, output=zyx, scale=(1.0, 1.0, 1.0))
         steps = [PathStep(scale_t(), False), PathStep(bad, False)]
@@ -418,7 +465,7 @@ GRID = make_system("22", "pixels", ["c", "z", "y", "x"])
 CROP = make_system("23", "crop", ["c", "z", "y", "x"])
 
 
-def scene_graph():
+def scene_graph() -> SimpleNamespace:
     return SimpleNamespace(
         transformations=[
             by_dimension_t(
@@ -433,7 +480,7 @@ def scene_graph():
 
 
 class TestByDimensionComposition:
-    def test_a_by_dimension_edge_is_walkable_both_ways(self):
+    def test_a_by_dimension_edge_is_walkable_both_ways(self) -> None:
         edge = by_dimension_t(DRAWING, WORLD, part("IDENTITY", ["z", "y", "x"]))
         assert [
             (s.transformation.id, s.inverted) for s in _bfs_path([edge], "20", "21")
@@ -442,7 +489,7 @@ class TestByDimensionComposition:
             (s.transformation.id, s.inverted) for s in _bfs_path([edge], "21", "20")
         ] == [("t-dim", True)]
 
-    def test_a_shape_drawn_in_a_scene_lands_on_the_voxels_of_a_crop(self):
+    def test_a_shape_drawn_in_a_scene_lands_on_the_voxels_of_a_crop(self) -> None:
         # (z, y, x) = (10, 8, 12) um -> voxel (5, 16, 24) -> (2, 6, 4) of the crop.
         points = [[10.0, 8.0, 12.0], [8.0, 5.0, 10.0]]
         on_crop = DRAWING.transform_points_to(
@@ -457,20 +504,20 @@ class TestByDimensionComposition:
             [4.0, 2.0],
         )
 
-    def test_the_map_states_only_the_axes_the_path_states(self):
+    def test_the_map_states_only_the_axes_the_path_states(self) -> None:
         mapped = DRAWING.axis_map_to(CROP, graph=scene_graph())
         assert mapped.input_axes == ("z", "y", "x")
         assert mapped.output_axes == ("z", "y", "x")
         with pytest.raises(ValueError, match="nothing about \\['c'\\]"):
             mapped.apply([1.0, 2.0, 3.0], output_axes=("c", "z"))
 
-    def test_an_unstated_axis_has_no_matrix(self):
+    def test_an_unstated_axis_has_no_matrix(self) -> None:
         with pytest.raises(ValueError, match="'c'"):
             DRAWING.matrix_to(CROP, graph=scene_graph())
         with pytest.raises(ValueError, match="'c'"):
             DRAWING.transform_points_to(CROP, [1.0, 2.0, 3.0], graph=scene_graph())
 
-    def test_walked_the_other_way_the_channel_is_simply_not_read(self):
+    def test_walked_the_other_way_the_channel_is_simply_not_read(self) -> None:
         # Crop voxels -> drawing space: every drawing axis is stated, c is let go.
         back = CROP.axis_map_to(DRAWING, graph=scene_graph())
         assert back.output_axes == ("z", "y", "x")
@@ -483,7 +530,7 @@ class TestByDimensionComposition:
             [10.0, 8.0, 12.0, 1.0],
         )
 
-    def test_points_that_lack_an_axis_the_answer_reads_are_refused(self):
+    def test_points_that_lack_an_axis_the_answer_reads_are_refused(self) -> None:
         back = CROP.axis_map_to(DRAWING, graph=scene_graph())
         with pytest.raises(ValueError, match="depend on 'z'"):
             back.apply([6.0, 4.0], input_axes=("y", "x"))
@@ -492,7 +539,7 @@ class TestByDimensionComposition:
             [8.0, 12.0],
         )
 
-    def test_scale_and_translation_apply_to_the_named_axes_in_that_order(self):
+    def test_scale_and_translation_apply_to_the_named_axes_in_that_order(self) -> None:
         yx = make_system("30", "plane", ["y", "x"])
         edge = by_dimension_t(
             yx,
@@ -507,7 +554,7 @@ class TestByDimensionComposition:
         back = WORLD.axis_map_to(yx, graph=graph)
         assert np.allclose(back.apply([7.0, 19.0], input_axes=("y", "x")), [3.0, 5.0])
 
-    def test_an_affine_is_written_over_the_named_axes_and_may_rename_them(self):
+    def test_an_affine_is_written_over_the_named_axes_and_may_rename_them(self) -> None:
         uv = make_system("31", "sheared", ["u", "v"])
         edge = by_dimension_t(
             uv,
@@ -528,8 +575,8 @@ class TestByDimensionComposition:
         back = WORLD.axis_map_to(uv, graph=graph)
         assert np.allclose(back.apply([8.0, 9.0], input_axes=("y", "x")), [3.0, 4.0])
 
-    def test_an_axis_passed_through_is_converted_between_its_two_units(self):
-        def with_units(id, unit):
+    def test_an_axis_passed_through_is_converted_between_its_two_units(self) -> None:
+        def with_units(id: str, unit: str) -> CoordinateSystem:
             return CoordinateSystem(
                 id=id,
                 name=id,
@@ -557,7 +604,7 @@ class TestByDimensionComposition:
         )
 
 
-def make_dataset(axis_names):
+def make_dataset(axis_names: Sequence[str]) -> ArrayDataset:
     from mikro.api.schema import ArrayDataset
 
     return ArrayDataset(
@@ -572,7 +619,7 @@ def make_dataset(axis_names):
     )
 
 
-def make_scene(world_axes=("t", "z", "y", "x")):
+def make_scene(world_axes: Sequence[str] = ("t", "z", "y", "x")) -> Scene:
     from mikro.api.schema import Scene
 
     return Scene(
@@ -583,6 +630,21 @@ def make_scene(world_axes=("t", "z", "y", "x")):
         backgroundColor=None,
         worldCoordinateSystem=make_system("w", "world", list(world_axes)),
     )
+
+
+class _Registration(TypedDict):
+    """What `register` sent to `create_transformation`, as far as the tests read it."""
+
+    input: object
+    output: object
+    transform: ByDimensionTransformInput
+
+
+class _SpaceCreated(TypedDict):
+    """What a space helper sent to `create_coordinate_system`, as far as the tests read it."""
+
+    axes: list[PhysicalAxisInput]
+    epoch: object
 
 
 class TestRegister:
@@ -597,10 +659,15 @@ class TestRegister:
     coordinate system.
     """
 
-    def register(self, source, world_axes=("t", "z", "y", "x"), **offsets):
-        seen = {}
+    def register(
+        self,
+        source: Registrable,
+        world_axes: Sequence[str] = ("t", "z", "y", "x"),
+        **offsets: Any,
+    ) -> _Registration:
+        seen: dict[str, object] = {}
 
-        def fake(**kwargs):
+        def fake(**kwargs: object) -> str:
             seen.update(kwargs)
             return "edge"
 
@@ -608,12 +675,23 @@ class TestRegister:
         make_system("w", "world", list(world_axes)).register(
             source, mikro=client, **offsets
         )
-        return seen
+        transform = seen["transform"]
+        assert isinstance(transform, ByDimensionTransformInput)
+        return {
+            "input": seen["input"],
+            "output": seen["output"],
+            "transform": transform,
+        }
 
-    def place(self, dataset_axes, world_axes=("t", "z", "y", "x"), **offsets):
+    def place(
+        self,
+        dataset_axes: Sequence[str],
+        world_axes: Sequence[str] = ("t", "z", "y", "x"),
+        **offsets: float,
+    ) -> _Registration:
         return self.register(make_dataset(dataset_axes), world_axes, **offsets)
 
-    def test_channel_axis_is_not_placed_in_the_world(self):
+    def test_channel_axis_is_not_placed_in_the_world(self) -> None:
         transform = self.place(["c", "y", "x"])["transform"]
         assert transform.kind == "BY_DIMENSION"
         (shared,) = transform.parts
@@ -623,29 +701,29 @@ class TestRegister:
             ("y", "x"),
         ), "no numbers: the same positions, said twice"
 
-    def test_offsets_are_positional_against_the_named_axes(self):
+    def test_offsets_are_positional_against_the_named_axes(self) -> None:
         (shared,) = self.place(["z", "y", "x"], x=288.0, y=144.0)["transform"].parts
         assert (shared.kind, shared.input_axes) == ("TRANSLATION", ("z", "y", "x"))
         assert shared.translation == (0.0, 144.0, 288.0)
 
-    def test_matching_axes_name_all_of_them(self):
+    def test_matching_axes_name_all_of_them(self) -> None:
         (shared,) = self.place(["t", "z", "y", "x"])["transform"].parts
         assert shared.input_axes == ("t", "z", "y", "x")
 
-    def test_no_shared_axes_is_refused(self):
+    def test_no_shared_axes_is_refused(self) -> None:
         with pytest.raises(ValueError, match="share"):
             self.place(["y", "x"], world_axes=("a", "b"))
 
-    def test_offset_along_an_unshared_axis_is_refused(self):
+    def test_offset_along_an_unshared_axis_is_refused(self) -> None:
         with pytest.raises(ValueError, match="nowhere to land"):
             self.place(["c", "y", "x"], c=1.0)
 
-    def test_the_edge_sets_out_from_the_source_space_into_this_one(self):
+    def test_the_edge_sets_out_from_the_source_space_into_this_one(self) -> None:
         seen = self.place(["z", "y", "x"])
         assert seen["input"] == "i"
         assert seen["output"] == "w"
 
-    def test_a_source_that_names_its_space_coordinate_system(self):
+    def test_a_source_that_names_its_space_coordinate_system(self) -> None:
         """A table dataset, a mesh collection and an annotation collection call
         their space `coordinate_system`, not `intrinsic_system`."""
         table = SimpleNamespace(
@@ -656,11 +734,11 @@ class TestRegister:
         assert seen["input"] == "tbl"
         assert seen["transform"].parts[0].input_axes == ("y", "x")
 
-    def test_a_coordinate_system_registers_directly(self):
+    def test_a_coordinate_system_registers_directly(self) -> None:
         seen = self.register(make_system("stage", "stage", ["y", "x"]))
         assert seen["input"] == "stage"
 
-    def test_a_source_with_no_space_is_refused(self):
+    def test_a_source_with_no_space_is_refused(self) -> None:
         with pytest.raises(ValueError, match="no coordinate system"):
             self.register(SimpleNamespace(name="nowhere"))
 
@@ -672,11 +750,14 @@ class TestRegisterScale:
     thing worth pinning down is that they stay aligned with each other."""
 
     def register(
-        self, world_axes=("z", "y", "x"), dataset_axes=("c", "z", "y", "x"), **kw
-    ):
-        seen = {}
+        self,
+        world_axes: Sequence[str] = ("z", "y", "x"),
+        dataset_axes: Sequence[str] = ("c", "z", "y", "x"),
+        **kw: Any,
+    ) -> ByDimensionTransformInput:
+        seen: dict[str, object] = {}
 
-        def fake(**kwargs):
+        def fake(**kwargs: object) -> str:
             seen.update(kwargs)
             return "edge"
 
@@ -684,9 +765,11 @@ class TestRegisterScale:
         make_system("w", "world", list(world_axes)).register(
             make_dataset(dataset_axes), mikro=client, **kw
         )
-        return seen["transform"]
+        transform = seen["transform"]
+        assert isinstance(transform, ByDimensionTransformInput)
+        return transform
 
-    def test_scale_and_translation_line_up_with_the_named_axes(self):
+    def test_scale_and_translation_line_up_with_the_named_axes(self) -> None:
         """Both at once are one diagonal AFFINE part: the scale on the diagonal, the offset last."""
         transform = self.register(scale={"z": 1.0, "y": 0.2, "x": 0.2}, x=10.0)
         assert transform.kind == "BY_DIMENSION"
@@ -698,24 +781,24 @@ class TestRegisterScale:
             (0.0, 0.0, 0.2, 10.0),
         )
 
-    def test_an_unnamed_axis_scales_by_one(self):
+    def test_an_unnamed_axis_scales_by_one(self) -> None:
         (shared,) = self.register(scale={"x": 0.2}).parts
         assert (shared.kind, shared.scale) == ("SCALE", (1.0, 1.0, 0.2))
 
-    def test_a_sequence_is_positional_against_the_shared_axes(self):
+    def test_a_sequence_is_positional_against_the_shared_axes(self) -> None:
         assert self.register(scale=[1.0, 0.2, 0.2]).parts[0].scale == (1.0, 0.2, 0.2)
 
-    def test_a_sequence_of_the_wrong_length_is_refused(self):
+    def test_a_sequence_of_the_wrong_length_is_refused(self) -> None:
         # Sized to the dataset's four axes, but the edge acts on the three shared
         # ones — the mistake a rank check against the source would wave through.
         with pytest.raises(ValueError, match="shared axes"):
             self.register(scale=[1.0, 1.0, 0.2, 0.2])
 
-    def test_scaling_an_unshared_axis_is_refused(self):
+    def test_scaling_an_unshared_axis_is_refused(self) -> None:
         with pytest.raises(ValueError, match="nowhere to land"):
             self.register(scale={"c": 2.0})
 
-    def test_the_channel_axis_is_simply_not_claimed(self):
+    def test_the_channel_axis_is_simply_not_claimed(self) -> None:
         """A physical world has no business naming a channel axis, and
         BY_DIMENSION is what lets it stay silent about one."""
         (shared,) = self.register(scale={"z": 1.0, "y": 0.2, "x": 0.2}).parts
@@ -727,17 +810,21 @@ class TestSpaceHelpers:
     """The helpers only build the space. Where data sits in it is a separate
     edge, authored by `register`."""
 
-    def create(self, fn, *args, **kwargs):
-        seen = {}
+    def create(
+        self, fn: Callable[..., object], *args: object, **kwargs: object
+    ) -> _SpaceCreated:
+        seen: dict[str, object] = {}
 
-        def fake(**call):
+        def fake(**call: object) -> str:
             seen.update(call)
             return "space"
 
         fn(SimpleNamespace(create_coordinate_system=fake), *args, **kwargs)
-        return seen
+        axes = seen["axes"]
+        assert isinstance(axes, list)
+        return {"axes": axes, "epoch": seen["epoch"]}
 
-    def test_space_3d_is_zyx_in_one_length_unit(self):
+    def test_space_3d_is_zyx_in_one_length_unit(self) -> None:
         from mikro import space_3d
 
         axes = self.create(space_3d, "stage", unit=Unit("micrometer"))["axes"]
@@ -745,13 +832,13 @@ class TestSpaceHelpers:
         assert {str(a.unit) for a in axes} == {"micrometer"}
         assert {str(a.type) for a in axes} == {"SPACE"}
 
-    def test_space_2d_is_yx(self):
+    def test_space_2d_is_yx(self) -> None:
         from mikro import space_2d
 
         axes = self.create(space_2d, "slide")["axes"]
         assert [a.name for a in axes] == ["y", "x"]
 
-    def test_a_time_axis_sorts_ahead_of_the_spatial_ones(self):
+    def test_a_time_axis_sorts_ahead_of_the_spatial_ones(self) -> None:
         """RFC-5 orders axes by type, and the array's dimension order IS that
         order — a space whose axes disagree describes a different array."""
         from mikro import timelapse_3d
@@ -765,7 +852,7 @@ class TestSpaceHelpers:
         # how the generated layer spells "omitted" — it never reaches the wire.
         assert seen["epoch"] is UNSET
 
-    def test_create_space_infers_the_axis_type_from_the_name(self):
+    def test_create_space_infers_the_axis_type_from_the_name(self) -> None:
         from mikro import create_space
 
         axes = self.create(
@@ -781,7 +868,7 @@ class TestSpaceHelpers:
         assert [a.name for a in axes] == ["t", "c", "x"]
         assert [str(a.type) for a in axes] == ["TIME", "CHANNEL", "SPACE"]
 
-    def test_a_space_needs_at_least_one_axis(self):
+    def test_a_space_needs_at_least_one_axis(self) -> None:
         from mikro import create_space
 
         with pytest.raises(ValueError, match="at least one axis"):
@@ -791,15 +878,15 @@ class TestSpaceHelpers:
 class TestSceneIsNotASpace:
     """A scene composes; it does not place. The edge belongs to the world."""
 
-    def test_place_points_at_the_world(self):
+    def test_place_points_at_the_world(self) -> None:
         with pytest.raises(AttributeError, match=r"scene\.world\.register"):
             make_scene().place(make_dataset(["z", "y", "x"]))
 
-    def test_grid_cell_points_at_the_world(self):
+    def test_grid_cell_points_at_the_world(self) -> None:
         with pytest.raises(AttributeError, match=r"scene\.world\.grid_cell"):
             make_scene().grid_cell(make_dataset(["z", "y", "x"]), 0, 2, 8.0)
 
-    def test_the_world_is_read_straight_off_the_scene(self):
+    def test_the_world_is_read_straight_off_the_scene(self) -> None:
         assert make_scene().world.name == "world"
 
 
@@ -807,10 +894,10 @@ class TestStage:
     """A scene is obtained *from* a space: it adopts the system as its world and
     authors no edges."""
 
-    def stage(self, **kwargs):
-        seen = {}
+    def stage(self, **kwargs: Any) -> dict[str, object]:
+        seen: dict[str, object] = {}
 
-        def fake(**call):
+        def fake(**call: object) -> str:
             seen.update(call)
             return "scene"
 
@@ -818,10 +905,10 @@ class TestStage:
         make_system("w", "world", ["y", "x"]).stage(mikro=client, **kwargs)
         return seen
 
-    def test_the_space_is_the_scenes_world(self):
+    def test_the_space_is_the_scenes_world(self) -> None:
         assert self.stage()["coordinate_system"] == "w"
 
-    def test_an_omitted_policy_leaves_every_choice_to_the_server(self):
+    def test_an_omitted_policy_leaves_every_choice_to_the_server(self) -> None:
         """Nothing set means nothing serialized, so the server applies its own
         defaults rather than a client-side copy of them going stale.
 
@@ -843,7 +930,7 @@ class TestStage:
         ).model_dump(by_alias=True, exclude_unset=True)
         assert variables == {"input": {"coordinateSystem": "w", "policy": {}}}
 
-    def test_an_omitted_name_is_not_sent_as_null(self):
+    def test_an_omitted_name_is_not_sent_as_null(self) -> None:
         assert self.stage()["name"] is UNSET
         assert self.stage(name="overview")["name"] == "overview"
 
@@ -852,20 +939,20 @@ class TestUnregister:
     """The kind of the source is named, never inferred: the models carry no
     __typename, so a guess could be silently wrong."""
 
-    def test_naming_no_source_is_refused(self):
+    def test_naming_no_source_is_refused(self) -> None:
         with pytest.raises(ValueError, match="exactly one source"):
             make_system("w", "world", ["y", "x"]).unregister()
 
-    def test_naming_two_sources_is_refused(self):
+    def test_naming_two_sources_is_refused(self) -> None:
         with pytest.raises(ValueError, match="exactly one source"):
             make_system("w", "world", ["y", "x"]).unregister(
                 dataset="d", table_dataset="t"
             )
 
-    def test_the_named_source_is_passed_with_this_space_as_the_world(self):
-        seen = {}
+    def test_the_named_source_is_passed_with_this_space_as_the_world(self) -> None:
+        seen: dict[str, object] = {}
 
-        def fake(**kwargs):
+        def fake(**kwargs: object) -> tuple[()]:
             seen.update(kwargs)
             return ()
 

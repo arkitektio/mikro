@@ -349,7 +349,7 @@ def rgb_graph(
                 clim_max=clim_max,
                 mode=mode,
             )
-            for lens, color in zip(lenses, colors)
+            for lens, color in zip(lenses, colors, strict=True)
         ]
     )
 

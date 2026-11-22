@@ -7,6 +7,8 @@ selection and the ``ScaleMethod`` provenance are all decided client-side, which
 is exactly why they are worth pinning down without a server.
 """
 
+from collections.abc import Sequence
+
 import dask.array as da
 import numpy as np
 import pytest
@@ -18,7 +20,7 @@ from mikro.vocabulary import UnknownAxisName
 
 
 def _volume(
-    dims: list[str] = ["c", "z", "y", "x"], dtype: str = "uint16"
+    dims: Sequence[str] = ("c", "z", "y", "x"), dtype: str = "uint16"
 ) -> xr.DataArray:
     """A small labelled volume; every axis is big enough to halve three times."""
     shape = tuple(2 if dim == "c" else 8 for dim in dims)
@@ -210,7 +212,7 @@ def test_build_pyramid_materialized_levels_match_the_lazy_ones() -> None:
     eager = build_pyramid(lazy, levels=3, method="mean", materialize=False)
     materialized = build_pyramid(lazy, levels=3, method="mean", materialize=True)
 
-    for expected, actual in zip(eager, materialized):
+    for expected, actual in zip(eager, materialized, strict=True):
         np.testing.assert_allclose(np.asarray(expected), np.asarray(actual))
 
 

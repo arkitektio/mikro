@@ -14,18 +14,21 @@ No deployment: a local socket plays the store (or the proxy) and answers 404.
 
 import socket
 import threading
+from collections.abc import Iterator
 from types import SimpleNamespace
-from typing import Any
 
 import obstore
 import pytest
 from fakts import Alias
 from rath.links.aiohttp import AIOHttpLink
+from rath.links.compose import ComposedLink
 from rath.links.graphql_ws import GraphQLWSLink
+from rath.links.split import SplitLink
 
 import mikro.arkitekt.service as mikro_arkitekt
 from mikro.datalayer import DataLayer
 from mikro.io.obstore import acreate_s3_store, create_s3_store
+from mikro.mikro import Mikro
 
 GRANT = SimpleNamespace(
     access_key="access",
@@ -85,7 +88,7 @@ class Answer404:
 
 
 @pytest.fixture()
-def endpoint() -> Any:
+def endpoint() -> Iterator[Answer404]:
     server = Answer404()
     yield server
     server.close()
@@ -168,8 +171,13 @@ def _alias(proxy: str | None = None) -> Alias:
     return Alias(id="a", host="mesh-host", port=9000, proxy=proxy)
 
 
-def _links(client: Any) -> tuple[Any, Any]:
-    split = client.rath.link.links[-1]
+def _links(client: Mikro) -> tuple[AIOHttpLink, GraphQLWSLink]:
+    link = client.rath.link
+    assert isinstance(link, ComposedLink)
+    split = link.links[-1]
+    assert isinstance(split, SplitLink)
+    assert isinstance(split.left, AIOHttpLink)
+    assert isinstance(split.right, GraphQLWSLink)
     return split.left, split.right
 
 

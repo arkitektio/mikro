@@ -296,7 +296,7 @@ class StubRath:
 
     def query(
         self, document: str, variables: dict[str, Any], **_: Any
-    ) -> SimpleNamespace:  # noqa: ANN401
+    ) -> SimpleNamespace:
         """Answer by which mutation was asked for, the way the server would."""
         self.documents.append(document)
         self.variables.append(variables)

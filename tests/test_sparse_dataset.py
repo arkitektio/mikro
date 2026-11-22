@@ -46,12 +46,14 @@ pytest.importorskip(
 import scipy.sparse as sp
 
 
-def matrix(rows: int = 20, columns: int = 5):
+def matrix(rows: int = 20, columns: int = 5) -> sp.csr_matrix:
     """A small CSR matrix -- the accept surface `SporadikLike` is built for."""
     return sp.random(rows, columns, density=0.3, format="csr")
 
 
-def axis(name: str, *identifications) -> SparseAxisInput:
+def axis(
+    name: str, *identifications: DatasetIdentifiesInput | TableIdentifiesInput
+) -> SparseAxisInput:
     """One declared axis."""
     return SparseAxisInput(name=name, identified_by=list(identifications))
 
@@ -66,7 +68,7 @@ def referenced(identifier: str = "2") -> TableIdentifiesInput:
     return TableIdentifiesInput(table=identifier)
 
 
-def test_the_declaration_every_ingest_script_writes_is_accepted():
+def test_the_declaration_every_ingest_script_writes_is_accepted() -> None:
     """Objects keyed by a mask, features referenced by a table, two layouts on one store."""
     counts = matrix()
     declared = CreateSparseDatasetInput(
@@ -78,7 +80,9 @@ def test_the_declaration_every_ingest_script_writes_is_accepted():
     assert sorted(declared.store.layouts) == [0, 1]
 
 
-def test_a_declaration_that_disagrees_with_the_matrix_is_refused_before_the_upload():
+def test_a_declaration_that_disagrees_with_the_matrix_is_refused_before_the_upload() -> (
+    None
+):
     """The refusal the server cannot make first, and the one that is otherwise silent.
 
     It fires at input construction -- before `UploadMiddleware` runs -- which on a matrix
@@ -96,7 +100,7 @@ def test_a_declaration_that_disagrees_with_the_matrix_is_refused_before_the_uplo
         )
 
 
-def test_a_matrix_nothing_keys_is_refused():
+def test_a_matrix_nothing_keys_is_refused() -> None:
     """Legal to pydantic, useless in fact: no FIELD edge, so no layer can reach it."""
     with pytest.raises(ValidationError, match="nothing keys this matrix"):
         CreateSparseDatasetInput(
@@ -106,7 +110,7 @@ def test_a_matrix_nothing_keys_is_refused():
         )
 
 
-def test_a_bare_identification_says_to_write_a_list():
+def test_a_bare_identification_says_to_write_a_list() -> None:
     """The error pydantic gives on its own names ``('kind', 'DATASET')`` and nothing useful.
 
     A `BaseModel` iterates as ``(field, value)`` pairs, so handing one to a `tuple[...]` field
@@ -119,13 +123,13 @@ def test_a_bare_identification_says_to_write_a_list():
         SparseAxisInput(name="object", identifiedBy=keyed())
 
 
-def test_an_axis_identifying_nothing_is_refused_at_the_axis():
+def test_an_axis_identifying_nothing_is_refused_at_the_axis() -> None:
     """One line earlier than the mutation, which is where the mistake is made."""
     with pytest.raises(ValidationError, match="is empty"):
         SparseAxisInput(name="object", identified_by=[])
 
 
-def test_a_store_that_is_not_a_matrix_is_left_to_the_scalar():
+def test_a_store_that_is_not_a_matrix_is_left_to_the_scalar() -> None:
     """The trait defers rather than inventing a second opinion about the store.
 
     `SporadikLike.validate` owns "is this a matrix at all", and says so in its own words --
@@ -140,13 +144,13 @@ def test_a_store_that_is_not_a_matrix_is_left_to_the_scalar():
         )
 
 
-def test_a_qualitative_colormap_is_refused_on_a_sparse_colouring():
+def test_a_qualitative_colormap_is_refused_on_a_sparse_colouring() -> None:
     """A slice is a value per object, and nothing stores categories sparsely."""
     with pytest.raises(ValidationError, match="qualitative"):
         SparseColorByInput(kind="SPARSE", lens="1", colormap=ColorMap.DISTINCT)
 
 
-def test_the_colour_rule_survives_the_discriminated_union():
+def test_the_colour_rule_survives_the_discriminated_union() -> None:
     """The trait must fire through ``LabelColorByInput``, not only on direct construction.
 
     ``SparseColorByInput`` is the first input here to carry a trait *and* be a member of a
@@ -160,7 +164,7 @@ def test_the_colour_rule_survives_the_discriminated_union():
         )
 
 
-def test_an_inverted_window_is_refused_but_a_degenerate_one_is_not():
+def test_an_inverted_window_is_refused_but_a_degenerate_one_is_not() -> None:
     """Never stricter than the server: ``min == max`` is legal there, so it is legal here."""
     with pytest.raises(ValidationError, match="inverted"):
         SparseColorByInput(kind="SPARSE", lens="1", min=5.0, max=1.0)
@@ -168,7 +172,7 @@ def test_an_inverted_window_is_refused_but_a_degenerate_one_is_not():
 
 
 class _Window:
-    def __init__(self, axis_name: str, low: float | None, high: float | None):
+    def __init__(self, axis_name: str, low: float | None, high: float | None) -> None:
         self.axis, self.min, self.max = axis_name, low, high
 
 
@@ -186,11 +190,11 @@ class _SparseLens:
     spec = (SparseDatasetSpec.VECTOR, SparseDatasetSpec.SLICE)
 
 
-def test_a_slice_is_accepted_and_names_its_lens():
+def test_a_slice_is_accepted_and_names_its_lens() -> None:
     assert sparse_color_by(_SparseLens()).lens == "7"
 
 
-def test_a_lens_that_is_not_a_slice_is_refused():
+def test_a_lens_that_is_not_a_slice_is_refused() -> None:
     """The server answers "can a picker read this" as one member of the lens' spec.
 
     Reading that answer, rather than re-deriving it from the windows, is what keeps this from
@@ -212,7 +216,7 @@ def test_a_lens_that_is_not_a_slice_is_refused():
         sparse_color_by(Whole())
 
 
-def test_an_id_or_a_lens_without_a_spec_defers_instead_of_refusing():
+def test_an_id_or_a_lens_without_a_spec_defers_instead_of_refusing() -> None:
     """Guarded by field, not by type.
 
     A bare id, or a lens read through a selection that does not carry `spec`, cannot answer
@@ -226,7 +230,7 @@ def test_an_id_or_a_lens_without_a_spec_defers_instead_of_refusing():
     assert sparse_color_by(Bare()).lens == "7"
 
 
-def test_two_colourings_through_one_lens_are_one_entry():
+def test_two_colourings_through_one_lens_are_one_entry() -> None:
     """A SPARSE entry's source is its lens, which is what the server keys its duplicate check on."""
     with pytest.raises(ValueError, match="renders identically"):
         label_render([sparse_color_by("1"), sparse_color_by("1", label="again")])
@@ -238,10 +242,10 @@ def test_two_colourings_through_one_lens_are_one_entry():
 class _Client:
     """Stands in for the client: records the one mutation `lens()` sends."""
 
-    def __init__(self):
-        self.sent = None
+    def __init__(self) -> None:
+        self.sent: dict[str, object] | None = None
 
-    def create_sparse_lens(self, **kwargs):
+    def create_sparse_lens(self, **kwargs: object) -> "_SparseLens":
         self.sent = kwargs
         return _SparseLens()
 
@@ -255,7 +259,7 @@ class _SparseDataset(SparseDatasetTrait):
     shape = (1000, 300)
 
 
-def test_a_pinned_position_is_a_window_whose_min_is_its_max():
+def test_a_pinned_position_is_a_window_whose_min_is_its_max() -> None:
     """`createSparseLens(windows:)` has no "position" of its own: a pin is `min == max`."""
     client = _Client()
     _SparseDataset().lens(client, gene=7)
@@ -264,25 +268,25 @@ def test_a_pinned_position_is_a_window_whose_min_is_its_max():
     assert (window.axis, window.min, window.max) == ("gene", 7.0, 7.0)
 
 
-def test_no_windows_is_the_whole_lens():
+def test_no_windows_is_the_whole_lens() -> None:
     client = _Client()
     _SparseDataset().lens(client)
     assert client.sent["windows"] == []
 
 
-def test_a_range_keeps_an_open_side_open():
+def test_a_range_keeps_an_open_side_open() -> None:
     client = _Client()
     _SparseDataset().lens(client, gene=(10, None))
     (window,) = client.sent["windows"]
     assert (window.min, window.max) == (10.0, None)
 
 
-def test_a_position_outside_the_matrix_is_refused():
+def test_a_position_outside_the_matrix_is_refused() -> None:
     """A position is a row of the table that axis references, not an id of its own."""
     with pytest.raises(ValueError, match=r"outside 0\.\.299"):
         _SparseDataset().lens(_Client(), gene=5000)
 
 
-def test_an_axis_the_matrix_does_not_have_is_refused():
+def test_an_axis_the_matrix_does_not_have_is_refused() -> None:
     with pytest.raises(ValueError, match="Invalid axis 'nonexistent'"):
         _SparseDataset().lens(_Client(), nonexistent=1)

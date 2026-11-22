@@ -180,7 +180,7 @@ def raw_movie(obs: pd.DataFrame) -> xr.DataArray:
 
     movie = np.zeros((FRAMES, *CAM_SHAPE), dtype=np.float64)
     for frame, yc, xc, n_ph in zip(
-        obs["frame"], obs["y"] / CAM_PX, obs["x"] / CAM_PX, obs["photons"]
+        obs["frame"], obs["y"] / CAM_PX, obs["x"] / CAM_PX, obs["photons"], strict=True
     ):
         iy, ix = int(round(yc)), int(round(xc))
         gy = np.exp(-((win + iy - yc) ** 2) / (2 * sigma_px**2))

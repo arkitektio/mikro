@@ -5,6 +5,7 @@ a client passed explicitly. mikro knows nothing about
 apps beyond that. Passed or current, it is asked the same question.
 """
 
+from collections.abc import Awaitable, Callable
 from types import SimpleNamespace
 from typing import Any
 
@@ -13,6 +14,7 @@ from pydantic import BaseModel, ConfigDict
 
 from mikro.datalayer import DataLayer
 from mikro.errors import NoMikroFound
+from mikro.middleware.base import OperationMiddleware
 from mikro.mikro import TASK_HEADER, Mikro
 from mikro.traits import HasDownloadAccessor, HasZarrStoreAccessor, MikroFetchable
 
@@ -20,26 +22,32 @@ from mikro.traits import HasDownloadAccessor, HasZarrStoreAccessor, MikroFetchab
 class FakeRath:
     """Answers every query with the same canned store, and remembers being asked."""
 
-    middlewares: list[Any] = []
+    middlewares: list[OperationMiddleware] = []
 
     def __init__(self, name: str) -> None:
         self.name = name
         self.calls = 0
 
-    def _answer(self) -> Any:
+    def _answer(self) -> SimpleNamespace:
         self.calls += 1
         return SimpleNamespace(
             data={"store": {"id": "store-1", "nested": {"id": "n-1"}}}
         )
 
     def query(
-        self, document: str, variables: dict[str, Any], headers: Any = None
-    ) -> Any:
+        self,
+        document: str,
+        variables: dict[str, Any],
+        headers: dict[str, Any] | None = None,
+    ) -> SimpleNamespace:
         return self._answer()
 
     async def aquery(
-        self, document: str, variables: dict[str, Any], headers: Any = None
-    ) -> Any:
+        self,
+        document: str,
+        variables: dict[str, Any],
+        headers: dict[str, Any] | None = None,
+    ) -> SimpleNamespace:
         return self._answer()
 
 
@@ -53,7 +61,7 @@ class FakeApp:
         # A real client over fakes: `client_of` only follows an origin that is one.
         self.mikro = Mikro.model_construct(rath=self.rath, datalayer=self.datalayer)
 
-    def get(self, key: type) -> Any:
+    def get(self, key: type) -> Mikro | None:
         return self.mikro if key is Mikro else None
 
 
@@ -140,11 +148,13 @@ def test_nested_objects_without_mikrofetchable_are_bound_too(
 
 
 @pytest.fixture()
-def opened(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
+def opened(monkeypatch: pytest.MonkeyPatch) -> list[Mikro]:
     """Record which client the zarr accessor goes through, without any I/O."""
-    seen: list[Any] = []
+    seen: list[Mikro] = []
 
-    def fake_unkoil(function: Any, mikro: Any, store_id: str) -> Any:
+    def fake_unkoil(
+        function: Callable[..., object], mikro: Mikro, store_id: str
+    ) -> tuple[SimpleNamespace, str]:
         seen.append(mikro)
         return SimpleNamespace(), "http://endpoint.invalid"
 
@@ -157,7 +167,7 @@ def opened(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
 
 
 def test_object_keeps_to_its_own_client_while_another_app_is_current(
-    apps: tuple[FakeApp, FakeApp], opened: list[Any]
+    apps: tuple[FakeApp, FakeApp], opened: list[Mikro]
 ) -> None:
     """The case that leaked: an object from app A touched while app B is current."""
     a, b = apps
@@ -169,12 +179,12 @@ def test_object_keeps_to_its_own_client_while_another_app_is_current(
     assert opened == [a.mikro, a.mikro]
 
 
-def test_an_object_fetched_through_no_client_says_so(opened: list[Any]) -> None:
+def test_an_object_fetched_through_no_client_says_so(opened: list[Mikro]) -> None:
     """Built by hand (or unpickled): there is no client to fall back to."""
     store = Store(id="store-1", nested=Nested(id="n-1"))
 
     with pytest.raises(NoMikroFound, match="not fetched through a Mikro client"):
-        store.zarr_store
+        _ = store.zarr_store
     assert opened == []
 
 
@@ -195,13 +205,13 @@ def test_download_accessor_goes_through_its_objects_client(
     apps: tuple[FakeApp, FakeApp], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     a, b = apps
-    seen: list[Any] = []
+    seen: list[Mikro] = []
 
     class Big(HasDownloadAccessor):
         id: str
         key: str
 
-    def fake_download(mikro: Any, store_id: str, file_name: str) -> str:
+    def fake_download(mikro: Mikro, store_id: str, file_name: str) -> str:
         seen.append(mikro)
         return file_name
 
@@ -238,7 +248,9 @@ def test_the_client_has_exactly_its_fields() -> None:
     }
 
 
-async def _expand_store_through(app: FakeApp, current: FakeApp, fetch: Any) -> Any:
+async def _expand_store_through(
+    app: FakeApp, current: FakeApp, fetch: Callable[[Mikro, str], Awaitable[Store]]
+) -> Store:
     """Expand one ``Store`` argument the way an actor does.
 
     The registry is bound to ``app``'s client, as entering an app binds its own.
@@ -287,13 +299,13 @@ async def _expand_store_through(app: FakeApp, current: FakeApp, fetch: Any) -> A
         structure_registry=registry,
         shelver=None,  # type: ignore[arg-type]
     )
-    expanded["store"].zarr_store  # touched while the OTHER app is current
+    _ = expanded["store"].zarr_store  # touched while the OTHER app is current
     return expanded["store"]
 
 
 @pytest.mark.asyncio
 async def test_rekuest_expands_through_the_client_its_registry_was_bound_to(
-    apps: tuple[FakeApp, FakeApp], opened: list[dict[str, Any]]
+    apps: tuple[FakeApp, FakeApp], opened: list[Mikro]
 ) -> None:
     """The whole chain, as an actor drives it.
 
@@ -305,7 +317,7 @@ async def test_rekuest_expands_through_the_client_its_registry_was_bound_to(
 
     a, b = apps
 
-    async def aget_store(client: Any, id: str) -> Store:
+    async def aget_store(client: Mikro, id: str) -> Store:
         return (await client.aexecute(GetStore, {"id": id})).store
 
     store = await _expand_store_through(a, current=b, fetch=aget_store)
@@ -326,11 +338,14 @@ class HeaderRath(FakeRath):
 
     def __init__(self, name: str) -> None:
         super().__init__(name)
-        self.headers: list[Any] = []
+        self.headers: list[dict[str, Any] | None] = []
 
     async def aquery(
-        self, document: str, variables: dict[str, Any], headers: Any = None
-    ) -> Any:
+        self,
+        document: str,
+        variables: dict[str, Any],
+        headers: dict[str, Any] | None = None,
+    ) -> SimpleNamespace:
         self.headers.append(headers)
         return self._answer()
 

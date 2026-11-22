@@ -14,7 +14,7 @@ measured. Used by :mod:`mikro.io.obstore` on the way out.
 import math
 from collections.abc import Mapping, Sequence
 from enum import Enum
-from typing import Any, Protocol, Self
+from typing import Any, Protocol, TypeVar
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
@@ -75,6 +75,9 @@ _ROLE_BY_AXIS_TYPE: Mapping[str, AxisRole] = {
 }
 
 
+_ChunkLayout = TypeVar("_ChunkLayout", bound="ChunkLayout")
+
+
 class ChunkLayout(BaseModel):
     """The on-disk layout of one array: its inner chunks and the shards that group them.
 
@@ -88,7 +91,7 @@ class ChunkLayout(BaseModel):
     shards: tuple[int, ...] | None = None
 
     @model_validator(mode="after")
-    def _shards_group_whole_chunks(self) -> Self:
+    def _shards_group_whole_chunks(self: _ChunkLayout) -> _ChunkLayout:
         if not self.chunks or any(extent < 1 for extent in self.chunks):
             raise ValueError(
                 f"chunks must be positive on every axis, got {self.chunks}."
@@ -99,7 +102,9 @@ class ChunkLayout(BaseModel):
             raise ValueError(
                 f"shards {self.shards} and chunks {self.chunks} must have the same rank."
             )
-        if any(shard % chunk for shard, chunk in zip(self.shards, self.chunks)):
+        if any(
+            shard % chunk for shard, chunk in zip(self.shards, self.chunks, strict=True)
+        ):
             raise ValueError(
                 f"shards {self.shards} must be a whole multiple of chunks {self.chunks} on "
                 "every axis; readers refuse anything else."
@@ -212,7 +217,9 @@ def chunk_layout(
             if i not in spatial and role in (AxisRole.COLLAPSED, AxisRole.SPACE)
         ]
 
-    counts = [math.ceil(size / extent) for size, extent in zip(shape, chunk)]
+    counts = [
+        math.ceil(size / extent) for size, extent in zip(shape, chunk, strict=True)
+    ]
     factor = [1] * rank
     shard_size = itemsize * math.prod(chunk)
 
@@ -246,7 +253,7 @@ def chunk_layout(
         return ChunkLayout(chunks=tuple(chunk))
     return ChunkLayout(
         chunks=tuple(chunk),
-        shards=tuple(extent * f for extent, f in zip(chunk, factor)),
+        shards=tuple(extent * f for extent, f in zip(chunk, factor, strict=True)),
     )
 
 

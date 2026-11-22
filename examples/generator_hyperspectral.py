@@ -151,7 +151,9 @@ def render_cube(maps: np.ndarray, spectra: np.ndarray, af: np.ndarray) -> xr.Dat
 # --------------------------------------------------------------------------- #
 # The spectral phasor and the unmixing
 # --------------------------------------------------------------------------- #
-def phasor(cube: np.ndarray, harmonic: int = HARMONIC):
+def phasor(
+    cube: np.ndarray, harmonic: int = HARMONIC
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Per-pixel spectral phasor ``(g, s, intensity)`` of an ``(l, y, x)`` cube.
 
     The same first-Fourier-coefficient-over-the-axis the FLIM scripts compute over
@@ -411,7 +413,7 @@ if __name__ == "__main__":
         # One intensity layer per unmixed channel — a CHANNEL position is a
         # fluorophore, and each gets its own layer, never a packed composite.
         clim = float(np.percentile(estimated, 99.5))
-        for index, (name, _peak, _sigma, colormap) in enumerate(FLUOROPHORES):
+        for index, (_name, _peak, _sigma, colormap) in enumerate(FLUOROPHORES):
             mikro.create_intensity_layer(
                 lens=unmixed_ds.lens(c=index),
                 scene=scene,

@@ -1,5 +1,6 @@
 """Unit tests for the DuckDB parquet read helpers (no network)."""
 
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -28,7 +29,7 @@ def test_require_duckdb_returns_module() -> None:
     assert hasattr(duckdb, "connect")
 
 
-def test_relation_roundtrips_local_parquet(tmp_path) -> None:
+def test_relation_roundtrips_local_parquet(tmp_path: Path) -> None:
     """A relation over a local parquet file materialises back to the source frame."""
     df = pd.DataFrame(
         {

@@ -32,6 +32,7 @@ Run:  python generator_dti_tractography.py [--dry-run]
 from __future__ import annotations
 
 import sys
+from collections.abc import Callable
 
 import numpy as np
 import pandas as pd
@@ -92,7 +93,9 @@ LEVELS = 3
 # --------------------------------------------------------------------------- #
 # Ground truth: bundles as centerlines with tangents
 # --------------------------------------------------------------------------- #
-def _centerline(points_fn, n: int = 400) -> tuple[np.ndarray, np.ndarray]:
+def _centerline(
+    points_fn: Callable[[np.ndarray], np.ndarray], n: int = 400
+) -> tuple[np.ndarray, np.ndarray]:
     """Sample a parametric curve and its unit tangents — two ``(n, 3)`` arrays (z,y,x)."""
     t = np.linspace(0.0, 1.0, n)
     pts = points_fn(t)
@@ -105,7 +108,9 @@ def make_bundles() -> dict[str, dict]:
     """The four bundles, each a centerline + tangents + radius, in voxel coords."""
     cz, cy, cx = SHAPE[0] / 2, SHAPE[1] / 2, SHAPE[2] / 2
 
-    def cc(t):  # left-right arc, bowing up in z: the corpus-callosum shape
+    def cc(
+        t: np.ndarray,
+    ) -> np.ndarray:  # left-right arc, bowing up in z: the corpus-callosum shape
         return np.column_stack(
             [
                 cz + 18 * np.sin(np.pi * t),
@@ -114,8 +119,10 @@ def make_bundles() -> dict[str, dict]:
             ]
         )
 
-    def cingulum(side):
-        def curve(t):  # anterior-posterior arc, clear ABOVE the callosum apex —
+    def cingulum(side: int) -> Callable[[np.ndarray], np.ndarray]:
+        def curve(
+            t: np.ndarray,
+        ) -> np.ndarray:  # anterior-posterior arc, clear ABOVE the callosum apex —
             # tubes must not intersect, or a tracker legitimately hops bundles at
             # the crossing and the containment check below cannot hold.
             return np.column_stack(
@@ -128,7 +135,7 @@ def make_bundles() -> dict[str, dict]:
 
         return curve
 
-    def fornix(t):  # a C-curve dipping under
+    def fornix(t: np.ndarray) -> np.ndarray:  # a C-curve dipping under
         return np.column_stack(
             [
                 cz - 4 - 14 * np.sin(np.pi * t),
@@ -174,7 +181,7 @@ def make_fields(bundles: dict) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.n
     dir_flat = np.zeros((len(voxels), 3))
     bundle_flat = np.zeros(len(voxels), dtype=np.int32)
 
-    for index, (name, bundle) in enumerate(bundles.items(), start=1):
+    for index, (_name, bundle) in enumerate(bundles.items(), start=1):
         dist, nearest = bundle["tree"].query(voxels)
         inside = dist <= bundle["radius"]
         profile = 1.0 - (dist[inside] / bundle["radius"]) ** 2
@@ -270,7 +277,7 @@ def track(
 # --------------------------------------------------------------------------- #
 # The glass brain
 # --------------------------------------------------------------------------- #
-def glass_brain(brain: np.ndarray):
+def glass_brain(brain: np.ndarray) -> trimesh.Trimesh:
     """The brain mask as one decimated trimesh, vertices (x, y, z) in voxel coords."""
     smooth = gaussian_filter(brain.astype(np.float64), 2.0)
     padded = np.pad(smooth, 1)
@@ -292,7 +299,14 @@ def glass_brain(brain: np.ndarray):
 # --------------------------------------------------------------------------- #
 # Self-checks
 # --------------------------------------------------------------------------- #
-def check(fa, direction, brain, bundles, tracks: pd.DataFrame, mesh) -> None:
+def check(
+    fa: np.ndarray,
+    direction: np.ndarray,
+    brain: np.ndarray,
+    bundles: dict[str, dict],
+    tracks: pd.DataFrame,
+    mesh: trimesh.Trimesh,
+) -> None:
     if fa.shape != SHAPE:
         raise SystemExit(f"FA volume is {fa.shape}, expected {SHAPE} — transposed?")
 

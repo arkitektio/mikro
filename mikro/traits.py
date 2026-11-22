@@ -29,7 +29,6 @@ from typing import (
     NamedTuple,
     NoReturn,
     Protocol,
-    Self,
     TypeVar,
     Union,
     cast,
@@ -557,7 +556,7 @@ class DataArrayTrait:
         return from_zarr(store.zarr_store)
 
 
-def _as_calibration(axis: str, value: Any) -> Calibration:
+def _as_calibration(axis: str, value: object) -> Calibration:
     """Accept a bare ``(factor, unit)`` pair wherever a `Calibration` is wanted.
 
     `Calibration` is a NamedTuple, so a plain tuple looks interchangeable with one
@@ -1093,6 +1092,9 @@ class NetworkCollectionTrait:
         )
 
 
+_CreateADatasetTrait = TypeVar("_CreateADatasetTrait", bound="CreateADatasetTrait")
+
+
 class CreateADatasetTrait:
     """Validation trait for the generic ``create_array_dataset`` input.
 
@@ -1107,7 +1109,7 @@ class CreateADatasetTrait:
     """
 
     @model_validator(mode="after")
-    def _validate_dims_match_axes(self) -> Self:
+    def _validate_dims_match_axes(self: _CreateADatasetTrait) -> _CreateADatasetTrait:
         """Ensure the axes (and scale arrays) match the data array dims."""
         data = getattr(self, "data", None)
         axes = getattr(self, "axes", None)
@@ -1129,6 +1131,11 @@ class CreateADatasetTrait:
         lay_out_pyramid(levels, axis_types)
         check_layouts_agree(levels, axis_types)
         return self
+
+
+_CreateTableDatasetTrait = TypeVar(
+    "_CreateTableDatasetTrait", bound="CreateTableDatasetTrait"
+)
 
 
 class CreateTableDatasetTrait(BaseModel):
@@ -1155,7 +1162,7 @@ class CreateTableDatasetTrait(BaseModel):
     """
 
     @model_validator(mode="after")
-    def _resolve_columns(self) -> Self:
+    def _resolve_columns(self: _CreateTableDatasetTrait) -> _CreateTableDatasetTrait:
         """Derive the declaration, merge the caller's onto it, and refuse what cannot describe this frame."""
         data = getattr(self, "data", None)
         if data is None:
@@ -1182,6 +1189,11 @@ class CreateTableDatasetTrait(BaseModel):
         return self
 
 
+_CreateSparseDatasetTrait = TypeVar(
+    "_CreateSparseDatasetTrait", bound="CreateSparseDatasetTrait"
+)
+
+
 class CreateSparseDatasetTrait(BaseModel):
     """Checks a sparse dataset's declaration against its matrix, before the matrix moves.
 
@@ -1204,7 +1216,9 @@ class CreateSparseDatasetTrait(BaseModel):
     """
 
     @model_validator(mode="after")
-    def _check_declaration(self) -> Self:
+    def _check_declaration(
+        self: _CreateSparseDatasetTrait,
+    ) -> _CreateSparseDatasetTrait:
         """Check the axes, then check them against the matrix if one is in hand."""
         # `axes` is `... | None` with a GraphQL default of `[]`, and `()` is what the first
         # refusal is about -- so it is coerced rather than treated as "nothing to check",
@@ -1276,6 +1290,11 @@ class SparseAxisInputTrait(BaseModel):
         return value
 
 
+_SparseColorByInputTrait = TypeVar(
+    "_SparseColorByInputTrait", bound="SparseColorByInputTrait"
+)
+
+
 class SparseColorByInputTrait(BaseModel):
     """The two rules a sparse colouring can be judged by from the input alone.
 
@@ -1292,7 +1311,9 @@ class SparseColorByInputTrait(BaseModel):
     """
 
     @model_validator(mode="after")
-    def _a_slice_is_measured(self) -> Self:
+    def _a_slice_is_measured(
+        self: _SparseColorByInputTrait,
+    ) -> _SparseColorByInputTrait:
         """Refuse a qualitative colormap, and an inverted window."""
         colormap = getattr(self, "colormap", None)
         name = enum_value(colormap)
@@ -1313,6 +1334,11 @@ class SparseColorByInputTrait(BaseModel):
         return self
 
 
+_GraphColorByInputTrait = TypeVar(
+    "_GraphColorByInputTrait", bound="GraphColorByInputTrait"
+)
+
+
 class GraphColorByInputTrait(BaseModel):
     """The two rules a graph colouring can be judged by from the input alone.
 
@@ -1329,7 +1355,7 @@ class GraphColorByInputTrait(BaseModel):
     """
 
     @model_validator(mode="after")
-    def _a_metric_is_measured(self) -> Self:
+    def _a_metric_is_measured(self: _GraphColorByInputTrait) -> _GraphColorByInputTrait:
         """Refuse a qualitative colormap, and an inverted window."""
         colormap = getattr(self, "colormap", None)
         name = enum_value(colormap)
@@ -1373,7 +1399,7 @@ class RGBAColorInputTrait(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def _complete_rgba(cls, value: Any) -> Any:
+    def _complete_rgba(cls, value: object) -> object:
         if not isinstance(value, dict):
             return value
         color = value.get("color")
@@ -1403,7 +1429,7 @@ class AxisInputTrait(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def _coerce_bare_name(cls, value: Any) -> Any:
+    def _coerce_bare_name(cls, value: object) -> object:
         if isinstance(value, (dict, BaseModel)) or not isinstance(value, Hashable):
             return value
         # A bare name: a str, or any hashable xarray dim.
@@ -1429,7 +1455,7 @@ class MetricTargetInputTrait(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def _coerce_object(cls, value: Any) -> Any:
+    def _coerce_object(cls, value: object) -> object:
         if isinstance(value, (dict, cls)):
             return value
         # Read off the class: a nested selection shares no base with the fragment of
@@ -1946,7 +1972,7 @@ def axis_table(source: AxisSource) -> tuple[tuple[str, AxisTypeName, int], ...]:
         types = tuple(enum_value(axis.type) for axis in axes)
     else:
         types = tuple(default_axis_type(name) for name in names)
-    return tuple(zip(names, types, shape))
+    return tuple(zip(names, types, shape, strict=False))
 
 
 def axis_types(source: AxisSource) -> tuple[AxisTypeName, ...]:
@@ -2206,7 +2232,7 @@ class AxisMap:
         for axis in missing:
             reading = [
                 out
-                for out, row in zip(wanted, rows)
+                for out, row in zip(wanted, rows, strict=True)
                 if row[self.input_axes.index(axis)] != 0.0
             ]
             if reading:
@@ -2440,7 +2466,7 @@ def _edge_axis_map(step: PathStep) -> AxisMap:
                 f"that its systems {in_names} -> {out_names} do not have"
             )
         if part_kind == "IDENTITY":
-            for in_axis, out_axis in zip(acts_in, acts_out):
+            for in_axis, out_axis in zip(acts_in, acts_out, strict=False):
                 factor = _pass_through_factor(in_units[in_axis], out_units[out_axis])
                 if factor is None:
                     continue
@@ -2511,10 +2537,10 @@ def _compose_axis_maps(
         edge = _edge_axis_map(step)
         rows: list[np.ndarray] = []
         stated: list[str] = []
-        for out_axis, form in zip(edge.output_axes, edge.matrix[:-1]):
+        for out_axis, form in zip(edge.output_axes, edge.matrix[:-1], strict=False):
             row = np.zeros(len(source) + 1)
             row[-1] = form[-1]
-            for in_axis, factor in zip(edge.input_axes, form[:-1]):
+            for in_axis, factor in zip(edge.input_axes, form[:-1], strict=False):
                 if factor == 0.0:
                     continue
                 if in_axis not in current.output_axes:
@@ -2617,7 +2643,7 @@ class TransformationTrait:
             out_names = _axis_names_in_order(output_system)
             matrix = np.zeros((len(out_names) + 1, len(in_names) + 1))
             matrix[len(out_names), len(in_names)] = 1.0
-            for in_name, out_name in zip(input_axes, output_axes):
+            for in_name, out_name in zip(input_axes, output_axes, strict=False):
                 if in_name not in in_names:
                     raise KeyError(
                         f"MAP_AXIS input axis {in_name!r} not in input system axes {in_names}"

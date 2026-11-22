@@ -24,6 +24,7 @@ from typing import cast
 import numpy as np
 import pytest
 import xarray as xr
+from pydantic import ValidationError
 
 from mikro import ChunkLayout, dataset_arrays
 from mikro.api.schema import (
@@ -287,7 +288,7 @@ def test_create_array_dataset_rejects_mismatched_axes(
 ) -> None:
     """The model-level trait rejects axes that don't cover the data dims."""
     data = _make_volume()
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         deployed_app.mikro.create_array_dataset(
             data=data,
             scales=[],

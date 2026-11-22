@@ -9,12 +9,15 @@ corrupt file, and a bad cache policy looks like the network being slow.
 
 import os
 import random
+from pathlib import Path
 from types import SimpleNamespace
+from typing import Any, Never, TypeVar
 
 import obstore
 import pytest
+from obstore import Bytes
 from obstore.exceptions import GenericError, NotFoundError, PermissionDeniedError
-from obstore.store import MemoryStore
+from obstore.store import MemoryStore, ObjectStore
 
 from mikro.api.schema import BigFileStore, File, MediaStore
 from mikro.io.errors import DownloadError
@@ -33,7 +36,7 @@ def stored() -> "tuple[MemoryStore, str]":
 
 
 @pytest.fixture
-def handle(stored) -> RemoteFile:
+def handle(stored: tuple[MemoryStore, str]) -> RemoteFile:
     store, key = stored
     return RemoteFile(GrantedObject.from_store(store, key), block_size=65_536)
 
@@ -53,7 +56,7 @@ def _grant(key: str = "files/big.bin", expires_in: int = 3600) -> SimpleNamespac
 # --- the file protocol ------------------------------------------------------------
 
 
-def test_reports_size_without_reading(stored) -> None:
+def test_reports_size_without_reading(stored: tuple[MemoryStore, str]) -> None:
     store, key = stored
     assert GrantedObject.from_store(store, key).size() == len(PAYLOAD)
 
@@ -125,7 +128,9 @@ def test_close_is_idempotent(handle: RemoteFile) -> None:
 # --- what the reads cost ----------------------------------------------------------
 
 
-def test_a_small_header_read_costs_few_requests(stored, monkeypatch) -> None:
+def test_a_small_header_read_costs_few_requests(
+    stored: tuple[MemoryStore, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
     """The whole point of the class. Reading a kilobyte out of a 300 KB object must not
     transfer the object -- if this assertion ever starts failing, the class has quietly
     become a slow download."""
@@ -133,7 +138,14 @@ def test_a_small_header_read_costs_few_requests(stored, monkeypatch) -> None:
     calls: list[tuple[int, int]] = []
     real = obstore.get_range
 
-    def counting(store_, path, *, start, end=None, length=None):
+    def counting(
+        store_: ObjectStore,
+        path: str,
+        *,
+        start: int,
+        end: int | None = None,
+        length: int | None = None,
+    ) -> Bytes:
         calls.append((start, end))
         return real(store_, path, start=start, end=end, length=length)
 
@@ -147,7 +159,7 @@ def test_a_small_header_read_costs_few_requests(stored, monkeypatch) -> None:
     assert calls[0][1] - calls[0][0] < len(PAYLOAD) // 4
 
 
-def test_cache_false_passes_reads_through(stored) -> None:
+def test_cache_false_passes_reads_through(stored: tuple[MemoryStore, str]) -> None:
     handle = RemoteFile(
         GrantedObject.from_store(store=stored[0], key=stored[1]), cache=False
     )
@@ -157,13 +169,15 @@ def test_cache_false_passes_reads_through(stored) -> None:
 # --- grants expire ----------------------------------------------------------------
 
 
-def test_refreshes_the_grant_before_it_expires(stored, monkeypatch) -> None:
+def test_refreshes_the_grant_before_it_expires(
+    stored: tuple[MemoryStore, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
     """A handle open for longer than its grant must re-mint rather than fail. The margin
     is what makes this happen before the 403 rather than after it."""
     store, key = stored
     resolved = []
 
-    def resolve():
+    def resolve() -> tuple[SimpleNamespace, str]:
         resolved.append(1)
         return _grant(key, expires_in=61), "http://example.invalid"
 
@@ -189,11 +203,13 @@ def test_refreshes_the_grant_before_it_expires(stored, monkeypatch) -> None:
     assert len(resolved) == 2
 
 
-def test_a_grant_without_an_expiry_is_never_refreshed(stored, monkeypatch) -> None:
+def test_a_grant_without_an_expiry_is_never_refreshed(
+    stored: tuple[MemoryStore, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
     store, key = stored
     resolved = []
 
-    def resolve():
+    def resolve() -> tuple[SimpleNamespace, str]:
         resolved.append(1)
         return SimpleNamespace(**{**vars(_grant(key)), "expires_in": None}), "http://x"
 
@@ -207,12 +223,14 @@ def test_a_grant_without_an_expiry_is_never_refreshed(stored, monkeypatch) -> No
     assert len(resolved) == 1
 
 
-def test_denied_read_re_mints_the_grant_once(stored, monkeypatch) -> None:
+def test_denied_read_re_mints_the_grant_once(
+    stored: tuple[MemoryStore, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Clock skew can put a 403 inside the safety margin. One re-mint covers it."""
     store, key = stored
     resolved = []
 
-    def resolve():
+    def resolve() -> tuple[SimpleNamespace, str]:
         resolved.append(1)
         return _grant(key), "http://example.invalid"
 
@@ -221,7 +239,14 @@ def test_denied_read_re_mints_the_grant_once(stored, monkeypatch) -> None:
     attempts = []
     real = obstore.get_range
 
-    def flaky(store_, path, *, start, end=None, length=None):
+    def flaky(
+        store_: ObjectStore,
+        path: str,
+        *,
+        start: int,
+        end: int | None = None,
+        length: int | None = None,
+    ) -> Bytes:
         attempts.append(start)
         if len(attempts) == 1:
             raise PermissionDeniedError("expired")
@@ -234,7 +259,9 @@ def test_denied_read_re_mints_the_grant_once(stored, monkeypatch) -> None:
     assert len(resolved) == 2
 
 
-def test_persistent_denial_is_reported_not_retried_forever(stored, monkeypatch) -> None:
+def test_persistent_denial_is_reported_not_retried_forever(
+    stored: tuple[MemoryStore, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
     store, key = stored
     monkeypatch.setattr("mikro.io.obstore.create_s3_store", lambda *a, **k: store)
     monkeypatch.setattr(
@@ -253,12 +280,21 @@ def test_persistent_denial_is_reported_not_retried_forever(stored, monkeypatch) 
 # --- failures are translated ------------------------------------------------------
 
 
-def test_transient_error_is_retried(stored, monkeypatch) -> None:
+def test_transient_error_is_retried(
+    stored: tuple[MemoryStore, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
     store, key = stored
     attempts = []
     real = obstore.get_range
 
-    def flaky(store_, path, *, start, end=None, length=None):
+    def flaky(
+        store_: ObjectStore,
+        path: str,
+        *,
+        start: int,
+        end: int | None = None,
+        length: int | None = None,
+    ) -> Bytes:
         attempts.append(start)
         if len(attempts) == 1:
             raise GenericError("503")
@@ -272,7 +308,9 @@ def test_transient_error_is_retried(stored, monkeypatch) -> None:
     assert len(attempts) == 2
 
 
-def test_exhausted_retries_raise_download_error(stored, monkeypatch) -> None:
+def test_exhausted_retries_raise_download_error(
+    stored: tuple[MemoryStore, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
     """A raw obstore error reaching the reader above arrives as a parse failure, which
     sends whoever is debugging it to look at the bytes instead of the network."""
     store, key = stored
@@ -288,7 +326,9 @@ def test_exhausted_retries_raise_download_error(stored, monkeypatch) -> None:
         handle.read(16)
 
 
-def test_object_vanishing_is_reported_immediately(stored, monkeypatch) -> None:
+def test_object_vanishing_is_reported_immediately(
+    stored: tuple[MemoryStore, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
     store, key = stored
     monkeypatch.setattr(
         "mikro.io.remote.obstore.get_range",
@@ -319,7 +359,10 @@ class _File(FileTrait):
         self.store = store
 
 
-def _bound(obj):  # noqa: ANN001, ANN202
+_Bound = TypeVar("_Bound")
+
+
+def _bound(obj: _Bound) -> _Bound:
     """Give a hand-built object the origin a fetched one has: the client it came from."""
     from rath.origin import ORIGIN_KEY, Origin
 
@@ -330,7 +373,9 @@ def _bound(obj):  # noqa: ANN001, ANN202
     return obj
 
 
-def test_accessor_open_yields_a_handle_and_closes_it(stored, monkeypatch) -> None:
+def test_accessor_open_yields_a_handle_and_closes_it(
+    stored: tuple[MemoryStore, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
     store, key = stored
     handle = RemoteFile(GrantedObject.from_store(store, key))
     monkeypatch.setattr("mikro.io.remote.open_remote_file", lambda *a, **k: handle)
@@ -341,15 +386,23 @@ def test_accessor_open_yields_a_handle_and_closes_it(stored, monkeypatch) -> Non
     assert handle.closed
 
 
-def test_accessor_open_passes_the_cache_policy_through(stored, monkeypatch) -> None:
+def test_accessor_open_passes_the_cache_policy_through(
+    stored: tuple[MemoryStore, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
     """`cache` is the knob that decides whether a scattered reader costs one request or
     hundreds, so it has to reach the file rather than stop at the trait."""
     store, key = stored
     seen: dict[str, object] = {}
 
     def capture(
-        mikro, store_id, *, block_size=None, cache=True, max_cached_blocks=32, **kwargs
-    ):
+        mikro: object,
+        store_id: str,
+        *,
+        block_size: int | None = None,
+        cache: bool | str = True,
+        max_cached_blocks: int = 32,
+        **kwargs: object,
+    ) -> RemoteFile:
         seen.update(
             store_id=store_id,
             block_size=block_size,
@@ -371,7 +424,9 @@ def test_accessor_open_passes_the_cache_policy_through(stored, monkeypatch) -> N
     }
 
 
-def test_file_trait_open_delegates_to_its_store(stored, monkeypatch) -> None:
+def test_file_trait_open_delegates_to_its_store(
+    stored: tuple[MemoryStore, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
     store, key = stored
     monkeypatch.setattr(
         "mikro.io.remote.open_remote_file",
@@ -405,13 +460,20 @@ def _real_file(name: str = "acquisition.tif") -> File:
     )
 
 
-def test_as_path_yields_a_real_file_and_removes_it(tmp_path, monkeypatch) -> None:
+def test_as_path_yields_a_real_file_and_removes_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Native and JVM readers open the path themselves, so `as_path` owes them a file
     that exists -- and owes the disk its removal afterwards."""
     directory = tmp_path / "scratch"
     directory.mkdir()
 
-    def fake_download(mikro, store_id, file_name=None, prefix="mikro_file_"):
+    def fake_download(
+        mikro: object,
+        store_id: str,
+        file_name: str | None = None,
+        prefix: str = "mikro_file_",
+    ) -> str:
         target = directory / (file_name or "download")
         target.write_bytes(PAYLOAD[:100])
         return str(target)
@@ -425,12 +487,19 @@ def test_as_path_yields_a_real_file_and_removes_it(tmp_path, monkeypatch) -> Non
     assert not os.path.exists(directory)
 
 
-def test_as_path_keeps_the_extension(tmp_path, monkeypatch) -> None:
+def test_as_path_keeps_the_extension(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Store keys are opaque -- this one is a bare UUID. A reader that dispatches on
     the suffix would refuse the file under that name, so the file's own name wins."""
     seen: dict[str, object] = {}
 
-    def fake_download(mikro, store_id, file_name=None, prefix="mikro_file_"):
+    def fake_download(
+        mikro: object,
+        store_id: str,
+        file_name: str | None = None,
+        prefix: str = "mikro_file_",
+    ) -> str:
         seen["file_name"] = file_name
         target = tmp_path / str(file_name)
         target.write_bytes(b"II*\x00")
@@ -444,8 +513,15 @@ def test_as_path_keeps_the_extension(tmp_path, monkeypatch) -> None:
     assert seen["file_name"] == "acquisition.tif"
 
 
-def test_as_path_falls_back_to_the_key(tmp_path, monkeypatch) -> None:
-    def fake_download(mikro, store_id, file_name=None, prefix="mikro_file_"):
+def test_as_path_falls_back_to_the_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fake_download(
+        mikro: object,
+        store_id: str,
+        file_name: str | None = None,
+        prefix: str = "mikro_file_",
+    ) -> str:
         target = tmp_path / str(file_name)
         target.write_bytes(b"x")
         return str(target)
@@ -457,7 +533,7 @@ def test_as_path_falls_back_to_the_key(tmp_path, monkeypatch) -> None:
 
 
 def test_download_to_scratch_honours_the_scratch_environment(
-    tmp_path, monkeypatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Not the working directory, and not TMPDIR when MIKRO_SCRATCH_DIR says otherwise.
 
@@ -466,7 +542,7 @@ def test_download_to_scratch_honours_the_scratch_environment(
     monkeypatch.setenv("MIKRO_SCRATCH_DIR", str(tmp_path))
     captured: dict[str, object] = {}
 
-    def fake_download_file(mikro, store_id, file_name):
+    def fake_download_file(mikro: object, store_id: str, file_name: str) -> str:
         captured.update(store_id=store_id, file_name=file_name)
         return file_name
 
@@ -481,7 +557,9 @@ def test_download_to_scratch_honours_the_scratch_environment(
     assert captured["store_id"] == "store-id"
 
 
-def test_download_to_scratch_takes_an_explicit_directory(tmp_path, monkeypatch) -> None:
+def test_download_to_scratch_takes_an_explicit_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """A caller who knows the file is 27 GB names the disk, rather than being warned about
     the default after the fact. `directory=` wins over the environment."""
     monkeypatch.setenv("MIKRO_SCRATCH_DIR", str(tmp_path / "ignored"))
@@ -497,14 +575,14 @@ def test_download_to_scratch_takes_an_explicit_directory(tmp_path, monkeypatch) 
 
 
 def test_download_to_scratch_removes_the_directory_when_the_download_fails(
-    tmp_path, monkeypatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A download that dies partway is the case that matters -- the caller never learns
     the directory's name, so nothing else can clean it up."""
     root = tmp_path / "scratch"
     root.mkdir()
 
-    def failing(mikro, store_id, file_name):
+    def failing(mikro: object, store_id: str, file_name: str) -> Never:
         open(file_name, "wb").write(b"half a fi")
         raise DownloadError("connection reset")
 
@@ -518,7 +596,9 @@ def test_download_to_scratch_removes_the_directory_when_the_download_fails(
     assert list(root.iterdir()) == []
 
 
-def test_a_real_reader_can_parse_through_the_handle(stored, monkeypatch) -> None:
+def test_a_real_reader_can_parse_through_the_handle(
+    stored: tuple[MemoryStore, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
     """The claim this whole module rests on: a reader written against Python file
     objects works unmodified. `tifffile` is a fair test of it -- it seeks to the end for
     the IFD offsets, then hops backwards through the file, which is exactly the access
@@ -544,12 +624,19 @@ def test_a_real_reader_can_parse_through_the_handle(stored, monkeypatch) -> None
 # --- caching -----------------------------------------------------------------------
 
 
-def _count_requests(monkeypatch) -> "list[tuple[int, int]]":
+def _count_requests(monkeypatch: pytest.MonkeyPatch) -> "list[tuple[int, int]]":
     """Record every range request made from here on."""
     calls: list[tuple[int, int]] = []
     real = obstore.get_range
 
-    def counting(store_, path, *, start, end=None, length=None):
+    def counting(
+        store_: ObjectStore,
+        path: str,
+        *,
+        start: int,
+        end: int | None = None,
+        length: int | None = None,
+    ) -> Bytes:
         calls.append((start, end))
         return real(store_, path, start=start, end=end, length=length)
 
@@ -557,7 +644,9 @@ def _count_requests(monkeypatch) -> "list[tuple[int, int]]":
     return calls
 
 
-def test_revisiting_an_offset_is_free_when_caching(stored, monkeypatch) -> None:
+def test_revisiting_an_offset_is_free_when_caching(
+    stored: tuple[MemoryStore, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
     """The reason `cache=True` is the default. A reader bouncing between its index and
     its data revisits offsets constantly, and each revisit must not be a request."""
     store, key = stored
@@ -571,7 +660,9 @@ def test_revisiting_an_offset_is_free_when_caching(stored, monkeypatch) -> None:
     assert len(calls) == 2
 
 
-def test_readahead_refetches_on_every_hop(stored, monkeypatch) -> None:
+def test_readahead_refetches_on_every_hop(
+    stored: tuple[MemoryStore, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
     """The contrast that justifies the default: fsspec's usual policy holds one block,
     so the same bouncing pattern pays for every hop."""
     store, key = stored
@@ -587,7 +678,9 @@ def test_readahead_refetches_on_every_hop(stored, monkeypatch) -> None:
     assert len(calls) == 6
 
 
-def test_cache_false_fetches_exactly_what_was_asked_for(stored, monkeypatch) -> None:
+def test_cache_false_fetches_exactly_what_was_asked_for(
+    stored: tuple[MemoryStore, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
     store, key = stored
     calls = _count_requests(monkeypatch)
 
@@ -598,7 +691,9 @@ def test_cache_false_fetches_exactly_what_was_asked_for(stored, monkeypatch) -> 
     assert calls == [(1_000, 1_064)]
 
 
-def test_caching_a_read_past_the_end_truncates_rather_than_raising(stored) -> None:
+def test_caching_a_read_past_the_end_truncates_rather_than_raising(
+    stored: tuple[MemoryStore, str],
+) -> None:
     """`AbstractBufferedFile.read` hands `loc + length` to the cache unclamped, and
     `BlockCache` raises on a block past the last one. Asking for more than remains is
     how a short read is spelled, so this has to truncate."""
@@ -609,7 +704,9 @@ def test_caching_a_read_past_the_end_truncates_rather_than_raising(stored) -> No
     assert handle.read(500_000) == PAYLOAD[-100:]
 
 
-def test_the_memory_ceiling_is_bounded(stored, monkeypatch) -> None:
+def test_the_memory_ceiling_is_bounded(
+    stored: tuple[MemoryStore, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
     """A cache that grew without limit would be a slow way to run out of memory. Reading
     a whole object through a two-block LRU must not retain more than two blocks."""
     store, key = stored
@@ -626,10 +723,10 @@ def test_the_memory_ceiling_is_bounded(stored, monkeypatch) -> None:
     assert info.currsize == 2
 
 
-def test_cache_policy_maps_the_flag(stored) -> None:
+def test_cache_policy_maps_the_flag(stored: tuple[MemoryStore, str]) -> None:
     store, key = stored
 
-    def cache_of(**kwargs):
+    def cache_of(**kwargs: Any) -> str:
         return type(
             RemoteFile(GrantedObject.from_store(store, key), **kwargs).cache
         ).__name__
@@ -641,12 +738,14 @@ def test_cache_policy_maps_the_flag(stored) -> None:
     assert cache_of(cache="readahead") == "ReadAheadCache"
 
 
-def test_a_media_store_downloads_through_a_media_grant(monkeypatch) -> None:
+def test_a_media_store_downloads_through_a_media_grant(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A media store (a scene snapshot's image) asks for a media grant by its id, never a
     big-file one: the server refuses a grant asked for a store of the other kind."""
     captured: dict[str, object] = {}
 
-    def fake_download_media_file(mikro, store_id, file_name):
+    def fake_download_media_file(mikro: object, store_id: str, file_name: str) -> str:
         captured.update(store_id=store_id, file_name=file_name)
         return file_name
 

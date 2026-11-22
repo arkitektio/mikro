@@ -1,5 +1,8 @@
+from collections.abc import Callable
 from io import BytesIO
+from pathlib import Path
 from types import SimpleNamespace
+from typing import Never
 
 import dask.array as da
 import numpy as np
@@ -37,7 +40,9 @@ def test_parquet_dataset_via_obstore_reads_dataframe() -> None:
     assert dataset.read_pandas().to_pandas().equals(dataframe)
 
 
-def test_download_file_reads_bytes_via_obstore(tmp_path, monkeypatch) -> None:
+def test_download_file_reads_bytes_via_obstore(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     store = MemoryStore()
     payload = b"hello via obstore"
     target = tmp_path / "download.bin"
@@ -54,7 +59,9 @@ def test_download_file_reads_bytes_via_obstore(tmp_path, monkeypatch) -> None:
 
     seen: dict[str, object] = {}
 
-    def fake_unkoil(function, mikro, store_id):
+    def fake_unkoil(
+        function: Callable[..., object], mikro: object, store_id: str
+    ) -> tuple[SimpleNamespace, str]:
         seen.update(mikro=mikro)
         return credentials, "http://example.invalid"
 
@@ -124,7 +131,9 @@ async def test_awrite_array_to_zarr_roundtrips() -> None:
 
 
 @pytest.mark.asyncio
-async def test_awrite_array_to_zarr_streams_dask_arrays(monkeypatch) -> None:
+async def test_awrite_array_to_zarr_streams_dask_arrays(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     # Large enough to be many shards, so the per-block streaming is what is exercised.
     source = np.arange(2 * 50 * 2048 * 2048, dtype="uint16").reshape(
         1, 2, 50, 2048, 2048
@@ -141,7 +150,7 @@ async def test_awrite_array_to_zarr_streams_dask_arrays(monkeypatch) -> None:
 
     original_compute = dac.Array.compute
 
-    def _fail_on_full_compute(self, *args, **kwargs):  # noqa: ANN001, ANN002, ANN003
+    def _fail_on_full_compute(self, *args, **kwargs) -> Never:  # noqa: ANN001, ANN002, ANN003
         raise AssertionError(
             "dask array was fully computed into memory; out-of-core streaming was broken"
         )
@@ -203,7 +212,7 @@ def test_write_array_to_zarr_shards_large_dask_arrays() -> None:
     shard = metadata["chunk_grid"]["configuration"]["chunk_shape"]
     inner = codecs[0]["configuration"]["chunk_shape"]
     assert len(inner) == len(shard)
-    assert all(s % i == 0 for s, i in zip(shard, inner))
+    assert all(s % i == 0 for s, i in zip(shard, inner, strict=True))
     index_codecs = codecs[0]["configuration"]["index_codecs"]
     assert any(codec["name"] == "crc32c" for codec in index_codecs), (
         "a checksummed index must be declared, or readers slice the index short"

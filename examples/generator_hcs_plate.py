@@ -283,7 +283,7 @@ if __name__ == "__main__":
             name="HCS · synthetic plate", coordinate_system=world.id
         )
 
-        for order, (well, field_ds) in enumerate(zip(wells, field_ids)):
+        for order, (_well, field_ds) in enumerate(zip(wells, field_ids, strict=True)):
             mikro.create_intensity_layer(
                 lens=field_ds.lens(),
                 scene=scene,

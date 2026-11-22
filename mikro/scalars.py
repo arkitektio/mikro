@@ -150,7 +150,7 @@ def is_dask_array(v: Any) -> bool:  # noqa: ANN401
     except ImportError:
         return False
     except Exception as e:
-        raise ValueError(f"Error checking for dask array: {e}")
+        raise ValueError(f"Error checking for dask array: {e}") from e
 
 
 def _require_xarray() -> Any:  # noqa: ANN401
@@ -336,7 +336,7 @@ class ArrayLike:
         """Dimension name -> extent, once the dimensions are named."""
         if self.dims is None:
             raise ValueError("This array's dimensions are not named yet")
-        return dict(zip(self.dims, self.shape))
+        return dict(zip(self.dims, self.shape, strict=False))
 
     def __get__(self, instance, owner) -> ArrayLike: ...  # noqa: ANN001, D105 #type: ignore
 

@@ -105,7 +105,9 @@ def check_layouts_agree(levels: Sequence[Any], axis_types: Mapping[str, str]) ->
             raise ArrayDeclarationError(
                 f"Level {index}: layout chunks {chunks} do not have the array's dimensions {dims}."
             )
-        for dim, role, extent in zip(dims, roles_for(dims, axis_types), chunks):
+        for dim, role, extent in zip(
+            dims, roles_for(dims, axis_types), chunks, strict=True
+        ):
             if role is not AxisRole.COLLAPSED:
                 continue
             if pinned.setdefault(dim, extent) != extent:

@@ -42,7 +42,7 @@ class Layout:
     mapping precisely so the shape check can be tested with no wire format installed.
     """
 
-    def __init__(self, shape):
+    def __init__(self, shape: tuple[int, ...]) -> None:
         self.shape = shape
 
 
@@ -56,23 +56,25 @@ def table(identifier: str = "2") -> TableIdentifiesInput:
     return TableIdentifiesInput(table=identifier)
 
 
-def axis(name: str, *identifications) -> SparseAxisInput:
+def axis(
+    name: str, *identifications: DatasetIdentifiesInput | TableIdentifiesInput
+) -> SparseAxisInput:
     """One declared axis. Constructed through the input, so its own trait runs too."""
     return SparseAxisInput(name=name, identified_by=list(identifications))
 
 
-def two_axes():
+def two_axes() -> list[SparseAxisInput]:
     """The ordinary rank-two declaration: objects keyed by a mask, features by a table."""
     return [axis("object", mask()), axis("gene", table())]
 
 
-def test_the_ordinary_declaration_is_accepted():
+def test_the_ordinary_declaration_is_accepted() -> None:
     """The rank-two case every ingest script writes. If this refuses, nothing else matters."""
     check_axes(two_axes())
     check_against_store(two_axes(), {0: Layout((1000, 300))})
 
 
-def test_a_rank_three_declaration_is_accepted():
+def test_a_rank_three_declaration_is_accepted() -> None:
     """Rank is not two by definition, only at minimum.
 
     A (cell, metabolite, adduct) tensor is an ordinary sparse dataset, and the rank-three case
@@ -88,7 +90,7 @@ def test_a_rank_three_declaration_is_accepted():
     check_against_store(axes, {0: Layout((5000, 400, 3))})
 
 
-def test_an_axis_may_be_keyed_and_referenced_at_once():
+def test_an_axis_may_be_keyed_and_referenced_at_once() -> None:
     """Fan-in is legal, and this is what stops the "nothing keys it" rule being too strict.
 
     One axis may carry both a mask and the table its positions enumerate. Every axis then has
@@ -99,7 +101,7 @@ def test_an_axis_may_be_keyed_and_referenced_at_once():
     check_axes([axis("object", mask(), table("9")), axis("gene", table("2"))])
 
 
-def test_two_masks_may_key_one_axis():
+def test_two_masks_may_key_one_axis() -> None:
     """The reason ``identifiedBy`` is a list at all: a nucleus mask and a cell mask.
 
     Fan-in is refused only for tables, because each edge stands on its own.
@@ -107,37 +109,37 @@ def test_two_masks_may_key_one_axis():
     check_axes([axis("object", mask("1"), mask("2")), axis("gene", table())])
 
 
-def test_one_axis_is_not_a_sparse_matrix():
+def test_one_axis_is_not_a_sparse_matrix() -> None:
     """A single compressed axis needs at least one other to hold the positions."""
     with pytest.raises(SparseDeclarationError, match=f"at least {MIN_RANK} axes"):
         check_axes([axis("object", mask())])
 
 
-def test_no_axes_at_all_is_refused_as_a_rank():
+def test_no_axes_at_all_is_refused_as_a_rank() -> None:
     """The empty case reaches the rank rule rather than being waved through as "nothing to check"."""
     with pytest.raises(SparseDeclarationError, match=f"at least {MIN_RANK} axes"):
         check_axes([])
 
 
-def test_an_axis_declared_twice_is_refused():
+def test_an_axis_declared_twice_is_refused() -> None:
     """An axis name is how a colouring names a position along it, so it has to pick one axis."""
     with pytest.raises(SparseDeclarationError, match="declared more than once"):
         check_axes([axis("gene", mask()), axis("gene", table())])
 
 
-def test_a_matrix_nothing_keys_is_refused():
+def test_a_matrix_nothing_keys_is_refused() -> None:
     """Every axis referenced by a table means no FIELD edge, so no layer can ever reach it."""
     with pytest.raises(SparseDeclarationError, match="nothing keys this matrix"):
         check_axes([axis("object", table("1")), axis("gene", table("2"))])
 
 
-def test_two_tables_on_one_axis_are_refused():
+def test_two_tables_on_one_axis_are_refused() -> None:
     """An axis enumerates one thing; two tables are two answers to what a position is."""
     with pytest.raises(SparseDeclarationError, match="more than one table"):
         check_axes([axis("object", mask()), axis("gene", table("2"), table("3"))])
 
 
-def test_more_axes_than_the_matrix_has_is_refused():
+def test_more_axes_than_the_matrix_has_is_refused() -> None:
     """The refusal the server cannot make first, because it has no shape until the upload lands.
 
     Silent if it is not made: the axes are read in the order the shape is written, so a count
@@ -150,13 +152,13 @@ def test_more_axes_than_the_matrix_has_is_refused():
         check_against_store(axes, {0: Layout((1000, 300))})
 
 
-def test_fewer_axes_than_the_matrix_has_is_refused():
+def test_fewer_axes_than_the_matrix_has_is_refused() -> None:
     """The same rule from the other side -- a rank-three matrix declared as if it were flat."""
     with pytest.raises(SparseDeclarationError, match="but the matrix has shape"):
         check_against_store(two_axes(), {0: Layout((5000, 400, 3))})
 
 
-def test_the_shape_is_read_off_any_layout():
+def test_the_shape_is_read_off_any_layout() -> None:
     """``layouts_of`` has already refused layouts that disagree, so any of them answers.
 
     Checked because reading only the first would be right by accident on a one-layout store
@@ -165,6 +167,6 @@ def test_the_shape_is_read_off_any_layout():
     check_against_store(two_axes(), {0: Layout((1000, 300)), 1: Layout((1000, 300))})
 
 
-def test_a_store_with_no_layouts_is_left_to_the_server():
+def test_a_store_with_no_layouts_is_left_to_the_server() -> None:
     """Nothing is known, so nothing is claimed. The server checks what arrived."""
     check_against_store(two_axes(), {})

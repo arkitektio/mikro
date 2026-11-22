@@ -39,6 +39,10 @@ generated schema at module level. Reach for ``from mikro.inputs.picker import ..
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
+from typing import Any, Protocol
+
+from pydantic import BaseModel
+from rath.scalars import IDCoercible
 
 from mikro.api.schema import (
     UNSET,
@@ -76,7 +80,31 @@ __all__ = [
 ]
 
 
-def join_path_of(option) -> tuple[dict, ...]:
+class _HasId(Protocol):
+    @property
+    def id(self) -> str: ...
+
+
+class _HasName(Protocol):
+    @property
+    def name(self) -> str: ...
+
+
+class _JoinStep(Protocol):
+    @property
+    def table(self) -> _HasId: ...
+    @property
+    def column(self) -> _HasName: ...
+
+
+class _JoinedOption(Protocol):
+    """What `join_path_of` reads off an option: its `joinPath`, step by step."""
+
+    @property
+    def join_path(self) -> Sequence[_JoinStep]: ...
+
+
+def join_path_of(option: _JoinedOption) -> tuple[dict[str, str], ...]:
     """The `joinPath` of a `ColorByOption`, in the shape a `colorBys` entry takes.
 
     An option carries whole `TableDataset` and `TableDatasetColumn` objects; the input takes
@@ -101,7 +129,16 @@ QUALITATIVE_COLORMAPS = (
 )
 
 
-def _measure(cls, table, column, colormap, min, max, label, join_path):
+def _measure(
+    cls: object,
+    table: IDCoercible,
+    column: str,
+    colormap: ColorMap,
+    min: float | None,
+    max: float | None,
+    label: str | None,
+    join_path: Iterable[Mapping[str, object]],
+) -> ColumnColorByInput:
     # `min > max`, not `not max > min`: the server refuses an *inverted* window only
     # (`ColorByInputModel._window_is_a_range`), and a degenerate one where both ends are the
     # same value is legal there. A client that fronts a rule must not be stricter than it.
@@ -123,7 +160,7 @@ def _measure(cls, table, column, colormap, min, max, label, join_path):
 
 
 def measure_color_by(
-    table,
+    table: IDCoercible,
     column: str,
     *,
     colormap: ColorMap = ColorMap.VIRIDIS,
@@ -142,7 +179,7 @@ def measure_color_by(
 
 
 def categorical_color_by(
-    table,
+    table: IDCoercible,
     column: str,
     *,
     colormap: ColorMap = ColorMap.HUES,
@@ -177,7 +214,7 @@ def categorical_color_by(
 
 
 def sparse_color_by(
-    lens,
+    lens: IDCoercible,
     *,
     colormap: ColorMap = ColorMap.MAGMA,
     min: float | None = None,
@@ -329,7 +366,7 @@ def graph_filter_by(
     )
 
 
-def network_color_by(*args, **kwargs) -> NetworkColorByInput:
+def network_color_by(*args: Any, **kwargs: Any) -> NetworkColorByInput:
     """The one-call form over a network collection, dispatching on what was named.
 
     ``network_color_by("strahler")`` is a graph colouring; ``network_color_by(table,
@@ -352,7 +389,7 @@ def network_color_by(*args, **kwargs) -> NetworkColorByInput:
     return mesh_color_by(*args, **kwargs)
 
 
-def network_filter_by(*args, **kwargs) -> NetworkFilterByInput:
+def network_filter_by(*args: Any, **kwargs: Any) -> NetworkFilterByInput:
     """:func:`graph_filter_by` / :func:`mesh_filter_by` over a network collection.
 
     As with :func:`network_color_by`, a rule over a per-node or per-edge table is the
@@ -375,7 +412,7 @@ def network_filter_by(*args, **kwargs) -> NetworkFilterByInput:
 
 
 def measure_filter_by(
-    table,
+    table: IDCoercible,
     column: str,
     *,
     min: float | None = None,
@@ -405,7 +442,7 @@ def measure_filter_by(
 
 
 def categorical_filter_by(
-    table,
+    table: IDCoercible,
     column: str,
     values: Sequence[str],
     *,
@@ -428,7 +465,7 @@ def categorical_filter_by(
     )
 
 
-def mesh_color_by(*args, **kwargs) -> MeshColorByInput:
+def mesh_color_by(*args: Any, **kwargs: Any) -> MeshColorByInput:
     """:func:`measure_color_by` / :func:`categorical_color_by` over a mesh collection.
 
     One relation, two names: a collection's ids reach a table exactly as a mask's pixel
@@ -445,7 +482,7 @@ def mesh_color_by(*args, **kwargs) -> MeshColorByInput:
     )
 
 
-def mesh_filter_by(*args, **kwargs) -> MeshFilterByInput:
+def mesh_filter_by(*args: Any, **kwargs: Any) -> MeshFilterByInput:
     """:func:`measure_filter_by` / :func:`categorical_filter_by` over a mesh collection."""
     entry = (
         categorical_filter_by(*args, **kwargs)
@@ -456,7 +493,7 @@ def mesh_filter_by(*args, **kwargs) -> MeshFilterByInput:
     return MeshFilterByInput(**entry.model_dump(by_alias=True, exclude_none=True))
 
 
-def _fingerprint(entry) -> tuple:
+def _fingerprint(entry: BaseModel) -> str:
     """What makes two picker entries the same rendering. Everything but the caption.
 
     A SPARSE entry's source is its lens and nothing else, which is what the server keys its

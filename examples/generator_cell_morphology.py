@@ -256,10 +256,17 @@ def agreement(found: np.ndarray, truth: np.ndarray) -> float:
     names = sorted(set(truth))
     best = 0.0
     for perm in itertools.permutations(range(1, len(names) + 1)):
-        mapping = dict(zip(perm, names))
+        mapping = dict(zip(perm, names, strict=True))
         best = max(
             best,
-            float(np.mean([mapping.get(int(c)) == t for c, t in zip(found, truth)])),
+            float(
+                np.mean(
+                    [
+                        mapping.get(int(c)) == t
+                        for c, t in zip(found, truth, strict=False)
+                    ]
+                )
+            ),
         )
     return best
 

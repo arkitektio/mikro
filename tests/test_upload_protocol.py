@@ -46,7 +46,7 @@ class StubRath:
 
     def query(
         self, document: str, variables: dict[str, Any], **_: Any
-    ) -> SimpleNamespace:  # noqa: ANN401
+    ) -> SimpleNamespace:
         """Answer by which mutation was asked for, the way the server would."""
         field = re.search(r"\{\s*(\w+)\(", document).group(1)  # type: ignore[union-attr]
         self.asked.append((field, variables))
