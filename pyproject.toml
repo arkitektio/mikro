@@ -52,41 +52,6 @@ sparse = ["sporadik>=0.1"]
 complete = ["fabriks>=3", "konnektion>=1.2", "sporadik>=0.1", "pyarrow>=12.0.1", "pandas>=2.2", "duckdb>=1.0", "xarray>=2024.11.0"]
 
 
-[tool.uv]
-dev-dependencies =  [
-    "pytest-asyncio>=0.26.0",
-    "pytest-cov>=6.1.1",
-    "pytest>=8.3.5",
-    "python-semantic-release>=9.21.0",
-    "autoflake>=1.7.7,<2",
-    "aiohttp>=3.8.3,<4",
-    "pytest-aiohttp>=1.0.4,<2",
-    "turms>=3.0",
-    "cryptography>=44.0.3",
-    "pyjwt>=2.10.1",
-    "dokker>=2.8",
-    # Test-only: a real path/file-object reader to check `RemoteFile` against, since
-    # the point of that class is that unmodified readers work through it.
-    "tifffile>=2024.1.30",
-    # The example generators (examples/) that the integration suite runs end-to-end:
-    # marching_cubes for the glass-brain meshes.
-    "scikit-image>=0.22",
-    "fakts>=6.1",
-    "rekuest>=6",
-    "pyarrow>=24",
-    "duckdb>=1.5.3",
-    # The sparse wire format. An extra for callers (see `[project.optional-dependencies]`),
-    # but a dev dependency here, because `SporadikLike.validate` -- and therefore every test
-    # of the sparse declaration path -- cannot run without it. It was absent, which is why
-    # that path had no tests at all. >=1.1 because the example generators build their
-    # matrices through `sporadik.SparseArray`, which 1.0 does not have.
-    "sporadik>=1.1",
-    # The `xarray` extra: tests cover both an xarray handed in and `.xarray_data` handed out.
-    "xarray>=2024.11.0",
-]
-
-# `_tested.json` is written by the integration tests (the server version they ran against)
-# and is not in git: named as an artifact, on both, it is shipped all the same.
 [tool.hatch.build.targets.sdist]
 include = ["mikro"]
 artifacts = ["mikro/_tested.json"]
@@ -164,4 +129,23 @@ fallback-version = "0.0.0"
 dev = [
     "ruff==0.17.6",
     "basedpyright==1.40.2",
+    "pytest-asyncio>=0.26.0",
+    "pytest-cov>=6.1.1",
+    "pytest>=8.3.5",
+    "python-semantic-release>=9.21.0",
+    "autoflake>=1.7.7,<2",
+    "aiohttp>=3.8.3,<4",
+    "pytest-aiohttp>=1.0.4,<2",
+    "turms>=3.0",
+    "cryptography>=44.0.3",
+    "pyjwt>=2.10.1",
+    "dokker>=2.8",
+    "tifffile>=2024.1.30",
+    "scikit-image>=0.22",
+    "fakts>=6.1",
+    "rekuest>=6",
+    "pyarrow>=24",
+    "duckdb>=1.5.3",
+    "sporadik>=1.1",
+    "xarray>=2024.11.0",
 ]
