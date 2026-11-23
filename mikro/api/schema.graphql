@@ -36,14 +36,18 @@ input AcquisitionWindowInput {
   end: DateTime = null
 }
 
-"""Objects to put in a collaboration together"""
+"""Objects to put in a collaboration at once: all of them, or none"""
 input AddManyToCollaborationInput {
+  """The collaboration's key (lok's)"""
   collaboration: ID!
 
-  """
-  What to put in, in order: a whole before its parts. Each brings what it needs to be seen; one that is already in stays as it is
-  """
+  """What to put in; a whole before its parts"""
   objects: [CollaborationObjectRef!]!
+
+  """
+  The collaboration's name, kept here when these are the first things put in
+  """
+  name: String = null
 }
 
 """
@@ -207,6 +211,14 @@ input AnimationFilter {
   Filter by the database ID of the user that assigned the creating task (the `createdThroughBy { id }` field)
   """
   createdThroughBy: ID
+
+  """
+  Only what is in this collaboration (its key): put in, or part of what was
+  """
+  inCollaboration: ID
+
+  """Only what the workflow (its root task id) created"""
+  createdUnder: ID
   id: ID
   name: StrFilterLookup
   AND: AnimationFilter
@@ -310,6 +322,11 @@ type Annotation @key(fields: "id", resolvable: true) @identified(by: "@mikro/ann
   """
   creator: User
 
+  """
+  When this annotation was drawn. Null for a shape drawn before the time was kept whose history records none
+  """
+  createdAt: DateTime
+
   """Provenance entries for this annotation"""
   provenanceEntries(pagination: OffsetPaginationInput): [ProvenanceEntry!]!
 
@@ -349,6 +366,11 @@ type Annotation @key(fields: "id", resolvable: true) @identified(by: "@mikro/ann
   derivedResidents: [Resident!]!
 
   """
+  How many containers `derivedResidents` lists: a count for a tile, without loading what they are
+  """
+  derivedResidentsCount: Int!
+
+  """
   The shapes this one was made from, and how, in the order its creator named them: the other end of `derivedAnnotations`. Empty for a shape drawn from nothing. Shape to shape only -- what *data* a shape was computed from is its collection's `derivedFrom`, and what was computed from it is `derivedResidents`
   """
   derivedFrom: [AnnotationDerivation!]!
@@ -378,6 +400,16 @@ type AnnotationChartLayer implements ChartLayer @key(fields: "id", resolvable: t
 
   """The colour the layer is drawn in, as RGBA. Null lets the viewer choose"""
   color: [Float!]
+
+  """
+  The lowest value the layer's value scale shows, as last set. Null lets the viewer scale to the data
+  """
+  valueMin: Float
+
+  """
+  The highest value the layer's value scale shows, as last set. Null lets the viewer scale to the data
+  """
+  valueMax: Float
 
   """
   The path of transformation edges from this layer's source coordinate system to its chart's world. Null when the layer is unregistered; empty when the source already is the world. `asAffine` is the same path composed
@@ -516,6 +548,14 @@ input AnnotationCollectionFilter {
 
   """Filter by the creator's subject ID"""
   owner: ID
+
+  """
+  Only what is in this collaboration (its key): put in, or part of what was
+  """
+  inCollaboration: ID
+
+  """Only what the workflow (its root task id) created"""
+  createdUnder: ID
   id: ID
   name: StrFilterLookup
   AND: AnnotationCollectionFilter
@@ -618,6 +658,20 @@ enum AnnotationField {
 input AnnotationFilter {
   """Filter by list of IDs"""
   ids: [ID!]
+
+  """Filter for items created before this datetime"""
+  createdBefore: DateTime
+
+  """Filter for items created after this datetime"""
+  createdAfter: DateTime
+
+  """
+  Only what is in this collaboration (its key): put in, or part of what was
+  """
+  inCollaboration: ID
+
+  """Only what the workflow (its root task id) created"""
+  createdUnder: ID
   id: UUID
   name: StrFilterLookup
   description: StrFilterLookup
@@ -857,7 +911,13 @@ type AnnotationLens implements Lens @key(fields: "id", resolvable: true) @identi
   """
   The coordinate anchors inside this selection: an anchor global along an axis, or pinned inside the lens' range on it. Empty for a container kind that carries no anchors (meshes, networks, annotation collections)
   """
-  activeAnchors: [CoordinateAnchor!]!
+  activeAnchors(
+    """
+    Narrow further to the anchors inside every one of these windows, in the container's own anchor coordinates (an array's indices, a table's values): a time window, one channel (`min == max`). An anchor that says nothing about an axis is inside any window on it
+    """
+    within: [WindowInput!] = null
+    pagination: OffsetPaginationInput = null
+  ): [CoordinateAnchor!]!
 
   """
   The scenes this lens is rendered in: those with a layer drawing through it or through any selection within it, of any kind. Derived, never stored, exactly as `ArrayDataset.scenes` is. A layer over one channel of a crop draws the crop, and a layer over any crop draws the whole lens -- so a whole lens answers for the whole container and a window or a crop for what it contains; a scene showing a selection that reaches outside this one is that selection's to report
@@ -879,6 +939,7 @@ type AnnotationLens implements Lens @key(fields: "id", resolvable: true) @identi
 input AnnotationOrder @oneOf {
   name: Ordering
   id: Ordering
+  createdAt: Ordering
 }
 
 """
@@ -948,6 +1009,14 @@ type AnnotationStats {
 
   """Sum"""
   sum(field: AnnotationField!): Float
+
+  """Time-bucketed stats over a datetime field."""
+  series(field: AnnotationField!, timestampField: AnnotationTimestampField!, by: Granularity!): [TimeBucket!]!
+}
+
+"""Datetime fields of Annotation for bucketing"""
+enum AnnotationTimestampField {
+  CREATED_AT
 }
 
 """The `Any` scalar any type"""
@@ -1007,6 +1076,14 @@ type ArrayDataset @key(fields: "id", resolvable: true) @identified(by: "@mikro/a
   id: ID!
   name: String!
   description: String
+
+  """When this dataset was created"""
+  createdAt: DateTime!
+
+  """
+  The bytes this dataset holds: every level of its pyramid, as their stores measured them when the upload finished. Null when no store could be measured
+  """
+  sizeBytes: ByteCount
 
   """
   Every change made to this dataset: who created it, and every subsequent rename or redescription, attributed to the client, user and task it happened under. Only `name` and `description` can change -- the arrays, the axes and the coordinate systems built from them are fixed at creation
@@ -1083,6 +1160,11 @@ type ArrayDataset @key(fields: "id", resolvable: true) @identified(by: "@mikro/a
   derivedResidents: [Resident!]!
 
   """
+  How many containers `derivedResidents` lists: a count for a tile, without loading what they are
+  """
+  derivedResidentsCount: Int!
+
+  """
   Whether this dataset carries a resolution pyramid. Derived: true when it has more than one level
   """
   multiscale: Boolean!
@@ -1155,7 +1237,7 @@ input ArrayDatasetFilter {
   ids: [ID!]
 
   """
-  Search by name (case-insensitive substring) or by the meaning of the query against name and description. Substring matches rank first, then by similarity; an explicit `ordering` replaces that ranking
+  Search by name (case-insensitive substring) or by the meaning of the query against name and description. Ranked: an exact match, then a prefix, then other textual matches by trigram similarity, then by meaning; an explicit `ordering` replaces that ranking
   """
   search: String
 
@@ -1183,6 +1265,14 @@ input ArrayDatasetFilter {
   Filter by the database ID of the user that assigned the creating task (the `createdThroughBy { id }` field)
   """
   createdThroughBy: ID
+
+  """
+  Only what is in this collaboration (its key): put in, or part of what was
+  """
+  inCollaboration: ID
+
+  """Only what the workflow (its root task id) created"""
+  createdUnder: ID
   id: ID
   name: StrFilterLookup
   description: StrFilterLookup
@@ -1459,7 +1549,13 @@ type ArrayLens implements Lens @key(fields: "id", resolvable: true) @identified(
   """
   The coordinate anchors inside this selection: an anchor global along an axis, or pinned inside the lens' range on it. Empty for a container kind that carries no anchors (meshes, networks, annotation collections)
   """
-  activeAnchors: [CoordinateAnchor!]!
+  activeAnchors(
+    """
+    Narrow further to the anchors inside every one of these windows, in the container's own anchor coordinates (an array's indices, a table's values): a time window, one channel (`min == max`). An anchor that says nothing about an axis is inside any window on it
+    """
+    within: [WindowInput!] = null
+    pagination: OffsetPaginationInput = null
+  ): [CoordinateAnchor!]!
 
   """
   The scenes this lens is rendered in: those with a layer drawing through it or through any selection within it, of any kind. Derived, never stored, exactly as `ArrayDataset.scenes` is. A layer over one channel of a crop draws the crop, and a layer over any crop draws the whole lens -- so a whole lens answers for the whole container and a window or a crop for what it contains; a scene showing a selection that reaches outside this one is that selection's to report
@@ -1675,6 +1771,17 @@ input AxisInput {
   metricGroup: String = null
   longName: String = null
   description: String = null
+}
+
+"""
+How much one step along an axis spans, measured against another grid's steps
+"""
+type AxisScaleFactor {
+  """The axis, by name"""
+  axis: String!
+
+  """How many steps of the other grid one step along this axis spans"""
+  factor: Float!
 }
 
 """
@@ -2298,6 +2405,14 @@ input ChartFilter {
 
   """Filter for items created after this datetime"""
   createdAfter: DateTime
+
+  """
+  Only what is in this collaboration (its key): put in, or part of what was
+  """
+  inCollaboration: ID
+
+  """Only what the workflow (its root task id) created"""
+  createdUnder: ID
   id: ID
   name: StrFilterLookup
   AND: ChartFilter
@@ -2331,6 +2446,16 @@ interface ChartLayer {
 
   """The colour the layer is drawn in, as RGBA. Null lets the viewer choose"""
   color: [Float!]
+
+  """
+  The lowest value the layer's value scale shows, as last set. Null lets the viewer scale to the data
+  """
+  valueMin: Float
+
+  """
+  The highest value the layer's value scale shows, as last set. Null lets the viewer scale to the data
+  """
+  valueMax: Float
 
   """
   The path of transformation edges from this layer's source coordinate system to its chart's world. Null when the layer is unregistered; empty when the source already is the world. `asAffine` is the same path composed
@@ -2486,6 +2611,8 @@ enum ChildrenOrderDirection {
 enum ChildrenOrderField {
   CREATED_AT
   NAME
+  SIZE
+  KIND
 }
 
 input ChildrenPaginationInput {
@@ -2527,8 +2654,20 @@ type Collaboration {
   description: String
   createdAt: DateTime!
 
-  """What is in the collaboration; what is part of these is in it too"""
-  items: [CollaborationItem!]!
+  """
+  The collaboration's key across the hub: what lok grants, and what names it in every service
+  """
+  key: ID!
+
+  """
+  What is in the collaboration, oldest first; what is part of these is in it too. `brought` keeps what was put in by hand (false) or only what came along with it (true)
+  """
+  items(brought: Boolean = null, pagination: OffsetPaginationInput = null): [CollaborationItem!]!
+
+  """
+  How many objects are in the collaboration: all of them, or (`brought`) only those put in by hand (false) or only those that came along with one (true)
+  """
+  itemCount(brought: Boolean = null): Int!
 }
 
 """
@@ -2552,6 +2691,7 @@ type CollaborationItem {
 
 """An object to put in, or take out of, a collaboration"""
 input CollaborationObjectInput {
+  """The collaboration's key (lok's)"""
   collaboration: ID!
 
   """The structure the object is known by: @mikro/scene"""
@@ -2559,15 +2699,31 @@ input CollaborationObjectInput {
 
   """The object's id"""
   object: ID!
+
+  """
+  The collaboration's name, kept here when this is the first thing put in
+  """
+  name: String = null
 }
 
-"""One object of a batch, by the structure it is known by and its id"""
+"""An object, by its structure and id"""
 input CollaborationObjectRef {
-  """The structure the object is known by: @mikro/arraydataset"""
+  """The structure the object is known by: @mikro/scene"""
   identifier: String!
 
   """The object's id"""
   object: ID!
+}
+
+"""
+How many collaborations the organization has (a guest: theirs), and how much is in them
+"""
+type CollaborationStats {
+  """How many collaborations"""
+  count: Int!
+
+  """How many objects are in them altogether, brought along ones included"""
+  itemCount: Int!
 }
 
 """
@@ -2733,6 +2889,22 @@ enum ColorSourceKind {
 }
 
 """
+One stop of a colour gradient: a position on the normalized 0..1 the colormap is indexed with, and the RGBA colour there
+"""
+type ColorStop {
+  position: Float!
+  color: [Int!]!
+}
+
+"""
+One stop of a colour gradient: a position on the normalized 0..1 the colormap is indexed with, and the RGBA colour there
+"""
+input ColorStopInput {
+  position: Float!
+  color: [Int!]!
+}
+
+"""
 One declared column of a table dataset: its name, dtype and role. A COORDINATE column is also an axis of the table's space
 """
 type Column @key(fields: "id", resolvable: true) {
@@ -2765,6 +2937,16 @@ type Column @key(fields: "id", resolvable: true) {
   The network collection whose NODE ids this INDEX coordinate column's values are, scoped by the sibling INDEX axis keyed by the same collection's object ids. One such column makes the table per-node, two make it per-edge -- (source, target), in axis declaration order -- which is what a client resolving a per-node picker entry reads the key columns from. Null for every column of every other table
   """
   nodeReferences: NetworkCollection
+
+  """
+  What the parquet footer says of this column: its range and how many values are null. Read once, never by scanning the rows. Null until the footer was read
+  """
+  stats: ColumnStats
+
+  """
+  What a client computed over this column for the whole table -- its histogram, its distinct values -- pinned to the table's global anchor (`createCoordinateAnchor` with `columnSummaries`). Null until someone computed it. A summary at a narrower coordinate is on that anchor's `columnSummaries`
+  """
+  summary: ColumnSummary
 }
 
 """
@@ -2881,6 +3063,73 @@ enum ColumnRole {
   COLOR
 }
 
+"""What a parquet footer says of one column, read without scanning a row"""
+type ColumnStats {
+  """
+  The smallest value. Null for a column whose statistics are not numbers, or that a row group states none for
+  """
+  min: Float
+
+  """
+  The largest value. Null for a column whose statistics are not numbers, or that a row group states none for
+  """
+  max: Float
+
+  """How many values are null. Null where a row group does not say"""
+  nullCount: RowCount
+}
+
+"""
+What a client computed over one column of a table and pinned to an anchor of it: a histogram, the distinct values. The table twin of `ValueHistogram`
+"""
+type ColumnSummary @key(fields: "id", resolvable: true) {
+  id: ID!
+
+  """The column summarised"""
+  column: Column!
+
+  """The counts per bin (y values)"""
+  histogram: [Float!]!
+
+  """
+  The bins (x values): their edges, one more than the counts, or their centres, as many as the counts
+  """
+  bins: [Float!]!
+
+  """
+  The distinct values as a JSON list, most frequent first, as many as were listed. Null when not computed
+  """
+  distinctValues: JSON
+
+  """How many distinct values the column holds. Null when not computed"""
+  distinctCount: RowCount
+
+  """When this summary was last pinned"""
+  createdAt: DateTime!
+}
+
+"""
+What a client computed over one column of a table, pinned to an anchor of it so every later reader finds it: a histogram, the distinct values. The server never scans a table's rows; whoever holds an access grant computes this once
+"""
+input ColumnSummaryInput {
+  """The name of the column summarised"""
+  column: String!
+
+  """The counts per bin (y values)"""
+  histogram: [Float!]! = []
+
+  """
+  The bins (x values): their edges, one more than the counts, or their centres, as many
+  """
+  bins: [Float!]! = []
+
+  """The distinct values, most frequent first"""
+  distinctValues: Any = null
+
+  """How many distinct values the column holds"""
+  distinctCount: RowCount = null
+}
+
 """
 A discrete coordinate an annotation is pinned to, e.g. a timepoint or a channel
 """
@@ -2929,6 +3178,11 @@ type CoordinateAnchor @key(fields: "id", resolvable: true) @identified(by: "@mik
   phasorCalibrations(pagination: OffsetPaginationInput): [PhasorCalibration!]!
 
   """
+  (table) What clients computed over the table's columns at this coordinate: one summary per column summarised
+  """
+  columnSummaries: [ColumnSummary!]!
+
+  """
   The coordinates this anchor is pinned to, e.g. {'c': 0, 't': 5}. For an array dataset these are level-0 pixel indices, i.e. coordinates of its INTRINSIC system; for a table dataset they are values of its coordinate columns, keyed by column name; for a sparse dataset they are positions along its enumerated axes. An anchor that omits an axis is global along it
   """
   coordinates: Any!
@@ -2937,6 +3191,14 @@ type CoordinateAnchor @key(fields: "id", resolvable: true) @identified(by: "@mik
 input CoordinateAnchorFilter {
   """Filter by list of IDs"""
   ids: [ID!]
+
+  """
+  Only what is in this collaboration (its key): put in, or part of what was
+  """
+  inCollaboration: ID
+
+  """Only what the workflow (its root task id) created"""
+  createdUnder: ID
   id: ID
   dataset: IDFilterLookup
   table: IDFilterLookup
@@ -2965,6 +3227,7 @@ input CoordinateAnchorInput {
   phasorHistogram: PhasorHistogramInput = null
   phasorCalibration: PhasorCalibrationInput = null
   acquisitionWindow: AcquisitionWindowInput = null
+  columnSummaries: [ColumnSummaryInput!] = null
 }
 
 """
@@ -3038,6 +3301,16 @@ type CoordinateSystem @key(fields: "id", resolvable: true) @identified(by: "@mik
   visualizations: [Visualization!]!
 
   """
+  Whether this is a physical space: every axis carries a unit (a calibration, a stage frame, a world). False for a unitless index space -- a pixel grid, a pyramid level, a lens grid -- and for a space with no axes. `a.u.` counts as a unit. The same rule `CoordinateSystemFilter.physical` filters by
+  """
+  physical: Boolean!
+
+  """
+  Every physical space this space reaches with the edges, each by its best route and with the size one step along each axis measures there, canonical first -- ranked as `ArrayLens.voxelSizes` ranks them (the weakest validity on the route, then fewest hops), so a calibration several steps away is found. Empty for a space that is itself physical, or that reaches none
+  """
+  voxelSizes: [VoxelSize!]!
+
+  """
   The data living in this space. Empty for a pure reference frame -- a world, an atlas -- which is what a space with no residents *is*; there is no separate kind to consult. Several residents may share one space: a dataset's own pyramid levels live in its grid, and a hundred tiles acquired on one stage can be registered into one stage frame. A container appears once: its whole lens is the container's handle, not a second resident, so only the lenses that select something are listed beside it
   """
   residents: [Resident!]!
@@ -3098,6 +3371,14 @@ input CoordinateSystemFilter {
 
   """Filter by the creator's subject ID"""
   owner: ID
+
+  """
+  Only what is in this collaboration (its key): put in, or part of what was
+  """
+  inCollaboration: ID
+
+  """Only what the workflow (its root task id) created"""
+  createdUnder: ID
   id: ID
   name: StrFilterLookup
   AND: CoordinateSystemFilter
@@ -3127,6 +3408,11 @@ input CoordinateSystemFilter {
 
   """Filter by a scene composing over this system as its world"""
   scene: ID
+
+  """
+  Filter to the physical spaces -- every axis carries a unit: a calibration, a stage frame, a world -- or, with false, to the unitless index spaces: pixel grids, pyramid levels, lens grids. `a.u.` counts as a unit. A space with no axes is not physical
+  """
+  physical: Boolean
 }
 
 input CoordinateSystemOrder @oneOf {
@@ -3353,12 +3639,6 @@ input CreateChartInput {
   coordinateSystem: ID = null
   axis: PhysicalAxisInput = null
   layout: ChartLayout! = SHARED
-}
-
-"""A new collaboration"""
-input CreateCollaborationInput {
-  name: String!
-  description: String = null
 }
 
 """
@@ -3769,6 +4049,8 @@ input CreatePointsChartLayerInput {
   lineWidth: Float = null
   markerSize: Float = null
   markerShape: ChartMarkerShape = null
+  valueMin: Float = null
+  valueMax: Float = null
   chart: ID!
   lens: ID!
   xColumn: String!
@@ -3842,6 +4124,8 @@ input CreateSeriesChartLayerInput {
   lineWidth: Float = null
   markerSize: Float = null
   markerShape: ChartMarkerShape = null
+  valueMin: Float = null
+  valueMax: Float = null
   chart: ID!
   lens: ID!
   valueColumn: String = null
@@ -3940,6 +4224,8 @@ input CreateTraceChartLayerInput {
   lineWidth: Float = null
   markerSize: Float = null
   markerShape: ChartMarkerShape = null
+  valueMin: Float = null
+  valueMax: Float = null
   chart: ID!
   lens: ID!
 }
@@ -4031,6 +4317,11 @@ type DataArray @key(fields: "id", resolvable: true) {
   The edge from this level's voxel space into the dataset's intrinsic space. Its scale is absolute -- derived from the actual shapes, not from a nominal 2**level -- so a pyramid whose axes do not halve cleanly is described correctly. Null for level 0: its space IS the intrinsic space, and there is nothing to map
   """
   toParent: Transformation
+
+  """
+  How many level-0 voxels one voxel of this level spans, per axis of this level, read off `toParent`: 4.0 on y and x for a level downsampled by four, 1.0 on an axis it keeps. Every 1.0 for level 0. Null when the edge does not condense into an affine map, which a stored level edge always does
+  """
+  relativeScale: [AxisScaleFactor!]
 }
 
 input DataArrayFilter {
@@ -4679,6 +4970,16 @@ type DistributionChartLayer implements ChartLayer @key(fields: "id", resolvable:
   color: [Float!]
 
   """
+  The lowest value the layer's value scale shows, as last set. Null lets the viewer scale to the data
+  """
+  valueMin: Float
+
+  """
+  The highest value the layer's value scale shows, as last set. Null lets the viewer scale to the data
+  """
+  valueMax: Float
+
+  """
   The path of transformation edges from this layer's source coordinate system to its chart's world. Null when the layer is unregistered; empty when the source already is the world. `asAffine` is the same path composed
   """
   pathToWorld(at: [CoordinateInput!] = null): [PlacementStep!]
@@ -4996,6 +5297,9 @@ type File @key(fields: "id", resolvable: true) @identified(by: "@mikro/file") {
   descriptors: JSON!
   id: ID!
   name: String!
+
+  """When this file was registered"""
+  createdAt: DateTime!
   store: BigFileStore!
 
   """
@@ -5027,7 +5331,12 @@ type File @key(fields: "id", resolvable: true) @identified(by: "@mikro/file") {
   """
   The containers converted out of this file: the datasets a converter wrote from it, one per series. **Not a derivation** -- a file has no coordinate system, so these links claim no geometry and place nothing; they say only that this file's bytes and that data are the same thing
   """
-  derivedContainers(filters: FileLinkFilter): [FileLink!]!
+  derivedContainers(filters: FileLinkFilter, pagination: OffsetPaginationInput = null): [FileLink!]!
+
+  """
+  How many containers `derivedContainers` lists, optionally of one kind: a count for a tile, without loading the links
+  """
+  derivedContainersCount(kind: FileLinkContainerKind = null): Int!
 
   """
   The containers this file was written from: the dataset exported to OME-TIFF, the mesh collection written to STL. The mirror of `derivedContainers`
@@ -5078,6 +5387,14 @@ input FileFilter {
   Filter by the database ID of the user that assigned the creating task (the `createdThroughBy { id }` field)
   """
   createdThroughBy: ID
+
+  """
+  Only what is in this collaboration (its key): put in, or part of what was
+  """
+  inCollaboration: ID
+
+  """Only what the workflow (its root task id) created"""
+  createdUnder: ID
   id: ID
   name: StrFilterLookup
   size: IntFilterLookup
@@ -5285,6 +5602,14 @@ input FileLinkFilter {
   Filter by the database ID of the user that assigned the creating task (the `createdThroughBy { id }` field)
   """
   createdThroughBy: ID
+
+  """
+  Only what is in this collaboration (its key): put in, or part of what was
+  """
+  inCollaboration: ID
+
+  """Only what the workflow (its root task id) created"""
+  createdUnder: ID
   id: ID
   direction: FileLinkDirection
   seriesIdentifier: StrFilterLookup
@@ -5301,6 +5626,11 @@ input FileLinkFilter {
 
   """Filter by the file side of the link"""
   file: ID
+
+  """
+  Filter by the sort of container the link names: only the array datasets, only the tables, and so on
+  """
+  containerKind: FileLinkContainerKind
 }
 
 """
@@ -5582,6 +5912,14 @@ input FixtureFilter {
 
   """Filter by the creator's subject ID"""
   owner: ID
+
+  """
+  Only what is in this collaboration (its key): put in, or part of what was
+  """
+  inCollaboration: ID
+
+  """Only what the workflow (its root task id) created"""
+  createdUnder: ID
   id: ID
   name: StrFilterLookup
   AND: FixtureFilter
@@ -5743,7 +6081,13 @@ type FixtureLens implements Lens @key(fields: "id", resolvable: true) @identifie
   """
   The coordinate anchors inside this selection: an anchor global along an axis, or pinned inside the lens' range on it. Empty for a container kind that carries no anchors (meshes, networks, annotation collections)
   """
-  activeAnchors: [CoordinateAnchor!]!
+  activeAnchors(
+    """
+    Narrow further to the anchors inside every one of these windows, in the container's own anchor coordinates (an array's indices, a table's values): a time window, one channel (`min == max`). An anchor that says nothing about an axis is inside any window on it
+    """
+    within: [WindowInput!] = null
+    pagination: OffsetPaginationInput = null
+  ): [CoordinateAnchor!]!
 
   """
   The scenes this lens is rendered in: those with a layer drawing through it or through any selection within it, of any kind. Derived, never stored, exactly as `ArrayDataset.scenes` is. A layer over one channel of a crop draws the crop, and a layer over any crop draws the whole lens -- so a whole lens answers for the whole container and a window or a crop for what it contains; a scene showing a selection that reaches outside this one is that selection's to report
@@ -5810,13 +6154,54 @@ type Folder @key(fields: "id", resolvable: true) @identified(by: "@mikro/folder"
 }
 
 """
-Anything filed in a folder: a sub-folder, a file, or one of the four containers
+Anything filed in a folder: a sub-folder, a file, or one of the containers
 """
-union FolderChild = Folder | File | ArrayDataset | TableDataset | MeshCollection | AnnotationCollection | Fixture
+union FolderChild = Folder | File | ArrayDataset | TableDataset | SparseDataset | MeshCollection | NetworkCollection | AnnotationCollection | Fixture
+
+"""
+How much a folder holds, under the same filter as `children`: the total, and per kind
+"""
+type FolderChildCounts {
+  """Everything `children` would page through with this filter"""
+  total: Int!
+
+  """
+  One entry per kind the filter admits, zeros included, in the order KIND sorts them
+  """
+  kinds: [FolderChildKindCount!]!
+}
+
+"""
+What sort of thing a folder holds: a sub-folder, a file, or one of the containers. The order here is the order a KIND sort lists them in
+"""
+enum FolderChildKind {
+  FOLDER
+  FILE
+  ARRAY_DATASET
+  TABLE_DATASET
+  SPARSE_DATASET
+  MESH_COLLECTION
+  NETWORK_COLLECTION
+  ANNOTATION_COLLECTION
+  FIXTURE
+}
+
+"""
+How many of one kind of thing a folder holds, under the same filter as `children`
+"""
+type FolderChildKindCount {
+  kind: FolderChildKind!
+  count: Int!
+}
 
 input FolderChildrenFilter {
   showChildren: Boolean = null
   search: String = null
+
+  """
+  Only these kinds of thing. Filtered before paging, so a page of tables is a page of tables however many folders and files sit beside them
+  """
+  kinds: [FolderChildKind!] = null
 
   """
   Also list the containers that were converted from a file (those with a SOURCE file link). Hidden unless this is true, because the file they were made from is listed already. Any SOURCE link hides a container, wherever its file is kept; a RENDITION link (an export) never does
@@ -5834,7 +6219,7 @@ input FolderFilter {
   ids: [ID!]
 
   """
-  Search by name (full-text) or by the meaning of the query against name and description. Textual matches rank first, then by similarity; an explicit `ordering` replaces that ranking
+  Search by name (full-text) or by the meaning of the query against name and description. Ranked: an exact match, then a prefix, then other textual matches by trigram similarity, then by meaning; an explicit `ordering` replaces that ranking
   """
   search: String
 
@@ -5868,6 +6253,14 @@ input FolderFilter {
   Filter by the database ID of the user that assigned the creating task (the `createdThroughBy { id }` field)
   """
   createdThroughBy: ID
+
+  """
+  Only what is in this collaboration (its key): put in, or part of what was
+  """
+  inCollaboration: ID
+
+  """Only what the workflow (its root task id) created"""
+  createdUnder: ID
   id: ID
   name: StrFilterLookup
   description: StrFilterLookup
@@ -6061,6 +6454,24 @@ input GraphColorByInput @unionElementOf(union: "NetworkColorByInput", discrimina
   target: GraphTarget! = NODE
 }
 
+"""Which way a walk over the coordinate graph follows an edge"""
+enum GraphDirection {
+  """
+  From an edge's input to its output only: where this space maps to -- its physical spaces, the worlds it is registered into, and onward.
+  """
+  OUTGOING
+
+  """
+  From an edge's output to its input only: what maps into this space -- the grids, levels and lenses registered into it, and theirs.
+  """
+  INCOMING
+
+  """
+  Either way: the whole connected component, which reaches everything else registered into a shared world.
+  """
+  BOTH
+}
+
 """
 Which of a network's two row sets a GRAPH colouring or rule addresses. A network is the one layer kind with two -- every other source has exactly one set of objects -- and an edge has no durable identity of its own (simplification re-links edges between levels), so an edge's value is *derived*: it takes its start node's value, the same convention the renderer already uses for an edge's object ordinal
 """
@@ -6124,6 +6535,14 @@ input GridFilter {
 
   """Filter for items created after this datetime"""
   createdAfter: DateTime
+
+  """
+  Only what is in this collaboration (its key): put in, or part of what was
+  """
+  inCollaboration: ID
+
+  """Only what the workflow (its root task id) created"""
+  createdUnder: ID
   id: ID
   name: StrFilterLookup
   AND: GridFilter
@@ -7245,6 +7664,14 @@ type LayerEvent {
 input LayerFilter {
   """Filter by list of IDs"""
   ids: [ID!]
+
+  """
+  Only what is in this collaboration (its key): put in, or part of what was
+  """
+  inCollaboration: ID
+
+  """Only what the workflow (its root task id) created"""
+  createdUnder: ID
   id: ID
   kind: LayerKindChoices
   blending: BlendingChoices
@@ -7462,7 +7889,13 @@ interface Lens {
   """
   The coordinate anchors inside this selection: an anchor global along an axis, or pinned inside the lens' range on it. Empty for a container kind that carries no anchors (meshes, networks, annotation collections)
   """
-  activeAnchors: [CoordinateAnchor!]!
+  activeAnchors(
+    """
+    Narrow further to the anchors inside every one of these windows, in the container's own anchor coordinates (an array's indices, a table's values): a time window, one channel (`min == max`). An anchor that says nothing about an axis is inside any window on it
+    """
+    within: [WindowInput!] = null
+    pagination: OffsetPaginationInput = null
+  ): [CoordinateAnchor!]!
 
   """
   The scenes this lens is rendered in: those with a layer drawing through it or through any selection within it, of any kind. Derived, never stored, exactly as `ArrayDataset.scenes` is. A layer over one channel of a crop draws the crop, and a layer over any crop draws the whole lens -- so a whole lens answers for the whole container and a window or a crop for what it contains; a scene showing a selection that reaches outside this one is that selection's to report
@@ -7545,6 +7978,11 @@ type LensEvent {
 
   """The ID of a lens that was deleted, on its own or with its container"""
   delete: ID
+
+  """
+  The kind of the lens `delete` names, so a client evicts it under the one typename it cached it as. Set exactly when `delete` is
+  """
+  deleteKind: LensKind
 }
 
 """Numeric/aggregatable fields of Lens"""
@@ -7580,6 +8018,14 @@ input LensFilter {
   Filter by the database ID of the user that assigned the creating task (the `createdThroughBy { id }` field)
   """
   createdThroughBy: ID
+
+  """
+  Only what is in this collaboration (its key): put in, or part of what was
+  """
+  inCollaboration: ID
+
+  """Only what the workflow (its root task id) created"""
+  createdUnder: ID
   id: ID
   AND: LensFilter
   OR: LensFilter
@@ -8385,6 +8831,14 @@ input MeshCollectionFilter {
 
   """Filter by the creator's subject ID"""
   owner: ID
+
+  """
+  Only what is in this collaboration (its key): put in, or part of what was
+  """
+  inCollaboration: ID
+
+  """Only what the workflow (its root task id) created"""
+  createdUnder: ID
   id: ID
   name: StrFilterLookup
   AND: MeshCollectionFilter
@@ -8645,7 +9099,13 @@ type MeshLens implements Lens @key(fields: "id", resolvable: true) @identified(b
   """
   The coordinate anchors inside this selection: an anchor global along an axis, or pinned inside the lens' range on it. Empty for a container kind that carries no anchors (meshes, networks, annotation collections)
   """
-  activeAnchors: [CoordinateAnchor!]!
+  activeAnchors(
+    """
+    Narrow further to the anchors inside every one of these windows, in the container's own anchor coordinates (an array's indices, a table's values): a time window, one channel (`min == max`). An anchor that says nothing about an axis is inside any window on it
+    """
+    within: [WindowInput!] = null
+    pagination: OffsetPaginationInput = null
+  ): [CoordinateAnchor!]!
 
   """
   The scenes this lens is rendered in: those with a layer drawing through it or through any selection within it, of any kind. Derived, never stored, exactly as `ArrayDataset.scenes` is. A layer over one channel of a crop draws the crop, and a layer over any crop draws the whole lens -- so a whole lens answers for the whole container and a window or a crop for what it contains; a scene showing a selection that reaches outside this one is that selection's to report
@@ -8678,6 +9138,11 @@ type MeshObject {
   Everything computed from this one object: the data whose `derivedFrom` named it as a MESH_OBJECT source. The object-level twin of `Annotation.derivedResidents`, kind-blind like it. These are listed on the collection's own lineage too: an object is part of its collection
   """
   derivedResidents: [Resident!]!
+
+  """
+  How many containers `derivedResidents` lists: a count for a card, without loading what they are
+  """
+  derivedResidentsCount: Int!
 }
 
 """
@@ -8805,6 +9270,14 @@ type Metric @key(fields: "id", resolvable: true) @identified(by: "@mikro/metric"
 input MetricFilter {
   """Filter by list of IDs"""
   ids: [ID!]
+
+  """
+  Only what is in this collaboration (its key): put in, or part of what was
+  """
+  inCollaboration: ID
+
+  """Only what the workflow (its root task id) created"""
+  createdUnder: ID
   id: ID
   key: StrFilterLookup
   AND: MetricFilter
@@ -8946,11 +9419,8 @@ type ModelChange {
 }
 
 type Mutation {
-  """Create an empty collaboration, to put objects in and grant a guest"""
-  createCollaboration(input: CreateCollaborationInput!): Collaboration! @auth(required_scopes: ["mikro_share"], any_role_of: ["mikro_editor"])
-
   """
-  Put an object in a collaboration, with what it needs to be seen: a scene brings the data its layers draw
+  Put an object in a collaboration (lok's, by its key), with what it needs to be seen: a scene brings the data its layers draw. The first thing put in makes mikro's row of the collaboration
   """
   addToCollaboration(input: CollaborationObjectInput!): Collaboration! @auth(required_scopes: ["mikro_share"], any_role_of: ["mikro_editor"])
 
@@ -8960,14 +9430,19 @@ type Mutation {
   addManyToCollaboration(input: AddManyToCollaborationInput!): Collaboration! @auth(required_scopes: ["mikro_share"], any_role_of: ["mikro_editor"])
 
   """
+  Put what a workflow (its root task) created in mikro in a collaboration, as it is now: a whole goes in, its parts come along, and a part of something made before the workflow and not shared is left out and reported. `dryRun` only says what would be. What the workflow makes later is not in it: share it again
+  """
+  shareWorkflow(input: ShareWorkflowInput!): WorkflowShare! @auth(required_scopes: ["mikro_share"], any_role_of: ["mikro_editor"])
+
+  """
   Take an object out of a collaboration, with what it brought that nothing else there needs
   """
   removeFromCollaboration(input: CollaborationObjectInput!): Collaboration! @auth(required_scopes: ["mikro_share"], any_role_of: ["mikro_editor"])
 
   """
-  Delete a collaboration: whoever was granted it sees nothing of it any more
+  Take everything mikro holds in a collaboration (by its key) out of it: whoever was granted it sees nothing of it here any more. lok's collaboration and its grants stay
   """
-  deleteCollaboration(id: ID!): ID! @auth(required_scopes: ["mikro_share"], any_role_of: ["mikro_editor"])
+  deleteCollaboration(key: ID!): ID! @auth(required_scopes: ["mikro_share"], any_role_of: ["mikro_editor"])
 
   """Upload media and return a URL for access"""
   requestMediaUpload(input: RequestMediaUploadInput!): MediaUploadGrant! @auth(required_scopes: ["mikro_write"], any_role_of: ["mikro_editor"])
@@ -9813,6 +10288,14 @@ input NetworkCollectionFilter {
 
   """Filter by the creator's subject ID"""
   owner: ID
+
+  """
+  Only what is in this collaboration (its key): put in, or part of what was
+  """
+  inCollaboration: ID
+
+  """Only what the workflow (its root task id) created"""
+  createdUnder: ID
   id: ID
   name: StrFilterLookup
   AND: NetworkCollectionFilter
@@ -10107,7 +10590,13 @@ type NetworkLens implements Lens @key(fields: "id", resolvable: true) @identifie
   """
   The coordinate anchors inside this selection: an anchor global along an axis, or pinned inside the lens' range on it. Empty for a container kind that carries no anchors (meshes, networks, annotation collections)
   """
-  activeAnchors: [CoordinateAnchor!]!
+  activeAnchors(
+    """
+    Narrow further to the anchors inside every one of these windows, in the container's own anchor coordinates (an array's indices, a table's values): a time window, one channel (`min == max`). An anchor that says nothing about an axis is inside any window on it
+    """
+    within: [WindowInput!] = null
+    pagination: OffsetPaginationInput = null
+  ): [CoordinateAnchor!]!
 
   """
   The scenes this lens is rendered in: those with a layer drawing through it or through any selection within it, of any kind. Derived, never stored, exactly as `ArrayDataset.scenes` is. A layer over one channel of a crop draws the crop, and a layer over any crop draws the whole lens -- so a whole lens answers for the whole container and a window or a crop for what it contains; a scene showing a selection that reaches outside this one is that selection's to report
@@ -11206,6 +11695,16 @@ type PointsChartLayer implements ChartLayer @key(fields: "id", resolvable: true)
   color: [Float!]
 
   """
+  The lowest value the layer's value scale shows, as last set. Null lets the viewer scale to the data
+  """
+  valueMin: Float
+
+  """
+  The highest value the layer's value scale shows, as last set. Null lets the viewer scale to the data
+  """
+  valueMax: Float
+
+  """
   The path of transformation edges from this layer's source coordinate system to its chart's world. Null when the layer is unregistered; empty when the source already is the world. `asAffine` is the same path composed
   """
   pathToWorld(at: [CoordinateInput!] = null): [PlacementStep!]
@@ -11508,10 +12007,15 @@ type Query {
   """
   List the organization's collaborations: what a guest granted one sees of it (a guest: the collaborations granted to them)
   """
-  collaborations: [Collaboration!]! @auth(required_scopes: ["mikro_read"])
+  collaborations(pagination: OffsetPaginationInput = null): [Collaboration!]! @auth(required_scopes: ["mikro_read"])
 
-  """Get a single collaboration by ID"""
-  collaboration(id: ID!): Collaboration! @auth(required_scopes: ["mikro_read"])
+  """Get what mikro holds in a collaboration, by its key (lok's)"""
+  collaboration(key: ID!): Collaboration! @auth(required_scopes: ["mikro_read"])
+
+  """
+  Count the collaborations `collaborations` lists, and the objects in them
+  """
+  collaborationsStats: CollaborationStats! @auth(required_scopes: ["mikro_read"])
 
   """List charts (compositions of data laid out along one metric axis)"""
   charts(filters: ChartFilter, ordering: [ChartOrder!]! = [], pagination: OffsetPaginationInput): [Chart!]! @auth(required_scopes: ["mikro_read"])
@@ -11721,7 +12225,7 @@ type Query {
   """
   Walk the coordinate graph out from one system: every coordinate system it reaches and every edge between them. Reachability is undirected (an edge pointing into the system relates to it as much as one pointing out), the edges keep their true direction, and nothing is composed -- what the list queries cannot answer is 'which edges relate to *this* one', because relatedness is transitive and a filter is not
   """
-  coordinateGraph(coordinateSystem: ID!, maxDepth: Int = null): CoordinateGraph! @auth(required_scopes: ["mikro_read"])
+  coordinateGraph(coordinateSystem: ID!, maxDepth: Int = null, direction: GraphDirection! = BOTH): CoordinateGraph! @auth(required_scopes: ["mikro_read"])
 
   """
   Walk the *derivation* edges out from one container and return its provenance component: everything this data was computed from, everything computed from it, transitively in both directions, and the edges between them. Distinct from `coordinateGraph`, which walks every edge touching a space -- a registration there drags in every other dataset registered into the same world, which is a neighbourhood rather than a lineage. Nodes are containers, not spaces: a dataset's grid, its levels and its lenses are one node in a provenance story. Kind-blind, so an UNMAPPABLE edge is included and is the point -- that is how a measurement table hangs off the mask it was measured from; filter on `kind` for the chain that actually places things. Root it at any container's coordinate system
@@ -11734,7 +12238,7 @@ type Query {
   lineage(start: LineageRootInput!, up: Int! = 1, down: Int! = 3, limit: Int! = 300, fanout: Int! = 50): Lineage! @auth(required_scopes: ["mikro_read"])
 
   """
-  The newest parentless data, whatever its kind, newest first: what a home page lists. A root has no up-hop in `lineage` -- no derivation edge into another container and no file it was converted from; a file is one unless it was exported from a container. A file's converted series and a dataset's mask are not roots: they are reached from their parent, with `descendants`. Annotation collections are drawn rather than brought in and are never listed. `kinds` narrows it; the default is every other kind. `filters` narrows it further, by creator, collaboration, creation time and acquisition time
+  The newest parentless data, whatever its kind, newest first: what a home page lists. A root has no up-hop in `lineage` -- no derivation edge into another container and no file it was converted from; a file is one unless it was exported from a container. A file's converted series and a dataset's mask are not roots: they are reached from their parent, with `descendants`. Annotation collections are drawn rather than brought in and are never listed. `kinds` narrows it; the default is every other kind. `filters` narrows it further, by creator, collaboration, creation time and acquisition time; its `search` ranks by match instead of newest first
   """
   roots(kinds: [LineageNodeKind!] = null, pagination: OffsetPaginationInput = null, filters: RootFilter = null): [RootNode!]! @auth(required_scopes: ["mikro_read"])
 
@@ -11833,8 +12337,15 @@ type Query {
   """
   labelFilterByOptions(lens: ID!, filters: ColumnOptionFilter = null, pagination: OffsetPaginationInput = null, maxJoinDepth: Int! = 1): [FilterByOption!]! @auth(required_scopes: ["mikro_read"])
 
-  """List the child folders of a folder"""
+  """
+  List what a folder holds -- sub-folders, files and every container -- ordered across all of them at once, then paged
+  """
   children(parent: ID!, filters: FolderChildrenFilter = null, pagination: ChildrenPaginationInput = null, order: ChildrenOrder = null): [FolderChild!]! @auth(required_scopes: ["mikro_read"])
+
+  """
+  Count what `children` pages through with the same filter: the total and one count per kind
+  """
+  childrenCounts(parent: ID!, filters: FolderChildrenFilter = null): FolderChildCounts! @auth(required_scopes: ["mikro_read"])
 
   """Get permissions for a specific object"""
   permissions(identifier: String!, object: ID!): [UserObjectPermission!]! @auth(required_scopes: ["mikro_read"])
@@ -12106,7 +12617,7 @@ input RootFilter {
   owner: ID = null
 
   """
-  Only what was put in this collaboration. A file counts when it, or a series converted out of it, was put there
+  Only what is in this collaboration, by its key: put in, or part of what was -- what `inCollaboration` lists. A file counts when it, or a series converted out of it, is in it
   """
   collaboration: ID = null
 
@@ -12127,7 +12638,7 @@ input RootFilter {
   acquiredBefore: DateTime = null
 
   """
-  Only what is named with this text, anywhere in the name, ignoring case. A file also matches by the name of a series converted out of it. An unnamed mesh or network collection never matches
+  Only what is named with this text, anywhere in the name, ignoring case, or (array and table datasets) whose name and description mean something close to it. A file also matches by the name of a series converted out of it. An unnamed mesh or network collection never matches. Ranked instead of newest first: an exact match, then a prefix, then other textual matches by trigram similarity, then by meaning
   """
   search: String = null
 
@@ -12229,6 +12740,11 @@ type RotationTransformation implements Transformation @key(fields: "id", resolva
   """The rotation matrix"""
   affine: [[Float!]!]!
 }
+
+"""
+A count of rows or values: an integer that may pass 2^31 (GraphQL's `Int` is 32-bit), exact up to 2^53
+"""
+scalar RowCount
 
 """
 What a picked row of a table reaches -- a point of a chart of values. There is no sample: the row's INDEX value IS the id, so a client holding it binds `key` and runs `hops` in order, exactly as it runs an `AttributePlan`'s after its sample. `hops[0]` is the row itself; later hops cross every fact the schema allows from it, including two only a row's plan takes: REVERSE references (a cluster's member rows) and SAME_ROWS crossings (the PCA row of a measurement row). Like an attribute plan it takes no id and reads no store, so fetch it once per table
@@ -12458,6 +12974,11 @@ type Scene implements Visualization @key(fields: "id", resolvable: true) @identi
   """
   worldCoordinateSystem: CoordinateSystem!
 
+  """
+  When this scene was created. Null for a scene made before the time was kept whose history records none
+  """
+  createdAt: DateTime
+
   """The layers placed in this scene (a heterogeneous list of layer kinds)"""
   layers(filters: LayerFilter, ordering: [LayerOrder!]! = [], pagination: OffsetPaginationInput): [Layer!]!
 
@@ -12515,6 +13036,20 @@ enum SceneField {
 input SceneFilter {
   """Filter by list of IDs"""
   ids: [ID!]
+
+  """Filter for items created before this datetime"""
+  createdBefore: DateTime
+
+  """Filter for items created after this datetime"""
+  createdAfter: DateTime
+
+  """
+  Only what is in this collaboration (its key): put in, or part of what was
+  """
+  inCollaboration: ID
+
+  """Only what the workflow (its root task id) created"""
+  createdUnder: ID
   id: ID
   name: StrFilterLookup
   blending: BlendingChoices
@@ -12545,6 +13080,7 @@ input SceneFilter {
 input SceneOrder @oneOf {
   name: Ordering
   id: Ordering
+  createdAt: Ordering
 }
 
 """
@@ -12621,6 +13157,14 @@ input SceneSnapshotFilter {
   Filter by the database ID of the user that assigned the creating task (the `createdThroughBy { id }` field)
   """
   createdThroughBy: ID
+
+  """
+  Only what is in this collaboration (its key): put in, or part of what was
+  """
+  inCollaboration: ID
+
+  """Only what the workflow (its root task id) created"""
+  createdUnder: ID
   id: ID
   name: StrFilterLookup
   AND: SceneSnapshotFilter
@@ -12675,6 +13219,14 @@ type SceneStats {
 
   """Sum"""
   sum(field: SceneField!): Float
+
+  """Time-bucketed stats over a datetime field."""
+  series(field: SceneField!, timestampField: SceneTimestampField!, by: Granularity!): [TimeBucket!]!
+}
+
+"""Datetime fields of Scene for bucketing"""
+enum SceneTimestampField {
+  CREATED_AT
 }
 
 """Where along one axis a transformation applies"""
@@ -12775,6 +13327,16 @@ type SeriesChartLayer implements ChartLayer @key(fields: "id", resolvable: true)
 
   """The colour the layer is drawn in, as RGBA. Null lets the viewer choose"""
   color: [Float!]
+
+  """
+  The lowest value the layer's value scale shows, as last set. Null lets the viewer scale to the data
+  """
+  valueMin: Float
+
+  """
+  The highest value the layer's value scale shows, as last set. Null lets the viewer scale to the data
+  """
+  valueMax: Float
 
   """
   The path of transformation edges from this layer's source coordinate system to its chart's world. Null when the layer is unregistered; empty when the source already is the world. `asAffine` is the same path composed
@@ -12898,6 +13460,32 @@ input SettingInput {
   flag: Boolean = null
 }
 
+"""Put what a workflow created in a collaboration, as it is now"""
+input ShareWorkflowInput {
+  """The collaboration's key (lok's)"""
+  collaboration: ID!
+
+  """
+  The workflow: the id of the task a person started, the root of every task it caused
+  """
+  rootTask: ID!
+
+  """Only say what would be put in, and what left out"""
+  dryRun: Boolean! = false
+
+  """The collaboration's name, kept here when this puts the first things in"""
+  name: String = null
+}
+
+"""An object, by its structure and id"""
+type SharedObject {
+  """The structure the object is known by: @mikro/scene"""
+  identifier: String
+
+  """The object's id"""
+  object: ID!
+}
+
 """
 A blocker: open or closed. An AOTF or EOM used purely as a gate is one of these
 """
@@ -12938,6 +13526,25 @@ input ShutterElementInput @unionElementOf(union: "OpticalElementInput", discrimi
   isOpen: Boolean = null
   shutterType: String = null
   gain: Float = null
+}
+
+"""
+Created in the workflow, but part of something made before it that is not shared: left out
+"""
+type SkippedObject {
+  """The structure the object is known by"""
+  identifier: String
+
+  """The object's id"""
+  object: ID!
+
+  """The structure of what it is part of"""
+  wholeIdentifier: String
+
+  """
+  The id of what it is part of: put that in, and share the workflow again, to bring it
+  """
+  whole: ID!
 }
 
 """A slice along a named axis, with optional start, stop and step"""
@@ -13111,6 +13718,9 @@ type SparseDataset @key(fields: "id", resolvable: true) @identified(by: "@mikro/
   name: String!
   description: String
 
+  """When this sparse dataset was created"""
+  createdAt: DateTime!
+
   """The folder it is filed in. Organisational only"""
   folder: Folder
 
@@ -13219,6 +13829,14 @@ input SparseDatasetFilter {
   Filter by the database ID of the user that assigned the creating task (the `createdThroughBy { id }` field)
   """
   createdThroughBy: ID
+
+  """
+  Only what is in this collaboration (its key): put in, or part of what was
+  """
+  inCollaboration: ID
+
+  """Only what the workflow (its root task id) created"""
+  createdUnder: ID
   id: ID
   name: StrFilterLookup
   description: StrFilterLookup
@@ -13420,7 +14038,13 @@ type SparseLens implements Lens @key(fields: "id", resolvable: true) @identified
   """
   The coordinate anchors inside this selection: an anchor global along an axis, or pinned inside the lens' range on it. Empty for a container kind that carries no anchors (meshes, networks, annotation collections)
   """
-  activeAnchors: [CoordinateAnchor!]!
+  activeAnchors(
+    """
+    Narrow further to the anchors inside every one of these windows, in the container's own anchor coordinates (an array's indices, a table's values): a time window, one channel (`min == max`). An anchor that says nothing about an axis is inside any window on it
+    """
+    within: [WindowInput!] = null
+    pagination: OffsetPaginationInput = null
+  ): [CoordinateAnchor!]!
 
   """
   The scenes this lens is rendered in: those with a layer drawing through it or through any selection within it, of any kind. Derived, never stored, exactly as `ArrayDataset.scenes` is. A layer over one channel of a crop draws the crop, and a layer over any crop draws the whole lens -- so a whole lens answers for the whole container and a window or a crop for what it contains; a scene showing a selection that reaches outside this one is that selection's to report
@@ -13600,6 +14224,14 @@ type TableDataset @key(fields: "id", resolvable: true) @identified(by: "@mikro/t
   name: String!
   description: String
 
+  """When this table dataset was created"""
+  createdAt: DateTime!
+
+  """
+  How many rows the parquet holds, read off its footer -- never by scanning. Null until the footer was read
+  """
+  rowCount: RowCount
+
   """
   Every change made to this table: who created it, and every subsequent rename or redescription, attributed to the client, user and task it happened under. Only `name` and `description` can change -- the store, the columns and the coordinate system derived from them are fixed at creation
   """
@@ -13732,7 +14364,7 @@ input TableDatasetFilter {
   ids: [ID!]
 
   """
-  Search by name (case-insensitive substring) or by the meaning of the query against name and description. Substring matches rank first, then by similarity; an explicit `ordering` replaces that ranking
+  Search by name (case-insensitive substring) or by the meaning of the query against name and description. Ranked: an exact match, then a prefix, then other textual matches by trigram similarity, then by meaning; an explicit `ordering` replaces that ranking
   """
   search: String
 
@@ -13760,6 +14392,14 @@ input TableDatasetFilter {
   Filter by the database ID of the user that assigned the creating task (the `createdThroughBy { id }` field)
   """
   createdThroughBy: ID
+
+  """
+  Only what is in this collaboration (its key): put in, or part of what was
+  """
+  inCollaboration: ID
+
+  """Only what the workflow (its root task id) created"""
+  createdUnder: ID
   id: ID
   name: StrFilterLookup
   description: StrFilterLookup
@@ -14000,7 +14640,13 @@ type TableLens implements Lens @key(fields: "id", resolvable: true) @identified(
   """
   The coordinate anchors inside this selection: an anchor global along an axis, or pinned inside the lens' range on it. Empty for a container kind that carries no anchors (meshes, networks, annotation collections)
   """
-  activeAnchors: [CoordinateAnchor!]!
+  activeAnchors(
+    """
+    Narrow further to the anchors inside every one of these windows, in the container's own anchor coordinates (an array's indices, a table's values): a time window, one channel (`min == max`). An anchor that says nothing about an axis is inside any window on it
+    """
+    within: [WindowInput!] = null
+    pagination: OffsetPaginationInput = null
+  ): [CoordinateAnchor!]!
 
   """
   The scenes this lens is rendered in: those with a layer drawing through it or through any selection within it, of any kind. Derived, never stored, exactly as `ArrayDataset.scenes` is. A layer over one channel of a crop draws the crop, and a layer over any crop draws the whole lens -- so a whole lens answers for the whole container and a window or a crop for what it contains; a scene showing a selection that reaches outside this one is that selection's to report
@@ -14132,6 +14778,16 @@ type TraceChartLayer implements ChartLayer @key(fields: "id", resolvable: true) 
   color: [Float!]
 
   """
+  The lowest value the layer's value scale shows, as last set. Null lets the viewer scale to the data
+  """
+  valueMin: Float
+
+  """
+  The highest value the layer's value scale shows, as last set. Null lets the viewer scale to the data
+  """
+  valueMax: Float
+
+  """
   The path of transformation edges from this layer's source coordinate system to its chart's world. Null when the layer is unregistered; empty when the source already is the world. `asAffine` is the same path composed
   """
   pathToWorld(at: [CoordinateInput!] = null): [PlacementStep!]
@@ -14232,6 +14888,11 @@ type TrackLayer implements Layer @key(fields: "id", resolvable: true) {
   lens: TableLens!
   colorByColumn: String
   lineWidth: Float
+
+  """
+  How many timepoints of each track's past are drawn behind the current one; 0 draws the whole track. Null lets the viewer choose
+  """
+  tailWindow: Int
   colormap: ColorMap
 
   """
@@ -14260,6 +14921,7 @@ type TransferFunction {
   opacity: Float
   invert: Boolean
   stops: [LookupStop!]
+  colorStops: [ColorStop!]
 }
 
 """
@@ -14274,6 +14936,7 @@ input TransferFunctionInput {
   opacity: Float = null
   invert: Boolean = null
   stops: [LookupStopInput!] = null
+  colorStops: [ColorStopInput!] = null
 }
 
 """
@@ -14467,6 +15130,14 @@ input TransformationFilter {
 
   """Filter by the creator's subject ID"""
   owner: ID
+
+  """
+  Only what is in this collaboration (its key): put in, or part of what was
+  """
+  inCollaboration: ID
+
+  """Only what the workflow (its root task id) created"""
+  createdUnder: ID
   id: ID
   kind: TransformKindChoices
   AND: TransformationFilter
@@ -14810,6 +15481,9 @@ input UpdateChartLayerInput {
   lineWidth: Float = null
   markerSize: Float = null
   markerShape: ChartMarkerShape = null
+  valueMin: Float = null
+  valueMax: Float = null
+  autoscale: Boolean = null
   id: ID!
 }
 
@@ -15109,6 +15783,9 @@ input UpdatePointsChartLayerInput {
   lineWidth: Float = null
   markerSize: Float = null
   markerShape: ChartMarkerShape = null
+  valueMin: Float = null
+  valueMax: Float = null
+  autoscale: Boolean = null
   id: ID!
   lens: ID = null
   xColumn: String = null
@@ -15157,6 +15834,9 @@ input UpdateSeriesChartLayerInput {
   lineWidth: Float = null
   markerSize: Float = null
   markerShape: ChartMarkerShape = null
+  valueMin: Float = null
+  valueMax: Float = null
+  autoscale: Boolean = null
   id: ID!
   lens: ID = null
   valueColumn: String = null
@@ -15191,6 +15871,9 @@ input UpdateTraceChartLayerInput {
   lineWidth: Float = null
   markerSize: Float = null
   markerShape: ChartMarkerShape = null
+  valueMin: Float = null
+  valueMax: Float = null
+  autoscale: Boolean = null
   id: ID!
   lens: ID = null
 }
@@ -15202,6 +15885,7 @@ input UpdateTrackLayerInput {
   id: ID!
   colorByColumn: String = null
   lineWidth: Float = null
+  tailWindow: Int = null
   colormap: ColorMap = null
   blending: Blending = null
   opacity: Float = null
@@ -15526,6 +16210,33 @@ input WindowInput {
   max: Float = null
 }
 
+"""
+What sharing a workflow put in a collaboration here (or, tried, would put in)
+"""
+type WorkflowShare {
+  """The collaboration's key"""
+  collaboration: ID!
+
+  """Whether nothing was written"""
+  dryRun: Boolean!
+
+  """Put in, with what each needs to be seen"""
+  added: [SharedObject!]!
+
+  """
+  How many parts came along with their whole, without being put in themselves
+  """
+  covered: Int!
+
+  """Left out: parts of something made before the workflow and not shared"""
+  skipped: [SkippedObject!]!
+
+  """
+  Structures here that cannot say what created their objects: not looked at
+  """
+  unknown: [String!]!
+}
+
 """Temporary S3 credentials for reading a Zarr store."""
 type ZarrAccessGrant {
   status: String!
@@ -15599,7 +16310,7 @@ type ZarrUploadGrant {
 
 scalar _Any
 
-union _Entity = AcquisitionWindow | AffineTransformation | Animation | AnimationWaypoint | Annotation | AnnotationChartLayer | AnnotationCollection | AnnotationDerivation | AnnotationLayer | AnnotationLens | ArrayDataset | ArrayLens | Axis | BigFileStore | ByDimensionTransformation | CellsGridLayer | ChannelLabel | Chart | Client | Column | CoordinateAnchor | CoordinateSystem | DataArray | DerivationConflict | DistributionChartLayer | FabriksStore | File | FileLink | Fixture | FixtureLayer | FixtureLens | Folder | Grid | HeatmapGridLayer | IdentityTransformation | ImageLayer | IntensityLayer | KonnektionStore | KulisseStore | LabelLayer | LightPath | MapAxisTransformation | MediaStore | Membership | MeshCollection | MeshLayer | MeshLens | Metric | MetricTarget | NetworkCollection | NetworkLayer | NetworkLens | OmeMetadata | OptikitState | Organization | ParquetStore | PhasorCalibration | PhasorHistogram | PhasorLayer | PointLayer | PointsChartLayer | PositionLabel | RgbLayer | RotationTransformation | ScaleTransformation | Scene | SceneSnapshot | SequenceTransformation | SeriesChartLayer | SparseArray | SparseAxisReference | SparseDataset | SparseLens | SparseStore | TableDataset | TableLens | Task | TraceChartLayer | TrackLayer | TranslationTransformation | UnmappableTransformation | User | ValueHistogram | VectorLayer | ZarrStore
+union _Entity = AcquisitionWindow | AffineTransformation | Animation | AnimationWaypoint | Annotation | AnnotationChartLayer | AnnotationCollection | AnnotationDerivation | AnnotationLayer | AnnotationLens | ArrayDataset | ArrayLens | Axis | BigFileStore | ByDimensionTransformation | CellsGridLayer | ChannelLabel | Chart | Client | Column | ColumnSummary | CoordinateAnchor | CoordinateSystem | DataArray | DerivationConflict | DistributionChartLayer | FabriksStore | File | FileLink | Fixture | FixtureLayer | FixtureLens | Folder | Grid | HeatmapGridLayer | IdentityTransformation | ImageLayer | IntensityLayer | KonnektionStore | KulisseStore | LabelLayer | LightPath | MapAxisTransformation | MediaStore | Membership | MeshCollection | MeshLayer | MeshLens | Metric | MetricTarget | NetworkCollection | NetworkLayer | NetworkLens | OmeMetadata | OptikitState | Organization | ParquetStore | PhasorCalibration | PhasorHistogram | PhasorLayer | PointLayer | PointsChartLayer | PositionLabel | RgbLayer | RotationTransformation | ScaleTransformation | Scene | SceneSnapshot | SequenceTransformation | SeriesChartLayer | SparseArray | SparseAxisReference | SparseDataset | SparseLens | SparseStore | TableDataset | TableLens | Task | TraceChartLayer | TrackLayer | TranslationTransformation | UnmappableTransformation | User | ValueHistogram | VectorLayer | ZarrStore
 
 type _Service {
   sdl: String!

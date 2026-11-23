@@ -1397,6 +1397,13 @@ class AcquisitionWindowInput(BaseModel):
     end: datetime | None = Field(default=None, description='When the last of it was acquired. Defaults to start: one instant')
     model_config = ConfigDict(frozen=True, extra='forbid')
 
+class AddManyToCollaborationInput(BaseModel):
+    """Objects to put in a collaboration at once: all of them, or none"""
+    collaboration: ID = Field(description="The collaboration's key (lok's)")
+    objects: tuple['CollaborationObjectRef', ...] = Field(description='What to put in; a whole before its parts')
+    name: str | None = Field(default=None, description="The collaboration's name, kept here when these are the first things put in")
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
 class AnimationFilter(BaseModel):
     """No documentation"""
     ids: tuple[ID, ...] | None = Field(default=None, description='Filter by list of IDs')
@@ -1408,6 +1415,8 @@ class AnimationFilter(BaseModel):
     created_through: ID | None = Field(validation_alias=AliasChoices('created_through', 'createdThrough'), serialization_alias='createdThrough', default=None, description='Filter by the database ID of the task the item was created through (the `createdThrough { id }` field)')
     assigned_by: ID | None = Field(validation_alias=AliasChoices('assigned_by', 'assignedBy'), serialization_alias='assignedBy', default=None, description='Filter by the sub of the user that assigned the creating task')
     created_through_by: ID | None = Field(validation_alias=AliasChoices('created_through_by', 'createdThroughBy'), serialization_alias='createdThroughBy', default=None, description='Filter by the database ID of the user that assigned the creating task (the `createdThroughBy { id }` field)')
+    in_collaboration: ID | None = Field(validation_alias=AliasChoices('in_collaboration', 'inCollaboration'), serialization_alias='inCollaboration', default=None, description='Only what is in this collaboration (its key): put in, or part of what was')
+    created_under: ID | None = Field(validation_alias=AliasChoices('created_under', 'createdUnder'), serialization_alias='createdUnder', default=None, description='Only what the workflow (its root task id) created')
     id: ID | None = None
     name: 'StrFilterLookup | None' = None
     and_: 'AnimationFilter | None' = Field(validation_alias=AliasChoices('and_', 'AND'), serialization_alias='AND', default=None)
@@ -1431,6 +1440,8 @@ class AnnotationCollectionFilter(BaseModel):
     created_before: datetime | None = Field(validation_alias=AliasChoices('created_before', 'createdBefore'), serialization_alias='createdBefore', default=None, description='Filter for items created before this datetime')
     created_after: datetime | None = Field(validation_alias=AliasChoices('created_after', 'createdAfter'), serialization_alias='createdAfter', default=None, description='Filter for items created after this datetime')
     owner: ID | None = Field(default=None, description="Filter by the creator's subject ID")
+    in_collaboration: ID | None = Field(validation_alias=AliasChoices('in_collaboration', 'inCollaboration'), serialization_alias='inCollaboration', default=None, description='Only what is in this collaboration (its key): put in, or part of what was')
+    created_under: ID | None = Field(validation_alias=AliasChoices('created_under', 'createdUnder'), serialization_alias='createdUnder', default=None, description='Only what the workflow (its root task id) created')
     id: ID | None = None
     name: 'StrFilterLookup | None' = None
     and_: 'AnnotationCollectionFilter | None' = Field(validation_alias=AliasChoices('and_', 'AND'), serialization_alias='AND', default=None)
@@ -1449,6 +1460,10 @@ class AnnotationCollectionFilter(BaseModel):
 class AnnotationFilter(BaseModel):
     """No documentation"""
     ids: tuple[ID, ...] | None = Field(default=None, description='Filter by list of IDs')
+    created_before: datetime | None = Field(validation_alias=AliasChoices('created_before', 'createdBefore'), serialization_alias='createdBefore', default=None, description='Filter for items created before this datetime')
+    created_after: datetime | None = Field(validation_alias=AliasChoices('created_after', 'createdAfter'), serialization_alias='createdAfter', default=None, description='Filter for items created after this datetime')
+    in_collaboration: ID | None = Field(validation_alias=AliasChoices('in_collaboration', 'inCollaboration'), serialization_alias='inCollaboration', default=None, description='Only what is in this collaboration (its key): put in, or part of what was')
+    created_under: ID | None = Field(validation_alias=AliasChoices('created_under', 'createdUnder'), serialization_alias='createdUnder', default=None, description='Only what the workflow (its root task id) created')
     id: str | None = None
     name: 'StrFilterLookup | None' = None
     description: 'StrFilterLookup | None' = None
@@ -1492,7 +1507,7 @@ class AnnotationSpecInput(BaseModel):
 class ArrayDatasetFilter(BaseModel):
     """No documentation"""
     ids: tuple[ID, ...] | None = Field(default=None, description='Filter by list of IDs')
-    search: str | None = Field(default=None, description='Search by name (case-insensitive substring) or by the meaning of the query against name and description. Substring matches rank first, then by similarity; an explicit `ordering` replaces that ranking')
+    search: str | None = Field(default=None, description='Search by name (case-insensitive substring) or by the meaning of the query against name and description. Ranked: an exact match, then a prefix, then other textual matches by trigram similarity, then by meaning; an explicit `ordering` replaces that ranking')
     created_before: datetime | None = Field(validation_alias=AliasChoices('created_before', 'createdBefore'), serialization_alias='createdBefore', default=None, description='Filter for items created before this datetime')
     created_after: datetime | None = Field(validation_alias=AliasChoices('created_after', 'createdAfter'), serialization_alias='createdAfter', default=None, description='Filter for items created after this datetime')
     owner: ID | None = Field(default=None, description="Filter by the creator's subject ID")
@@ -1500,6 +1515,8 @@ class ArrayDatasetFilter(BaseModel):
     created_through: ID | None = Field(validation_alias=AliasChoices('created_through', 'createdThrough'), serialization_alias='createdThrough', default=None, description='Filter by the database ID of the task the item was created through (the `createdThrough { id }` field)')
     assigned_by: ID | None = Field(validation_alias=AliasChoices('assigned_by', 'assignedBy'), serialization_alias='assignedBy', default=None, description='Filter by the sub of the user that assigned the creating task')
     created_through_by: ID | None = Field(validation_alias=AliasChoices('created_through_by', 'createdThroughBy'), serialization_alias='createdThroughBy', default=None, description='Filter by the database ID of the user that assigned the creating task (the `createdThroughBy { id }` field)')
+    in_collaboration: ID | None = Field(validation_alias=AliasChoices('in_collaboration', 'inCollaboration'), serialization_alias='inCollaboration', default=None, description='Only what is in this collaboration (its key): put in, or part of what was')
+    created_under: ID | None = Field(validation_alias=AliasChoices('created_under', 'createdUnder'), serialization_alias='createdUnder', default=None, description='Only what the workflow (its root task id) created')
     id: ID | None = None
     name: 'StrFilterLookup | None' = None
     description: 'StrFilterLookup | None' = None
@@ -1585,6 +1602,8 @@ class ChartFilter(BaseModel):
     ids: tuple[ID, ...] | None = Field(default=None, description='Filter by list of IDs')
     created_before: datetime | None = Field(validation_alias=AliasChoices('created_before', 'createdBefore'), serialization_alias='createdBefore', default=None, description='Filter for items created before this datetime')
     created_after: datetime | None = Field(validation_alias=AliasChoices('created_after', 'createdAfter'), serialization_alias='createdAfter', default=None, description='Filter for items created after this datetime')
+    in_collaboration: ID | None = Field(validation_alias=AliasChoices('in_collaboration', 'inCollaboration'), serialization_alias='inCollaboration', default=None, description='Only what is in this collaboration (its key): put in, or part of what was')
+    created_under: ID | None = Field(validation_alias=AliasChoices('created_under', 'createdUnder'), serialization_alias='createdUnder', default=None, description='Only what the workflow (its root task id) created')
     id: ID | None = None
     name: 'StrFilterLookup | None' = None
     and_: 'ChartFilter | None' = Field(validation_alias=AliasChoices('and_', 'AND'), serialization_alias='AND', default=None)
@@ -1624,6 +1643,26 @@ class ClearSceneInput(BaseModel):
     id: ID = Field(description='The ID of the scene to clear')
     model_config = ConfigDict(frozen=True, extra='forbid')
 
+class CollaborationObjectInput(BaseModel):
+    """An object to put in, or take out of, a collaboration"""
+    collaboration: ID = Field(description="The collaboration's key (lok's)")
+    identifier: str = Field(description='The structure the object is known by: @mikro/scene')
+    object: ID = Field(description="The object's id")
+    name: str | None = Field(default=None, description="The collaboration's name, kept here when this is the first thing put in")
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class CollaborationObjectRef(BaseModel):
+    """An object, by its structure and id"""
+    identifier: str = Field(description='The structure the object is known by: @mikro/scene')
+    object: ID = Field(description="The object's id")
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class ColorStopInput(BaseModel):
+    """One stop of a colour gradient: a position on the normalized 0..1 the colormap is indexed with, and the RGBA colour there"""
+    position: float
+    color: tuple[int, ...]
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
 class ColumnInput(BaseModel):
     """One column of the table -- THE one declaration a column gets. **Every column of the Parquet is declared, and the declaration is checked against the file** -- same names, same order, same types -- so a declaration that has drifted from the data is refused rather than stored. That check is the whole reason `name` is here: it is a fact about the file, and stating it is how a caller says which file they think they are describing. `dtype` is **optional** -- the server read every column's type off the Parquet when the upload finished, so it is checked when given and taken from the file when not. Given, it is a **DuckDB** type name (`BIGINT`, `DOUBLE`, `VARCHAR`), not a pandas one where a float64 is a `double`. A non-null `axisType` makes the column an axis of the table's own space; **the axis-typed columns, in this list's (= the file's) order, ARE the space** -- a table has no byte order, its axes are named columns, and an edge wanting a different order states its own `inputAxes`/`outputAxes`. `identifiedBy` says what the values are, for an axis and a data column alike"""
     name: str
@@ -1647,6 +1686,17 @@ class ColumnOptionFilter(BaseModel):
     direct_only: bool | None = Field(validation_alias=AliasChoices('direct_only', 'directOnly'), serialization_alias='directOnly', default=None, description="Keep only the options whose `joinPath` is empty -- the columns of the tables the collection's ids key directly, with no `references` hop")
     model_config = ConfigDict(frozen=True, extra='forbid')
 
+class ColumnSummaryInput(BaseModel):
+    """What a client computed over one column of a table, pinned to an anchor of it so every later reader finds it: a histogram, the distinct values. The server never scans a table's rows; whoever holds an access grant computes this once"""
+    column: str = Field(description='The name of the column summarised')
+    histogram: Annotated[tuple[float, ...] | None, GraphQLDefault('[]')] = Field(default=None, description='The counts per bin (y values)')
+    'The counts per bin (y values)\nDefault: []'
+    bins: Annotated[tuple[float, ...] | None, GraphQLDefault('[]')] = Field(default=None, description='The bins (x values): their edges, one more than the counts, or their centres, as many')
+    'The bins (x values): their edges, one more than the counts, or their centres, as many\nDefault: []'
+    distinct_values: Any | None = Field(validation_alias=AliasChoices('distinct_values', 'distinctValues'), serialization_alias='distinctValues', default=None, description='The distinct values, most frequent first')
+    distinct_count: int | None = Field(validation_alias=AliasChoices('distinct_count', 'distinctCount'), serialization_alias='distinctCount', default=None, description='How many distinct values the column holds')
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
 class CoordinateAnchorInput(CoordinateAnchorInputTrait, BaseModel):
     """Input type for a coordinate anchor, which specifies a list of dimension anchors to anchor to"""
     axis_anchors: tuple[AxisAnchorInput, ...] = Field(validation_alias=AliasChoices('axis_anchors', 'axisAnchors'), serialization_alias='axisAnchors')
@@ -1658,6 +1708,7 @@ class CoordinateAnchorInput(CoordinateAnchorInputTrait, BaseModel):
     phasor_histogram: 'PhasorHistogramInput | None' = Field(validation_alias=AliasChoices('phasor_histogram', 'phasorHistogram'), serialization_alias='phasorHistogram', default=None)
     phasor_calibration: 'PhasorCalibrationInput | None' = Field(validation_alias=AliasChoices('phasor_calibration', 'phasorCalibration'), serialization_alias='phasorCalibration', default=None)
     acquisition_window: AcquisitionWindowInput | None = Field(validation_alias=AliasChoices('acquisition_window', 'acquisitionWindow'), serialization_alias='acquisitionWindow', default=None)
+    column_summaries: tuple[ColumnSummaryInput, ...] | None = Field(validation_alias=AliasChoices('column_summaries', 'columnSummaries'), serialization_alias='columnSummaries', default=None)
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CoordinateInput(BaseModel):
@@ -1673,6 +1724,8 @@ class CoordinateSystemFilter(BaseModel):
     created_before: datetime | None = Field(validation_alias=AliasChoices('created_before', 'createdBefore'), serialization_alias='createdBefore', default=None, description='Filter for items created before this datetime')
     created_after: datetime | None = Field(validation_alias=AliasChoices('created_after', 'createdAfter'), serialization_alias='createdAfter', default=None, description='Filter for items created after this datetime')
     owner: ID | None = Field(default=None, description="Filter by the creator's subject ID")
+    in_collaboration: ID | None = Field(validation_alias=AliasChoices('in_collaboration', 'inCollaboration'), serialization_alias='inCollaboration', default=None, description='Only what is in this collaboration (its key): put in, or part of what was')
+    created_under: ID | None = Field(validation_alias=AliasChoices('created_under', 'createdUnder'), serialization_alias='createdUnder', default=None, description='Only what the workflow (its root task id) created')
     id: ID | None = None
     name: 'StrFilterLookup | None' = None
     and_: 'CoordinateSystemFilter | None' = Field(validation_alias=AliasChoices('and_', 'AND'), serialization_alias='AND', default=None)
@@ -1684,6 +1737,7 @@ class CoordinateSystemFilter(BaseModel):
     uninhabited: bool | None = Field(default=None, description='Filter to the spaces nothing lives in: pure reference frames, the worlds and atlases sources are registered into. False finds the spaces some data actually occupies')
     dataset: ID | None = Field(default=None, description="Filter to the spaces this dataset's data lives in: its own grid, and the grids of its pyramid levels and lenses")
     scene: ID | None = Field(default=None, description='Filter by a scene composing over this system as its world')
+    physical: bool | None = Field(default=None, description='Filter to the physical spaces -- every axis carries a unit: a calibration, a stage frame, a world -- or, with false, to the unitless index spaces: pixel grids, pyramid levels, lens grids. `a.u.` counts as a unit. A space with no axes is not physical')
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreateAnimationInput(BaseModel):
@@ -2073,6 +2127,8 @@ class CreatePointsChartLayerInput(BaseModel):
     line_width: float | None = Field(validation_alias=AliasChoices('line_width', 'lineWidth'), serialization_alias='lineWidth', default=None)
     marker_size: float | None = Field(validation_alias=AliasChoices('marker_size', 'markerSize'), serialization_alias='markerSize', default=None)
     marker_shape: ChartMarkerShape | None = Field(validation_alias=AliasChoices('marker_shape', 'markerShape'), serialization_alias='markerShape', default=None)
+    value_min: float | None = Field(validation_alias=AliasChoices('value_min', 'valueMin'), serialization_alias='valueMin', default=None)
+    value_max: float | None = Field(validation_alias=AliasChoices('value_max', 'valueMax'), serialization_alias='valueMax', default=None)
     chart: ID
     lens: ID
     x_column: str = Field(validation_alias=AliasChoices('x_column', 'xColumn'), serialization_alias='xColumn')
@@ -2138,6 +2194,8 @@ class CreateSeriesChartLayerInput(BaseModel):
     line_width: float | None = Field(validation_alias=AliasChoices('line_width', 'lineWidth'), serialization_alias='lineWidth', default=None)
     marker_size: float | None = Field(validation_alias=AliasChoices('marker_size', 'markerSize'), serialization_alias='markerSize', default=None)
     marker_shape: ChartMarkerShape | None = Field(validation_alias=AliasChoices('marker_shape', 'markerShape'), serialization_alias='markerShape', default=None)
+    value_min: float | None = Field(validation_alias=AliasChoices('value_min', 'valueMin'), serialization_alias='valueMin', default=None)
+    value_max: float | None = Field(validation_alias=AliasChoices('value_max', 'valueMax'), serialization_alias='valueMax', default=None)
     chart: ID
     lens: ID
     value_column: str | None = Field(validation_alias=AliasChoices('value_column', 'valueColumn'), serialization_alias='valueColumn', default=None)
@@ -2208,6 +2266,8 @@ class CreateTraceChartLayerInput(BaseModel):
     line_width: float | None = Field(validation_alias=AliasChoices('line_width', 'lineWidth'), serialization_alias='lineWidth', default=None)
     marker_size: float | None = Field(validation_alias=AliasChoices('marker_size', 'markerSize'), serialization_alias='markerSize', default=None)
     marker_shape: ChartMarkerShape | None = Field(validation_alias=AliasChoices('marker_shape', 'markerShape'), serialization_alias='markerShape', default=None)
+    value_min: float | None = Field(validation_alias=AliasChoices('value_min', 'valueMin'), serialization_alias='valueMin', default=None)
+    value_max: float | None = Field(validation_alias=AliasChoices('value_max', 'valueMax'), serialization_alias='valueMax', default=None)
     chart: ID
     lens: ID
     model_config = ConfigDict(frozen=True, extra='forbid')
@@ -2489,6 +2549,8 @@ class FixtureFilter(BaseModel):
     created_before: datetime | None = Field(validation_alias=AliasChoices('created_before', 'createdBefore'), serialization_alias='createdBefore', default=None, description='Filter for items created before this datetime')
     created_after: datetime | None = Field(validation_alias=AliasChoices('created_after', 'createdAfter'), serialization_alias='createdAfter', default=None, description='Filter for items created after this datetime')
     owner: ID | None = Field(default=None, description="Filter by the creator's subject ID")
+    in_collaboration: ID | None = Field(validation_alias=AliasChoices('in_collaboration', 'inCollaboration'), serialization_alias='inCollaboration', default=None, description='Only what is in this collaboration (its key): put in, or part of what was')
+    created_under: ID | None = Field(validation_alias=AliasChoices('created_under', 'createdUnder'), serialization_alias='createdUnder', default=None, description='Only what the workflow (its root task id) created')
     id: ID | None = None
     name: 'StrFilterLookup | None' = None
     and_: 'FixtureFilter | None' = Field(validation_alias=AliasChoices('and_', 'AND'), serialization_alias='AND', default=None)
@@ -2514,6 +2576,8 @@ class GridFilter(BaseModel):
     ids: tuple[ID, ...] | None = Field(default=None, description='Filter by list of IDs')
     created_before: datetime | None = Field(validation_alias=AliasChoices('created_before', 'createdBefore'), serialization_alias='createdBefore', default=None, description='Filter for items created before this datetime')
     created_after: datetime | None = Field(validation_alias=AliasChoices('created_after', 'createdAfter'), serialization_alias='createdAfter', default=None, description='Filter for items created after this datetime')
+    in_collaboration: ID | None = Field(validation_alias=AliasChoices('in_collaboration', 'inCollaboration'), serialization_alias='inCollaboration', default=None, description='Only what is in this collaboration (its key): put in, or part of what was')
+    created_under: ID | None = Field(validation_alias=AliasChoices('created_under', 'createdUnder'), serialization_alias='createdUnder', default=None, description='Only what the workflow (its root task id) created')
     id: ID | None = None
     name: 'StrFilterLookup | None' = None
     and_: 'GridFilter | None' = Field(validation_alias=AliasChoices('and_', 'AND'), serialization_alias='AND', default=None)
@@ -2580,6 +2644,8 @@ class LabelRenderInput(BaseModel):
 class LayerFilter(BaseModel):
     """No documentation"""
     ids: tuple[ID, ...] | None = Field(default=None, description='Filter by list of IDs')
+    in_collaboration: ID | None = Field(validation_alias=AliasChoices('in_collaboration', 'inCollaboration'), serialization_alias='inCollaboration', default=None, description='Only what is in this collaboration (its key): put in, or part of what was')
+    created_under: ID | None = Field(validation_alias=AliasChoices('created_under', 'createdUnder'), serialization_alias='createdUnder', default=None, description='Only what the workflow (its root task id) created')
     id: ID | None = None
     kind: LayerKindChoices | None = None
     blending: BlendingChoices | None = None
@@ -2627,6 +2693,8 @@ class LensFilter(BaseModel):
     created_through: ID | None = Field(validation_alias=AliasChoices('created_through', 'createdThrough'), serialization_alias='createdThrough', default=None, description='Filter by the database ID of the task the item was created through (the `createdThrough { id }` field)')
     assigned_by: ID | None = Field(validation_alias=AliasChoices('assigned_by', 'assignedBy'), serialization_alias='assignedBy', default=None, description='Filter by the sub of the user that assigned the creating task')
     created_through_by: ID | None = Field(validation_alias=AliasChoices('created_through_by', 'createdThroughBy'), serialization_alias='createdThroughBy', default=None, description='Filter by the database ID of the user that assigned the creating task (the `createdThroughBy { id }` field)')
+    in_collaboration: ID | None = Field(validation_alias=AliasChoices('in_collaboration', 'inCollaboration'), serialization_alias='inCollaboration', default=None, description='Only what is in this collaboration (its key): put in, or part of what was')
+    created_under: ID | None = Field(validation_alias=AliasChoices('created_under', 'createdUnder'), serialization_alias='createdUnder', default=None, description='Only what the workflow (its root task id) created')
     id: ID | None = None
     and_: 'LensFilter | None' = Field(validation_alias=AliasChoices('and_', 'AND'), serialization_alias='AND', default=None)
     or_: 'LensFilter | None' = Field(validation_alias=AliasChoices('or_', 'OR'), serialization_alias='OR', default=None)
@@ -2703,6 +2771,8 @@ class MeshCollectionFilter(BaseModel):
     created_before: datetime | None = Field(validation_alias=AliasChoices('created_before', 'createdBefore'), serialization_alias='createdBefore', default=None, description='Filter for items created before this datetime')
     created_after: datetime | None = Field(validation_alias=AliasChoices('created_after', 'createdAfter'), serialization_alias='createdAfter', default=None, description='Filter for items created after this datetime')
     owner: ID | None = Field(default=None, description="Filter by the creator's subject ID")
+    in_collaboration: ID | None = Field(validation_alias=AliasChoices('in_collaboration', 'inCollaboration'), serialization_alias='inCollaboration', default=None, description='Only what is in this collaboration (its key): put in, or part of what was')
+    created_under: ID | None = Field(validation_alias=AliasChoices('created_under', 'createdUnder'), serialization_alias='createdUnder', default=None, description='Only what the workflow (its root task id) created')
     id: ID | None = None
     name: 'StrFilterLookup | None' = None
     and_: 'MeshCollectionFilter | None' = Field(validation_alias=AliasChoices('and_', 'AND'), serialization_alias='AND', default=None)
@@ -2738,6 +2808,8 @@ class MeshFilterByInput(BaseModel):
 class MetricFilter(BaseModel):
     """No documentation"""
     ids: tuple[ID, ...] | None = Field(default=None, description='Filter by list of IDs')
+    in_collaboration: ID | None = Field(validation_alias=AliasChoices('in_collaboration', 'inCollaboration'), serialization_alias='inCollaboration', default=None, description='Only what is in this collaboration (its key): put in, or part of what was')
+    created_under: ID | None = Field(validation_alias=AliasChoices('created_under', 'createdUnder'), serialization_alias='createdUnder', default=None, description='Only what the workflow (its root task id) created')
     id: ID | None = None
     key: 'StrFilterLookup | None' = None
     and_: 'MetricFilter | None' = Field(validation_alias=AliasChoices('and_', 'AND'), serialization_alias='AND', default=None)
@@ -2778,6 +2850,8 @@ class NetworkCollectionFilter(BaseModel):
     created_before: datetime | None = Field(validation_alias=AliasChoices('created_before', 'createdBefore'), serialization_alias='createdBefore', default=None, description='Filter for items created before this datetime')
     created_after: datetime | None = Field(validation_alias=AliasChoices('created_after', 'createdAfter'), serialization_alias='createdAfter', default=None, description='Filter for items created after this datetime')
     owner: ID | None = Field(default=None, description="Filter by the creator's subject ID")
+    in_collaboration: ID | None = Field(validation_alias=AliasChoices('in_collaboration', 'inCollaboration'), serialization_alias='inCollaboration', default=None, description='Only what is in this collaboration (its key): put in, or part of what was')
+    created_under: ID | None = Field(validation_alias=AliasChoices('created_under', 'createdUnder'), serialization_alias='createdUnder', default=None, description='Only what the workflow (its root task id) created')
     id: ID | None = None
     name: 'StrFilterLookup | None' = None
     and_: 'NetworkCollectionFilter | None' = Field(validation_alias=AliasChoices('and_', 'AND'), serialization_alias='AND', default=None)
@@ -3028,6 +3102,8 @@ class SceneSnapshotFilter(BaseModel):
     created_through: ID | None = Field(validation_alias=AliasChoices('created_through', 'createdThrough'), serialization_alias='createdThrough', default=None, description='Filter by the database ID of the task the item was created through (the `createdThrough { id }` field)')
     assigned_by: ID | None = Field(validation_alias=AliasChoices('assigned_by', 'assignedBy'), serialization_alias='assignedBy', default=None, description='Filter by the sub of the user that assigned the creating task')
     created_through_by: ID | None = Field(validation_alias=AliasChoices('created_through_by', 'createdThroughBy'), serialization_alias='createdThroughBy', default=None, description='Filter by the database ID of the user that assigned the creating task (the `createdThroughBy { id }` field)')
+    in_collaboration: ID | None = Field(validation_alias=AliasChoices('in_collaboration', 'inCollaboration'), serialization_alias='inCollaboration', default=None, description='Only what is in this collaboration (its key): put in, or part of what was')
+    created_under: ID | None = Field(validation_alias=AliasChoices('created_under', 'createdUnder'), serialization_alias='createdUnder', default=None, description='Only what the workflow (its root task id) created')
     id: ID | None = None
     name: 'StrFilterLookup | None' = None
     and_: 'SceneSnapshotFilter | None' = Field(validation_alias=AliasChoices('and_', 'AND'), serialization_alias='AND', default=None)
@@ -3070,6 +3146,15 @@ class SettingInput(BaseModel):
     number: float | None = None
     text: str | None = None
     flag: bool | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class ShareWorkflowInput(BaseModel):
+    """Put what a workflow created in a collaboration, as it is now"""
+    collaboration: ID = Field(description="The collaboration's key (lok's)")
+    root_task: ID = Field(validation_alias=AliasChoices('root_task', 'rootTask'), serialization_alias='rootTask', description='The workflow: the id of the task a person started, the root of every task it caused')
+    dry_run: Annotated[bool | None, GraphQLDefault('False')] = Field(validation_alias=AliasChoices('dry_run', 'dryRun'), serialization_alias='dryRun', default=None, description='Only say what would be put in, and what left out')
+    'Only say what would be put in, and what left out\nDefault: False'
+    name: str | None = Field(default=None, description="The collaboration's name, kept here when this puts the first things in")
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class SliceInput(BaseModel):
@@ -3132,7 +3217,7 @@ class StrFilterLookup(BaseModel):
 class TableDatasetFilter(BaseModel):
     """No documentation"""
     ids: tuple[ID, ...] | None = Field(default=None, description='Filter by list of IDs')
-    search: str | None = Field(default=None, description='Search by name (case-insensitive substring) or by the meaning of the query against name and description. Substring matches rank first, then by similarity; an explicit `ordering` replaces that ranking')
+    search: str | None = Field(default=None, description='Search by name (case-insensitive substring) or by the meaning of the query against name and description. Ranked: an exact match, then a prefix, then other textual matches by trigram similarity, then by meaning; an explicit `ordering` replaces that ranking')
     created_before: datetime | None = Field(validation_alias=AliasChoices('created_before', 'createdBefore'), serialization_alias='createdBefore', default=None, description='Filter for items created before this datetime')
     created_after: datetime | None = Field(validation_alias=AliasChoices('created_after', 'createdAfter'), serialization_alias='createdAfter', default=None, description='Filter for items created after this datetime')
     owner: ID | None = Field(default=None, description="Filter by the creator's subject ID")
@@ -3140,6 +3225,8 @@ class TableDatasetFilter(BaseModel):
     created_through: ID | None = Field(validation_alias=AliasChoices('created_through', 'createdThrough'), serialization_alias='createdThrough', default=None, description='Filter by the database ID of the task the item was created through (the `createdThrough { id }` field)')
     assigned_by: ID | None = Field(validation_alias=AliasChoices('assigned_by', 'assignedBy'), serialization_alias='assignedBy', default=None, description='Filter by the sub of the user that assigned the creating task')
     created_through_by: ID | None = Field(validation_alias=AliasChoices('created_through_by', 'createdThroughBy'), serialization_alias='createdThroughBy', default=None, description='Filter by the database ID of the user that assigned the creating task (the `createdThroughBy { id }` field)')
+    in_collaboration: ID | None = Field(validation_alias=AliasChoices('in_collaboration', 'inCollaboration'), serialization_alias='inCollaboration', default=None, description='Only what is in this collaboration (its key): put in, or part of what was')
+    created_under: ID | None = Field(validation_alias=AliasChoices('created_under', 'createdUnder'), serialization_alias='createdUnder', default=None, description='Only what the workflow (its root task id) created')
     id: ID | None = None
     name: StrFilterLookup | None = None
     description: StrFilterLookup | None = None
@@ -3167,6 +3254,7 @@ class TransferFunctionInput(RGBAColorInputTrait, BaseModel):
     opacity: float | None = None
     invert: bool | None = None
     stops: tuple[LookupStopInput, ...] | None = None
+    color_stops: tuple[ColorStopInput, ...] | None = Field(validation_alias=AliasChoices('color_stops', 'colorStops'), serialization_alias='colorStops', default=None)
     model_config = ConfigDict(frozen=True, extra='forbid')
 TransformInput = Annotated[AffineTransformInput | ByDimensionTransformInput | IdentityTransformInput | MapAxisTransformInput | RotationTransformInput | ScaleTransformInput | TranslationTransformInput | UnmappableTransformInput, Field(discriminator='kind')]
 
@@ -3176,6 +3264,8 @@ class TransformationFilter(BaseModel):
     created_before: datetime | None = Field(validation_alias=AliasChoices('created_before', 'createdBefore'), serialization_alias='createdBefore', default=None, description='Filter for items created before this datetime')
     created_after: datetime | None = Field(validation_alias=AliasChoices('created_after', 'createdAfter'), serialization_alias='createdAfter', default=None, description='Filter for items created after this datetime')
     owner: ID | None = Field(default=None, description="Filter by the creator's subject ID")
+    in_collaboration: ID | None = Field(validation_alias=AliasChoices('in_collaboration', 'inCollaboration'), serialization_alias='inCollaboration', default=None, description='Only what is in this collaboration (its key): put in, or part of what was')
+    created_under: ID | None = Field(validation_alias=AliasChoices('created_under', 'createdUnder'), serialization_alias='createdUnder', default=None, description='Only what the workflow (its root task id) created')
     id: ID | None = None
     kind: TransformKindChoices | None = None
     and_: 'TransformationFilter | None' = Field(validation_alias=AliasChoices('and_', 'AND'), serialization_alias='AND', default=None)
@@ -3230,6 +3320,9 @@ class UpdateChartLayerInput(BaseModel):
     line_width: float | None = Field(validation_alias=AliasChoices('line_width', 'lineWidth'), serialization_alias='lineWidth', default=None)
     marker_size: float | None = Field(validation_alias=AliasChoices('marker_size', 'markerSize'), serialization_alias='markerSize', default=None)
     marker_shape: ChartMarkerShape | None = Field(validation_alias=AliasChoices('marker_shape', 'markerShape'), serialization_alias='markerShape', default=None)
+    value_min: float | None = Field(validation_alias=AliasChoices('value_min', 'valueMin'), serialization_alias='valueMin', default=None)
+    value_max: float | None = Field(validation_alias=AliasChoices('value_max', 'valueMax'), serialization_alias='valueMax', default=None)
+    autoscale: bool | None = None
     id: ID
     model_config = ConfigDict(frozen=True, extra='forbid')
 
@@ -3363,6 +3456,9 @@ class UpdatePointsChartLayerInput(BaseModel):
     line_width: float | None = Field(validation_alias=AliasChoices('line_width', 'lineWidth'), serialization_alias='lineWidth', default=None)
     marker_size: float | None = Field(validation_alias=AliasChoices('marker_size', 'markerSize'), serialization_alias='markerSize', default=None)
     marker_shape: ChartMarkerShape | None = Field(validation_alias=AliasChoices('marker_shape', 'markerShape'), serialization_alias='markerShape', default=None)
+    value_min: float | None = Field(validation_alias=AliasChoices('value_min', 'valueMin'), serialization_alias='valueMin', default=None)
+    value_max: float | None = Field(validation_alias=AliasChoices('value_max', 'valueMax'), serialization_alias='valueMax', default=None)
+    autoscale: bool | None = None
     id: ID
     lens: ID | None = None
     x_column: str | None = Field(validation_alias=AliasChoices('x_column', 'xColumn'), serialization_alias='xColumn', default=None)
@@ -3390,6 +3486,9 @@ class UpdateSeriesChartLayerInput(BaseModel):
     line_width: float | None = Field(validation_alias=AliasChoices('line_width', 'lineWidth'), serialization_alias='lineWidth', default=None)
     marker_size: float | None = Field(validation_alias=AliasChoices('marker_size', 'markerSize'), serialization_alias='markerSize', default=None)
     marker_shape: ChartMarkerShape | None = Field(validation_alias=AliasChoices('marker_shape', 'markerShape'), serialization_alias='markerShape', default=None)
+    value_min: float | None = Field(validation_alias=AliasChoices('value_min', 'valueMin'), serialization_alias='valueMin', default=None)
+    value_max: float | None = Field(validation_alias=AliasChoices('value_max', 'valueMax'), serialization_alias='valueMax', default=None)
+    autoscale: bool | None = None
     id: ID
     lens: ID | None = None
     value_column: str | None = Field(validation_alias=AliasChoices('value_column', 'valueColumn'), serialization_alias='valueColumn', default=None)
@@ -3420,6 +3519,9 @@ class UpdateTraceChartLayerInput(BaseModel):
     line_width: float | None = Field(validation_alias=AliasChoices('line_width', 'lineWidth'), serialization_alias='lineWidth', default=None)
     marker_size: float | None = Field(validation_alias=AliasChoices('marker_size', 'markerSize'), serialization_alias='markerSize', default=None)
     marker_shape: ChartMarkerShape | None = Field(validation_alias=AliasChoices('marker_shape', 'markerShape'), serialization_alias='markerShape', default=None)
+    value_min: float | None = Field(validation_alias=AliasChoices('value_min', 'valueMin'), serialization_alias='valueMin', default=None)
+    value_max: float | None = Field(validation_alias=AliasChoices('value_max', 'valueMax'), serialization_alias='valueMax', default=None)
+    autoscale: bool | None = None
     id: ID
     lens: ID | None = None
     model_config = ConfigDict(frozen=True, extra='forbid')
@@ -3429,6 +3531,7 @@ class UpdateTrackLayerInput(BaseModel):
     id: ID
     color_by_column: str | None = Field(validation_alias=AliasChoices('color_by_column', 'colorByColumn'), serialization_alias='colorByColumn', default=None)
     line_width: float | None = Field(validation_alias=AliasChoices('line_width', 'lineWidth'), serialization_alias='lineWidth', default=None)
+    tail_window: int | None = Field(validation_alias=AliasChoices('tail_window', 'tailWindow'), serialization_alias='tailWindow', default=None)
     colormap: ColorMap | None = None
     blending: Blending | None = None
     opacity: float | None = None
@@ -3858,6 +3961,70 @@ class ChartLayerTraceChartLayer(ChartLayerBase, BaseModel):
     "How big markers are, as a multiple of the chart's default: 1 is the default, 2 twice as big, 0.5 half. Never pixels -- what the default is on screen is the viewer's. Null lets the viewer choose"
     marker_shape: ChartMarkerShape | None = Field(default=None, alias='markerShape')
     'The symbol a marker is drawn as. Null lets the viewer choose (a circle)'
+
+class Collaboration(MikroFetchable, BaseModel):
+    """What a guest granted it sees of the organization: the objects put in it, and what is part of them."""
+    typename: Literal['Collaboration'] = Field(alias='__typename', default='Collaboration', exclude=True)
+    id: ID
+    key: ID
+    "The collaboration's key across the hub: what lok grants, and what names it in every service"
+    name: str
+    description: str | None = Field(default=None)
+    created_at: datetime = Field(alias='createdAt')
+    item_count: int = Field(alias='itemCount')
+    'How many objects are in the collaboration: all of them, or (`brought`) only those put in by hand (false) or only those that came along with one (true)'
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for Collaboration"""
+        document = 'fragment Collaboration on Collaboration {\n  id\n  key\n  name\n  description\n  createdAt\n  itemCount\n  __typename\n}'
+        name = 'Collaboration'
+        type = 'Collaboration'
+
+class WorkflowShareAdded(BaseModel):
+    """An object, by its structure and id"""
+    typename: Literal['SharedObject'] = Field(alias='__typename', default='SharedObject', exclude=True)
+    identifier: str | None = Field(default=None)
+    'The structure the object is known by: @mikro/scene'
+    object: ID
+    "The object's id"
+    model_config = ConfigDict(frozen=True)
+
+class WorkflowShareSkipped(BaseModel):
+    """Created in the workflow, but part of something made before it that is not shared: left out"""
+    typename: Literal['SkippedObject'] = Field(alias='__typename', default='SkippedObject', exclude=True)
+    identifier: str | None = Field(default=None)
+    'The structure the object is known by'
+    object: ID
+    "The object's id"
+    whole_identifier: str | None = Field(default=None, alias='wholeIdentifier')
+    'The structure of what it is part of'
+    whole: ID
+    'The id of what it is part of: put that in, and share the workflow again, to bring it'
+    model_config = ConfigDict(frozen=True)
+
+class WorkflowShare(MikroFetchable, BaseModel):
+    """What sharing a workflow put in a collaboration here (or, tried, would put in)"""
+    typename: Literal['WorkflowShare'] = Field(alias='__typename', default='WorkflowShare', exclude=True)
+    collaboration: ID
+    "The collaboration's key"
+    dry_run: bool = Field(alias='dryRun')
+    'Whether nothing was written'
+    added: tuple[WorkflowShareAdded, ...]
+    'Put in, with what each needs to be seen'
+    covered: int
+    'How many parts came along with their whole, without being put in themselves'
+    skipped: tuple[WorkflowShareSkipped, ...]
+    'Left out: parts of something made before the workflow and not shared'
+    unknown: tuple[str, ...]
+    'Structures here that cannot say what created their objects: not looked at'
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for WorkflowShare"""
+        document = 'fragment WorkflowShare on WorkflowShare {\n  collaboration\n  dryRun\n  added {\n    identifier\n    object\n    __typename\n  }\n  covered\n  skipped {\n    identifier\n    object\n    wholeIdentifier\n    whole\n    __typename\n  }\n  unknown\n  __typename\n}'
+        name = 'WorkflowShare'
+        type = 'WorkflowShare'
 
 class Axis(MikroFetchable, BaseModel):
     """One named, typed dimension of a coordinate system. Its `order` is its index into the array shape"""
@@ -7168,6 +7335,58 @@ class DeleteChartLayerMutation(BaseModel):
         """Meta class for DeleteChartLayer """
         document = 'mutation DeleteChartLayer($input: DeleteChartLayerInput!) {\n  deleteChartLayer(input: $input)\n}'
 
+class AddToCollaborationMutation(BaseModel):
+    """No documentation found for this operation."""
+    add_to_collaboration: Collaboration = Field(alias='addToCollaboration')
+    "Put an object in a collaboration (lok's, by its key), with what it needs to be seen: a scene brings the data its layers draw. The first thing put in makes mikro's row of the collaboration"
+
+    class Arguments(BaseModel):
+        """Arguments for AddToCollaboration """
+        input: CollaborationObjectInput
+
+    class Meta:
+        """Meta class for AddToCollaboration """
+        document = 'fragment Collaboration on Collaboration {\n  id\n  key\n  name\n  description\n  createdAt\n  itemCount\n  __typename\n}\n\nmutation AddToCollaboration($input: CollaborationObjectInput!) {\n  addToCollaboration(input: $input) {\n    ...Collaboration\n    __typename\n  }\n}'
+
+class AddManyToCollaborationMutation(BaseModel):
+    """No documentation found for this operation."""
+    add_many_to_collaboration: Collaboration = Field(alias='addManyToCollaboration')
+    'Put several objects in a collaboration at once, each with what it needs to be seen; all or none. How a dataset goes in with what was derived from it'
+
+    class Arguments(BaseModel):
+        """Arguments for AddManyToCollaboration """
+        input: AddManyToCollaborationInput
+
+    class Meta:
+        """Meta class for AddManyToCollaboration """
+        document = 'fragment Collaboration on Collaboration {\n  id\n  key\n  name\n  description\n  createdAt\n  itemCount\n  __typename\n}\n\nmutation AddManyToCollaboration($input: AddManyToCollaborationInput!) {\n  addManyToCollaboration(input: $input) {\n    ...Collaboration\n    __typename\n  }\n}'
+
+class RemoveFromCollaborationMutation(BaseModel):
+    """No documentation found for this operation."""
+    remove_from_collaboration: Collaboration = Field(alias='removeFromCollaboration')
+    'Take an object out of a collaboration, with what it brought that nothing else there needs'
+
+    class Arguments(BaseModel):
+        """Arguments for RemoveFromCollaboration """
+        input: CollaborationObjectInput
+
+    class Meta:
+        """Meta class for RemoveFromCollaboration """
+        document = 'fragment Collaboration on Collaboration {\n  id\n  key\n  name\n  description\n  createdAt\n  itemCount\n  __typename\n}\n\nmutation RemoveFromCollaboration($input: CollaborationObjectInput!) {\n  removeFromCollaboration(input: $input) {\n    ...Collaboration\n    __typename\n  }\n}'
+
+class ShareWorkflowMutation(BaseModel):
+    """No documentation found for this operation."""
+    share_workflow: WorkflowShare = Field(alias='shareWorkflow')
+    'Put what a workflow (its root task) created in mikro in a collaboration, as it is now: a whole goes in, its parts come along, and a part of something made before the workflow and not shared is left out and reported. `dryRun` only says what would be. What the workflow makes later is not in it: share it again'
+
+    class Arguments(BaseModel):
+        """Arguments for ShareWorkflow """
+        input: ShareWorkflowInput
+
+    class Meta:
+        """Meta class for ShareWorkflow """
+        document = 'fragment WorkflowShare on WorkflowShare {\n  collaboration\n  dryRun\n  added {\n    identifier\n    object\n    __typename\n  }\n  covered\n  skipped {\n    identifier\n    object\n    wholeIdentifier\n    whole\n    __typename\n  }\n  unknown\n  __typename\n}\n\nmutation ShareWorkflow($input: ShareWorkflowInput!) {\n  shareWorkflow(input: $input) {\n    ...WorkflowShare\n    __typename\n  }\n}'
+
 class CreateCoordinateSystemMutation(BaseModel):
     """No documentation found for this operation."""
     create_coordinate_system: CoordinateSystem = Field(alias='createCoordinateSystem')
@@ -9588,6 +9807,32 @@ class ChartLayersQuery(BaseModel):
         """Meta class for ChartLayers """
         document = 'fragment ChartLayer on ChartLayer {\n  id\n  kind\n  name\n  chart {\n    id\n    name\n    __typename\n  }\n  visible\n  order\n  opacity\n  color\n  alongAxis\n  placement\n  placementValidity\n  asAffine {\n    matrix\n    inputAxes\n    outputAxes\n    total\n    fields {\n      outputAxis\n      inner\n      base\n      component\n      scale\n      offset\n      inputAxis\n      innerScale\n      innerOffset\n      dataset {\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  ... on TraceChartLayer {\n    lens {\n      id\n      dataset {\n        id\n        name\n      }\n    }\n    seriesAxis\n    mark\n    lineWidth\n    markerSize\n    markerShape\n  }\n  ... on SeriesChartLayer {\n    tableLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    tableDataset {\n      id\n      name\n    }\n    valueColumn\n    coordinateColumn\n    valueUnit\n    mark\n    lineWidth\n    markerSize\n    markerShape\n  }\n  ... on PointsChartLayer {\n    pointsLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    pointsTable: tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    xUnit\n    yUnit\n    zUnit\n    pointsMark: mark\n    pointsLineWidth: lineWidth\n    pointsMarkerSize: markerSize\n    pointsMarkerShape: markerShape\n  }\n  ... on DistributionChartLayer {\n    distributionLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    distributionTable: tableDataset {\n      id\n      name\n    }\n    distributionValueColumn: valueColumn\n    distributionLineWidth: lineWidth\n    groupColumn\n    bins\n    distributionValueUnit: valueUnit\n    distributionMark: mark\n  }\n  ... on AnnotationChartLayer {\n    annotationLens: lens {\n      id\n      name\n      windows {\n        axis\n        min\n        max\n      }\n    }\n    annotationCollection {\n      id\n      name\n    }\n  }\n  __typename\n}\n\nquery ChartLayers($filters: ChartLayerFilter, $pagination: OffsetPaginationInput) {\n  chartLayers(filters: $filters, pagination: $pagination) {\n    ...ChartLayer\n    __typename\n  }\n}'
 
+class GetCollaborationQuery(BaseModel):
+    """No documentation found for this operation."""
+    collaboration: Collaboration
+    "Get what mikro holds in a collaboration, by its key (lok's)"
+
+    class Arguments(BaseModel):
+        """Arguments for GetCollaboration """
+        key: ID
+
+    class Meta:
+        """Meta class for GetCollaboration """
+        document = 'fragment Collaboration on Collaboration {\n  id\n  key\n  name\n  description\n  createdAt\n  itemCount\n  __typename\n}\n\nquery GetCollaboration($key: ID!) {\n  collaboration(key: $key) {\n    ...Collaboration\n    __typename\n  }\n}'
+
+class ListCollaborationsQuery(BaseModel):
+    """No documentation found for this operation."""
+    collaborations: tuple[Collaboration, ...]
+    "List the organization's collaborations: what a guest granted one sees of it (a guest: the collaborations granted to them)"
+
+    class Arguments(BaseModel):
+        """Arguments for ListCollaborations """
+        pagination: OffsetPaginationInput | None = Field(default=None)
+
+    class Meta:
+        """Meta class for ListCollaborations """
+        document = 'fragment Collaboration on Collaboration {\n  id\n  key\n  name\n  description\n  createdAt\n  itemCount\n  __typename\n}\n\nquery ListCollaborations($pagination: OffsetPaginationInput) {\n  collaborations(pagination: $pagination) {\n    ...Collaboration\n    __typename\n  }\n}'
+
 class LabelColorByOptionsQuery(BaseModel):
     """ Rooted on a lens -- what a label layer over that lens can be coloured by."""
     label_color_by_options: tuple[ColorByOption, ...] = Field(alias='labelColorByOptions')
@@ -11300,7 +11545,7 @@ class MikroApi:
     """Every operation of this API as a method. Generated by turms.
 
 Each method hands its operation to ``execute``, ``aexecute``, ``subscribe``, ``asubscribe`` of ``self``, which the class this one is mixed into (or a base of it) provides."""
-    __scopes__: ClassVar[tuple[str, ...]] = ('mikro_annotate', 'mikro_read', 'mikro_write')
+    __scopes__: ClassVar[tuple[str, ...]] = ('mikro_annotate', 'mikro_read', 'mikro_share', 'mikro_write')
 
     async def acreate_animation(self, scene: IDCoercible, name: str, waypoints: Iterable[AnimationWaypointInput], description: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> Animation:
         """CreateAnimation 
@@ -12158,7 +12403,7 @@ Returns:
         variables['input'] = _input
         return self.execute(DeleteChartMutation, variables, task=task).delete_chart
 
-    async def acreate_trace_chart_layer(self, chart: IDCoercible, lens: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, marker_shape: ChartMarkerShape | None | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerTraceChartLayer:
+    async def acreate_trace_chart_layer(self, chart: IDCoercible, lens: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, marker_shape: ChartMarkerShape | None | UnsetType=UNSET, value_min: float | None | UnsetType=UNSET, value_max: float | None | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerTraceChartLayer:
         """CreateTraceChartLayer 
 
 Draw an array as a trace in a chart: a lens with one metric axis free, laid along the chart's axis by the graph, and optionally one CHANNEL or INDEX axis free as one line per position
@@ -12173,6 +12418,8 @@ Args:
     line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     marker_size: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     marker_shape: ChartMarkerShape
+    value_min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    value_max: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     chart: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
@@ -12200,12 +12447,16 @@ Returns:
             _input['markerSize'] = marker_size
         if marker_shape is not UNSET:
             _input['markerShape'] = marker_shape
+        if value_min is not UNSET:
+            _input['valueMin'] = value_min
+        if value_max is not UNSET:
+            _input['valueMax'] = value_max
         _input['chart'] = chart
         _input['lens'] = lens
         variables['input'] = _input
         return (await self.aexecute(CreateTraceChartLayerMutation, variables, task=task)).create_trace_chart_layer
 
-    def create_trace_chart_layer(self, chart: IDCoercible, lens: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, marker_shape: ChartMarkerShape | None | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerTraceChartLayer:
+    def create_trace_chart_layer(self, chart: IDCoercible, lens: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, marker_shape: ChartMarkerShape | None | UnsetType=UNSET, value_min: float | None | UnsetType=UNSET, value_max: float | None | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerTraceChartLayer:
         """CreateTraceChartLayer 
 
 Draw an array as a trace in a chart: a lens with one metric axis free, laid along the chart's axis by the graph, and optionally one CHANNEL or INDEX axis free as one line per position
@@ -12220,6 +12471,8 @@ Args:
     line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     marker_size: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     marker_shape: ChartMarkerShape
+    value_min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    value_max: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     chart: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
@@ -12247,12 +12500,16 @@ Returns:
             _input['markerSize'] = marker_size
         if marker_shape is not UNSET:
             _input['markerShape'] = marker_shape
+        if value_min is not UNSET:
+            _input['valueMin'] = value_min
+        if value_max is not UNSET:
+            _input['valueMax'] = value_max
         _input['chart'] = chart
         _input['lens'] = lens
         variables['input'] = _input
         return self.execute(CreateTraceChartLayerMutation, variables, task=task).create_trace_chart_layer
 
-    async def acreate_series_chart_layer(self, chart: IDCoercible, lens: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, marker_shape: ChartMarkerShape | None | UnsetType=UNSET, value_column: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerSeriesChartLayer:
+    async def acreate_series_chart_layer(self, chart: IDCoercible, lens: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, marker_shape: ChartMarkerShape | None | UnsetType=UNSET, value_min: float | None | UnsetType=UNSET, value_max: float | None | UnsetType=UNSET, value_column: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerSeriesChartLayer:
         """CreateSeriesChartLayer 
 
 Draw a table as a series in a chart: one numeric column as the value, against the coordinate column the graph lays along the chart's axis
@@ -12267,6 +12524,8 @@ Args:
     line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     marker_size: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     marker_shape: ChartMarkerShape
+    value_min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    value_max: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     chart: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     value_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
@@ -12295,6 +12554,10 @@ Returns:
             _input['markerSize'] = marker_size
         if marker_shape is not UNSET:
             _input['markerShape'] = marker_shape
+        if value_min is not UNSET:
+            _input['valueMin'] = value_min
+        if value_max is not UNSET:
+            _input['valueMax'] = value_max
         _input['chart'] = chart
         _input['lens'] = lens
         if value_column is not UNSET:
@@ -12302,7 +12565,7 @@ Returns:
         variables['input'] = _input
         return (await self.aexecute(CreateSeriesChartLayerMutation, variables, task=task)).create_series_chart_layer
 
-    def create_series_chart_layer(self, chart: IDCoercible, lens: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, marker_shape: ChartMarkerShape | None | UnsetType=UNSET, value_column: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerSeriesChartLayer:
+    def create_series_chart_layer(self, chart: IDCoercible, lens: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, marker_shape: ChartMarkerShape | None | UnsetType=UNSET, value_min: float | None | UnsetType=UNSET, value_max: float | None | UnsetType=UNSET, value_column: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerSeriesChartLayer:
         """CreateSeriesChartLayer 
 
 Draw a table as a series in a chart: one numeric column as the value, against the coordinate column the graph lays along the chart's axis
@@ -12317,6 +12580,8 @@ Args:
     line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     marker_size: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     marker_shape: ChartMarkerShape
+    value_min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    value_max: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     chart: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     value_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
@@ -12345,6 +12610,10 @@ Returns:
             _input['markerSize'] = marker_size
         if marker_shape is not UNSET:
             _input['markerShape'] = marker_shape
+        if value_min is not UNSET:
+            _input['valueMin'] = value_min
+        if value_max is not UNSET:
+            _input['valueMax'] = value_max
         _input['chart'] = chart
         _input['lens'] = lens
         if value_column is not UNSET:
@@ -12352,7 +12621,7 @@ Returns:
         variables['input'] = _input
         return self.execute(CreateSeriesChartLayerMutation, variables, task=task).create_series_chart_layer
 
-    async def acreate_points_chart_layer(self, chart: IDCoercible, lens: IDCoercible, x_column: str, y_column: str, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, marker_shape: ChartMarkerShape | None | UnsetType=UNSET, z_column: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerPointsChartLayer:
+    async def acreate_points_chart_layer(self, chart: IDCoercible, lens: IDCoercible, x_column: str, y_column: str, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, marker_shape: ChartMarkerShape | None | UnsetType=UNSET, value_min: float | None | UnsetType=UNSET, value_max: float | None | UnsetType=UNSET, z_column: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerPointsChartLayer:
         """CreatePointsChartLayer 
  A value layer: a table lens' rows, placed in the chart's world, at
  the values of two or three columns -- a scatter.
@@ -12367,6 +12636,8 @@ Args:
     line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     marker_size: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     marker_shape: ChartMarkerShape
+    value_min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    value_max: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     chart: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     x_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
@@ -12397,6 +12668,10 @@ Returns:
             _input['markerSize'] = marker_size
         if marker_shape is not UNSET:
             _input['markerShape'] = marker_shape
+        if value_min is not UNSET:
+            _input['valueMin'] = value_min
+        if value_max is not UNSET:
+            _input['valueMax'] = value_max
         _input['chart'] = chart
         _input['lens'] = lens
         _input['xColumn'] = x_column
@@ -12406,7 +12681,7 @@ Returns:
         variables['input'] = _input
         return (await self.aexecute(CreatePointsChartLayerMutation, variables, task=task)).create_points_chart_layer
 
-    def create_points_chart_layer(self, chart: IDCoercible, lens: IDCoercible, x_column: str, y_column: str, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, marker_shape: ChartMarkerShape | None | UnsetType=UNSET, z_column: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerPointsChartLayer:
+    def create_points_chart_layer(self, chart: IDCoercible, lens: IDCoercible, x_column: str, y_column: str, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, marker_shape: ChartMarkerShape | None | UnsetType=UNSET, value_min: float | None | UnsetType=UNSET, value_max: float | None | UnsetType=UNSET, z_column: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerPointsChartLayer:
         """CreatePointsChartLayer 
  A value layer: a table lens' rows, placed in the chart's world, at
  the values of two or three columns -- a scatter.
@@ -12421,6 +12696,8 @@ Args:
     line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     marker_size: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     marker_shape: ChartMarkerShape
+    value_min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    value_max: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     chart: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     x_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
@@ -12451,6 +12728,10 @@ Returns:
             _input['markerSize'] = marker_size
         if marker_shape is not UNSET:
             _input['markerShape'] = marker_shape
+        if value_min is not UNSET:
+            _input['valueMin'] = value_min
+        if value_max is not UNSET:
+            _input['valueMax'] = value_max
         _input['chart'] = chart
         _input['lens'] = lens
         _input['xColumn'] = x_column
@@ -12702,7 +12983,7 @@ Returns:
         variables['input'] = _input
         return self.execute(CreateAnnotationChartLayerMutation, variables, task=task).create_annotation_chart_layer
 
-    async def aupdate_chart_layer(self, id: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, marker_shape: ChartMarkerShape | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotated[UpdateChartLayerMutationUpdateChartLayerBaseAnnotationChartLayer | UpdateChartLayerMutationUpdateChartLayerBaseDistributionChartLayer | UpdateChartLayerMutationUpdateChartLayerBasePointsChartLayer | UpdateChartLayerMutationUpdateChartLayerBaseSeriesChartLayer | UpdateChartLayerMutationUpdateChartLayerBaseTraceChartLayer, Field(discriminator='typename')] | UpdateChartLayerMutationUpdateChartLayerBaseCatchAll:
+    async def aupdate_chart_layer(self, id: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, marker_shape: ChartMarkerShape | None | UnsetType=UNSET, value_min: float | None | UnsetType=UNSET, value_max: float | None | UnsetType=UNSET, autoscale: bool | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotated[UpdateChartLayerMutationUpdateChartLayerBaseAnnotationChartLayer | UpdateChartLayerMutationUpdateChartLayerBaseDistributionChartLayer | UpdateChartLayerMutationUpdateChartLayerBasePointsChartLayer | UpdateChartLayerMutationUpdateChartLayerBaseSeriesChartLayer | UpdateChartLayerMutationUpdateChartLayerBaseTraceChartLayer, Field(discriminator='typename')] | UpdateChartLayerMutationUpdateChartLayerBaseCatchAll:
         """UpdateChartLayer 
  View state only: a layer's kind and its source are fixed at creation.
 
@@ -12716,6 +12997,9 @@ Args:
     line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     marker_size: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     marker_shape: ChartMarkerShape
+    value_min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    value_max: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    autoscale: The `Boolean` scalar type represents `true` or `false`.
     id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
@@ -12742,11 +13026,17 @@ Returns:
             _input['markerSize'] = marker_size
         if marker_shape is not UNSET:
             _input['markerShape'] = marker_shape
+        if value_min is not UNSET:
+            _input['valueMin'] = value_min
+        if value_max is not UNSET:
+            _input['valueMax'] = value_max
+        if autoscale is not UNSET:
+            _input['autoscale'] = autoscale
         _input['id'] = id
         variables['input'] = _input
         return (await self.aexecute(UpdateChartLayerMutation, variables, task=task)).update_chart_layer
 
-    def update_chart_layer(self, id: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, marker_shape: ChartMarkerShape | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotated[UpdateChartLayerMutationUpdateChartLayerBaseAnnotationChartLayer | UpdateChartLayerMutationUpdateChartLayerBaseDistributionChartLayer | UpdateChartLayerMutationUpdateChartLayerBasePointsChartLayer | UpdateChartLayerMutationUpdateChartLayerBaseSeriesChartLayer | UpdateChartLayerMutationUpdateChartLayerBaseTraceChartLayer, Field(discriminator='typename')] | UpdateChartLayerMutationUpdateChartLayerBaseCatchAll:
+    def update_chart_layer(self, id: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, marker_shape: ChartMarkerShape | None | UnsetType=UNSET, value_min: float | None | UnsetType=UNSET, value_max: float | None | UnsetType=UNSET, autoscale: bool | None | UnsetType=UNSET, task: TaskLike | None=None) -> Annotated[UpdateChartLayerMutationUpdateChartLayerBaseAnnotationChartLayer | UpdateChartLayerMutationUpdateChartLayerBaseDistributionChartLayer | UpdateChartLayerMutationUpdateChartLayerBasePointsChartLayer | UpdateChartLayerMutationUpdateChartLayerBaseSeriesChartLayer | UpdateChartLayerMutationUpdateChartLayerBaseTraceChartLayer, Field(discriminator='typename')] | UpdateChartLayerMutationUpdateChartLayerBaseCatchAll:
         """UpdateChartLayer 
  View state only: a layer's kind and its source are fixed at creation.
 
@@ -12760,6 +13050,9 @@ Args:
     line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     marker_size: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     marker_shape: ChartMarkerShape
+    value_min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    value_max: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    autoscale: The `Boolean` scalar type represents `true` or `false`.
     id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
 
@@ -12786,11 +13079,17 @@ Returns:
             _input['markerSize'] = marker_size
         if marker_shape is not UNSET:
             _input['markerShape'] = marker_shape
+        if value_min is not UNSET:
+            _input['valueMin'] = value_min
+        if value_max is not UNSET:
+            _input['valueMax'] = value_max
+        if autoscale is not UNSET:
+            _input['autoscale'] = autoscale
         _input['id'] = id
         variables['input'] = _input
         return self.execute(UpdateChartLayerMutation, variables, task=task).update_chart_layer
 
-    async def aupdate_trace_chart_layer(self, id: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, marker_shape: ChartMarkerShape | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerTraceChartLayer:
+    async def aupdate_trace_chart_layer(self, id: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, marker_shape: ChartMarkerShape | None | UnsetType=UNSET, value_min: float | None | UnsetType=UNSET, value_max: float | None | UnsetType=UNSET, autoscale: bool | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerTraceChartLayer:
         """UpdateTraceChartLayer 
  What a layer reads is its kind's own update, as for a scene's layers: another lens, other
  columns, another grouping or bin count. Each also takes the look.
@@ -12805,6 +13104,9 @@ Args:
     line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     marker_size: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     marker_shape: ChartMarkerShape
+    value_min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    value_max: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    autoscale: The `Boolean` scalar type represents `true` or `false`.
     id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
@@ -12832,13 +13134,19 @@ Returns:
             _input['markerSize'] = marker_size
         if marker_shape is not UNSET:
             _input['markerShape'] = marker_shape
+        if value_min is not UNSET:
+            _input['valueMin'] = value_min
+        if value_max is not UNSET:
+            _input['valueMax'] = value_max
+        if autoscale is not UNSET:
+            _input['autoscale'] = autoscale
         _input['id'] = id
         if lens is not UNSET:
             _input['lens'] = lens
         variables['input'] = _input
         return (await self.aexecute(UpdateTraceChartLayerMutation, variables, task=task)).update_trace_chart_layer
 
-    def update_trace_chart_layer(self, id: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, marker_shape: ChartMarkerShape | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerTraceChartLayer:
+    def update_trace_chart_layer(self, id: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, marker_shape: ChartMarkerShape | None | UnsetType=UNSET, value_min: float | None | UnsetType=UNSET, value_max: float | None | UnsetType=UNSET, autoscale: bool | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerTraceChartLayer:
         """UpdateTraceChartLayer 
  What a layer reads is its kind's own update, as for a scene's layers: another lens, other
  columns, another grouping or bin count. Each also takes the look.
@@ -12853,6 +13161,9 @@ Args:
     line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     marker_size: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     marker_shape: ChartMarkerShape
+    value_min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    value_max: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    autoscale: The `Boolean` scalar type represents `true` or `false`.
     id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
     task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
@@ -12880,13 +13191,19 @@ Returns:
             _input['markerSize'] = marker_size
         if marker_shape is not UNSET:
             _input['markerShape'] = marker_shape
+        if value_min is not UNSET:
+            _input['valueMin'] = value_min
+        if value_max is not UNSET:
+            _input['valueMax'] = value_max
+        if autoscale is not UNSET:
+            _input['autoscale'] = autoscale
         _input['id'] = id
         if lens is not UNSET:
             _input['lens'] = lens
         variables['input'] = _input
         return self.execute(UpdateTraceChartLayerMutation, variables, task=task).update_trace_chart_layer
 
-    async def aupdate_series_chart_layer(self, id: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, marker_shape: ChartMarkerShape | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, value_column: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerSeriesChartLayer:
+    async def aupdate_series_chart_layer(self, id: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, marker_shape: ChartMarkerShape | None | UnsetType=UNSET, value_min: float | None | UnsetType=UNSET, value_max: float | None | UnsetType=UNSET, autoscale: bool | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, value_column: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerSeriesChartLayer:
         """UpdateSeriesChartLayer 
 
 Retune a series: read another value column or table lens against the chart's axis, or restyle it
@@ -12901,6 +13218,9 @@ Args:
     line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     marker_size: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     marker_shape: ChartMarkerShape
+    value_min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    value_max: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    autoscale: The `Boolean` scalar type represents `true` or `false`.
     id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
     value_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
@@ -12929,6 +13249,12 @@ Returns:
             _input['markerSize'] = marker_size
         if marker_shape is not UNSET:
             _input['markerShape'] = marker_shape
+        if value_min is not UNSET:
+            _input['valueMin'] = value_min
+        if value_max is not UNSET:
+            _input['valueMax'] = value_max
+        if autoscale is not UNSET:
+            _input['autoscale'] = autoscale
         _input['id'] = id
         if lens is not UNSET:
             _input['lens'] = lens
@@ -12937,7 +13263,7 @@ Returns:
         variables['input'] = _input
         return (await self.aexecute(UpdateSeriesChartLayerMutation, variables, task=task)).update_series_chart_layer
 
-    def update_series_chart_layer(self, id: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, marker_shape: ChartMarkerShape | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, value_column: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerSeriesChartLayer:
+    def update_series_chart_layer(self, id: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, marker_shape: ChartMarkerShape | None | UnsetType=UNSET, value_min: float | None | UnsetType=UNSET, value_max: float | None | UnsetType=UNSET, autoscale: bool | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, value_column: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerSeriesChartLayer:
         """UpdateSeriesChartLayer 
 
 Retune a series: read another value column or table lens against the chart's axis, or restyle it
@@ -12952,6 +13278,9 @@ Args:
     line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     marker_size: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     marker_shape: ChartMarkerShape
+    value_min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    value_max: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    autoscale: The `Boolean` scalar type represents `true` or `false`.
     id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
     value_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
@@ -12980,6 +13309,12 @@ Returns:
             _input['markerSize'] = marker_size
         if marker_shape is not UNSET:
             _input['markerShape'] = marker_shape
+        if value_min is not UNSET:
+            _input['valueMin'] = value_min
+        if value_max is not UNSET:
+            _input['valueMax'] = value_max
+        if autoscale is not UNSET:
+            _input['autoscale'] = autoscale
         _input['id'] = id
         if lens is not UNSET:
             _input['lens'] = lens
@@ -12988,7 +13323,7 @@ Returns:
         variables['input'] = _input
         return self.execute(UpdateSeriesChartLayerMutation, variables, task=task).update_series_chart_layer
 
-    async def aupdate_points_chart_layer(self, id: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, marker_shape: ChartMarkerShape | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, x_column: str | None | UnsetType=UNSET, y_column: str | None | UnsetType=UNSET, z_column: str | None | UnsetType=UNSET, clear_z_column: bool | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerPointsChartLayer:
+    async def aupdate_points_chart_layer(self, id: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, marker_shape: ChartMarkerShape | None | UnsetType=UNSET, value_min: float | None | UnsetType=UNSET, value_max: float | None | UnsetType=UNSET, autoscale: bool | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, x_column: str | None | UnsetType=UNSET, y_column: str | None | UnsetType=UNSET, z_column: str | None | UnsetType=UNSET, clear_z_column: bool | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerPointsChartLayer:
         """UpdatePointsChartLayer 
 
 Retune a points layer: plot other columns or another table lens' rows, or restyle it
@@ -13003,6 +13338,9 @@ Args:
     line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     marker_size: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     marker_shape: ChartMarkerShape
+    value_min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    value_max: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    autoscale: The `Boolean` scalar type represents `true` or `false`.
     id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
     x_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
@@ -13034,6 +13372,12 @@ Returns:
             _input['markerSize'] = marker_size
         if marker_shape is not UNSET:
             _input['markerShape'] = marker_shape
+        if value_min is not UNSET:
+            _input['valueMin'] = value_min
+        if value_max is not UNSET:
+            _input['valueMax'] = value_max
+        if autoscale is not UNSET:
+            _input['autoscale'] = autoscale
         _input['id'] = id
         if lens is not UNSET:
             _input['lens'] = lens
@@ -13048,7 +13392,7 @@ Returns:
         variables['input'] = _input
         return (await self.aexecute(UpdatePointsChartLayerMutation, variables, task=task)).update_points_chart_layer
 
-    def update_points_chart_layer(self, id: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, marker_shape: ChartMarkerShape | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, x_column: str | None | UnsetType=UNSET, y_column: str | None | UnsetType=UNSET, z_column: str | None | UnsetType=UNSET, clear_z_column: bool | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerPointsChartLayer:
+    def update_points_chart_layer(self, id: IDCoercible, name: str | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, color: Iterable[float] | None | UnsetType=UNSET, mark: ChartMark | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, marker_size: float | None | UnsetType=UNSET, marker_shape: ChartMarkerShape | None | UnsetType=UNSET, value_min: float | None | UnsetType=UNSET, value_max: float | None | UnsetType=UNSET, autoscale: bool | None | UnsetType=UNSET, lens: IDCoercible | None | UnsetType=UNSET, x_column: str | None | UnsetType=UNSET, y_column: str | None | UnsetType=UNSET, z_column: str | None | UnsetType=UNSET, clear_z_column: bool | UnsetType=UNSET, task: TaskLike | None=None) -> ChartLayerPointsChartLayer:
         """UpdatePointsChartLayer 
 
 Retune a points layer: plot other columns or another table lens' rows, or restyle it
@@ -13063,6 +13407,9 @@ Args:
     line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     marker_size: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     marker_shape: ChartMarkerShape
+    value_min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    value_max: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    autoscale: The `Boolean` scalar type represents `true` or `false`.
     id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
     x_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
@@ -13094,6 +13441,12 @@ Returns:
             _input['markerSize'] = marker_size
         if marker_shape is not UNSET:
             _input['markerShape'] = marker_shape
+        if value_min is not UNSET:
+            _input['valueMin'] = value_min
+        if value_max is not UNSET:
+            _input['valueMax'] = value_max
+        if autoscale is not UNSET:
+            _input['autoscale'] = autoscale
         _input['id'] = id
         if lens is not UNSET:
             _input['lens'] = lens
@@ -13257,6 +13610,204 @@ Returns:
         _input['id'] = id
         variables['input'] = _input
         return self.execute(DeleteChartLayerMutation, variables, task=task).delete_chart_layer
+
+    async def aadd_to_collaboration(self, collaboration: IDCoercible, identifier: str, object: IDCoercible, name: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> Collaboration:
+        """AddToCollaboration 
+
+Put an object in a collaboration (lok's, by its key), with what it needs to be seen: a scene brings the data its layers draw. The first thing put in makes mikro's row of the collaboration
+
+Args:
+    collaboration: The collaboration's key (lok's)
+    identifier: The structure the object is known by: @mikro/scene
+    object: The object's id
+    name: The collaboration's name, kept here when this is the first thing put in
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    Collaboration
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['collaboration'] = collaboration
+        _input['identifier'] = identifier
+        _input['object'] = object
+        if name is not UNSET:
+            _input['name'] = name
+        variables['input'] = _input
+        return (await self.aexecute(AddToCollaborationMutation, variables, task=task)).add_to_collaboration
+
+    def add_to_collaboration(self, collaboration: IDCoercible, identifier: str, object: IDCoercible, name: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> Collaboration:
+        """AddToCollaboration 
+
+Put an object in a collaboration (lok's, by its key), with what it needs to be seen: a scene brings the data its layers draw. The first thing put in makes mikro's row of the collaboration
+
+Args:
+    collaboration: The collaboration's key (lok's)
+    identifier: The structure the object is known by: @mikro/scene
+    object: The object's id
+    name: The collaboration's name, kept here when this is the first thing put in
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    Collaboration
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['collaboration'] = collaboration
+        _input['identifier'] = identifier
+        _input['object'] = object
+        if name is not UNSET:
+            _input['name'] = name
+        variables['input'] = _input
+        return self.execute(AddToCollaborationMutation, variables, task=task).add_to_collaboration
+
+    async def aadd_many_to_collaboration(self, collaboration: IDCoercible, objects: Iterable[CollaborationObjectRef], name: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> Collaboration:
+        """AddManyToCollaboration 
+
+Put several objects in a collaboration at once, each with what it needs to be seen; all or none. How a dataset goes in with what was derived from it
+
+Args:
+    collaboration: The collaboration's key (lok's)
+    objects: What to put in; a whole before its parts
+    name: The collaboration's name, kept here when these are the first things put in
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    Collaboration
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['collaboration'] = collaboration
+        _input['objects'] = objects
+        if name is not UNSET:
+            _input['name'] = name
+        variables['input'] = _input
+        return (await self.aexecute(AddManyToCollaborationMutation, variables, task=task)).add_many_to_collaboration
+
+    def add_many_to_collaboration(self, collaboration: IDCoercible, objects: Iterable[CollaborationObjectRef], name: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> Collaboration:
+        """AddManyToCollaboration 
+
+Put several objects in a collaboration at once, each with what it needs to be seen; all or none. How a dataset goes in with what was derived from it
+
+Args:
+    collaboration: The collaboration's key (lok's)
+    objects: What to put in; a whole before its parts
+    name: The collaboration's name, kept here when these are the first things put in
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    Collaboration
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['collaboration'] = collaboration
+        _input['objects'] = objects
+        if name is not UNSET:
+            _input['name'] = name
+        variables['input'] = _input
+        return self.execute(AddManyToCollaborationMutation, variables, task=task).add_many_to_collaboration
+
+    async def aremove_from_collaboration(self, collaboration: IDCoercible, identifier: str, object: IDCoercible, name: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> Collaboration:
+        """RemoveFromCollaboration 
+
+Take an object out of a collaboration, with what it brought that nothing else there needs
+
+Args:
+    collaboration: The collaboration's key (lok's)
+    identifier: The structure the object is known by: @mikro/scene
+    object: The object's id
+    name: The collaboration's name, kept here when this is the first thing put in
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    Collaboration
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['collaboration'] = collaboration
+        _input['identifier'] = identifier
+        _input['object'] = object
+        if name is not UNSET:
+            _input['name'] = name
+        variables['input'] = _input
+        return (await self.aexecute(RemoveFromCollaborationMutation, variables, task=task)).remove_from_collaboration
+
+    def remove_from_collaboration(self, collaboration: IDCoercible, identifier: str, object: IDCoercible, name: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> Collaboration:
+        """RemoveFromCollaboration 
+
+Take an object out of a collaboration, with what it brought that nothing else there needs
+
+Args:
+    collaboration: The collaboration's key (lok's)
+    identifier: The structure the object is known by: @mikro/scene
+    object: The object's id
+    name: The collaboration's name, kept here when this is the first thing put in
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    Collaboration
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['collaboration'] = collaboration
+        _input['identifier'] = identifier
+        _input['object'] = object
+        if name is not UNSET:
+            _input['name'] = name
+        variables['input'] = _input
+        return self.execute(RemoveFromCollaborationMutation, variables, task=task).remove_from_collaboration
+
+    async def ashare_workflow(self, collaboration: IDCoercible, root_task: IDCoercible, dry_run: bool | UnsetType=UNSET, name: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> WorkflowShare:
+        """ShareWorkflow 
+
+Put what a workflow (its root task) created in mikro in a collaboration, as it is now: a whole goes in, its parts come along, and a part of something made before the workflow and not shared is left out and reported. `dryRun` only says what would be. What the workflow makes later is not in it: share it again
+
+Args:
+    collaboration: The collaboration's key (lok's)
+    root_task: The workflow: the id of the task a person started, the root of every task it caused
+    dry_run: Only say what would be put in, and what left out
+    name: The collaboration's name, kept here when this puts the first things in
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    WorkflowShare
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['collaboration'] = collaboration
+        _input['rootTask'] = root_task
+        if dry_run is not UNSET:
+            _input['dryRun'] = dry_run
+        if name is not UNSET:
+            _input['name'] = name
+        variables['input'] = _input
+        return (await self.aexecute(ShareWorkflowMutation, variables, task=task)).share_workflow
+
+    def share_workflow(self, collaboration: IDCoercible, root_task: IDCoercible, dry_run: bool | UnsetType=UNSET, name: str | None | UnsetType=UNSET, task: TaskLike | None=None) -> WorkflowShare:
+        """ShareWorkflow 
+
+Put what a workflow (its root task) created in mikro in a collaboration, as it is now: a whole goes in, its parts come along, and a part of something made before the workflow and not shared is left out and reported. `dryRun` only says what would be. What the workflow makes later is not in it: share it again
+
+Args:
+    collaboration: The collaboration's key (lok's)
+    root_task: The workflow: the id of the task a person started, the root of every task it caused
+    dry_run: Only say what would be put in, and what left out
+    name: The collaboration's name, kept here when this puts the first things in
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    WorkflowShare
+"""
+        variables: dict[str, builtins.object] = {}
+        _input: dict[str, builtins.object] = {}
+        _input['collaboration'] = collaboration
+        _input['rootTask'] = root_task
+        if dry_run is not UNSET:
+            _input['dryRun'] = dry_run
+        if name is not UNSET:
+            _input['name'] = name
+        variables['input'] = _input
+        return self.execute(ShareWorkflowMutation, variables, task=task).share_workflow
 
     async def acreate_coordinate_system(self, name: str, axes: Iterable[PhysicalAxisInput], epoch: datetime | None | UnsetType=UNSET, reference: str | None | UnsetType=UNSET, registrations: Iterable[RegistrationPathInput] | UnsetType=UNSET, task: TaskLike | None=None) -> CoordinateSystem:
         """CreateCoordinateSystem 
@@ -16920,7 +17471,7 @@ Returns:
         variables['input'] = _input
         return self.execute(CreateTrackLayerMutation, variables, task=task).create_track_layer
 
-    async def aupdate_track_layer(self, id: IDCoercible, color_by_column: str | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, colormap: ColorMap | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> LayerTrackLayer:
+    async def aupdate_track_layer(self, id: IDCoercible, color_by_column: str | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, tail_window: int | None | UnsetType=UNSET, colormap: ColorMap | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> LayerTrackLayer:
         """UpdateTrackLayer 
 
 Retune a track layer after creation -- its line width, its colouring column and the compositing it takes part in.
@@ -16929,6 +17480,7 @@ Args:
     id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     color_by_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
     line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    tail_window: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
     colormap: ColorMap
     blending: Blending
     opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
@@ -16946,6 +17498,8 @@ Returns:
             _input['colorByColumn'] = color_by_column
         if line_width is not UNSET:
             _input['lineWidth'] = line_width
+        if tail_window is not UNSET:
+            _input['tailWindow'] = tail_window
         if colormap is not UNSET:
             _input['colormap'] = colormap
         if blending is not UNSET:
@@ -16959,7 +17513,7 @@ Returns:
         variables['input'] = _input
         return (await self.aexecute(UpdateTrackLayerMutation, variables, task=task)).update_track_layer
 
-    def update_track_layer(self, id: IDCoercible, color_by_column: str | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, colormap: ColorMap | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> LayerTrackLayer:
+    def update_track_layer(self, id: IDCoercible, color_by_column: str | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, tail_window: int | None | UnsetType=UNSET, colormap: ColorMap | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, task: TaskLike | None=None) -> LayerTrackLayer:
         """UpdateTrackLayer 
 
 Retune a track layer after creation -- its line width, its colouring column and the compositing it takes part in.
@@ -16968,6 +17522,7 @@ Args:
     id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     color_by_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
     line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    tail_window: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
     colormap: ColorMap
     blending: Blending
     opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
@@ -16985,6 +17540,8 @@ Returns:
             _input['colorByColumn'] = color_by_column
         if line_width is not UNSET:
             _input['lineWidth'] = line_width
+        if tail_window is not UNSET:
+            _input['tailWindow'] = tail_window
         if colormap is not UNSET:
             _input['colormap'] = colormap
         if blending is not UNSET:
@@ -19892,6 +20449,72 @@ Returns:
             variables['pagination'] = pagination
         return self.execute(ChartLayersQuery, variables, task=task).chart_layers
 
+    async def aget_collaboration(self, key: IDCoercible, task: TaskLike | None=None) -> Collaboration:
+        """GetCollaboration 
+
+Get what mikro holds in a collaboration, by its key (lok's)
+
+Args:
+    key (ID): No description
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    Collaboration
+"""
+        variables: dict[str, builtins.object] = {}
+        variables['key'] = key
+        return (await self.aexecute(GetCollaborationQuery, variables, task=task)).collaboration
+
+    def get_collaboration(self, key: IDCoercible, task: TaskLike | None=None) -> Collaboration:
+        """GetCollaboration 
+
+Get what mikro holds in a collaboration, by its key (lok's)
+
+Args:
+    key (ID): No description
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    Collaboration
+"""
+        variables: dict[str, builtins.object] = {}
+        variables['key'] = key
+        return self.execute(GetCollaborationQuery, variables, task=task).collaboration
+
+    async def alist_collaborations(self, pagination: OffsetPaginationInput | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[Collaboration, ...]:
+        """ListCollaborations 
+
+List the organization's collaborations: what a guest granted one sees of it (a guest: the collaborations granted to them)
+
+Args:
+    pagination (OffsetPaginationInput | None, optional): No description. 
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    list[Collaboration]
+"""
+        variables: dict[str, builtins.object] = {}
+        if pagination is not UNSET:
+            variables['pagination'] = pagination
+        return (await self.aexecute(ListCollaborationsQuery, variables, task=task)).collaborations
+
+    def list_collaborations(self, pagination: OffsetPaginationInput | None | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[Collaboration, ...]:
+        """ListCollaborations 
+
+List the organization's collaborations: what a guest granted one sees of it (a guest: the collaborations granted to them)
+
+Args:
+    pagination (OffsetPaginationInput | None, optional): No description. 
+    task (rath.task.TaskLike, optional): The task this call is made for; the ambient one by default.
+
+Returns:
+    list[Collaboration]
+"""
+        variables: dict[str, builtins.object] = {}
+        if pagination is not UNSET:
+            variables['pagination'] = pagination
+        return self.execute(ListCollaborationsQuery, variables, task=task).collaborations
+
     async def alabel_color_by_options(self, lens: IDCoercible, filters: ColumnOptionFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, max_join_depth: int | UnsetType=UNSET, task: TaskLike | None=None) -> tuple[ColorByOption, ...]:
         """LabelColorByOptions 
  Rooted on a lens -- what a label layer over that lens can be coloured by.
@@ -22489,6 +23112,7 @@ Returns:
             variables['folder'] = folder
         for event in self.subscribe(WatchFilesSubscription, variables, task=task):
             yield event.files
+AddManyToCollaborationInput.model_rebuild()
 AnimationFilter.model_rebuild()
 AnimationWaypointInput.model_rebuild()
 AnnotationCollectionDerivedFromInput.model_rebuild()

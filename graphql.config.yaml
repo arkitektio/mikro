@@ -100,6 +100,8 @@ projects:
           Temperature: kanne.scalars.Temperature
           ID: rath.scalars.ID
           ByteCount: mikro.scalars.ByteCount
+          # A count that may pass 2^31: a plain int (Python's is unbounded).
+          RowCount: int
         # The structure each type is known by across the hub (arkitekt-service's
         # `@identified`), on every class generated for it: a nested selection is a
         # class of its own, so `lens.dataset` says what it is too.

@@ -40,7 +40,8 @@
                 "Frequency": "kanne.scalars.Frequency",
                 "Temperature": "kanne.scalars.Temperature",
                 "ID": "rath.scalars.ID",
-                "ByteCount": "mikro.scalars.ByteCount"
+                "ByteCount": "mikro.scalars.ByteCount",
+                "RowCount": "int"
             },
             "coercible_scalars": {},
             "coercible_inputs": {},

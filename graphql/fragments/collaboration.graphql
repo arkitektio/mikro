@@ -1,0 +1,25 @@
+fragment Collaboration on Collaboration {
+  id
+  key
+  name
+  description
+  createdAt
+  itemCount
+}
+
+fragment WorkflowShare on WorkflowShare {
+  collaboration
+  dryRun
+  added {
+    identifier
+    object
+  }
+  covered
+  skipped {
+    identifier
+    object
+    wholeIdentifier
+    whole
+  }
+  unknown
+}

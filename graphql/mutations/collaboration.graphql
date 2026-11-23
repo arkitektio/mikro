@@ -1,0 +1,23 @@
+mutation AddToCollaboration($input: CollaborationObjectInput!) {
+  addToCollaboration(input: $input) {
+    ...Collaboration
+  }
+}
+
+mutation AddManyToCollaboration($input: AddManyToCollaborationInput!) {
+  addManyToCollaboration(input: $input) {
+    ...Collaboration
+  }
+}
+
+mutation RemoveFromCollaboration($input: CollaborationObjectInput!) {
+  removeFromCollaboration(input: $input) {
+    ...Collaboration
+  }
+}
+
+mutation ShareWorkflow($input: ShareWorkflowInput!) {
+  shareWorkflow(input: $input) {
+    ...WorkflowShare
+  }
+}
