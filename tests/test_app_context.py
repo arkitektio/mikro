@@ -7,7 +7,7 @@ apps beyond that. Passed or current, it is asked the same question.
 
 from collections.abc import Awaitable, Callable
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from pydantic import BaseModel, ConfigDict
@@ -276,7 +276,7 @@ async def _expand_store_through(
 
     declared = StructureRegistry(clients={"mikro": StoreClient})
     declared.register_as_structure(
-        Store, identifier="@mikro/teststore", aexpand=expand_store
+        Store, identifier="@mikro/teststore", aexpand=cast(Any, expand_store)
     )
     registry = declared.bound({"mikro": StoreClient()})
 

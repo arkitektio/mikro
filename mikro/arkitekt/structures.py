@@ -5,6 +5,7 @@ Imported by ``mikro/__init__``, so each class is marked whenever mikro is.
 
 from typing import TypeVar
 
+from arkitekt_spec.actions import AssignWidgetInput
 from arkitekt_spec.declare.structures.declare import structure
 from arkitekt_spec.declare.widgets import SearchWidget
 
@@ -56,7 +57,7 @@ from mikro.arkitekt.specs import descriptors_of
 from mikro.mikro import Mikro
 
 
-def _search(query: object) -> SearchWidget:
+def _search(query: object) -> AssignWidgetInput:
     """The widget that picks one of these out of the deployment.
 
     A query that declares ``$requires`` is handed the port's own constraints by the

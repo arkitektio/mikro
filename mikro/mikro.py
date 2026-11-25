@@ -1,6 +1,7 @@
 from collections.abc import AsyncGenerator, Generator
 from pathlib import Path
 from typing import Annotated, Any, Self
+
 from arkitekt_spec.declare.client import client
 from arkitekt_spec.declare.tested import tested_against
 from arkitekt_spec.declare.wiring import Alias, Require, TokenLoader

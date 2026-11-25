@@ -15,6 +15,13 @@ from arkitekt_spec.declare.structures.types import is_valid_identifier  # noqa: 
 from mikro import Mikro  # noqa: E402
 
 DECLARED = client_of(Mikro)
+
+
+def _sdl() -> str:
+    assert DECLARED is not None, "Mikro declares itself with @client"
+    return DECLARED.get_graphql_schema() or ""
+
+
 assert DECLARED is not None
 STRUCTURES = {s.identifier: s for s in DECLARED.structures}
 
@@ -215,7 +222,7 @@ def test_a_lens_picked_after_an_annotation_is_narrowed_to_what_that_annotation_r
 
     # The query is text, written here and not generated: held to the schema the client was generated from.
     # `assume_valid_sdl`: the dump carries federation directives (`@key`, `@link`) it does not define.
-    schema = build_schema(DECLARED.get_graphql_schema(), assume_valid_sdl=True)
+    schema = build_schema(_sdl(), assume_valid_sdl=True)
     for kind in LensKind:
         assert validate(schema, parse(reachable_lenses_query("shape", kind))) == [], (
             kind
@@ -244,7 +251,7 @@ def test_a_lens_picked_after_an_annotation_can_be_narrowed_to_lenses_holding_dat
     query = {prop.key: prop.static_value for prop in widget.props}["query"]
     assert "overlapsAnnotation: $path" in query and "reachableFrom" not in query
 
-    schema = build_schema(DECLARED.get_graphql_schema(), assume_valid_sdl=True)
+    schema = build_schema(_sdl(), assume_valid_sdl=True)
     for kind in LensKind:
         assert validate(schema, parse(overlapping_lenses_query("shape", kind))) == [], (
             kind
