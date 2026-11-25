@@ -36,7 +36,7 @@ from scipy import ndimage
 from skimage.draw import ellipse
 from skimage.measure import regionprops_table
 
-from mikro import Unit, create_space, dataset_arrays, mikro_service
+from mikro import Mikro, Unit, create_space, dataset_arrays
 from mikro.api.schema import (
     AxisType,
     Blending,
@@ -52,7 +52,6 @@ from mikro.api.schema import (
     ValueRelation,
 )
 from mikro.inputs.picker import categorical_color_by, label_render, measure_color_by
-from mikro.mikro import Mikro
 
 # --------------------------------------------------------------------------- #
 # Configuration
@@ -337,9 +336,9 @@ def main() -> None:
         raise SystemExit(0)
 
     # Imported here, so a dry run needs nothing but the science stack.
-    from arkitekt import easy
+    from arkitekt import connect
 
-    with easy("cell-morphology", mikro_service) as mikro:
+    with connect(Mikro, identifier="cell-morphology") as mikro:
         upload(
             mikro,
             dapi,

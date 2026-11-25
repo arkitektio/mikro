@@ -33,9 +33,9 @@ import sys
 import numpy as np
 import pandas as pd
 import xarray as xr
-from arkitekt import easy
+from arkitekt import connect
 
-from mikro import Unit, create_space, dataset_arrays, mikro_service
+from mikro import Mikro, Unit, create_space, dataset_arrays
 from mikro.api.schema import (
     AxisType,
     ColorMap,
@@ -293,7 +293,7 @@ if __name__ == "__main__":
         raise SystemExit(0)
 
     # Reusing a sibling generator's cached grant (see generator_smlm.py).
-    with easy("neuron-overlay", mikro_service) as mikro:
+    with connect(Mikro, identifier="neuron-overlay") as mikro:
         world = create_space(
             mikro,
             "SPT · field",

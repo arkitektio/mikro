@@ -1,6 +1,9 @@
 from collections.abc import AsyncGenerator, Generator
-from typing import Any
-
+from pathlib import Path
+from typing import Annotated, Any, Self
+from arkitekt_spec.declare.client import client
+from arkitekt_spec.declare.tested import tested_against
+from arkitekt_spec.declare.wiring import Alias, Require, TokenLoader
 from koil import unkoil_gen
 from koil.composition import Composition
 from pydantic import Field
@@ -12,7 +15,25 @@ from mikro.api.schema import MikroApi
 from mikro.datalayer import DataLayer
 from mikro.rath import MikroRath
 
+TESTED = tested_against("mikro")
+"""The mikro server this release wants: the one its release job tested it against."""
 
+_API = Path(__file__).parent / "api"
+MIKRO = Require(
+    "live.arkitekt.mikro",
+    "Where the user's images and their metadata live",
+    version=TESTED,
+)
+S3 = Require("live.arkitekt.s3", "Where the user's files are stored")
+
+
+@client(
+    schema=_API / "schema.graphql",
+    turms=_API / "project.json",
+    # The server this release is written against: what a hub made for an app's
+    # tests runs. Moves with the server's major, not with this package's.
+    image="jhnnsrs/mikro:15",
+)
 class Mikro(Composition, MikroApi):
     """The Mikro Composition
 
@@ -31,14 +52,26 @@ class Mikro(Composition, MikroApi):
         uploads); the async path (``aexecute``/``asubscribe``) calls
         ``aprocess_variables``.
 
-    You shouldn't need to create this directly: an app gets one from the mikro
-    service (``mikro.arkitekt.service``), which builds the rath and its links.
+    A run builds it with :meth:`from_fakts`.
     """
 
     datalayer: DataLayer = Field(
         ..., description="The datalayer for interacting with the mikro api"
     )
     rath: MikroRath
+
+    @classmethod
+    def from_fakts(
+        cls,
+        mikro: Annotated[Alias, MIKRO],
+        s3: Annotated[Alias, S3],
+        tokens: TokenLoader,
+    ) -> Self:
+        """Mikro: the user's images, files and metadata."""
+        from mikro.connect import mikro_rath
+
+        datalayer = DataLayer.from_alias(s3)
+        return cls(rath=mikro_rath(mikro, datalayer, tokens), datalayer=datalayer)
 
     # --- executing the generated operations
 

@@ -260,12 +260,9 @@ async def _expand_store_through(
     remembered.
     """
     pytest.importorskip("arkitekt_spec.declare.app")
-    from typing import Annotated
-
     from arkitekt_runtime.structures.serialization.actor import expand_inputs
-    from arkitekt_spec.declare.app import AppRegistry
     from arkitekt_spec.declare.definition.define import prepare_definition
-    from fakts import Alias, Require
+    from arkitekt_spec.declare.structures.registry import StructureRegistry
 
     class StoreClient:
         """The mikro client, as far as expanding the test store goes."""
@@ -273,18 +270,15 @@ async def _expand_store_through(
         async def aget_store(self, id: str) -> Store:
             return await fetch(app.mikro, id)
 
-    def mikro(alias: Annotated[Alias, Require("live.test.mikro")]) -> StoreClient:
-        """A parameter is only a client once a registered service returns its type."""
-        return StoreClient()
-
     async def expand_store(id: str, mikro: StoreClient) -> Store:
         """The expander names the client it needs; binding supplies it."""
         return await mikro.aget_store(id)
 
-    app_registry = AppRegistry()
-    app_registry.service()(mikro)
-    app_registry.structure("@mikro/teststore")(expand_store)
-    registry = app_registry.structure_registry.bound({"mikro": StoreClient()})
+    declared = StructureRegistry(clients={"mikro": StoreClient})
+    declared.register_as_structure(
+        Store, identifier="@mikro/teststore", aexpand=expand_store
+    )
+    registry = declared.bound({"mikro": StoreClient()})
 
     def uses_store(store: Store) -> str:
         """Takes a store."""

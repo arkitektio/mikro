@@ -28,10 +28,10 @@ import sys
 import numpy as np
 import pandas as pd
 import xarray as xr
-from arkitekt import easy
+from arkitekt import connect
 from scipy.ndimage import gaussian_filter
 
-from mikro import Calibration, Unit, dataset_arrays, mikro_service
+from mikro import Calibration, Mikro, Unit, dataset_arrays
 from mikro.api.schema import (
     AxisType,
     BootstrapLayerKind,
@@ -196,7 +196,7 @@ if __name__ == "__main__":
         raise SystemExit(0)
 
     # Reusing a sibling generator's cached grant (see generator_smlm.py).
-    with easy("neuron-overlay", mikro_service) as mikro:
+    with connect(Mikro, identifier="neuron-overlay") as mikro:
         print("Uploading the exam…")
         data, scales = dataset_arrays(exam, levels=LEVELS, method="mean")
         source = mikro.create_array_dataset(

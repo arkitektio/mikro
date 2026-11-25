@@ -33,10 +33,10 @@ import sys
 import numpy as np
 import pandas as pd
 import xarray as xr
-from arkitekt import easy
+from arkitekt import connect
 from scipy.ndimage import gaussian_filter
 
-from mikro import Unit, dataset_arrays, mikro_service, space_2d
+from mikro import Mikro, Unit, dataset_arrays, space_2d
 from mikro.api.schema import (
     AxisType,
     Blending,
@@ -306,7 +306,7 @@ if __name__ == "__main__":
         raise SystemExit(0)
 
     # Reusing a sibling generator's cached grant (see generator_smlm.py).
-    with easy("neuron-overlay", mikro_service) as mikro:
+    with connect(Mikro, identifier="neuron-overlay") as mikro:
         world = space_2d(mikro, "CLEM · specimen", unit=Unit("micrometer"))
 
         print("Uploading EM…")

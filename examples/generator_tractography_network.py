@@ -34,7 +34,7 @@ import konnektion
 import numpy as np
 import pandas as pd
 import xarray as xr
-from arkitekt import easy
+from arkitekt import connect
 from fabriks import build_collection
 
 # One ground truth, two scripts: the phantom, tracker, mesh and their checks come
@@ -52,7 +52,7 @@ from generator_dti_tractography import (
     track,
 )
 
-from mikro import Unit, dataset_arrays, mikro_service, space_3d
+from mikro import Mikro, Unit, dataset_arrays, space_3d
 from mikro.api.schema import (
     AxisInput,
     AxisType,
@@ -183,7 +183,7 @@ if __name__ == "__main__":
         raise SystemExit(0)
 
     # Reusing a sibling generator's cached grant (see generator_smlm.py).
-    with easy("neuron-overlay", mikro_service) as mikro:
+    with connect(Mikro, identifier="neuron-overlay") as mikro:
         world = space_3d(mikro, "DTI · head (network)", unit=Unit("millimeter"))
 
         print("Uploading FA map…")

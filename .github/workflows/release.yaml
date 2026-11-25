@@ -48,7 +48,7 @@ jobs:
         run: uv run pytest
 
       - name: Check the server version the tests ran against
-        run: uv run python -m arkitekt_spec.declare.tested mikro mikro:mikro_service
+        run: uv run python -m arkitekt_spec.declare.tested mikro mikro:Mikro
 
       - name: Python Semantic Release
         id: release

@@ -31,9 +31,9 @@ import sys
 
 import numpy as np
 import xarray as xr
-from arkitekt import easy
+from arkitekt import connect
 
-from mikro import Unit, create_space, dataset_arrays, mikro_service
+from mikro import Mikro, Unit, create_space, dataset_arrays
 from mikro.api.schema import (
     AxisInput,
     AxisType,
@@ -311,7 +311,7 @@ if __name__ == "__main__":
         raise SystemExit(0)
 
     # Reusing a sibling generator's cached grant (see generator_smlm.py).
-    with easy("neuron-overlay", mikro_service) as mikro:
+    with connect(Mikro, identifier="neuron-overlay") as mikro:
         # One world with a real wavelength axis. The 5 nm bin width AND the 500 nm
         # origin live on the cube's registration edge (scale + offset), which is what
         # makes the scene's `l` read in absolute nanometers.

@@ -31,10 +31,10 @@ import sys
 import numpy as np
 import pandas as pd
 import xarray as xr
-from arkitekt import easy
+from arkitekt import connect
 from scipy import ndimage
 
-from mikro import Unit, mikro_service, space_2d
+from mikro import Mikro, Unit, space_2d
 from mikro.api.schema import (
     AxisType,
     ColorMap,
@@ -202,7 +202,7 @@ if __name__ == "__main__":
         raise SystemExit(0)
 
     # Reusing a sibling generator's cached grant (see generator_smlm.py).
-    with easy("neuron-overlay", mikro_service) as mikro:
+    with connect(Mikro, identifier="neuron-overlay") as mikro:
         # The stage the whole plate sits on. Every well is placed into THIS one
         # space — a plate is one place, not 24.
         world = space_2d(mikro, "HCS · plate stage", unit=Unit("micrometer"))

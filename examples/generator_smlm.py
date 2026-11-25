@@ -32,10 +32,10 @@ import sys
 import numpy as np
 import pandas as pd
 import xarray as xr
-from arkitekt import easy
+from arkitekt import connect
 from scipy.ndimage import gaussian_filter
 
-from mikro import Unit, create_space, dataset_arrays, mikro_service
+from mikro import Mikro, Unit, create_space, dataset_arrays
 from mikro.api.schema import (
     AxisType,
     ColorMap,
@@ -302,7 +302,7 @@ if __name__ == "__main__":
     # Reusing a sibling generator's identifier, the established pattern (see
     # generator_flow_volume / generator_turbulence): its grant is cached, so the
     # run needs no device-code round.
-    with easy("neuron-overlay", mikro_service) as mikro:
+    with connect(Mikro, identifier="neuron-overlay") as mikro:
         # One world for all of it. Each grid's pixel size is a fact about its
         # registration edge, not about the space — which is the only way a 100 nm
         # movie, a 10 nm render and a table in micrometers share one frame.

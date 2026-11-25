@@ -54,7 +54,5 @@ __all__ = [
     "duckdb_type",
 ]
 
-# The service is declared with arkitekt-spec, a core dependency: it is always there.
-from .arkitekt import mikro as mikro_service  # noqa: E402
-
-__all__ += ["mikro_service"]
+# Marks every type mikro sends by id, so an app using `Mikro` finds them.
+from .arkitekt import structures as _structures  # noqa: E402, F401

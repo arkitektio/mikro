@@ -43,17 +43,17 @@ through the same client.
 
 ### In an arkitekt app
 
-Add `mikro_service` to your app and take the client by annotation. arkitekt injects it. Types from
+Take the client by annotation (`mikro: Mikro`). arkitekt injects it. Types from
 `mikro.arkitekt.specs` such as `Volume` or `Image` are lenses over a mikro dataset. Each one declares
 what an action needs, and the UI then offers only datasets that fit. A run tests the same on every
 lens an action takes or returns: one that does not fit the type fails the task, saying why.
 
 ```python
 from arkitekt import App, Task, run
-from mikro import Mikro, mikro_service
+from mikro import Mikro
 from mikro.arkitekt.specs import Volume
 
-app = App("clip-volume", "0.1.0", services=[mikro_service])
+app = App("clip-volume", "0.1.0")
 
 
 @app.action
@@ -86,17 +86,17 @@ between actions by id (`@mikro/arraydataset`, `@mikro/arraylens` for an array le
 
 ### From a script
 
-`easy` connects for you and returns the client:
+`connect` logs in and returns the client:
 
 ```python
 import numpy as np
 
-from arkitekt import easy
-from mikro import dataset_arrays, mikro_service
+from arkitekt import connect
+from mikro import Mikro, dataset_arrays
 
 volume = np.random.random((2, 10, 256, 256))
 
-with easy("my-script", mikro_service) as mikro:
+with connect(Mikro) as mikro:
     folder = mikro.create_folder(name="examples")
 
     # `data` is level 0; `scales` holds only the coarser levels. A bare numpy or dask
@@ -115,7 +115,7 @@ with easy("my-script", mikro_service) as mikro:
     peak = again.data.max().compute()  # downloads only what it needs
 ```
 
-Use `async with aeasy(...)` in async code, or `interactive("notebook", mikro_service)` in Jupyter.
+Use `async with connect(Mikro)` in async code, or `mikro = connect(Mikro).enter()` in Jupyter.
 Inside an async loop, remember that computing `.data` downloads the data in a blocking way on that
 loop.
 

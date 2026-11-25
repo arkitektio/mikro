@@ -16,9 +16,10 @@ from typing import get_args  # noqa: E402
 
 from arkitekt_spec.actions import RequiresInput  # noqa: E402
 from arkitekt_spec.declare.descriptors import unfulfilled  # noqa: E402
+from arkitekt_spec.declare.structures.declare import structure_of  # noqa: E402
 
 from mikro import Mikro  # noqa: E402
-from mikro import arkitekt as declared  # noqa: E402
+from mikro.api.schema import ArrayLens  # noqa: E402
 from mikro.arkitekt.specs import LabelMask, SingleChannelImage, Volume  # noqa: E402
 
 
@@ -38,10 +39,9 @@ def _described(
         data=data, scales=[], name="described", axes=axes
     )
     lens = mikro.get_lens(stored.lens().id)
-    describe = declared.registry.structure_registry.get_fullfilled_structure(
-        "@mikro/arraylens"
-    ).describe
-    assert describe is not None
+    declared = structure_of(ArrayLens)
+    assert declared is not None and declared.describe is not None
+    describe = declared.describe
     return dict(describe(lens))
 
 

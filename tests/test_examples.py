@@ -4,11 +4,11 @@ The scripts in ``examples/`` are not importable libraries -- each is a
 ``__main__``-guarded program that generates a synthetic dataset, checks its own
 ground truth, uploads it, and then asserts the round trip (layer kinds,
 placements, colorBys). Those built-in assertions ARE the test; this module only
-supplies what ``easy(..., mikro_service)`` would have supplied and lets each script run.
+supplies what ``connect(Mikro)`` would have supplied and lets each script run.
 
 What the harness substitutes:
 
-- ``arkitekt.easy`` is replaced with a stub that yields the deployment's client,
+- ``arkitekt.connect`` is replaced with a stub that yields the deployment's client,
   which the scripts then call every operation on.
 - ``sys.argv`` is pinned to the bare script name -- no ``--dry-run``, so the
   upload and read-back paths actually run.
@@ -36,7 +36,7 @@ import pytest
 
 from .conftest import DeployedMikro
 
-# The example scripts are arkitekt apps -- they do `from arkitekt import easy`,
+# The example scripts are arkitekt apps -- they do `from arkitekt import connect`,
 # and the harness below stubs that out. mikro cannot depend on arkitekt to get
 # it: arkitekt depends on mikro, so declaring it here would close a cycle. So
 # these run wherever arkitekt happens to be importable (a dev checkout) and skip
@@ -65,15 +65,16 @@ SCRIPTS = [
 ]
 
 
-def _stub_easy_for(mikro: object) -> Callable[..., AbstractContextManager[object]]:
+def _stub_connect_for(
+    mikro: object,
+) -> Callable[..., AbstractContextManager[object]]:
     @contextmanager
-    def _stub_easy(
-        identifier: object = None, *services: object, **kwargs: object
-    ) -> Iterator[object]:
-        """Stand-in for ``arkitekt.easy``: a run handing out the deployment's client."""
+    def _stub_connect(*clients: type, **options: object) -> Iterator[object]:
+        """Stand-in for ``arkitekt.connect(Mikro)``: the deployment's client."""
+        assert len(clients) == 1, "the examples connect only Mikro"
         yield mikro
 
-    return _stub_easy
+    return _stub_connect
 
 
 @pytest.mark.integration
@@ -81,12 +82,11 @@ def _stub_easy_for(mikro: object) -> Callable[..., AbstractContextManager[object
 def test_example_uploads(
     deployed_app: DeployedMikro, script: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # The scripts do `from arkitekt import easy` and `with easy("...", mikro_service) as mikro:`;
-    # the stub hands them the deployment's client instead of connecting anywhere.
-    # They bind `easy` when they run, after this patch.
+    # The scripts do `with connect(Mikro, ...) as mikro:`; the stub hands them the
+    # deployment's client instead. They bind `connect` when they run, after this patch.
     import arkitekt
 
-    monkeypatch.setattr(arkitekt, "easy", _stub_easy_for(deployed_app.mikro))
+    monkeypatch.setattr(arkitekt, "connect", _stub_connect_for(deployed_app.mikro))
     monkeypatch.setattr(sys, "argv", [script])
     monkeypatch.syspath_prepend(str(EXAMPLES))
 

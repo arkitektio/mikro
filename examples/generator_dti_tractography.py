@@ -38,13 +38,13 @@ import numpy as np
 import pandas as pd
 import trimesh
 import xarray as xr
-from arkitekt import easy
+from arkitekt import connect
 from fabriks import build_collection
 from scipy.ndimage import gaussian_filter
 from scipy.spatial import cKDTree
 from skimage.measure import marching_cubes
 
-from mikro import Unit, dataset_arrays, mikro_service, space_3d
+from mikro import Mikro, Unit, dataset_arrays, space_3d
 from mikro.api.schema import (
     AxisInput,
     AxisType,
@@ -401,7 +401,7 @@ if __name__ == "__main__":
         raise SystemExit(0)
 
     # Reusing a sibling generator's cached grant (see generator_smlm.py).
-    with easy("neuron-overlay", mikro_service) as mikro:
+    with connect(Mikro, identifier="neuron-overlay") as mikro:
         world = space_3d(mikro, "DTI · head", unit=Unit("millimeter"))
 
         print("Uploading principal-direction field…")

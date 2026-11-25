@@ -20,7 +20,7 @@ dependencies = [
     "obstore>=0.11.0",
     "kanne>=2.5.0",
     # The service and structures are declared with arkitekt-spec (5.0: a service reads its scopes off its client; 6.1: `fits` is a reserved search variable).
-    "arkitekt-spec>=12.9",
+    "arkitekt-spec>=14",
 ]
 
 [project.optional-dependencies]
@@ -143,7 +143,7 @@ dev = [
     "tifffile>=2024.1.30",
     "scikit-image>=0.22",
     "fakts>=6.1",
-    "rekuest>=6",
+    "rekuest>=19",
     "pyarrow>=24",
     "duckdb>=1.5.3",
     "sporadik>=1.1",
