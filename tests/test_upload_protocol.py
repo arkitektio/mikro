@@ -175,3 +175,36 @@ def test_credentials_are_renewed_against_the_same_store_before_they_expire() -> 
     assert renewed["expires_at"] is not None and renewed[
         "expires_at"
     ] > datetime.datetime.now(datetime.UTC) + datetime.timedelta(minutes=30)
+
+
+def test_a_big_file_is_written_in_the_digests_parts_with_its_checksums(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The object store then verifies the file's digest as it arrives, and mikro never reads it again."""
+    from mikro.api.schema import BigFileUploadGrant
+    from mikro.io import upload
+
+    written: dict[str, Any] = {}
+
+    def put(store: Any, key: str, value: Any, **kwargs: Any) -> None:  # noqa: ANN401
+        written.update(store=store, key=key, **kwargs)
+
+    monkeypatch.setattr(upload.obstore, "put", put)
+    grant = BigFileUploadGrant.model_validate(_grant())
+
+    upload._store_bigfile_via_obstore(
+        FileLike(io.BytesIO(b"x"), name="a"), grant, "http://s3.test"
+    )
+
+    assert written["chunk_size"] == 8 * 1024 * 1024
+    assert written["store"].config["checksum_algorithm"] == "SHA256"
+
+
+def test_the_part_size_is_the_digests() -> None:
+    """The same function as arkitekt-datalayer's `digest.part_size_for`: 8 MiB, doubled to fit 10,000 parts."""
+    from mikro.io.upload import part_size_for
+
+    floor = 8 * 1024 * 1024
+    assert part_size_for(0) == floor
+    assert part_size_for(floor * 10_000) == floor
+    assert part_size_for(floor * 10_000 + 1) == 2 * floor

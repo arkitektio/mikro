@@ -118,8 +118,13 @@ def create_s3_store(
     *,
     proxy: str | None = None,
     certificates: list[str] | None = None,
+    checksum_algorithm: str | None = None,
 ) -> S3Store:
     """Create an obstore S3 client from a Mikro grant and endpoint.
+
+    ``checksum_algorithm`` (a big-file grant's, ``SHA256``) sends that checksum with every
+    request and part, so the object store verifies the upload as it arrives; with the
+    grant's part size as ``chunk_size`` the composite it records is the file's digest.
 
     ``prefix`` roots the store inside the bucket, so every key the caller passes is
     relative to it. Zarr needs this (see :func:`create_zarr_store_path`); the
@@ -168,6 +173,8 @@ def create_s3_store(
             store_kwargs["session_token"] = grant.session_token
     if prefix:
         store_kwargs["prefix"] = prefix
+    if checksum_algorithm:
+        store_kwargs["checksum_algorithm"] = checksum_algorithm
 
     return S3Store(
         grant.bucket,
