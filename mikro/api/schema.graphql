@@ -286,7 +286,7 @@ input AnimationWaypointInput {
 A human-drawn shape in an annotation collection's coordinate system. It belongs to the collection, not to a scene: delete the scene and the annotation survives
 """
 type Annotation @key(fields: "id", resolvable: true) @identified(by: "@mikro/annotation") {
-  id: UUID!
+  id: ID!
 
   """
   The collection this annotation belongs to; its vectors are expressed in the collection's own coordinate system
@@ -672,7 +672,7 @@ input AnnotationFilter {
 
   """Only what the workflow (its root task id) created"""
   createdUnder: ID
-  id: UUID
+  id: ID
   name: StrFilterLookup
   description: StrFilterLookup
   kind: AnnotationKindChoices
@@ -1968,6 +1968,19 @@ type BigFileStore @key(fields: "id", resolvable: true) @identified(by: "@mikro/b
   originalFileName: String
   contentType: String
 
+  """
+  What the bytes are: the hex SHA-256 composite over parts cut at a size that follows from the file's size (`digestAlgorithm`). Two files with the same digest and size hold the same bytes. Null while it is owed
+  """
+  digest: String
+
+  """How `digest` was computed: `sha256-composite`"""
+  digestAlgorithm: String
+
+  """
+  A fingerprint of the size and three windows of the file: what a client computes before uploading, to ask whether the file may already be stored. A candidate, not a proof
+  """
+  sample: String
+
   """Get temporary S3 read credentials for the object."""
   accessGrant: BigFileAccessGrant!
 }
@@ -1988,6 +2001,8 @@ type BigFileUploadGrant {
   originalFileName: String
   uploadFileName: String!
   uploadContentType: String
+  partSize: ByteCount!
+  checksumAlgorithm: String!
 }
 
 """Composites its children using an in-layer blend mode"""
@@ -5048,6 +5063,25 @@ type DistributionChartLayer implements ChartLayer @key(fields: "id", resolvable:
 }
 
 """
+Files holding one set of bytes: the same digest and size. What keeping one of them would free is `redundantBytes`
+"""
+type DuplicateFileGroup {
+  """The bytes' digest (`BigFileStore.digest`)"""
+  digest: String!
+
+  """The size of each copy, in bytes"""
+  size: ByteCount!
+
+  """The files holding these bytes, oldest first"""
+  files: [File!]!
+
+  """
+  The bytes stored more than once: the size times the copies past the first
+  """
+  redundantBytes: ByteCount!
+}
+
+"""
 How a viewer eases the camera along the travel into an animation waypoint.
 """
 enum Easing {
@@ -5342,6 +5376,11 @@ type File @key(fields: "id", resolvable: true) @identified(by: "@mikro/file") {
   The containers this file was written from: the dataset exported to OME-TIFF, the mesh collection written to STL. The mirror of `derivedContainers`
   """
   exportedFrom(filters: FileLinkFilter): [FileLink!]!
+
+  """
+  The other files of this organization holding the same bytes: the same store, or one whose `digest` and size are this file's. Empty while this file's digest is owed (`store.digest` is null), and read only -- nothing is merged; both files stand until someone deletes one
+  """
+  duplicates: [File!]!
 }
 
 type FileEvent {
@@ -5414,6 +5453,11 @@ input FileFilter {
 
   """Filter by a list of folder IDs"""
   folders: [ID!]
+
+  """
+  Filter for files that share their bytes (`store.digest` and size) with another file of the organization (`true`), or with none (`false`). A file whose digest is still owed shares with none
+  """
+  duplicated: Boolean
 
   """
   Filter for files nothing was exported into: the raw sources a converter read, as opposed to the files written out of data already here. Reads the file's links, which replaced the `origins` M2M -- that column was never written by any resolver, so this filter used to answer `true` for every file in the database
@@ -12083,7 +12127,9 @@ type Query {
   """
   annotations(filters: AnnotationFilter, ordering: [AnnotationOrder!]! = [], pagination: OffsetPaginationInput): [Annotation!]! @auth(required_scopes: ["mikro_read"])
 
-  """Get a single annotation by ID"""
+  """
+  Get a single annotation by ID (or by the UUID that was its ID before shapes got integer ids)
+  """
   annotation(id: ID!): Annotation! @auth(required_scopes: ["mikro_read"])
 
   """
@@ -12379,6 +12425,16 @@ type Query {
     """The unique identifier of an object"""
     id: ID!
   ): File! @auth(required_scopes: ["mikro_read"])
+
+  """
+  The files of this organization that may already hold a file a client is about to upload: the same size and the same `sample` (the SHA-256 of the size and the first, middle and last 4 MiB -- `BigFileStore.sample`). A candidate, not a proof: a candidate whose `store.digest` is known can be compared with the client's own digest of the whole file. Oldest first
+  """
+  fileCandidates(size: ByteCount!, sample: String!): [File!]! @auth(required_scopes: ["mikro_read"])
+
+  """
+  The sets of files of this organization holding the same bytes (the same `store.digest` and size), most redundant bytes first. Files whose digest is still owed are in none: `digest_bigfiles` records it
+  """
+  fileDuplicateGroups(pagination: OffsetPaginationInput = null): [DuplicateFileGroup!]! @auth(required_scopes: ["mikro_read"])
 
   """Get a single folder by ID"""
   folder(
@@ -15299,8 +15355,6 @@ type TranslationTransformation implements Transformation @key(fields: "id", reso
   """The per-axis offsets, in the axis order of the input system"""
   translation: [Float!]!
 }
-
-scalar UUID
 
 """
 A physical unit of measurement (``"mV"``, ``"S/cm2"``, ``"second"``).

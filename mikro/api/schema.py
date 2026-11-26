@@ -1464,7 +1464,7 @@ class AnnotationFilter(BaseModel):
     created_after: datetime | None = Field(validation_alias=AliasChoices('created_after', 'createdAfter'), serialization_alias='createdAfter', default=None, description='Filter for items created after this datetime')
     in_collaboration: ID | None = Field(validation_alias=AliasChoices('in_collaboration', 'inCollaboration'), serialization_alias='inCollaboration', default=None, description='Only what is in this collaboration (its key): put in, or part of what was')
     created_under: ID | None = Field(validation_alias=AliasChoices('created_under', 'createdUnder'), serialization_alias='createdUnder', default=None, description='Only what the workflow (its root task id) created')
-    id: str | None = None
+    id: ID | None = None
     name: 'StrFilterLookup | None' = None
     description: 'StrFilterLookup | None' = None
     kind: AnnotationKindChoices | None = None
@@ -3599,7 +3599,7 @@ class AnnotationDerivationSource(BaseModel):
     """A human-drawn shape in an annotation collection's coordinate system. It belongs to the collection, not to a scene: delete the scene and the annotation survives"""
     __identifier__: ClassVar[Literal['@mikro/annotation']] = '@mikro/annotation'
     typename: Literal['Annotation'] = Field(alias='__typename', default='Annotation', exclude=True)
-    id: str
+    id: ID
     name: str
     kind: AnnotationKind
     model_config = ConfigDict(frozen=True)
@@ -3608,7 +3608,7 @@ class AnnotationDerivationChild(BaseModel):
     """A human-drawn shape in an annotation collection's coordinate system. It belongs to the collection, not to a scene: delete the scene and the annotation survives"""
     __identifier__: ClassVar[Literal['@mikro/annotation']] = '@mikro/annotation'
     typename: Literal['Annotation'] = Field(alias='__typename', default='Annotation', exclude=True)
-    id: str
+    id: ID
     name: str
     kind: AnnotationKind
     model_config = ConfigDict(frozen=True)
@@ -6111,7 +6111,7 @@ class Annotation(MikroFetchable, BaseModel):
     typename: Literal['Annotation'] = Field(alias='__typename', default='Annotation', exclude=True)
     descriptors: Any
     "This object's descriptors, a flat mapping of key to value: the facts about it that an action's port can `require` and a trigger can test (e.g. `@mikro/n_channels`). The keys are the ones mikro declares for this structure, and the values are the ones a signal about the object carries. Empty for a structure that declares none"
-    id: str
+    id: ID
     name: str
     kind: AnnotationKind
     vectors: tuple[tuple[float, ...], ...]
@@ -9125,7 +9125,7 @@ class SearchAnimationsQuery(BaseModel):
 class GetAnnotationQuery(BaseModel):
     """No documentation found for this operation."""
     annotation: Annotation
-    'Get a single annotation by ID'
+    'Get a single annotation by ID (or by the UUID that was its ID before shapes got integer ids)'
 
     class Arguments(BaseModel):
         """Arguments for GetAnnotation """
@@ -9139,7 +9139,7 @@ class GetAnnotationLineageQueryAnnotation(BaseModel):
     """A human-drawn shape in an annotation collection's coordinate system. It belongs to the collection, not to a scene: delete the scene and the annotation survives"""
     __identifier__: ClassVar[Literal['@mikro/annotation']] = '@mikro/annotation'
     typename: Literal['Annotation'] = Field(alias='__typename', default='Annotation', exclude=True)
-    id: str
+    id: ID
     derived_from: tuple[AnnotationDerivation, ...] = Field(alias='derivedFrom')
     "The shapes this one was made from, and how, in the order its creator named them: the other end of `derivedAnnotations`. Empty for a shape drawn from nothing. Shape to shape only -- what *data* a shape was computed from is its collection's `derivedFrom`, and what was computed from it is `derivedResidents`"
     derived_annotations: tuple[Annotation, ...] = Field(alias='derivedAnnotations')
@@ -9149,7 +9149,7 @@ class GetAnnotationLineageQueryAnnotation(BaseModel):
 class GetAnnotationLineageQuery(BaseModel):
     """ A shape's own lineage: the shapes it was made from (and how), and the shapes made from it."""
     annotation: GetAnnotationLineageQueryAnnotation
-    'Get a single annotation by ID'
+    'Get a single annotation by ID (or by the UUID that was its ID before shapes got integer ids)'
 
     class Arguments(BaseModel):
         """Arguments for GetAnnotationLineage """
@@ -9228,7 +9228,7 @@ class SearchAnnotationsQueryOptions(BaseModel):
     """A human-drawn shape in an annotation collection's coordinate system. It belongs to the collection, not to a scene: delete the scene and the annotation survives"""
     __identifier__: ClassVar[Literal['@mikro/annotation']] = '@mikro/annotation'
     typename: Literal['Annotation'] = Field(alias='__typename', default='Annotation', exclude=True)
-    value: str
+    value: ID
     label: str
     model_config = ConfigDict(frozen=True)
 
@@ -19780,7 +19780,7 @@ Returns:
     async def aget_annotation(self, id: IDCoercible, task: TaskLike | None=None) -> Annotation:
         """GetAnnotation 
 
-Get a single annotation by ID
+Get a single annotation by ID (or by the UUID that was its ID before shapes got integer ids)
 
 Args:
     id (ID): No description
@@ -19796,7 +19796,7 @@ Returns:
     def get_annotation(self, id: IDCoercible, task: TaskLike | None=None) -> Annotation:
         """GetAnnotation 
 
-Get a single annotation by ID
+Get a single annotation by ID (or by the UUID that was its ID before shapes got integer ids)
 
 Args:
     id (ID): No description
